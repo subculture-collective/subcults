@@ -3,9 +3,11 @@
 Subcult connects underground and local music communities by mapping scenes, events, and live audio sessions while preserving autonomy, privacy, and creative identity.
 
 ## Vision
+
 Rebuild the connective tissue of the underground: a trust‑based discovery layer (not a follower feed) where artists, venues, collectives, and curators surface what is happening around them without algorithmic flattening.
 
 ## Core Pillars
+
 1. Presence over popularity
 2. Scene sovereignty (custom identity & membership rules)
 3. Human discovery (proximity + trust > opaque ranking)
@@ -13,6 +15,7 @@ Rebuild the connective tissue of the underground: a trust‑based discovery laye
 5. Privacy first (coarse location, consent‑based precision)
 
 ## Initial Stack
+
 - Frontend: Vite + React + TypeScript + MapLibre (MapTiler tiles)
 - Backend: Go (chi) API + Jetstream indexer
 - RTC Audio: LiveKit Cloud (WebRTC SFU, TURN, token issuance)
@@ -21,6 +24,7 @@ Rebuild the connective tissue of the underground: a trust‑based discovery laye
 - Payments: Stripe Connect (direct scene payouts, platform fee)
 
 ## Early Features (MVP)
+
 - Create & manage scenes (visual identity, membership)
 - Publish events & posts (flyers, mixes, releases)
 - Map-based discovery (nearby scenes/events, clustering)
@@ -30,6 +34,7 @@ Rebuild the connective tissue of the underground: a trust‑based discovery laye
 - Direct revenue (ticket/merch checkout)
 
 ## Roadmap Phases
+
 | Phase | Focus | Key Outcomes |
 |-------|-------|--------------|
 | 0 | Foundations | Containerized stack, core schema, auth, config |
@@ -38,6 +43,7 @@ Rebuild the connective tissue of the underground: a trust‑based discovery laye
 | 3 | Scale & Performance | OpenSearch option, mobile app alignment, backfills |
 
 ## Development Principles
+
 - Small, self‑contained issues (actionable, testable, reversible)
 - Explicit acceptance criteria & privacy considerations per feature
 - Observability baked in (structured logs + metrics + traces)
@@ -102,10 +108,13 @@ Run `make help` to see all available targets:
 - `make fmt` - Format Go code
 
 ## Getting Started (Local Skeleton – Planned)
+
 Documented in forthcoming issues: Docker Compose, Caddy reverse proxy, `.env.example` provisioning, migration scripts.
 
 ## License
+
 To be defined. (Planned: permissive OSS; Apache-2.0 or MIT.)
 
 ## Contributing
+
 Roadmap issues will guide implementation. Open discussion for refinements before large structural changes.
