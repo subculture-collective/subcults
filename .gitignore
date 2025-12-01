@@ -1,0 +1,24 @@
+# Node / Frontend
+node_modules/
+dist/
+.vite/
+.eslintcache
+*.log
+
+# Build artifacts
+*.DS_Store
+
+# Env files
+.env*
+!/.env.example
+
+# Go
+bin/
+coverage.out
+
+# IDE
+.idea/
+.vscode/
+
+# Docker
+*.pid
