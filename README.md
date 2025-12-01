@@ -69,6 +69,7 @@ subcults/
 ## Getting Started
 
 ### Prerequisites
+
 - Go 1.21+
 - Node.js 18+
 - Docker & Docker Compose (coming soon)
@@ -76,23 +77,27 @@ subcults/
 ### Setup
 
 1. Copy environment configuration:
+
    ```bash
    cp configs/dev.env.example configs/dev.env
    # Edit configs/dev.env with your values
    ```
 
 2. Install dependencies:
+
    ```bash
    go mod tidy
    npm install
    ```
 
 3. Build the project:
+
    ```bash
    make build
    ```
 
 4. Run tests:
+
    ```bash
    make test
    ```
@@ -100,6 +105,7 @@ subcults/
 ### Available Make Targets
 
 Run `make help` to see all available targets:
+
 - `make build` - Build all Go binaries
 - `make test` - Run all tests
 - `make lint` - Run linters
