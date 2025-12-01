@@ -29,7 +29,7 @@ func TestGenerateAccessToken(t *testing.T) {
 			name:    "empty userID",
 			userID:  "",
 			did:     "did:web:example.com",
-			wantErr: false,
+			wantErr: true,
 		},
 		{
 			name:    "empty did",
@@ -69,7 +69,7 @@ func TestGenerateRefreshToken(t *testing.T) {
 		{
 			name:    "empty userID",
 			userID:  "",
-			wantErr: false,
+			wantErr: true,
 		},
 	}
 
@@ -374,6 +374,24 @@ func TestLeewayValidation(t *testing.T) {
 		_, err := svc.ValidateToken(tokenString)
 		if err != ErrExpiredToken {
 			t.Errorf("ValidateToken() error = %v, want %v", err, ErrExpiredToken)
+		}
+	})
+}
+
+func TestEmptyUserIDError(t *testing.T) {
+	svc := NewJWTService(testSecret)
+
+	t.Run("access token with empty userID", func(t *testing.T) {
+		_, err := svc.GenerateAccessToken("", "did:web:example.com")
+		if err != ErrEmptyUserID {
+			t.Errorf("GenerateAccessToken() error = %v, want %v", err, ErrEmptyUserID)
+		}
+	})
+
+	t.Run("refresh token with empty userID", func(t *testing.T) {
+		_, err := svc.GenerateRefreshToken("")
+		if err != ErrEmptyUserID {
+			t.Errorf("GenerateRefreshToken() error = %v, want %v", err, ErrEmptyUserID)
 		}
 	})
 }

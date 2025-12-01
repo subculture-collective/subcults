@@ -29,6 +29,9 @@ var ErrInvalidToken = errors.New("invalid token")
 // ErrExpiredToken is returned when the token has expired.
 var ErrExpiredToken = errors.New("token has expired")
 
+// ErrEmptyUserID is returned when userID is empty.
+var ErrEmptyUserID = errors.New("userID cannot be empty")
+
 // Claims represents custom JWT claims for the application.
 type Claims struct {
 	jwt.RegisteredClaims
@@ -60,6 +63,10 @@ func NewJWTServiceWithLeeway(secret string, leeway time.Duration) *JWTService {
 
 // GenerateAccessToken creates a new access token (15m expiry) with userID and DID.
 func (s *JWTService) GenerateAccessToken(userID, did string) (string, error) {
+	if userID == "" {
+		return "", ErrEmptyUserID
+	}
+
 	now := time.Now()
 	claims := Claims{
 		RegisteredClaims: jwt.RegisteredClaims{
@@ -77,6 +84,10 @@ func (s *JWTService) GenerateAccessToken(userID, did string) (string, error) {
 
 // GenerateRefreshToken creates a new refresh token (7d expiry) with userID.
 func (s *JWTService) GenerateRefreshToken(userID string) (string, error) {
+	if userID == "" {
+		return "", ErrEmptyUserID
+	}
+
 	now := time.Now()
 	claims := Claims{
 		RegisteredClaims: jwt.RegisteredClaims{
