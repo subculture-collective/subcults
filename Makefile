@@ -14,6 +14,7 @@ help:
 build:
 	@echo "Building Go binaries..."
 	go build -o bin/api ./cmd/api
+	go build -o bin/indexer ./cmd/indexer
 	go build -o bin/backfill ./cmd/backfill
 
 ## test: Run all tests

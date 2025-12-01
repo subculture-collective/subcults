@@ -1,0 +1,36 @@
+# syntax=docker/dockerfile:1
+
+# =============================================================================
+# Frontend Dockerfile - Build static assets for Caddy/nginx serving
+# =============================================================================
+
+# Build stage
+FROM node:20-alpine AS builder
+
+WORKDIR /app
+
+# Copy package files first for better caching
+COPY package.json package-lock.json* ./
+
+# Install dependencies
+# Uses npm ci for reproducible builds when package-lock.json exists
+# Falls back to npm install for initial setup
+RUN if [ -f package-lock.json ]; then \
+      npm ci --ignore-scripts; \
+    elif grep -q '"dependencies"' package.json; then \
+      npm install --ignore-scripts; \
+    fi
+
+# Copy source code
+COPY . .
+
+# Build the frontend application
+RUN npm run build
+
+# =============================================================================
+# Output stage - Static files only (for copying to Caddy/nginx)
+# =============================================================================
+FROM scratch AS dist
+
+# Copy only the built static assets
+COPY --from=builder /app/dist /dist

@@ -1,4 +1,4 @@
-// Package main is the entry point for the API server.
+// Package main is the entry point for the Jetstream indexer.
 package main
 
 import (
@@ -12,14 +12,14 @@ func main() {
 	flag.Parse()
 
 	if *help {
-		fmt.Println("Subcults API Server")
+		fmt.Println("Subcults Jetstream Indexer")
 		fmt.Println()
-		fmt.Println("Usage: api [options]")
+		fmt.Println("Usage: indexer [options]")
 		fmt.Println()
 		fmt.Println("Options:")
 		flag.PrintDefaults()
 		os.Exit(0)
 	}
 
-	// TODO: Initialize API server
+	// TODO: Initialize Jetstream indexer
 }
