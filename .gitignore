@@ -4,21 +4,48 @@ dist/
 .vite/
 .eslintcache
 *.log
+.npm/
+.pnpm-store/
 
 # Build artifacts
 *.DS_Store
+.DS_Store
 
 # Env files
 .env*
 !/.env.example
+!configs/*.env.example
 
 # Go
 bin/
 coverage.out
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+*.test
+*.out
+go.work
 
 # IDE
 .idea/
 .vscode/
+*.swp
+*.swo
+*~
+.project
+.classpath
+.settings/
 
 # Docker
 *.pid
+
+# OS
+Thumbs.db
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+*.bak

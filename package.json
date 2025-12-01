@@ -1,0 +1,18 @@
+{
+  "name": "subcults",
+  "version": "0.0.1",
+  "description": "Subcult connects underground and local music communities",
+  "private": true,
+  "scripts": {
+    "lint": "eslint . --ext .ts,.tsx,.js,.jsx",
+    "format": "prettier --write .",
+    "format:check": "prettier --check ."
+  },
+  "devDependencies": {
+    "eslint": "^8.57.0",
+    "prettier": "^3.3.3"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}

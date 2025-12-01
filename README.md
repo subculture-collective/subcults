@@ -43,6 +43,64 @@ Rebuild the connective tissue of the underground: a trust‑based discovery laye
 - Observability baked in (structured logs + metrics + traces)
 - Security & safety reviews precede public feature exposure
 
+## Project Structure
+
+```
+subcults/
+├── cmd/
+│   ├── api/          # Main API server entry point
+│   └── backfill/     # Backfill command for data migration
+├── internal/         # Private application code
+├── pkg/              # Reusable packages
+├── web/              # Frontend application (Vite + React)
+├── scripts/          # Build and automation scripts
+├── docs/             # Documentation files
+├── migrations/       # Database migration files
+├── configs/          # Configuration templates
+└── perf/             # Performance baselines and reports
+```
+
+## Getting Started
+
+### Prerequisites
+- Go 1.21+
+- Node.js 18+
+- Docker & Docker Compose (coming soon)
+
+### Setup
+
+1. Copy environment configuration:
+   ```bash
+   cp configs/dev.env.example configs/dev.env
+   # Edit configs/dev.env with your values
+   ```
+
+2. Install dependencies:
+   ```bash
+   go mod tidy
+   npm install
+   ```
+
+3. Build the project:
+   ```bash
+   make build
+   ```
+
+4. Run tests:
+   ```bash
+   make test
+   ```
+
+### Available Make Targets
+
+Run `make help` to see all available targets:
+- `make build` - Build all Go binaries
+- `make test` - Run all tests
+- `make lint` - Run linters
+- `make clean` - Remove build artifacts
+- `make tidy` - Tidy Go modules
+- `make fmt` - Format Go code
+
 ## Getting Started (Local Skeleton – Planned)
 Documented in forthcoming issues: Docker Compose, Caddy reverse proxy, `.env.example` provisioning, migration scripts.
 
