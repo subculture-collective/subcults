@@ -4,6 +4,7 @@
   "description": "Subcult connects underground and local music communities",
   "private": true,
   "scripts": {
+    "build": "mkdir -p dist && echo 'Frontend build placeholder' > dist/index.html",
     "lint": "eslint . --ext .ts,.tsx,.js,.jsx",
     "format": "prettier --write .",
     "format:check": "prettier --check ."

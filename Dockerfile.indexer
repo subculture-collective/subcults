@@ -1,0 +1,46 @@
+# syntax=docker/dockerfile:1
+
+# =============================================================================
+# Indexer Dockerfile - Multi-stage build for the Subcults Jetstream Indexer
+# =============================================================================
+
+# Build arguments for cross-compilation
+ARG TARGETOS=linux
+ARG TARGETARCH=amd64
+
+# Build stage
+FROM golang:1.22-alpine AS builder
+
+ARG TARGETOS
+ARG TARGETARCH
+
+WORKDIR /build
+
+# Copy go.mod first for better caching of dependencies
+COPY go.mod ./
+COPY go.sum* ./
+
+# Download dependencies (if any)
+RUN go mod download
+
+# Copy source code
+COPY . .
+
+# Build with CGO disabled for static binary
+RUN CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} go build \
+    -ldflags="-w -s" \
+    -o /build/indexer \
+    ./cmd/indexer
+
+# =============================================================================
+# Runtime stage - Using distroless for minimal attack surface
+# =============================================================================
+FROM gcr.io/distroless/static-debian12:nonroot
+
+# Copy the binary from builder
+COPY --from=builder /build/indexer /app/indexer
+
+# Use non-root user (provided by distroless:nonroot)
+USER nonroot:nonroot
+
+ENTRYPOINT ["/app/indexer"]
