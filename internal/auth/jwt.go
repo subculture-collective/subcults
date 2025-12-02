@@ -105,8 +105,8 @@ func (s *JWTService) GenerateRefreshToken(userID string) (string, error) {
 // ValidateToken parses and validates a JWT token, returning the claims if valid.
 func (s *JWTService) ValidateToken(tokenString string) (*Claims, error) {
 	token, err := jwt.ParseWithClaims(tokenString, &Claims{}, func(token *jwt.Token) (interface{}, error) {
-		// Validate the signing method is HMAC
-		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
+		// Validate the signing method is HS256
+		if token.Method.Alg() != jwt.SigningMethodHS256.Alg() {
 			return nil, ErrInvalidToken
 		}
 		return s.secret, nil
