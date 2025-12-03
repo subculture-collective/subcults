@@ -346,3 +346,78 @@ func TestInMemoryEventRepository_GetByID_ReturnsNilForNonexistent(t *testing.T) 
 		t.Error("GetByID() should return nil for nonexistent event")
 	}
 }
+
+func TestInMemorySceneRepository_Insert_DeepCopyProtection(t *testing.T) {
+	repo := NewInMemorySceneRepository()
+
+	// Insert a scene with precise point and consent
+	originalPoint := &Point{Lat: 40.7128, Lng: -74.0060}
+	scene := &Scene{
+		ID:           "scene-deep-copy",
+		Name:         "Test Scene",
+		AllowPrecise: true,
+		PrecisePoint: originalPoint,
+	}
+
+	err := repo.Insert(scene)
+	if err != nil {
+		t.Fatalf("Insert() error = %v", err)
+	}
+
+	// Modify the original point after insertion
+	originalPoint.Lat = 0.0
+	originalPoint.Lng = 0.0
+
+	// Retrieve and verify stored scene was NOT affected by the modification
+	stored, err := repo.GetByID("scene-deep-copy")
+	if err != nil {
+		t.Fatalf("GetByID() error = %v", err)
+	}
+	if stored == nil {
+		t.Fatal("GetByID() returned nil scene")
+	}
+	if stored.PrecisePoint == nil {
+		t.Fatal("stored scene PrecisePoint should not be nil")
+	}
+	if stored.PrecisePoint.Lat != 40.7128 || stored.PrecisePoint.Lng != -74.0060 {
+		t.Errorf("Insert() should create deep copy; stored PrecisePoint = %+v, want Lat=40.7128, Lng=-74.0060", stored.PrecisePoint)
+	}
+}
+
+func TestInMemoryEventRepository_Insert_DeepCopyProtection(t *testing.T) {
+	repo := NewInMemoryEventRepository()
+
+	// Insert an event with precise point and consent
+	originalPoint := &Point{Lat: 40.7128, Lng: -74.0060}
+	event := &Event{
+		ID:           "event-deep-copy",
+		SceneID:      "scene-1",
+		Name:         "Test Event",
+		AllowPrecise: true,
+		PrecisePoint: originalPoint,
+	}
+
+	err := repo.Insert(event)
+	if err != nil {
+		t.Fatalf("Insert() error = %v", err)
+	}
+
+	// Modify the original point after insertion
+	originalPoint.Lat = 0.0
+	originalPoint.Lng = 0.0
+
+	// Retrieve and verify stored event was NOT affected by the modification
+	stored, err := repo.GetByID("event-deep-copy")
+	if err != nil {
+		t.Fatalf("GetByID() error = %v", err)
+	}
+	if stored == nil {
+		t.Fatal("GetByID() returned nil event")
+	}
+	if stored.PrecisePoint == nil {
+		t.Fatal("stored event PrecisePoint should not be nil")
+	}
+	if stored.PrecisePoint.Lat != 40.7128 || stored.PrecisePoint.Lng != -74.0060 {
+		t.Errorf("Insert() should create deep copy; stored PrecisePoint = %+v, want Lat=40.7128, Lng=-74.0060", stored.PrecisePoint)
+	}
+}

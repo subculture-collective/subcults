@@ -48,8 +48,12 @@ func NewInMemorySceneRepository() *InMemorySceneRepository {
 // Insert stores a new scene, enforcing location consent.
 // If allow_precise is false, precise_point will be set to NULL.
 func (r *InMemorySceneRepository) Insert(scene *Scene) error {
-	// Create a copy to avoid modifying the original
+	// Create a deep copy to avoid modifying the original
 	sceneCopy := *scene
+	if scene.PrecisePoint != nil {
+		pointCopy := *scene.PrecisePoint
+		sceneCopy.PrecisePoint = &pointCopy
+	}
 
 	// Enforce consent before storing - this is the critical privacy control
 	sceneCopy.EnforceLocationConsent()
@@ -61,8 +65,12 @@ func (r *InMemorySceneRepository) Insert(scene *Scene) error {
 // Update modifies an existing scene, enforcing location consent.
 // If allow_precise is false, precise_point will be set to NULL.
 func (r *InMemorySceneRepository) Update(scene *Scene) error {
-	// Create a copy to avoid modifying the original
+	// Create a deep copy to avoid modifying the original
 	sceneCopy := *scene
+	if scene.PrecisePoint != nil {
+		pointCopy := *scene.PrecisePoint
+		sceneCopy.PrecisePoint = &pointCopy
+	}
 
 	// Enforce consent before storing - this is the critical privacy control
 	sceneCopy.EnforceLocationConsent()
@@ -102,8 +110,12 @@ func NewInMemoryEventRepository() *InMemoryEventRepository {
 // Insert stores a new event, enforcing location consent.
 // If allow_precise is false, precise_point will be set to NULL.
 func (r *InMemoryEventRepository) Insert(event *Event) error {
-	// Create a copy to avoid modifying the original
+	// Create a deep copy to avoid modifying the original
 	eventCopy := *event
+	if event.PrecisePoint != nil {
+		pointCopy := *event.PrecisePoint
+		eventCopy.PrecisePoint = &pointCopy
+	}
 
 	// Enforce consent before storing - this is the critical privacy control
 	eventCopy.EnforceLocationConsent()
@@ -115,8 +127,12 @@ func (r *InMemoryEventRepository) Insert(event *Event) error {
 // Update modifies an existing event, enforcing location consent.
 // If allow_precise is false, precise_point will be set to NULL.
 func (r *InMemoryEventRepository) Update(event *Event) error {
-	// Create a copy to avoid modifying the original
+	// Create a deep copy to avoid modifying the original
 	eventCopy := *event
+	if event.PrecisePoint != nil {
+		pointCopy := *event.PrecisePoint
+		eventCopy.PrecisePoint = &pointCopy
+	}
 
 	// Enforce consent before storing - this is the critical privacy control
 	eventCopy.EnforceLocationConsent()
