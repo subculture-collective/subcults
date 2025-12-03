@@ -128,7 +128,17 @@ export DATABASE_URL='postgres://user:pass@localhost:5432/subcults?sslmode=disabl
 Apply all pending migrations:
 
 ```bash
+# Make the script executable (first time only)
+chmod +x scripts/migrate.sh
+
+# Run migrations
 ./scripts/migrate.sh up
+```
+
+Alternatively, you can run the script with `bash`:
+
+```bash
+bash scripts/migrate.sh up
 ```
 
 Apply a specific number of migrations:

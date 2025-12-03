@@ -8,6 +8,7 @@
 #   ./scripts/migrate.sh down 1      # Rollback last 1 migration
 #   ./scripts/migrate.sh version     # Show current migration version
 #   ./scripts/migrate.sh force N     # Force set version (use with caution)
+#   ./scripts/migrate.sh drop        # Drop everything in database (use with caution)
 #
 # Environment Variables:
 #   DATABASE_URL - PostgreSQL connection string (required)
@@ -73,10 +74,21 @@ run_migrate() {
     local args=("$@")
     
     if use_docker; then
+        # Resolve absolute path for migrations directory
+        local migrations_abs_path
+        if [[ "${MIGRATIONS_PATH}" = /* ]]; then
+            migrations_abs_path="${MIGRATIONS_PATH}"
+        else
+            migrations_abs_path="$(pwd)/${MIGRATIONS_PATH}"
+        fi
+        
         # Use Docker with volume mount for migrations
+        # Note: --network host is used to allow the container to connect to databases
+        # running on the host or accessible via host network. For production deployments
+        # with containerized databases, consider using Docker networks instead.
         docker run --rm \
             --network host \
-            -v "$(pwd)/${MIGRATIONS_PATH}:/migrations:ro" \
+            -v "${migrations_abs_path}:/migrations:ro" \
             "${MIGRATE_IMAGE}" \
             -path=/migrations \
             -database "${DATABASE_URL}" \
@@ -98,6 +110,10 @@ main() {
     case "${command}" in
         up)
             if [[ $# -gt 0 ]]; then
+                if ! [[ "$1" =~ ^[0-9]+$ ]] || [[ "$1" -lt 1 ]]; then
+                    echo "Error: step count must be a positive integer" >&2
+                    exit 1
+                fi
                 echo "Applying ${1} migration(s)..."
                 run_migrate up "$1"
             else
@@ -109,6 +125,10 @@ main() {
         down)
             if [[ $# -lt 1 ]]; then
                 echo "Error: 'down' command requires step count (e.g., down 1)" >&2
+                exit 1
+            fi
+            if ! [[ "$1" =~ ^[0-9]+$ ]] || [[ "$1" -lt 1 ]]; then
+                echo "Error: step count must be a positive integer" >&2
                 exit 1
             fi
             echo "Rolling back ${1} migration(s)..."
