@@ -69,6 +69,15 @@ use_docker() {
     exit 1
 }
 
+# Validate step count is a positive integer
+validate_step_count() {
+    local step="$1"
+    if ! [[ "${step}" =~ ^[0-9]+$ ]] || [[ "${step}" -lt 1 ]]; then
+        echo "Error: step count must be a positive integer" >&2
+        exit 1
+    fi
+}
+
 # Run migrate command
 run_migrate() {
     local args=("$@")
@@ -110,10 +119,7 @@ main() {
     case "${command}" in
         up)
             if [[ $# -gt 0 ]]; then
-                if ! [[ "$1" =~ ^[0-9]+$ ]] || [[ "$1" -lt 1 ]]; then
-                    echo "Error: step count must be a positive integer" >&2
-                    exit 1
-                fi
+                validate_step_count "$1"
                 echo "Applying ${1} migration(s)..."
                 run_migrate up "$1"
             else
@@ -127,10 +133,7 @@ main() {
                 echo "Error: 'down' command requires step count (e.g., down 1)" >&2
                 exit 1
             fi
-            if ! [[ "$1" =~ ^[0-9]+$ ]] || [[ "$1" -lt 1 ]]; then
-                echo "Error: step count must be a positive integer" >&2
-                exit 1
-            fi
+            validate_step_count "$1"
             echo "Rolling back ${1} migration(s)..."
             run_migrate down "$1"
             echo "Done."
