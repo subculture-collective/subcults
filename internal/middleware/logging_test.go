@@ -290,6 +290,19 @@ func TestResponseWriter_WriteHeader(t *testing.T) {
 	}
 }
 
+func TestResponseWriter_MultipleWriteHeader(t *testing.T) {
+	w := httptest.NewRecorder()
+	rw := newResponseWriter(w)
+
+	rw.WriteHeader(http.StatusCreated)
+	rw.WriteHeader(http.StatusBadRequest) // Second call should not change statusCode
+
+	// Should capture the first status code
+	if rw.statusCode != http.StatusCreated {
+		t.Errorf("expected status code 201, got %d", rw.statusCode)
+	}
+}
+
 func TestResponseWriter_Write(t *testing.T) {
 	w := httptest.NewRecorder()
 	rw := newResponseWriter(w)

@@ -46,13 +46,20 @@ func GetErrorCode(ctx context.Context) string {
 // responseWriter wraps http.ResponseWriter to capture status code and response size.
 type responseWriter struct {
 	http.ResponseWriter
-	statusCode int
-	size       int
+	statusCode  int
+	size        int
+	wroteHeader bool
 }
 
 // WriteHeader captures the status code before writing it.
+// Only the first call sets the status code; subsequent calls are ignored
+// to match http.ResponseWriter behavior where only the first status is sent.
 func (rw *responseWriter) WriteHeader(code int) {
+	if rw.wroteHeader {
+		return
+	}
 	rw.statusCode = code
+	rw.wroteHeader = true
 	rw.ResponseWriter.WriteHeader(code)
 }
 
@@ -91,6 +98,9 @@ func NewLogger(env string) *slog.Logger {
 // Logging is a middleware that logs HTTP requests with structured fields.
 // It captures: method, path, status, latency (ms), request ID, user DID (if present),
 // response size, and error_code (for error responses).
+//
+// Note: If a handler panics, the log entry will not be written. To ensure logging
+// even on panics, place a recovery middleware outside of the logging middleware.
 func Logging(logger *slog.Logger) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -131,18 +141,13 @@ func Logging(logger *slog.Logger) func(http.Handler) http.Handler {
 				}
 			}
 
-			// Log at appropriate level based on status code
-			logAttrs := make([]any, len(attrs))
-			for i, attr := range attrs {
-				logAttrs[i] = attr
-			}
-
+			// Log at appropriate level based on status code using LogAttrs
 			if rw.statusCode >= 500 {
-				logger.Error("request completed", logAttrs...)
+				logger.LogAttrs(r.Context(), slog.LevelError, "request completed", attrs...)
 			} else if rw.statusCode >= 400 {
-				logger.Warn("request completed", logAttrs...)
+				logger.LogAttrs(r.Context(), slog.LevelWarn, "request completed", attrs...)
 			} else {
-				logger.Info("request completed", logAttrs...)
+				logger.LogAttrs(r.Context(), slog.LevelInfo, "request completed", attrs...)
 			}
 		})
 	}

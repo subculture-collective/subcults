@@ -14,13 +14,32 @@ type requestIDKey struct{}
 // RequestIDHeader is the HTTP header name for request ID.
 const RequestIDHeader = "X-Request-ID"
 
+// maxRequestIDLength is the maximum allowed length for a request ID.
+const maxRequestIDLength = 128
+
+// isValidRequestID checks if a request ID is valid.
+// Valid request IDs are non-empty, at most 128 characters, and contain only
+// alphanumeric characters, hyphens, and underscores.
+func isValidRequestID(id string) bool {
+	if id == "" || len(id) > maxRequestIDLength {
+		return false
+	}
+	for _, c := range id {
+		if !((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') || c == '-' || c == '_') {
+			return false
+		}
+	}
+	return true
+}
+
 // RequestID is a middleware that injects a request ID into the context.
-// If the request already has an X-Request-ID header, it uses that value.
+// If the request already has a valid X-Request-ID header, it uses that value.
 // Otherwise, it generates a new UUID.
+// Request IDs from headers are validated to prevent injection attacks.
 func RequestID(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		requestID := r.Header.Get(RequestIDHeader)
-		if requestID == "" {
+		if !isValidRequestID(requestID) {
 			requestID = uuid.New().String()
 		}
 
