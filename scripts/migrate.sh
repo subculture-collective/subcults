@@ -78,6 +78,15 @@ validate_step_count() {
     fi
 }
 
+# Validate version number is a non-negative integer
+validate_version() {
+    local version="$1"
+    if ! [[ "${version}" =~ ^[0-9]+$ ]]; then
+        echo "Error: version must be a non-negative integer" >&2
+        exit 1
+    fi
+}
+
 # Run migrate command
 run_migrate() {
     local args=("$@")
@@ -147,6 +156,7 @@ main() {
                 echo "Error: 'force' command requires version number" >&2
                 exit 1
             fi
+            validate_version "$1"
             echo "Forcing version to ${1}..."
             run_migrate force "$1"
             echo "Done."
