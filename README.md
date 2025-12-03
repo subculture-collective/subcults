@@ -113,9 +113,47 @@ Run `make help` to see all available targets:
 - `make tidy` - Tidy Go modules
 - `make fmt` - Format Go code
 
+### Database Migrations
+
+Database schema changes are managed using [golang-migrate](https://github.com/golang-migrate/migrate). Migrations are stored in the `migrations/` directory.
+
+#### Running Migrations
+
+The migration script requires `DATABASE_URL` environment variable to be set:
+
+```bash
+export DATABASE_URL='postgres://user:pass@localhost:5432/subcults?sslmode=disable'
+```
+
+Apply all pending migrations:
+
+```bash
+./scripts/migrate.sh up
+```
+
+Apply a specific number of migrations:
+
+```bash
+./scripts/migrate.sh up 1
+```
+
+Rollback the last migration:
+
+```bash
+./scripts/migrate.sh down 1
+```
+
+Check current migration version:
+
+```bash
+./scripts/migrate.sh version
+```
+
+The script automatically uses either the local `migrate` binary (if installed) or falls back to Docker.
+
 ## Getting Started (Local Skeleton – Planned)
 
-Documented in forthcoming issues: Docker Compose, Caddy reverse proxy, `.env.example` provisioning, migration scripts.
+Documented in forthcoming issues: Docker Compose, Caddy reverse proxy, `.env.example` provisioning.
 
 ## License
 

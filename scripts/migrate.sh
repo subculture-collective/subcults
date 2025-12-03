@@ -1,0 +1,150 @@
+#!/usr/bin/env bash
+# Migration script using golang-migrate
+# Supports up/down migrations with optional step count
+#
+# Usage:
+#   ./scripts/migrate.sh up          # Apply all pending migrations
+#   ./scripts/migrate.sh up 1        # Apply next 1 migration
+#   ./scripts/migrate.sh down 1      # Rollback last 1 migration
+#   ./scripts/migrate.sh version     # Show current migration version
+#   ./scripts/migrate.sh force N     # Force set version (use with caution)
+#
+# Environment Variables:
+#   DATABASE_URL - PostgreSQL connection string (required)
+#   MIGRATIONS_PATH - Path to migrations directory (default: ./migrations)
+
+set -euo pipefail
+
+# Configuration
+MIGRATIONS_PATH="${MIGRATIONS_PATH:-./migrations}"
+MIGRATE_IMAGE="migrate/migrate:v4.17.0"
+
+# Show usage
+usage() {
+    echo "Usage: $0 <command> [args]"
+    echo ""
+    echo "Commands:"
+    echo "  up [N]        Apply all (or N) pending migrations"
+    echo "  down N        Rollback N migrations (N is required)"
+    echo "  version       Show current migration version"
+    echo "  force N       Force set version to N (use with caution)"
+    echo "  drop          Drop everything in the database (use with caution)"
+    echo ""
+    echo "Examples:"
+    echo "  $0 up              # Apply all pending migrations"
+    echo "  $0 up 1            # Apply next migration only"
+    echo "  $0 down 1          # Rollback the last migration"
+    echo "  $0 version         # Show current version"
+    echo ""
+    echo "Environment Variables:"
+    echo "  DATABASE_URL      - PostgreSQL connection string (required)"
+    echo "  MIGRATIONS_PATH   - Path to migrations directory (default: ./migrations)"
+    exit 0
+}
+
+# Show usage if no args or help requested
+if [[ $# -lt 1 ]] || [[ "${1:-}" == "-h" ]] || [[ "${1:-}" == "--help" ]] || [[ "${1:-}" == "help" ]]; then
+    usage
+fi
+
+# Validate required environment variable
+if [[ -z "${DATABASE_URL:-}" ]]; then
+    echo "Error: DATABASE_URL environment variable is required" >&2
+    echo "Example: export DATABASE_URL='postgres://user:pass@host:5432/dbname?sslmode=disable'" >&2
+    exit 1
+fi
+
+# Detect if we should use Docker or local binary
+use_docker() {
+    if command -v migrate &>/dev/null; then
+        return 1  # Use local binary
+    fi
+    if command -v docker &>/dev/null; then
+        return 0  # Use Docker
+    fi
+    echo "Error: Neither 'migrate' binary nor 'docker' is available" >&2
+    echo "Install golang-migrate: https://github.com/golang-migrate/migrate" >&2
+    echo "Or install Docker: https://docs.docker.com/get-docker/" >&2
+    exit 1
+}
+
+# Run migrate command
+run_migrate() {
+    local args=("$@")
+    
+    if use_docker; then
+        # Use Docker with volume mount for migrations
+        docker run --rm \
+            --network host \
+            -v "$(pwd)/${MIGRATIONS_PATH}:/migrations:ro" \
+            "${MIGRATE_IMAGE}" \
+            -path=/migrations \
+            -database "${DATABASE_URL}" \
+            "${args[@]}"
+    else
+        # Use local binary
+        migrate \
+            -path "${MIGRATIONS_PATH}" \
+            -database "${DATABASE_URL}" \
+            "${args[@]}"
+    fi
+}
+
+# Main
+main() {
+    local command="$1"
+    shift
+
+    case "${command}" in
+        up)
+            if [[ $# -gt 0 ]]; then
+                echo "Applying ${1} migration(s)..."
+                run_migrate up "$1"
+            else
+                echo "Applying all pending migrations..."
+                run_migrate up
+            fi
+            echo "Done."
+            ;;
+        down)
+            if [[ $# -lt 1 ]]; then
+                echo "Error: 'down' command requires step count (e.g., down 1)" >&2
+                exit 1
+            fi
+            echo "Rolling back ${1} migration(s)..."
+            run_migrate down "$1"
+            echo "Done."
+            ;;
+        version)
+            echo "Current migration version:"
+            run_migrate version
+            ;;
+        force)
+            if [[ $# -lt 1 ]]; then
+                echo "Error: 'force' command requires version number" >&2
+                exit 1
+            fi
+            echo "Forcing version to ${1}..."
+            run_migrate force "$1"
+            echo "Done."
+            ;;
+        drop)
+            echo "WARNING: This will drop all tables in the database!"
+            read -r -p "Are you sure? (yes/no): " confirm
+            if [[ "${confirm}" == "yes" ]]; then
+                run_migrate drop -f
+                echo "Done."
+            else
+                echo "Aborted."
+                exit 1
+            fi
+            ;;
+        *)
+            echo "Error: Unknown command '${command}'" >&2
+            echo "Run '$0 --help' for usage information." >&2
+            exit 1
+            ;;
+    esac
+}
+
+main "$@"
