@@ -72,7 +72,7 @@ use_docker() {
 # Validate step count is a positive integer
 validate_step_count() {
     local step="$1"
-    if ! [[ "${step}" =~ ^[0-9]+$ ]] || [[ "${step}" -lt 1 ]]; then
+    if ! [[ "${step}" =~ ^[1-9][0-9]*$ ]]; then
         echo "Error: step count must be a positive integer" >&2
         exit 1
     fi
@@ -85,7 +85,7 @@ run_migrate() {
     if use_docker; then
         # Resolve absolute path for migrations directory
         local migrations_abs_path
-        if [[ "${MIGRATIONS_PATH}" = /* ]]; then
+        if [[ "${MIGRATIONS_PATH}" == /* ]]; then
             migrations_abs_path="${MIGRATIONS_PATH}"
         else
             migrations_abs_path="$(pwd)/${MIGRATIONS_PATH}"
