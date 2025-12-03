@@ -2,6 +2,8 @@
 // with location privacy controls.
 package scene
 
+import "sync"
+
 // SceneRepository defines the interface for scene data operations.
 // All implementations must enforce location consent before persisting data.
 type SceneRepository interface {
@@ -33,8 +35,9 @@ type EventRepository interface {
 }
 
 // InMemorySceneRepository is an in-memory implementation of SceneRepository.
-// Used for testing and development.
+// Used for testing and development. Thread-safe via RWMutex.
 type InMemorySceneRepository struct {
+	mu     sync.RWMutex
 	scenes map[string]*Scene
 }
 
@@ -58,7 +61,9 @@ func (r *InMemorySceneRepository) Insert(scene *Scene) error {
 	// Enforce consent before storing - this is the critical privacy control
 	sceneCopy.EnforceLocationConsent()
 
+	r.mu.Lock()
 	r.scenes[sceneCopy.ID] = &sceneCopy
+	r.mu.Unlock()
 	return nil
 }
 
@@ -75,13 +80,17 @@ func (r *InMemorySceneRepository) Update(scene *Scene) error {
 	// Enforce consent before storing - this is the critical privacy control
 	sceneCopy.EnforceLocationConsent()
 
+	r.mu.Lock()
 	r.scenes[sceneCopy.ID] = &sceneCopy
+	r.mu.Unlock()
 	return nil
 }
 
 // GetByID retrieves a scene by its ID.
 func (r *InMemorySceneRepository) GetByID(id string) (*Scene, error) {
+	r.mu.RLock()
 	scene, ok := r.scenes[id]
+	r.mu.RUnlock()
 	if !ok {
 		return nil, nil
 	}
@@ -95,8 +104,9 @@ func (r *InMemorySceneRepository) GetByID(id string) (*Scene, error) {
 }
 
 // InMemoryEventRepository is an in-memory implementation of EventRepository.
-// Used for testing and development.
+// Used for testing and development. Thread-safe via RWMutex.
 type InMemoryEventRepository struct {
+	mu     sync.RWMutex
 	events map[string]*Event
 }
 
@@ -120,7 +130,9 @@ func (r *InMemoryEventRepository) Insert(event *Event) error {
 	// Enforce consent before storing - this is the critical privacy control
 	eventCopy.EnforceLocationConsent()
 
+	r.mu.Lock()
 	r.events[eventCopy.ID] = &eventCopy
+	r.mu.Unlock()
 	return nil
 }
 
@@ -137,13 +149,17 @@ func (r *InMemoryEventRepository) Update(event *Event) error {
 	// Enforce consent before storing - this is the critical privacy control
 	eventCopy.EnforceLocationConsent()
 
+	r.mu.Lock()
 	r.events[eventCopy.ID] = &eventCopy
+	r.mu.Unlock()
 	return nil
 }
 
 // GetByID retrieves an event by its ID.
 func (r *InMemoryEventRepository) GetByID(id string) (*Event, error) {
+	r.mu.RLock()
 	event, ok := r.events[id]
+	r.mu.RUnlock()
 	if !ok {
 		return nil, nil
 	}
