@@ -8,6 +8,7 @@
 #   ./scripts/migrate.sh down 1      # Rollback last 1 migration
 #   ./scripts/migrate.sh version     # Show current migration version
 #   ./scripts/migrate.sh force N     # Force set version (use with caution)
+#   ./scripts/migrate.sh drop        # Drop everything in database (use with caution)
 #
 # Environment Variables:
 #   DATABASE_URL - PostgreSQL connection string (required)
@@ -68,15 +69,48 @@ use_docker() {
     exit 1
 }
 
+# Validate step count is a positive integer
+validate_step_count() {
+    local step="$1"
+    if ! [[ "${step}" =~ ^[1-9][0-9]*$ ]]; then
+        echo "Error: step count must be a positive integer" >&2
+        exit 1
+    fi
+}
+
+# Validate version number is a non-negative integer
+validate_version() {
+    local version="$1"
+    if ! [[ "${version}" =~ ^[0-9]+$ ]]; then
+        echo "Error: version must be a non-negative integer" >&2
+        exit 1
+    fi
+}
+
 # Run migrate command
 run_migrate() {
     local args=("$@")
     
     if use_docker; then
+        # Resolve absolute path for migrations directory
+        local migrations_abs_path
+        if command -v realpath &>/dev/null; then
+            migrations_abs_path="$(realpath "${MIGRATIONS_PATH}")"
+        else
+            if [[ "${MIGRATIONS_PATH}" == /* ]]; then
+                migrations_abs_path="${MIGRATIONS_PATH}"
+            else
+                migrations_abs_path="$(cd "$(dirname "${MIGRATIONS_PATH}")" && pwd)/$(basename "${MIGRATIONS_PATH}")"
+            fi
+        fi
+        
         # Use Docker with volume mount for migrations
+        # Note: --network host is used to allow the container to connect to databases
+        # running on the host or accessible via host network. For production deployments
+        # with containerized databases, consider using Docker networks instead.
         docker run --rm \
             --network host \
-            -v "$(pwd)/${MIGRATIONS_PATH}:/migrations:ro" \
+            -v "${migrations_abs_path}:/migrations:ro" \
             "${MIGRATE_IMAGE}" \
             -path=/migrations \
             -database "${DATABASE_URL}" \
@@ -98,6 +132,7 @@ main() {
     case "${command}" in
         up)
             if [[ $# -gt 0 ]]; then
+                validate_step_count "$1"
                 echo "Applying ${1} migration(s)..."
                 run_migrate up "$1"
             else
@@ -111,6 +146,7 @@ main() {
                 echo "Error: 'down' command requires step count (e.g., down 1)" >&2
                 exit 1
             fi
+            validate_step_count "$1"
             echo "Rolling back ${1} migration(s)..."
             run_migrate down "$1"
             echo "Done."
@@ -124,6 +160,7 @@ main() {
                 echo "Error: 'force' command requires version number" >&2
                 exit 1
             fi
+            validate_version "$1"
             echo "Forcing version to ${1}..."
             run_migrate force "$1"
             echo "Done."
