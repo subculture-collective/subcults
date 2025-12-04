@@ -73,6 +73,7 @@ services:
     environment:
       - GO_ENV=${GO_ENV:-development}
       - DATABASE_URL=${DATABASE_URL}
+      - JETSTREAM_URL=${JETSTREAM_URL}
     networks:
       - internal
     restart: unless-stopped
