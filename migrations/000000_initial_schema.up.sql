@@ -1,5 +1,5 @@
 -- Initial schema for Subcults
--- Creates core tables: scenes, events, posts, memberships, alliances, stream_sessions
+-- Creates core tables: scenes, events, posts, memberships, alliances, stream_sessions, indexer_state
 
 -- Enable required extensions
 CREATE EXTENSION IF NOT EXISTS postgis;
@@ -14,7 +14,7 @@ CREATE TABLE IF NOT EXISTS scenes (
     
     -- Location with privacy controls
     allow_precise BOOLEAN NOT NULL DEFAULT FALSE,
-    precise_point GEOMETRY(Point, 4326), -- WGS84 coordinates, only if allow_precise=true
+    precise_point GEOGRAPHY(Point, 4326), -- WGS84 coordinates, only if allow_precise=true
     coarse_geohash VARCHAR(20), -- Public coarse location
     
     -- Visual identity
@@ -47,7 +47,7 @@ CREATE TABLE IF NOT EXISTS events (
     
     -- Location (can override scene location)
     allow_precise BOOLEAN NOT NULL DEFAULT FALSE,
-    precise_point GEOMETRY(Point, 4326),
+    precise_point GEOGRAPHY(Point, 4326),
     coarse_geohash VARCHAR(20),
     
     -- Timing
@@ -69,6 +69,7 @@ CREATE TABLE IF NOT EXISTS events (
 CREATE INDEX idx_events_scene ON events(scene_id) WHERE deleted_at IS NULL;
 CREATE INDEX idx_events_time ON events(starts_at) WHERE deleted_at IS NULL AND cancelled_at IS NULL;
 CREATE INDEX idx_events_geohash ON events(coarse_geohash) WHERE deleted_at IS NULL;
+CREATE INDEX idx_events_location ON events USING GIST(precise_point) WHERE deleted_at IS NULL AND cancelled_at IS NULL AND allow_precise = TRUE;
 
 COMMENT ON TABLE events IS 'Events within scenes with optional precise location data';
 COMMENT ON COLUMN events.allow_precise IS 'When false, precise_point must be NULL. Consent required for precise location storage.';

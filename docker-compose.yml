@@ -17,6 +17,7 @@ services:
       interval: 5s
       timeout: 5s
       retries: 5
+    restart: unless-stopped
 
   # API server - currently skeleton, will be built when handlers are implemented
   # api:

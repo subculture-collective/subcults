@@ -25,7 +25,7 @@ scene.EnforceLocationConsent()  // Clears PrecisePoint if allow_precise=false
 ```
 
 - Repository methods automatically enforce (see [internal/scene/repository.go](../internal/scene/repository.go))
-- Database migrations default `allow_precise=FALSE` ([migrations/000001_add_allow_precise.up.sql](../migrations/000001_add_allow_precise.up.sql))
+- Database migrations default `allow_precise=FALSE` ([migrations/000000_initial_schema.up.sql](../migrations/000000_initial_schema.up.sql))
 - Tests verify consent enforcement in both models and repositories
 
 ### Authentication
@@ -149,7 +149,7 @@ The project uses detailed GitHub issues for task tracking. Major epics include:
 - **Scene/Event/Post Management** (#10, #15, #17): CRUD APIs for core entities
 - **Trust Graph** (#24): Alliance system + ranking algorithm (feature flagged)
 - **LiveKit Streaming** (#23): WebRTC audio rooms with participant controls
-- **Mapping Frontend** (#14): MapLibre + clustering with privacy jitter visualization
+- **Mapping Frontend** (#21): MapLibre + clustering with privacy jitter visualization
 - **Stripe Connect** (#22): Direct scene payouts with platform fees
 - **Security & Hardening** (#20): Rate limiting, CORS, secret rotation
 - **Observability** (#19): Prometheus metrics, OpenTelemetry tracing, dashboards
