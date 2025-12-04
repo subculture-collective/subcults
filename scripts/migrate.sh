@@ -94,10 +94,14 @@ run_migrate() {
     if use_docker; then
         # Resolve absolute path for migrations directory
         local migrations_abs_path
-        if [[ "${MIGRATIONS_PATH}" == /* ]]; then
-            migrations_abs_path="${MIGRATIONS_PATH}"
+        if command -v realpath &>/dev/null; then
+            migrations_abs_path="$(realpath "${MIGRATIONS_PATH}")"
         else
-            migrations_abs_path="$(pwd)/${MIGRATIONS_PATH}"
+            if [[ "${MIGRATIONS_PATH}" == /* ]]; then
+                migrations_abs_path="${MIGRATIONS_PATH}"
+            else
+                migrations_abs_path="$(cd "$(dirname "${MIGRATIONS_PATH}")" && pwd)/$(basename "${MIGRATIONS_PATH}")"
+            fi
         fi
         
         # Use Docker with volume mount for migrations
