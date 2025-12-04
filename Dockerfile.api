@@ -33,7 +33,11 @@ RUN CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} go build \
     ./cmd/api
 
 # =============================================================================
+# =============================================================================
 # Healthcheck binary stage - Get wget from busybox for healthchecks
+# Note: Distroless images have no shell utilities. We copy a minimal wget binary
+# from busybox to enable Docker healthchecks. This is a common pattern for
+# distroless containers and the binary runs as nonroot user.
 # =============================================================================
 FROM busybox:1.36-musl AS healthcheck
 
@@ -45,7 +49,7 @@ FROM gcr.io/distroless/static-debian12:nonroot
 # Copy the binary from builder
 COPY --from=builder /build/api /app/api
 
-# Copy wget for healthcheck (static binary from busybox)
+# Copy wget for healthcheck (minimal static binary from busybox, ~1MB)
 COPY --from=healthcheck /bin/wget /usr/bin/wget
 
 # Use non-root user (provided by distroless:nonroot)
