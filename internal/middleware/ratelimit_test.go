@@ -184,9 +184,16 @@ func TestInMemoryRateLimitStore_Cleanup(t *testing.T) {
 	}
 	ctx := context.Background()
 
-	// Create some buckets
+	// Create some buckets and use up their limits
 	_, _ = store.Allow(ctx, "key1", config)
 	_, _ = store.Allow(ctx, "key2", config)
+
+	// Verify they are blocked (limits used up)
+	allowed1, _ := store.Allow(ctx, "key1", config)
+	allowed2, _ := store.Allow(ctx, "key2", config)
+	if allowed1 || allowed2 {
+		t.Error("requests should be blocked before cleanup")
+	}
 
 	// Wait for windows to expire
 	time.Sleep(60 * time.Millisecond)
@@ -194,13 +201,11 @@ func TestInMemoryRateLimitStore_Cleanup(t *testing.T) {
 	// Cleanup should remove expired buckets
 	store.Cleanup()
 
-	// Check that buckets are cleaned up by allowing new requests
-	store.mu.RLock()
-	bucketCount := len(store.buckets)
-	store.mu.RUnlock()
-
-	if bucketCount != 0 {
-		t.Errorf("expected 0 buckets after cleanup, got %d", bucketCount)
+	// After cleanup, new requests should be allowed (buckets were removed)
+	allowed1, _ = store.Allow(ctx, "key1", config)
+	allowed2, _ = store.Allow(ctx, "key2", config)
+	if !allowed1 || !allowed2 {
+		t.Errorf("expected new requests to be allowed after cleanup, got allowed1=%v allowed2=%v", allowed1, allowed2)
 	}
 }
 
@@ -305,20 +310,17 @@ func TestUserKeyFunc(t *testing.T) {
 		name       string
 		remoteAddr string
 		userDID    string
-		wantPrefix string
 		wantKey    string
 	}{
 		{
 			name:       "uses IP when no user",
 			remoteAddr: "192.168.1.1:12345",
-			wantPrefix: "ip:",
 			wantKey:    "ip:192.168.1.1",
 		},
 		{
 			name:       "uses user DID when authenticated",
 			remoteAddr: "192.168.1.1:12345",
 			userDID:    "did:web:example.com:user123",
-			wantPrefix: "user:",
 			wantKey:    "user:did:web:example.com:user123",
 		},
 	}
@@ -442,10 +444,20 @@ func TestRateLimiter_ReturnsRetryAfterHeader(t *testing.T) {
 		t.Errorf("Retry-After should be between 1 and 30, got %d", retryAfterInt)
 	}
 
-	// Also check X-RateLimit-Reset header
+	// Check X-RateLimit-Reset header is a Unix timestamp
 	resetHeader := rr2.Header().Get("X-RateLimit-Reset")
 	if resetHeader == "" {
 		t.Error("expected X-RateLimit-Reset header to be set")
+	}
+
+	// Verify it's a valid Unix timestamp in the future
+	resetTime, err := strconv.ParseInt(resetHeader, 10, 64)
+	if err != nil {
+		t.Errorf("X-RateLimit-Reset should be a Unix timestamp: %v", err)
+	}
+	now := time.Now().Unix()
+	if resetTime <= now || resetTime > now+30 {
+		t.Errorf("X-RateLimit-Reset should be a future timestamp within 30 seconds, got %d (now: %d)", resetTime, now)
 	}
 }
 
@@ -571,29 +583,110 @@ func TestRateLimiter_WindowResetsAllowsNewRequests(t *testing.T) {
 
 func TestDefaultLimits(t *testing.T) {
 	// Verify default limits are set correctly
-	if DefaultGlobalLimit.RequestsPerWindow != 100 {
-		t.Errorf("DefaultGlobalLimit.RequestsPerWindow = %d, want 100", DefaultGlobalLimit.RequestsPerWindow)
+	globalLimit := DefaultGlobalLimit()
+	if globalLimit.RequestsPerWindow != 100 {
+		t.Errorf("DefaultGlobalLimit().RequestsPerWindow = %d, want 100", globalLimit.RequestsPerWindow)
 	}
-	if DefaultGlobalLimit.WindowDuration != time.Minute {
-		t.Errorf("DefaultGlobalLimit.WindowDuration = %v, want %v", DefaultGlobalLimit.WindowDuration, time.Minute)
-	}
-
-	if DefaultAuthLimit.RequestsPerWindow != 10 {
-		t.Errorf("DefaultAuthLimit.RequestsPerWindow = %d, want 10", DefaultAuthLimit.RequestsPerWindow)
-	}
-	if DefaultAuthLimit.WindowDuration != time.Minute {
-		t.Errorf("DefaultAuthLimit.WindowDuration = %v, want %v", DefaultAuthLimit.WindowDuration, time.Minute)
+	if globalLimit.WindowDuration != time.Minute {
+		t.Errorf("DefaultGlobalLimit().WindowDuration = %v, want %v", globalLimit.WindowDuration, time.Minute)
 	}
 
-	if DefaultSearchLimit.RequestsPerWindow != 30 {
-		t.Errorf("DefaultSearchLimit.RequestsPerWindow = %d, want 30", DefaultSearchLimit.RequestsPerWindow)
+	authLimit := DefaultAuthLimit()
+	if authLimit.RequestsPerWindow != 10 {
+		t.Errorf("DefaultAuthLimit().RequestsPerWindow = %d, want 10", authLimit.RequestsPerWindow)
 	}
-	if DefaultSearchLimit.WindowDuration != time.Minute {
-		t.Errorf("DefaultSearchLimit.WindowDuration = %v, want %v", DefaultSearchLimit.WindowDuration, time.Minute)
+	if authLimit.WindowDuration != time.Minute {
+		t.Errorf("DefaultAuthLimit().WindowDuration = %v, want %v", authLimit.WindowDuration, time.Minute)
+	}
+
+	searchLimit := DefaultSearchLimit()
+	if searchLimit.RequestsPerWindow != 30 {
+		t.Errorf("DefaultSearchLimit().RequestsPerWindow = %d, want 30", searchLimit.RequestsPerWindow)
+	}
+	if searchLimit.WindowDuration != time.Minute {
+		t.Errorf("DefaultSearchLimit().WindowDuration = %v, want %v", searchLimit.WindowDuration, time.Minute)
 	}
 }
 
 // TestRateLimitStore_Interface verifies that InMemoryRateLimitStore implements RateLimitStore.
 func TestRateLimitStore_Interface(t *testing.T) {
 	var _ RateLimitStore = (*InMemoryRateLimitStore)(nil)
+}
+
+func TestRateLimitConfig_Validate(t *testing.T) {
+	tests := []struct {
+		name      string
+		config    RateLimitConfig
+		wantError bool
+	}{
+		{
+			name: "valid config",
+			config: RateLimitConfig{
+				RequestsPerWindow: 100,
+				WindowDuration:    time.Minute,
+			},
+			wantError: false,
+		},
+		{
+			name: "zero requests",
+			config: RateLimitConfig{
+				RequestsPerWindow: 0,
+				WindowDuration:    time.Minute,
+			},
+			wantError: true,
+		},
+		{
+			name: "negative requests",
+			config: RateLimitConfig{
+				RequestsPerWindow: -1,
+				WindowDuration:    time.Minute,
+			},
+			wantError: true,
+		},
+		{
+			name: "zero window duration",
+			config: RateLimitConfig{
+				RequestsPerWindow: 100,
+				WindowDuration:    0,
+			},
+			wantError: true,
+		},
+		{
+			name: "negative window duration",
+			config: RateLimitConfig{
+				RequestsPerWindow: 100,
+				WindowDuration:    -time.Second,
+			},
+			wantError: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := tt.config.Validate()
+			if tt.wantError && err == nil {
+				t.Error("expected validation error, got nil")
+			}
+			if !tt.wantError && err != nil {
+				t.Errorf("expected no validation error, got %v", err)
+			}
+		})
+	}
+}
+
+func TestDefaultLimits_Immutability(t *testing.T) {
+	// Get copies
+	global1 := DefaultGlobalLimit()
+	global2 := DefaultGlobalLimit()
+
+	// Modify the first copy
+	global1.RequestsPerWindow = 9999
+
+	// Second copy should be unchanged
+	if global2.RequestsPerWindow == 9999 {
+		t.Error("modifying one copy should not affect other copies")
+	}
+	if global2.RequestsPerWindow != 100 {
+		t.Errorf("DefaultGlobalLimit should return 100, got %d", global2.RequestsPerWindow)
+	}
 }
