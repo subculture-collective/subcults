@@ -8,9 +8,17 @@ import "strings"
 // which is suitable for coarse location without pinpointing exact venues.
 const DefaultPrecision = 6
 
-// validGeohashChars contains all valid base32 characters used in geohashes.
+// validGeohashChars is a lookup map for valid base32 characters used in geohashes.
 // Geohash uses a custom base32 alphabet excluding 'a', 'i', 'l', and 'o'.
-const validGeohashChars = "0123456789bcdefghjkmnpqrstuvwxyz"
+var validGeohashChars = map[rune]bool{
+	'0': true, '1': true, '2': true, '3': true, '4': true,
+	'5': true, '6': true, '7': true, '8': true, '9': true,
+	'b': true, 'c': true, 'd': true, 'e': true, 'f': true,
+	'g': true, 'h': true, 'j': true, 'k': true, 'm': true,
+	'n': true, 'p': true, 'q': true, 'r': true, 's': true,
+	't': true, 'u': true, 'v': true, 'w': true, 'x': true,
+	'y': true, 'z': true,
+}
 
 // RoundGeohash truncates a geohash string to the specified precision for privacy.
 // It ensures coarse location display by limiting the geohash resolution.
@@ -37,7 +45,7 @@ func RoundGeohash(input string, precision int) string {
 
 	// Validate that all characters are valid geohash characters
 	for _, c := range lower {
-		if !strings.ContainsRune(validGeohashChars, c) {
+		if !validGeohashChars[c] {
 			return ""
 		}
 	}
