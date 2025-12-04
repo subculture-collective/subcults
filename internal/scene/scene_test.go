@@ -6,34 +6,34 @@ import (
 
 func TestScene_EnforceLocationConsent(t *testing.T) {
 	tests := []struct {
-		name                 string
-		allowPrecise         bool
-		hasPrecisePoint      bool
-		wantPrecisePointNil  bool
+		name                string
+		allowPrecise        bool
+		hasPrecisePoint     bool
+		wantPrecisePointNil bool
 	}{
 		{
-			name:                 "consent false with precise point - should clear",
-			allowPrecise:         false,
-			hasPrecisePoint:      true,
-			wantPrecisePointNil:  true,
+			name:                "consent false with precise point - should clear",
+			allowPrecise:        false,
+			hasPrecisePoint:     true,
+			wantPrecisePointNil: true,
 		},
 		{
-			name:                 "consent false without precise point - remains nil",
-			allowPrecise:         false,
-			hasPrecisePoint:      false,
-			wantPrecisePointNil:  true,
+			name:                "consent false without precise point - remains nil",
+			allowPrecise:        false,
+			hasPrecisePoint:     false,
+			wantPrecisePointNil: true,
 		},
 		{
-			name:                 "consent true with precise point - should keep",
-			allowPrecise:         true,
-			hasPrecisePoint:      true,
-			wantPrecisePointNil:  false,
+			name:                "consent true with precise point - should keep",
+			allowPrecise:        true,
+			hasPrecisePoint:     true,
+			wantPrecisePointNil: false,
 		},
 		{
-			name:                 "consent true without precise point - remains nil",
-			allowPrecise:         true,
-			hasPrecisePoint:      false,
-			wantPrecisePointNil:  true,
+			name:                "consent true without precise point - remains nil",
+			allowPrecise:        true,
+			hasPrecisePoint:     false,
+			wantPrecisePointNil: true,
 		},
 	}
 
@@ -59,34 +59,34 @@ func TestScene_EnforceLocationConsent(t *testing.T) {
 
 func TestEvent_EnforceLocationConsent(t *testing.T) {
 	tests := []struct {
-		name                 string
-		allowPrecise         bool
-		hasPrecisePoint      bool
-		wantPrecisePointNil  bool
+		name                string
+		allowPrecise        bool
+		hasPrecisePoint     bool
+		wantPrecisePointNil bool
 	}{
 		{
-			name:                 "consent false with precise point - should clear",
-			allowPrecise:         false,
-			hasPrecisePoint:      true,
-			wantPrecisePointNil:  true,
+			name:                "consent false with precise point - should clear",
+			allowPrecise:        false,
+			hasPrecisePoint:     true,
+			wantPrecisePointNil: true,
 		},
 		{
-			name:                 "consent false without precise point - remains nil",
-			allowPrecise:         false,
-			hasPrecisePoint:      false,
-			wantPrecisePointNil:  true,
+			name:                "consent false without precise point - remains nil",
+			allowPrecise:        false,
+			hasPrecisePoint:     false,
+			wantPrecisePointNil: true,
 		},
 		{
-			name:                 "consent true with precise point - should keep",
-			allowPrecise:         true,
-			hasPrecisePoint:      true,
-			wantPrecisePointNil:  false,
+			name:                "consent true with precise point - should keep",
+			allowPrecise:        true,
+			hasPrecisePoint:     true,
+			wantPrecisePointNil: false,
 		},
 		{
-			name:                 "consent true without precise point - remains nil",
-			allowPrecise:         true,
-			hasPrecisePoint:      false,
-			wantPrecisePointNil:  true,
+			name:                "consent true without precise point - remains nil",
+			allowPrecise:        true,
+			hasPrecisePoint:     false,
+			wantPrecisePointNil: true,
 		},
 	}
 
@@ -193,7 +193,7 @@ func TestInMemorySceneRepository_Update_WithoutConsent(t *testing.T) {
 	updatedScene := &Scene{
 		ID:           "scene-3",
 		Name:         "Updated Scene",
-		AllowPrecise: false, // Consent removed
+		AllowPrecise: false,                               // Consent removed
 		PrecisePoint: &Point{Lat: 40.7128, Lng: -74.0060}, // Still has point in input
 	}
 
@@ -301,7 +301,7 @@ func TestInMemoryEventRepository_Update_WithoutConsent(t *testing.T) {
 		ID:           "event-3",
 		SceneID:      "scene-1",
 		Name:         "Updated Event",
-		AllowPrecise: false, // Consent removed
+		AllowPrecise: false,                               // Consent removed
 		PrecisePoint: &Point{Lat: 40.7128, Lng: -74.0060}, // Still has point in input
 	}
 
