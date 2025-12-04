@@ -74,8 +74,10 @@ migrate-down:
 
 ## compose-up: Start all services with Docker Compose
 compose-up:
+	@test -f $(DOCKER_COMPOSE_FILE) || (echo "Error: $(DOCKER_COMPOSE_FILE) not found" && exit 1)
 	docker compose -f $(DOCKER_COMPOSE_FILE) up -d
 
 ## compose-down: Stop all services with Docker Compose
 compose-down:
+	@test -f $(DOCKER_COMPOSE_FILE) || (echo "Error: $(DOCKER_COMPOSE_FILE) not found" && exit 1)
 	docker compose -f $(DOCKER_COMPOSE_FILE) down
