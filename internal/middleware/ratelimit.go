@@ -3,8 +3,10 @@ package middleware
 
 import (
 	"context"
+	"net"
 	"net/http"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 )
@@ -119,26 +121,23 @@ func IPKeyFunc() KeyFunc {
 	return func(r *http.Request) string {
 		// Check X-Forwarded-For header first (for proxied requests)
 		if xff := r.Header.Get("X-Forwarded-For"); xff != "" {
-			// Use the first IP in the chain
-			for i := 0; i < len(xff); i++ {
-				if xff[i] == ',' {
-					return xff[:i]
-				}
+			// Use the first IP in the chain, trimming whitespace per RFC 7239
+			if idx := strings.Index(xff, ","); idx != -1 {
+				return strings.TrimSpace(xff[:idx])
 			}
-			return xff
+			return strings.TrimSpace(xff)
 		}
 		// Check X-Real-IP header
 		if xri := r.Header.Get("X-Real-IP"); xri != "" {
-			return xri
+			return strings.TrimSpace(xri)
 		}
-		// Fall back to RemoteAddr (strip port)
-		addr := r.RemoteAddr
-		for i := len(addr) - 1; i >= 0; i-- {
-			if addr[i] == ':' {
-				return addr[:i]
-			}
+		// Fall back to RemoteAddr (strip port properly for both IPv4 and IPv6)
+		host, _, err := net.SplitHostPort(r.RemoteAddr)
+		if err != nil {
+			// RemoteAddr might not have a port
+			return r.RemoteAddr
 		}
-		return addr
+		return host
 	}
 }
 

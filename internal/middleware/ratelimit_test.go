@@ -252,7 +252,30 @@ func TestIPKeyFunc(t *testing.T) {
 		{
 			name:       "handles IPv6 RemoteAddr",
 			remoteAddr: "[::1]:12345",
-			wantKey:    "[::1]",
+			wantKey:    "::1",
+		},
+		{
+			name:          "trims whitespace in X-Forwarded-For chain",
+			remoteAddr:    "10.0.0.1:12345",
+			xForwardedFor: "  203.0.113.50  ,  198.51.100.1  ",
+			wantKey:       "203.0.113.50",
+		},
+		{
+			name:          "trims whitespace in single X-Forwarded-For",
+			remoteAddr:    "10.0.0.1:12345",
+			xForwardedFor: "  203.0.113.50  ",
+			wantKey:       "203.0.113.50",
+		},
+		{
+			name:       "trims whitespace in X-Real-IP",
+			remoteAddr: "10.0.0.1:12345",
+			xRealIP:    "  203.0.113.50  ",
+			wantKey:    "203.0.113.50",
+		},
+		{
+			name:       "handles IPv6 RemoteAddr full",
+			remoteAddr: "[2001:db8::1]:8080",
+			wantKey:    "2001:db8::1",
 		},
 	}
 
