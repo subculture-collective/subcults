@@ -35,5 +35,5 @@ FROM alpine:3.19 AS dist
 # Copy only the built static assets
 COPY --from=builder /app/dist /dist
 
-# Default command does nothing - this image is used to copy assets to volumes
+# Default command exits successfully - this image is used to copy assets to volumes via compose.yml command override
 CMD ["true"]
