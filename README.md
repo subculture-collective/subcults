@@ -106,12 +106,34 @@ subcults/
 
 Run `make help` to see all available targets:
 
+#### Build Targets
 - `make build` - Build all Go binaries
-- `make test` - Run all tests
-- `make lint` - Run linters
-- `make clean` - Remove build artifacts
-- `make tidy` - Tidy Go modules
+- `make build-api` - Build only the API binary (outputs to `bin/api`)
+- `make build-frontend` - Build the frontend application (outputs to `dist/`)
+
+#### Test & Lint
+- `make test` - Run all tests (Go and frontend if available)
+- `make lint` - Run linters (Go vet and frontend linters)
+
+#### Code Quality
 - `make fmt` - Format Go code
+- `make tidy` - Tidy Go modules
+- `make verify` - Verify Go modules
+- `make clean` - Remove build artifacts
+
+#### Database
+- `make migrate-up` - Apply all pending database migrations
+- `make migrate-down` - Rollback the last database migration
+
+#### Docker Compose
+- `make compose-up` - Start all services with Docker Compose
+- `make compose-down` - Stop all services with Docker Compose
+
+You can customize the Docker Compose file path using the `DOCKER_COMPOSE_FILE` variable:
+
+```bash
+make compose-up DOCKER_COMPOSE_FILE=docker-compose.dev.yml
+```
 
 ### Database Migrations
 
@@ -119,11 +141,23 @@ Database schema changes are managed using [golang-migrate](https://github.com/go
 
 #### Running Migrations
 
-The migration script requires `DATABASE_URL` environment variable to be set:
+The migration commands require `DATABASE_URL` environment variable to be set:
 
 ```bash
 export DATABASE_URL='postgres://user:pass@localhost:5432/subcults?sslmode=disable'
 ```
+
+**Using Make targets (recommended):**
+
+```bash
+# Apply all pending migrations
+make migrate-up
+
+# Rollback the last migration
+make migrate-down
+```
+
+**Using the migration script directly:**
 
 Apply all pending migrations:
 
