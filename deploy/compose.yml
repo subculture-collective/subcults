@@ -75,9 +75,6 @@ services:
       - DATABASE_URL=${DATABASE_URL}
     networks:
       - internal
-    depends_on:
-      api:
-        condition: service_healthy
     restart: unless-stopped
 
   # =============================================================================
