@@ -69,6 +69,9 @@ func TestPostGISExtensionExists(t *testing.T) {
 	}
 	defer db.Close()
 
+	if err := db.Ping(); err != nil {
+		t.Fatalf("failed to ping database: %v", err)
+	}
 	var extname string
 	err = db.QueryRow("SELECT extname FROM pg_extension WHERE extname = 'postgis'").Scan(&extname)
 	if err == sql.ErrNoRows {
