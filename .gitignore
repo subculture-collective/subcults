@@ -18,9 +18,9 @@ dist/
 
 # Go
 bin/
-api
-indexer
-backfill
+/api
+/indexer
+/backfill
 coverage.out
 *.exe
 *.exe~
