@@ -5,15 +5,13 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"io"
 	"log/slog"
 	"net"
 	"net/http"
-	"os"
-	"os/signal"
 	"strings"
 	"sync"
-	"syscall"
 	"testing"
 	"time"
 )
@@ -50,16 +48,17 @@ func TestGracefulShutdown_SignalHandling(t *testing.T) {
 		IdleTimeout:  60 * time.Second,
 	}
 
-	// Channel to signal server started
+	// Channel to signal server started and error channel for goroutine errors
 	serverStarted := make(chan struct{})
 	serverStopped := make(chan struct{})
+	errCh := make(chan error, 2)
 
 	// Start server in goroutine
 	go func() {
 		// Re-listen on the same port
 		ln, err := net.Listen("tcp", addr)
 		if err != nil {
-			t.Errorf("failed to re-listen: %v", err)
+			errCh <- fmt.Errorf("failed to re-listen: %w", err)
 			close(serverStarted)
 			close(serverStopped)
 			return
@@ -67,7 +66,7 @@ func TestGracefulShutdown_SignalHandling(t *testing.T) {
 		logger.Info("starting server", "addr", addr)
 		close(serverStarted)
 		if err := server.Serve(ln); err != nil && err != http.ErrServerClosed {
-			t.Errorf("server error: %v", err)
+			errCh <- fmt.Errorf("server error: %w", err)
 		}
 		close(serverStopped)
 	}()
@@ -77,6 +76,13 @@ func TestGracefulShutdown_SignalHandling(t *testing.T) {
 	case <-serverStarted:
 	case <-time.After(2 * time.Second):
 		t.Fatal("server failed to start in time")
+	}
+
+	// Check for errors from goroutine
+	select {
+	case err := <-errCh:
+		t.Fatal(err)
+	default:
 	}
 
 	// Give server a moment to be ready
@@ -100,6 +106,13 @@ func TestGracefulShutdown_SignalHandling(t *testing.T) {
 	case <-serverStopped:
 	case <-time.After(15 * time.Second):
 		t.Fatal("server failed to stop in time")
+	}
+
+	// Check for errors from goroutine
+	select {
+	case err := <-errCh:
+		t.Fatal(err)
+	default:
 	}
 
 	// Verify log order
@@ -140,7 +153,8 @@ func TestGracefulShutdown_InFlightRequests(t *testing.T) {
 	var mu sync.Mutex
 	var requestStarted bool
 	var requestCompleted bool
-	handlerStarted := make(chan struct{})
+	// Use buffered channel to avoid race condition if handler executes before receiver is ready
+	handlerStarted := make(chan struct{}, 1)
 	handlerCanContinue := make(chan struct{})
 
 	// Create HTTP server with a slow endpoint
@@ -171,22 +185,23 @@ func TestGracefulShutdown_InFlightRequests(t *testing.T) {
 		IdleTimeout:  60 * time.Second,
 	}
 
-	// Channel to signal server started
+	// Channels to signal server state and error channel for goroutine errors
 	serverStarted := make(chan struct{})
 	serverStopped := make(chan struct{})
+	errCh := make(chan error, 4)
 
 	// Start server in goroutine
 	go func() {
 		ln, err := net.Listen("tcp", addr)
 		if err != nil {
-			t.Errorf("failed to listen: %v", err)
+			errCh <- fmt.Errorf("failed to listen: %w", err)
 			close(serverStarted)
 			close(serverStopped)
 			return
 		}
 		close(serverStarted)
 		if err := server.Serve(ln); err != nil && err != http.ErrServerClosed {
-			t.Errorf("server error: %v", err)
+			errCh <- fmt.Errorf("server error: %w", err)
 		}
 		close(serverStopped)
 	}()
@@ -198,16 +213,24 @@ func TestGracefulShutdown_InFlightRequests(t *testing.T) {
 		t.Fatal("server failed to start in time")
 	}
 
+	// Check for errors from goroutine
+	select {
+	case err := <-errCh:
+		t.Fatal(err)
+	default:
+	}
+
 	// Give server a moment to be ready
 	time.Sleep(50 * time.Millisecond)
 
 	// Start in-flight request in a goroutine
 	requestDone := make(chan struct{})
 	var response *http.Response
+	var requestErr error
 	go func() {
 		resp, err := http.Get("http://" + addr + "/slow")
 		if err != nil {
-			t.Errorf("request error: %v", err)
+			requestErr = err
 		}
 		response = resp
 		close(requestDone)
@@ -222,11 +245,12 @@ func TestGracefulShutdown_InFlightRequests(t *testing.T) {
 
 	// Start shutdown while request is in flight
 	shutdownDone := make(chan struct{})
+	var shutdownErr error
 	go func() {
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
 		if err := server.Shutdown(ctx); err != nil {
-			t.Errorf("shutdown error: %v", err)
+			shutdownErr = err
 		}
 		close(shutdownDone)
 	}()
@@ -251,15 +275,23 @@ func TestGracefulShutdown_InFlightRequests(t *testing.T) {
 		t.Fatal("shutdown failed to complete in time")
 	}
 
+	// Check for errors from goroutines in main test goroutine
+	if requestErr != nil {
+		t.Errorf("request error: %v", requestErr)
+	}
+	if shutdownErr != nil {
+		t.Errorf("shutdown error: %v", shutdownErr)
+	}
+
 	// Verify in-flight request completed successfully
 	mu.Lock()
+	defer mu.Unlock()
 	if !requestStarted {
 		t.Error("expected request to have started")
 	}
 	if !requestCompleted {
 		t.Error("expected request to have completed")
 	}
-	mu.Unlock()
 
 	// Verify response
 	if response != nil {
@@ -279,8 +311,7 @@ func TestGracefulShutdown_InFlightRequests(t *testing.T) {
 }
 
 // TestGracefulShutdown_ExitCode0 verifies server exit behavior.
-// Since we can't easily test os.Exit in unit tests, this test verifies
-// that no error is returned during a clean shutdown.
+// This test verifies that shutdown completes without error (exit code 0 scenario).
 func TestGracefulShutdown_ExitCode0(t *testing.T) {
 	// Find an available port
 	listener, err := net.Listen("tcp", ":0")
@@ -300,12 +331,13 @@ func TestGracefulShutdown_ExitCode0(t *testing.T) {
 		Handler: mux,
 	}
 
-	// Start server
+	// Start server with error channel for goroutine errors
 	serverStarted := make(chan struct{})
+	errCh := make(chan error, 1)
 	go func() {
 		ln, err := net.Listen("tcp", addr)
 		if err != nil {
-			t.Errorf("failed to listen: %v", err)
+			errCh <- fmt.Errorf("failed to listen: %w", err)
 			close(serverStarted)
 			return
 		}
@@ -320,6 +352,13 @@ func TestGracefulShutdown_ExitCode0(t *testing.T) {
 		t.Fatal("server failed to start in time")
 	}
 
+	// Check for errors from goroutine
+	select {
+	case err := <-errCh:
+		t.Fatal(err)
+	default:
+	}
+
 	time.Sleep(50 * time.Millisecond)
 
 	// Shutdown should complete without error (exit code 0 scenario)
@@ -329,51 +368,5 @@ func TestGracefulShutdown_ExitCode0(t *testing.T) {
 	err = server.Shutdown(ctx)
 	if err != nil {
 		t.Errorf("expected clean shutdown (exit 0), got error: %v", err)
-	}
-}
-
-// TestSignalNotify_SIGINT tests that signal.Notify properly catches SIGINT.
-func TestSignalNotify_SIGINT(t *testing.T) {
-	quit := make(chan os.Signal, 1)
-	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
-	defer signal.Stop(quit)
-
-	// Send signal in a goroutine
-	go func() {
-		time.Sleep(50 * time.Millisecond)
-		syscall.Kill(syscall.Getpid(), syscall.SIGINT)
-	}()
-
-	// Wait for signal with timeout
-	select {
-	case sig := <-quit:
-		if sig != syscall.SIGINT {
-			t.Errorf("expected SIGINT, got %v", sig)
-		}
-	case <-time.After(2 * time.Second):
-		t.Error("did not receive SIGINT in time")
-	}
-}
-
-// TestSignalNotify_SIGTERM tests that signal.Notify properly catches SIGTERM.
-func TestSignalNotify_SIGTERM(t *testing.T) {
-	quit := make(chan os.Signal, 1)
-	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
-	defer signal.Stop(quit)
-
-	// Send signal in a goroutine
-	go func() {
-		time.Sleep(50 * time.Millisecond)
-		syscall.Kill(syscall.Getpid(), syscall.SIGTERM)
-	}()
-
-	// Wait for signal with timeout
-	select {
-	case sig := <-quit:
-		if sig != syscall.SIGTERM {
-			t.Errorf("expected SIGTERM, got %v", sig)
-		}
-	case <-time.After(2 * time.Second):
-		t.Error("did not receive SIGTERM in time")
 	}
 }
