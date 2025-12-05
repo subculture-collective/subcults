@@ -25,7 +25,7 @@ func TestGracefulShutdown_SignalHandling(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to find available port: %v", err)
 	}
-	port := listener.Addr().(*net.TCPAddr).Port
+	addr := listener.Addr().String()
 	listener.Close()
 
 	// Capture log output
@@ -43,15 +43,12 @@ func TestGracefulShutdown_SignalHandling(t *testing.T) {
 	})
 
 	server := &http.Server{
-		Addr:         ":" + string(rune(port)),
+		Addr:         addr,
 		Handler:      mux,
 		ReadTimeout:  15 * time.Second,
 		WriteTimeout: 15 * time.Second,
 		IdleTimeout:  60 * time.Second,
 	}
-
-	// Override the server addr to use the actual port
-	server.Addr = listener.Addr().String()
 
 	// Channel to signal server started
 	serverStarted := make(chan struct{})
@@ -60,14 +57,14 @@ func TestGracefulShutdown_SignalHandling(t *testing.T) {
 	// Start server in goroutine
 	go func() {
 		// Re-listen on the same port
-		ln, err := net.Listen("tcp", server.Addr)
+		ln, err := net.Listen("tcp", addr)
 		if err != nil {
 			t.Errorf("failed to re-listen: %v", err)
 			close(serverStarted)
 			close(serverStopped)
 			return
 		}
-		logger.Info("starting server", "port", port)
+		logger.Info("starting server", "addr", addr)
 		close(serverStarted)
 		if err := server.Serve(ln); err != nil && err != http.ErrServerClosed {
 			t.Errorf("server error: %v", err)
@@ -304,10 +301,24 @@ func TestGracefulShutdown_ExitCode0(t *testing.T) {
 	}
 
 	// Start server
+	serverStarted := make(chan struct{})
 	go func() {
-		ln, _ := net.Listen("tcp", addr)
-		server.Serve(ln)
+		ln, err := net.Listen("tcp", addr)
+		if err != nil {
+			t.Errorf("failed to listen: %v", err)
+			close(serverStarted)
+			return
+		}
+		close(serverStarted)
+		_ = server.Serve(ln)
 	}()
+
+	// Wait for server to start
+	select {
+	case <-serverStarted:
+	case <-time.After(2 * time.Second):
+		t.Fatal("server failed to start in time")
+	}
 
 	time.Sleep(50 * time.Millisecond)
 
