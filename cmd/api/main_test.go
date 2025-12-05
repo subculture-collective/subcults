@@ -48,10 +48,10 @@ func TestGracefulShutdown_SignalHandling(t *testing.T) {
 		IdleTimeout:  60 * time.Second,
 	}
 
-	// Channel to signal server started and error channel for goroutine errors
+	// Channels for server lifecycle signaling and goroutine error handling
 	serverStarted := make(chan struct{})
 	serverStopped := make(chan struct{})
-	errCh := make(chan error, 2)
+	errCh := make(chan error, 2) // Buffer for potential listen and serve errors
 
 	// Start server in goroutine
 	go func() {
@@ -185,9 +185,10 @@ func TestGracefulShutdown_InFlightRequests(t *testing.T) {
 		IdleTimeout:  60 * time.Second,
 	}
 
-	// Channels to signal server state and error channel for goroutine errors
+	// Channels for server lifecycle signaling and goroutine error handling
 	serverStarted := make(chan struct{})
 	serverStopped := make(chan struct{})
+	// Buffer for: server listen, server serve, request, and shutdown errors
 	errCh := make(chan error, 4)
 
 	// Start server in goroutine
@@ -331,9 +332,9 @@ func TestGracefulShutdown_ExitCode0(t *testing.T) {
 		Handler: mux,
 	}
 
-	// Start server with error channel for goroutine errors
+	// Start server in goroutine with error handling
 	serverStarted := make(chan struct{})
-	errCh := make(chan error, 1)
+	errCh := make(chan error, 1) // Buffer for potential listen error
 	go func() {
 		ln, err := net.Listen("tcp", addr)
 		if err != nil {
