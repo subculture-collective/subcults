@@ -62,6 +62,4 @@ CREATE INDEX idx_posts_scene ON posts(scene_id) WHERE deleted_at IS NULL;
 DROP INDEX IF EXISTS idx_posts_event;
 CREATE INDEX idx_posts_event ON posts(event_id) WHERE deleted_at IS NULL;
 
--- Restore original comments
-COMMENT ON TABLE posts IS NULL;
-COMMENT ON COLUMN posts.content IS NULL;
+-- Note: The original schema didn't have comments on posts table, so no need to restore any

@@ -60,6 +60,14 @@ BEGIN
 END $$;
 
 -- Step 6: Add constraint - at least one of scene_id or event_id must be non-null
+-- First verify no existing data violates this (existing data should always have scene_id NOT NULL)
+DO $$
+BEGIN
+    IF EXISTS (SELECT 1 FROM posts WHERE scene_id IS NULL AND event_id IS NULL) THEN
+        RAISE EXCEPTION 'Cannot add constraint: existing posts have both scene_id and event_id NULL';
+    END IF;
+END $$;
+
 ALTER TABLE posts ADD CONSTRAINT chk_post_association 
     CHECK (scene_id IS NOT NULL OR event_id IS NOT NULL);
 
@@ -67,7 +75,8 @@ ALTER TABLE posts ADD CONSTRAINT chk_post_association
 -- Index on author_did (for user's posts)
 CREATE INDEX IF NOT EXISTS idx_posts_author ON posts(author_did) WHERE deleted_at IS NULL;
 
--- Index on scene_id already exists as idx_posts_scene, but recreate with proper filtering
+-- Index on scene_id already exists as idx_posts_scene, but recreate to add scene_id IS NOT NULL
+-- since scene_id is now nullable
 DROP INDEX IF EXISTS idx_posts_scene;
 CREATE INDEX idx_posts_scene ON posts(scene_id) WHERE deleted_at IS NULL AND scene_id IS NOT NULL;
 
