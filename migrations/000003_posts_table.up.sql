@@ -29,8 +29,9 @@ BEGIN
         WHERE table_name = 'posts' AND column_name = 'attachment_url'
     ) THEN
         -- Migrate existing single attachment URLs to JSONB array format
+        -- Uses 'legacy' type to indicate these are migrated from the old schema
         UPDATE posts 
-        SET attachments = jsonb_build_array(jsonb_build_object('url', attachment_url, 'type', 'unknown'))
+        SET attachments = jsonb_build_array(jsonb_build_object('url', attachment_url, 'type', 'legacy'))
         WHERE attachment_url IS NOT NULL AND attachment_url != '';
         
         -- Drop the old column
@@ -40,8 +41,23 @@ END $$;
 
 -- Step 5: Add FTS generated column
 -- Note: Using GENERATED ALWAYS for computed tsvector
-ALTER TABLE posts ADD COLUMN IF NOT EXISTS text_fts tsvector 
-    GENERATED ALWAYS AS (to_tsvector('english', COALESCE(text, ''))) STORED;
+-- Requires 'text' column to exist (renamed from 'content' in Step 2)
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns 
+        WHERE table_name = 'posts' AND column_name = 'text_fts'
+    ) THEN
+        -- Only add if text column exists (should always be true after Step 2)
+        IF EXISTS (
+            SELECT 1 FROM information_schema.columns 
+            WHERE table_name = 'posts' AND column_name = 'text'
+        ) THEN
+            ALTER TABLE posts ADD COLUMN text_fts tsvector 
+                GENERATED ALWAYS AS (to_tsvector('english', COALESCE(text, ''))) STORED;
+        END IF;
+    END IF;
+END $$;
 
 -- Step 6: Add constraint - at least one of scene_id or event_id must be non-null
 ALTER TABLE posts ADD CONSTRAINT chk_post_association 

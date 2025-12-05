@@ -1,6 +1,14 @@
 -- Rollback: Revert posts table to original schema
 -- Removes: attachments, labels, FTS column, scene_id/event_id constraint
 -- Restores: scene_id NOT NULL, content column name, attachment_url column
+--
+-- WARNING: This migration contains DESTRUCTIVE operations:
+-- 1. Posts with multiple attachments will lose all but the first attachment
+-- 2. Posts associated only with events (scene_id IS NULL) will be PERMANENTLY DELETED
+-- 3. Labels data will be lost
+--
+-- Consider backing up the posts table before running this rollback:
+--   CREATE TABLE posts_backup AS SELECT * FROM posts;
 
 -- Step 1: Drop new indexes
 DROP INDEX IF EXISTS idx_posts_labels;
