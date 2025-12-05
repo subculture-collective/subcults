@@ -89,6 +89,7 @@ make migrate-down
 | 000000 | initial_schema | Core tables: scenes, events, posts, memberships, alliances, stream_sessions, indexer_state. Enables PostGIS and uuid-ossp extensions. |
 | 000001 | add_allow_precise | No-op migration kept for version continuity. The allow_precise column was originally added by this migration but is now included in the initial schema. Removing it would break existing deployments that have already run this version. |
 | 000002 | enable_postgis | Explicit PostGIS extension verification |
+| 000003 | posts_table | Enhanced posts table: JSONB attachments, moderation labels, full-text search (FTS), scene_id/event_id association constraint. Supports feed rendering and content moderation. |
 
 ## Writing New Migrations
 
