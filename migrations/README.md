@@ -90,6 +90,7 @@ make migrate-down
 | 000001 | add_allow_precise | No-op migration kept for version continuity. The allow_precise column was originally added by this migration but is now included in the initial schema. Removing it would break existing deployments that have already run this version. |
 | 000002 | enable_postgis | Explicit PostGIS extension verification |
 | 000003 | posts_table | Enhanced posts table: JSONB attachments, moderation labels, full-text search (FTS), scene_id/event_id association constraint. Supports feed rendering and content moderation. |
+| 000004 | users_table | Users table for core identity and ATProto DID linking. Foundation for ownership and membership relations. |
 
 ## Writing New Migrations
 
@@ -111,6 +112,7 @@ make migrate-down
 
 ### Core Tables
 
+- **users**: Core identity with optional ATProto DID linking
 - **scenes**: Underground music scenes with privacy-controlled location data
 - **events**: Temporal happenings within scenes
 - **posts**: Content within scenes/events
