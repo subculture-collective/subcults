@@ -6,7 +6,7 @@
 -- ============================================
 
 -- Add trust_weight column with default 0.5 and constraint 0-1
-ALTER TABLE memberships ADD COLUMN IF NOT EXISTS trust_weight REAL DEFAULT 0.5;
+ALTER TABLE memberships ADD COLUMN IF NOT EXISTS trust_weight FLOAT DEFAULT 0.5;
 
 -- Add CHECK constraint for trust_weight between 0 and 1
 DO $$
