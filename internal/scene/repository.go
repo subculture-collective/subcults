@@ -138,9 +138,11 @@ func (r *InMemorySceneRepository) GetByID(id string) (*Scene, error) {
 	return &sceneCopy, nil
 }
 
-// makeSceneKey creates a composite key from DID and rkey.
+// makeSceneKey creates a composite key from DID and rkey using a null byte separator to avoid collisions.
+// AT Protocol DIDs contain colons (e.g., "did:plc:abc123"), so using a null byte prevents
+// collisions like did="a:b" + rkey="c" vs did="a" + rkey="b:c" both producing "a:b:c".
 func makeSceneKey(did, rkey string) string {
-	return did + ":" + rkey
+	return did + "\x00" + rkey
 }
 
 // Upsert inserts a new scene or updates existing one based on (record_did, record_rkey).
@@ -289,9 +291,11 @@ func (r *InMemoryEventRepository) GetByID(id string) (*Event, error) {
 	return &eventCopy, nil
 }
 
-// makeEventKey creates a composite key from DID and rkey.
+// makeEventKey creates a composite key from DID and rkey using a null byte separator to avoid collisions.
+// AT Protocol DIDs contain colons (e.g., "did:plc:abc123"), so using a null byte prevents
+// collisions like did="a:b" + rkey="c" vs did="a" + rkey="b:c" both producing "a:b:c".
 func makeEventKey(did, rkey string) string {
-	return did + ":" + rkey
+	return did + "\x00" + rkey
 }
 
 // Upsert inserts a new event or updates existing one based on (record_did, record_rkey).
