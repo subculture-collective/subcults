@@ -1,5 +1,4 @@
-// Example integration test demonstrating Request ID middleware usage
-// This is not run as part of the test suite but serves as documentation
+// Integration tests demonstrating Request ID middleware usage
 package middleware_test
 
 import (
@@ -14,11 +13,14 @@ import (
 	"github.com/onnwee/subcults/internal/middleware"
 )
 
-// ExampleRequestID demonstrates basic usage of the RequestID middleware
-func ExampleRequestID() {
+// TestRequestID_BasicUsage demonstrates basic usage of the RequestID middleware
+func TestRequestID_BasicUsage(t *testing.T) {
 	// Create a simple handler that echoes the request ID
 	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		requestID := middleware.GetRequestID(r.Context())
+		if requestID == "" {
+			t.Error("expected request ID in context")
+		}
 		w.WriteHeader(http.StatusOK)
 		w.Write([]byte("Request ID: " + requestID))
 	})
@@ -31,14 +33,22 @@ func ExampleRequestID() {
 	rr1 := httptest.NewRecorder()
 	wrappedHandler.ServeHTTP(rr1, req1)
 
+	// Verify response has X-Request-ID header
+	if rr1.Header().Get("X-Request-ID") == "" {
+		t.Error("expected X-Request-ID header in response")
+	}
+
 	// Test with a provided request ID
+	customID := "my-custom-id-123"
 	req2 := httptest.NewRequest(http.MethodGet, "/test", nil)
-	req2.Header.Set("X-Request-ID", "my-custom-id-123")
+	req2.Header.Set("X-Request-ID", customID)
 	rr2 := httptest.NewRecorder()
 	wrappedHandler.ServeHTTP(rr2, req2)
 
-	// Both responses will have X-Request-ID headers
-	// Output: (varies - UUIDs are random)
+	// Verify the custom ID was preserved
+	if rr2.Header().Get("X-Request-ID") != customID {
+		t.Errorf("expected X-Request-ID %q, got %q", customID, rr2.Header().Get("X-Request-ID"))
+	}
 }
 
 // TestIntegration_RequestIDWithLogging demonstrates the Request ID middleware

@@ -138,13 +138,13 @@ import (
 
 // Create rate limit configuration
 config := middleware.RateLimitConfig{
-    Requests: 100,
-    Window:   time.Minute,
+    RequestsPerWindow: 100,
+    WindowDuration:    time.Minute,
 }
 
 // Create store and middleware
 store := middleware.NewInMemoryRateLimitStore()
-rateLimiter := middleware.RateLimiter(config, store, middleware.IPKeyFunc)
+rateLimiter := middleware.RateLimiter(store, config, middleware.IPKeyFunc())
 
 // Apply to handler
 handler := rateLimiter(mux)
@@ -152,16 +152,16 @@ handler := rateLimiter(mux)
 
 #### Key Functions
 
-- **`IPKeyFunc`**: Rate limit by client IP (uses X-Forwarded-For, X-Real-IP, or RemoteAddr)
-- **`UserKeyFunc`**: Rate limit by authenticated user DID (falls back to IP)
+- **`IPKeyFunc()`**: Returns a KeyFunc that rate limits by client IP (uses X-Forwarded-For, X-Real-IP, or RemoteAddr)
+- **`UserKeyFunc()`**: Returns a KeyFunc that rate limits by authenticated user DID (falls back to IP)
 
 #### Default Limits
 
 ```go
-// Pre-configured rate limits
-middleware.DefaultGlobalLimit    // 100 req/min
-middleware.DefaultAuthLimit      // 10 req/min
-middleware.DefaultSearchLimit    // 30 req/min
+// Pre-configured rate limit functions
+middleware.DefaultGlobalLimit()    // 100 req/min
+middleware.DefaultAuthLimit()      // 10 req/min
+middleware.DefaultSearchLimit()    // 30 req/min
 ```
 
 ## Context Helpers
@@ -220,9 +220,9 @@ func main() {
     // Create rate limiter
     store := middleware.NewInMemoryRateLimitStore()
     rateLimiter := middleware.RateLimiter(
-        middleware.DefaultGlobalLimit,
         store,
-        middleware.UserKeyFunc,
+        middleware.DefaultGlobalLimit(),
+        middleware.UserKeyFunc(),
     )
     
     // Create your routes
