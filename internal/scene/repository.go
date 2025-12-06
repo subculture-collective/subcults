@@ -3,9 +3,16 @@
 package scene
 
 import (
+	"errors"
 	"sync"
 
 	"github.com/google/uuid"
+)
+
+// Common errors for scene and event operations.
+var (
+	ErrSceneNotFound = errors.New("scene not found")
+	ErrEventNotFound = errors.New("event not found")
 )
 
 // UpsertResult tracks statistics for upsert operations.
@@ -120,7 +127,7 @@ func (r *InMemorySceneRepository) GetByID(id string) (*Scene, error) {
 	scene, ok := r.scenes[id]
 	r.mu.RUnlock()
 	if !ok {
-		return nil, nil
+		return nil, ErrSceneNotFound
 	}
 	// Return a copy to avoid external modification
 	sceneCopy := *scene
@@ -199,7 +206,7 @@ func (r *InMemorySceneRepository) GetByRecordKey(did, rkey string) (*Scene, erro
 	key := makeSceneKey(did, rkey)
 	id, ok := r.keys[key]
 	if !ok {
-		return nil, nil
+		return nil, ErrSceneNotFound
 	}
 
 	scene := r.scenes[id]
@@ -271,7 +278,7 @@ func (r *InMemoryEventRepository) GetByID(id string) (*Event, error) {
 	event, ok := r.events[id]
 	r.mu.RUnlock()
 	if !ok {
-		return nil, nil
+		return nil, ErrEventNotFound
 	}
 	// Return a copy to avoid external modification
 	eventCopy := *event
@@ -350,7 +357,7 @@ func (r *InMemoryEventRepository) GetByRecordKey(did, rkey string) (*Event, erro
 	key := makeEventKey(did, rkey)
 	id, ok := r.keys[key]
 	if !ok {
-		return nil, nil
+		return nil, ErrEventNotFound
 	}
 
 	event := r.events[id]

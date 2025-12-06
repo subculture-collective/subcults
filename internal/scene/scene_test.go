@@ -327,8 +327,8 @@ func TestInMemorySceneRepository_GetByID_ReturnsNilForNonexistent(t *testing.T) 
 	repo := NewInMemorySceneRepository()
 
 	stored, err := repo.GetByID("nonexistent")
-	if err != nil {
-		t.Fatalf("GetByID() error = %v", err)
+	if err != ErrSceneNotFound {
+		t.Fatalf("GetByID() error = %v, want ErrSceneNotFound", err)
 	}
 	if stored != nil {
 		t.Error("GetByID() should return nil for nonexistent scene")
@@ -339,8 +339,8 @@ func TestInMemoryEventRepository_GetByID_ReturnsNilForNonexistent(t *testing.T) 
 	repo := NewInMemoryEventRepository()
 
 	stored, err := repo.GetByID("nonexistent")
-	if err != nil {
-		t.Fatalf("GetByID() error = %v", err)
+	if err != ErrEventNotFound {
+		t.Fatalf("GetByID() error = %v, want ErrEventNotFound", err)
 	}
 	if stored != nil {
 		t.Error("GetByID() should return nil for nonexistent event")
