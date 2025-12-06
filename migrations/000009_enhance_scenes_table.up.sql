@@ -24,7 +24,9 @@ ALTER TABLE scenes ADD COLUMN IF NOT EXISTS visibility TEXT DEFAULT 'public';
 DO $$
 BEGIN
     IF NOT EXISTS (
-        SELECT 1 FROM pg_constraint WHERE conname = 'chk_scene_visibility'
+        SELECT 1 FROM pg_constraint c 
+        JOIN pg_class t ON c.conrelid = t.oid 
+        WHERE t.relname = 'scenes' AND c.conname = 'chk_scene_visibility'
     ) THEN
         ALTER TABLE scenes ADD CONSTRAINT chk_scene_visibility
             CHECK (visibility IN ('public', 'private', 'unlisted'));
@@ -79,7 +81,9 @@ ALTER TABLE scenes ADD COLUMN IF NOT EXISTS owner_user_id UUID;
 DO $$
 BEGIN
     IF NOT EXISTS (
-        SELECT 1 FROM pg_constraint WHERE conname = 'fk_scenes_owner_user'
+        SELECT 1 FROM pg_constraint c 
+        JOIN pg_class t ON c.conrelid = t.oid 
+        WHERE t.relname = 'scenes' AND c.conname = 'fk_scenes_owner_user'
     ) THEN
         ALTER TABLE scenes ADD CONSTRAINT fk_scenes_owner_user
             FOREIGN KEY (owner_user_id) REFERENCES users(id) ON DELETE SET NULL;
