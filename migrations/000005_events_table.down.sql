@@ -1,6 +1,6 @@
 -- Rollback: Revert events table to pre-enhancement schema
 -- Removes: tags, status, stream_session_id, FTS column
--- Restores: name column (from title), coarse_geohash to nullable
+-- Restores: name column (from title)
 --
 -- WARNING: This migration contains DESTRUCTIVE operations:
 -- 1. Tags data will be lost
@@ -21,14 +21,14 @@ ALTER TABLE events DROP COLUMN IF EXISTS title_tags_fts;
 ALTER TABLE events DROP COLUMN IF EXISTS stream_session_id;
 
 -- Step 4: Drop status column
+ALTER TABLE events DROP CONSTRAINT IF EXISTS chk_event_status;
 ALTER TABLE events DROP COLUMN IF EXISTS status;
 
 -- Step 5: Drop tags column
 ALTER TABLE events DROP COLUMN IF EXISTS tags;
 
--- Step 6: Remove NOT NULL constraint from coarse_geohash
-ALTER TABLE events ALTER COLUMN coarse_geohash DROP NOT NULL;
-ALTER TABLE events ALTER COLUMN coarse_geohash DROP DEFAULT;
+-- Step 6: coarse_geohash remains NULLABLE (no change needed)
+-- The up migration no longer modifies this column
 
 -- Step 7: Rename title back to name
 DO $$

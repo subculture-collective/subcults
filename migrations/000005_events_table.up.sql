@@ -1,6 +1,6 @@
 -- Migration: Enhance events table for schedule-based discovery
--- Adds: title (rename from name), tags, status, stream_session_id, FTS column
--- Ensures: coarse_geohash NOT NULL, GIN index on tags
+-- Adds: title (rename from name), tags, status with CHECK constraint, stream_session_id, FTS column
+-- Adds: GIN indexes on tags and FTS with consistent WHERE clauses
 
 -- Step 1: Rename name to title (per issue specification)
 DO $$
@@ -19,19 +19,25 @@ ALTER TABLE events ADD COLUMN IF NOT EXISTS tags TEXT[] DEFAULT '{}';
 -- Step 3: Add status column for event lifecycle tracking
 ALTER TABLE events ADD COLUMN IF NOT EXISTS status TEXT DEFAULT 'scheduled';
 
+-- Enforce valid status values at the database level
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint WHERE conname = 'chk_event_status'
+    ) THEN
+        ALTER TABLE events ADD CONSTRAINT chk_event_status
+            CHECK (status IN ('scheduled', 'live', 'ended', 'cancelled'));
+    END IF;
+END $$;
+
 -- Step 4: Add stream_session_id foreign key for live streaming
 ALTER TABLE events ADD COLUMN IF NOT EXISTS stream_session_id UUID 
     REFERENCES stream_sessions(id) ON DELETE SET NULL;
 
--- Step 5: Ensure coarse_geohash is NOT NULL (required for privacy)
--- First, set default value for existing NULL rows
--- Empty string indicates "no location specified" (distinct from NULL meaning "unknown")
--- This preserves privacy by requiring explicit location consent for all events
-UPDATE events SET coarse_geohash = '' WHERE coarse_geohash IS NULL;
-
--- Then add NOT NULL constraint with empty string default
-ALTER TABLE events ALTER COLUMN coarse_geohash SET NOT NULL;
-ALTER TABLE events ALTER COLUMN coarse_geohash SET DEFAULT '';
+-- Step 5: Retain coarse_geohash as NULLABLE (privacy: explicit consent required)
+-- Do NOT set a default or NOT NULL constraint; NULL means "no location provided"
+-- Business logic should enforce presence if required, not the schema
+-- This aligns with the privacy-first design where location consent is explicit
 
 -- Step 6: Add FTS generated column on title + tags
 -- Note: Using GENERATED ALWAYS for computed tsvector
@@ -62,8 +68,9 @@ END $$;
 CREATE INDEX IF NOT EXISTS idx_events_tags ON events USING GIN(tags) 
     WHERE deleted_at IS NULL AND cancelled_at IS NULL;
 
--- GIN index for FTS queries on title + tags
-CREATE INDEX IF NOT EXISTS idx_events_title_tags_fts ON events USING GIN(title_tags_fts);
+-- GIN index for FTS queries on title + tags (exclude deleted/cancelled)
+CREATE INDEX IF NOT EXISTS idx_events_title_tags_fts ON events USING GIN(title_tags_fts)
+    WHERE deleted_at IS NULL AND cancelled_at IS NULL;
 
 -- Index on stream_session_id for join queries
 CREATE INDEX IF NOT EXISTS idx_events_stream_session ON events(stream_session_id) 

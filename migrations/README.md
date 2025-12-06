@@ -91,7 +91,7 @@ make migrate-down
 | 000002 | enable_postgis | Explicit PostGIS extension verification |
 | 000003 | posts_table | Enhanced posts table: JSONB attachments, moderation labels, full-text search (FTS), scene_id/event_id association constraint. Supports feed rendering and content moderation. |
 | 000004 | users_table | Users table for core identity and ATProto DID linking. Foundation for ownership and membership relations. |
-| 000005 | events_table | Enhanced events table: title (renamed from name), tags array, status, stream_session_id FK, full-text search (FTS) on title+tags, coarse_geohash NOT NULL. Supports schedule-based discovery. |
+| 000005 | events_table | Enhanced events table: title (renamed from name), tags array, status with CHECK constraint, stream_session_id FK, full-text search (FTS) on title+tags. Supports schedule-based discovery. |
 
 ## Writing New Migrations
 
