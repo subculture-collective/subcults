@@ -42,8 +42,11 @@ CREATE INDEX IF NOT EXISTS idx_memberships_trust_weight ON memberships(trust_wei
 ALTER TABLE alliances ADD COLUMN IF NOT EXISTS reason TEXT;
 
 -- Add status column for alliance lifecycle (pending, active, rejected, dissolved)
-ALTER TABLE alliances ADD COLUMN IF NOT EXISTS status TEXT DEFAULT 'active';
+ALTER TABLE alliances ADD COLUMN IF NOT EXISTS status VARCHAR(50) DEFAULT 'active';
 
+-- Backfill any NULL statuses to 'active' before setting NOT NULL
+UPDATE alliances SET status = 'active' WHERE status IS NULL;
+ALTER TABLE alliances ALTER COLUMN status SET NOT NULL;
 -- Add CHECK constraint for valid status values
 DO $$
 BEGIN
