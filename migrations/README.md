@@ -94,6 +94,8 @@ make migrate-down
 | 000005 | events_table | Enhanced events table: title (renamed from name), tags array, status with CHECK constraint, stream_session_id FK, full-text search (FTS) on title+tags. Supports schedule-based discovery. |
 | 000006 | trust_graph_columns | Adds trust_weight (0-1) and since columns to memberships. Adds reason, status, and since columns to alliances. Indexes on weight and status for filtering. Enables trust graph computation. |
 | 000007 | audit_logs | Audit logs table for privacy-compliant access logging. Records scene/event/post access with retention policies. |
+| 000008 | at_protocol_record_keys | Adds record_did and record_rkey columns to all entity tables (scenes, events, posts, memberships, alliances, stream_sessions) with unique constraints for idempotent ingestion. Maps (did + rkey) to internal UUID for upsert operations. |
+| 000009 | enhance_scenes_table | Enhances scenes table with tags array, visibility CHECK constraint (public/private/unlisted), palette JSONB (replaces primary_color/secondary_color), owner_user_id FK, and FTS generated column. Makes coarse_geohash NOT NULL for privacy-conscious discovery. |
 
 ## Writing New Migrations
 
