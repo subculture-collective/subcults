@@ -16,6 +16,10 @@ type Scene struct {
 	Description  string `json:"description,omitempty"`
 	AllowPrecise bool   `json:"allow_precise"`
 	PrecisePoint *Point `json:"precise_point,omitempty"`
+	
+	// AT Protocol record tracking
+	RecordDID  *string `json:"record_did,omitempty"`
+	RecordRKey *string `json:"record_rkey,omitempty"`
 }
 
 // Event represents an event within a scene with optional precise location data.
@@ -27,6 +31,10 @@ type Event struct {
 	Description  string `json:"description,omitempty"`
 	AllowPrecise bool   `json:"allow_precise"`
 	PrecisePoint *Point `json:"precise_point,omitempty"`
+	
+	// AT Protocol record tracking
+	RecordDID  *string `json:"record_did,omitempty"`
+	RecordRKey *string `json:"record_rkey,omitempty"`
 }
 
 // EnforceLocationConsent clears PrecisePoint if AllowPrecise is false.

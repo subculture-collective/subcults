@@ -421,3 +421,361 @@ func TestInMemoryEventRepository_Insert_DeepCopyProtection(t *testing.T) {
 		t.Errorf("Insert() should create deep copy; stored PrecisePoint = %+v, want Lat=40.7128, Lng=-74.0060", stored.PrecisePoint)
 	}
 }
+
+func strPtr(s string) *string {
+return &s
+}
+
+func TestSceneRepository_Upsert_Insert(t *testing.T) {
+repo := NewInMemorySceneRepository()
+did := "did:example:alice"
+rkey := "scene123"
+
+scene := &Scene{
+Name:        "Test Scene",
+Description: "A test scene",
+AllowPrecise: false,
+RecordDID:   strPtr(did),
+RecordRKey:  strPtr(rkey),
+}
+
+result, err := repo.Upsert(scene)
+if err != nil {
+t.Fatalf("Upsert failed: %v", err)
+}
+
+if !result.Inserted {
+t.Error("Expected insert, got update")
+}
+
+if result.ID == "" {
+t.Error("Expected non-empty ID")
+}
+
+// Verify we can retrieve it
+retrieved, err := repo.GetByRecordKey(did, rkey)
+if err != nil {
+t.Fatalf("GetByRecordKey failed: %v", err)
+}
+
+if retrieved.Name != "Test Scene" {
+t.Errorf("Expected name 'Test Scene', got %s", retrieved.Name)
+}
+}
+
+func TestSceneRepository_Upsert_Update(t *testing.T) {
+repo := NewInMemorySceneRepository()
+did := "did:example:alice"
+rkey := "scene123"
+
+// First insert
+scene := &Scene{
+Name:        "Original Name",
+Description: "Original description",
+AllowPrecise: false,
+RecordDID:   strPtr(did),
+RecordRKey:  strPtr(rkey),
+}
+
+result1, err := repo.Upsert(scene)
+if err != nil {
+t.Fatalf("First upsert failed: %v", err)
+}
+
+if !result1.Inserted {
+t.Error("Expected insert on first upsert")
+}
+
+// Second upsert with same record key
+scene2 := &Scene{
+Name:        "Updated Name",
+Description: "Updated description",
+AllowPrecise: false,
+RecordDID:   strPtr(did),
+RecordRKey:  strPtr(rkey),
+}
+
+result2, err := repo.Upsert(scene2)
+if err != nil {
+t.Fatalf("Second upsert failed: %v", err)
+}
+
+if result2.Inserted {
+t.Error("Expected update, got insert")
+}
+
+if result1.ID != result2.ID {
+t.Errorf("Expected same ID, got %s and %s", result1.ID, result2.ID)
+}
+
+// Verify update was persisted
+retrieved, err := repo.GetByRecordKey(did, rkey)
+if err != nil {
+t.Fatalf("GetByRecordKey failed: %v", err)
+}
+
+if retrieved.Name != "Updated Name" {
+t.Errorf("Expected updated name, got %s", retrieved.Name)
+}
+}
+
+func TestSceneRepository_Upsert_EnforcesLocationConsent(t *testing.T) {
+repo := NewInMemorySceneRepository()
+did := "did:example:alice"
+rkey := "scene123"
+
+// Insert with precise point but consent=false
+scene := &Scene{
+Name:         "Test Scene",
+AllowPrecise: false,
+PrecisePoint: &Point{Lat: 40.7128, Lng: -74.0060},
+RecordDID:    strPtr(did),
+RecordRKey:   strPtr(rkey),
+}
+
+result, err := repo.Upsert(scene)
+if err != nil {
+t.Fatalf("Upsert failed: %v", err)
+}
+
+// Retrieve and verify consent was enforced
+retrieved, err := repo.GetByRecordKey(did, rkey)
+if err != nil {
+t.Fatalf("GetByRecordKey failed: %v", err)
+}
+
+if retrieved.PrecisePoint != nil {
+t.Error("Expected PrecisePoint to be nil when consent is false")
+}
+
+// Update with consent=true
+scene2 := &Scene{
+Name:         "Test Scene",
+AllowPrecise: true,
+PrecisePoint: &Point{Lat: 40.7128, Lng: -74.0060},
+RecordDID:    strPtr(did),
+RecordRKey:   strPtr(rkey),
+}
+
+result2, err := repo.Upsert(scene2)
+if err != nil {
+t.Fatalf("Second upsert failed: %v", err)
+}
+
+if result2.Inserted {
+t.Error("Expected update, got insert")
+}
+
+if result.ID != result2.ID {
+t.Error("Expected same ID for update")
+}
+
+// Verify precise point is now preserved
+retrieved2, err := repo.GetByRecordKey(did, rkey)
+if err != nil {
+t.Fatalf("GetByRecordKey failed: %v", err)
+}
+
+if retrieved2.PrecisePoint == nil {
+t.Error("Expected PrecisePoint to be preserved when consent is true")
+}
+}
+
+func TestSceneRepository_Upsert_Idempotent(t *testing.T) {
+repo := NewInMemorySceneRepository()
+did := "did:example:alice"
+rkey := "scene123"
+
+scene := &Scene{
+Name:        "Same Scene",
+Description: "Same description",
+AllowPrecise: false,
+RecordDID:   strPtr(did),
+RecordRKey:  strPtr(rkey),
+}
+
+// First upsert
+result1, err := repo.Upsert(scene)
+if err != nil {
+t.Fatalf("First upsert failed: %v", err)
+}
+
+// Second upsert with same content
+result2, err := repo.Upsert(scene)
+if err != nil {
+t.Fatalf("Second upsert failed: %v", err)
+}
+
+// Should update, not insert
+if result2.Inserted {
+t.Error("Expected update (idempotent), got insert")
+}
+
+if result1.ID != result2.ID {
+t.Error("Idempotent upserts should return same ID")
+}
+}
+
+func TestEventRepository_Upsert_Insert(t *testing.T) {
+repo := NewInMemoryEventRepository()
+did := "did:example:alice"
+rkey := "event123"
+
+event := &Event{
+SceneID:      "scene-1",
+Name:         "Test Event",
+Description:  "A test event",
+AllowPrecise: false,
+RecordDID:    strPtr(did),
+RecordRKey:   strPtr(rkey),
+}
+
+result, err := repo.Upsert(event)
+if err != nil {
+t.Fatalf("Upsert failed: %v", err)
+}
+
+if !result.Inserted {
+t.Error("Expected insert, got update")
+}
+
+if result.ID == "" {
+t.Error("Expected non-empty ID")
+}
+
+// Verify we can retrieve it
+retrieved, err := repo.GetByRecordKey(did, rkey)
+if err != nil {
+t.Fatalf("GetByRecordKey failed: %v", err)
+}
+
+if retrieved.Name != "Test Event" {
+t.Errorf("Expected name 'Test Event', got %s", retrieved.Name)
+}
+}
+
+func TestEventRepository_Upsert_Update(t *testing.T) {
+repo := NewInMemoryEventRepository()
+did := "did:example:alice"
+rkey := "event123"
+
+// First insert
+event := &Event{
+SceneID:      "scene-1",
+Name:         "Original Event",
+Description:  "Original description",
+AllowPrecise: false,
+RecordDID:    strPtr(did),
+RecordRKey:   strPtr(rkey),
+}
+
+result1, err := repo.Upsert(event)
+if err != nil {
+t.Fatalf("First upsert failed: %v", err)
+}
+
+if !result1.Inserted {
+t.Error("Expected insert on first upsert")
+}
+
+// Second upsert with same record key
+event2 := &Event{
+SceneID:      "scene-2",
+Name:         "Updated Event",
+Description:  "Updated description",
+AllowPrecise: false,
+RecordDID:    strPtr(did),
+RecordRKey:   strPtr(rkey),
+}
+
+result2, err := repo.Upsert(event2)
+if err != nil {
+t.Fatalf("Second upsert failed: %v", err)
+}
+
+if result2.Inserted {
+t.Error("Expected update, got insert")
+}
+
+if result1.ID != result2.ID {
+t.Errorf("Expected same ID, got %s and %s", result1.ID, result2.ID)
+}
+
+// Verify update was persisted
+retrieved, err := repo.GetByRecordKey(did, rkey)
+if err != nil {
+t.Fatalf("GetByRecordKey failed: %v", err)
+}
+
+if retrieved.Name != "Updated Event" {
+t.Errorf("Expected updated name, got %s", retrieved.Name)
+}
+
+if retrieved.SceneID != "scene-2" {
+t.Errorf("Expected SceneID 'scene-2', got %s", retrieved.SceneID)
+}
+}
+
+func TestEventRepository_Upsert_EnforcesLocationConsent(t *testing.T) {
+repo := NewInMemoryEventRepository()
+did := "did:example:alice"
+rkey := "event123"
+
+// Insert with precise point but consent=false
+event := &Event{
+SceneID:      "scene-1",
+Name:         "Test Event",
+AllowPrecise: false,
+PrecisePoint: &Point{Lat: 40.7128, Lng: -74.0060},
+RecordDID:    strPtr(did),
+RecordRKey:   strPtr(rkey),
+}
+
+result, err := repo.Upsert(event)
+if err != nil {
+t.Fatalf("Upsert failed: %v", err)
+}
+
+// Retrieve and verify consent was enforced
+retrieved, err := repo.GetByRecordKey(did, rkey)
+if err != nil {
+t.Fatalf("GetByRecordKey failed: %v", err)
+}
+
+if retrieved.PrecisePoint != nil {
+t.Error("Expected PrecisePoint to be nil when consent is false")
+}
+
+// Update with consent=true
+event2 := &Event{
+SceneID:      "scene-1",
+Name:         "Test Event",
+AllowPrecise: true,
+PrecisePoint: &Point{Lat: 40.7128, Lng: -74.0060},
+RecordDID:    strPtr(did),
+RecordRKey:   strPtr(rkey),
+}
+
+result2, err := repo.Upsert(event2)
+if err != nil {
+t.Fatalf("Second upsert failed: %v", err)
+}
+
+if result2.Inserted {
+t.Error("Expected update, got insert")
+}
+
+if result.ID != result2.ID {
+t.Error("Expected same ID for update")
+}
+
+// Verify precise point is now preserved
+retrieved2, err := repo.GetByRecordKey(did, rkey)
+if err != nil {
+t.Fatalf("GetByRecordKey failed: %v", err)
+}
+
+if retrieved2.PrecisePoint == nil {
+t.Error("Expected PrecisePoint to be preserved when consent is true")
+}
+}
