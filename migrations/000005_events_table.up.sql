@@ -25,9 +25,11 @@ ALTER TABLE events ADD COLUMN IF NOT EXISTS stream_session_id UUID
 
 -- Step 5: Ensure coarse_geohash is NOT NULL (required for privacy)
 -- First, set default value for existing NULL rows
+-- Empty string indicates "no location specified" (distinct from NULL meaning "unknown")
+-- This preserves privacy by requiring explicit location consent for all events
 UPDATE events SET coarse_geohash = '' WHERE coarse_geohash IS NULL;
 
--- Then add NOT NULL constraint
+-- Then add NOT NULL constraint with empty string default
 ALTER TABLE events ALTER COLUMN coarse_geohash SET NOT NULL;
 ALTER TABLE events ALTER COLUMN coarse_geohash SET DEFAULT '';
 
@@ -56,8 +58,9 @@ BEGIN
 END $$;
 
 -- Step 7: Add indexes for query performance
--- GIN index on tags for array queries
-CREATE INDEX IF NOT EXISTS idx_events_tags ON events USING GIN(tags) WHERE deleted_at IS NULL;
+-- GIN index on tags for array queries (exclude soft-deleted and cancelled events)
+CREATE INDEX IF NOT EXISTS idx_events_tags ON events USING GIN(tags) 
+    WHERE deleted_at IS NULL AND cancelled_at IS NULL;
 
 -- GIN index for FTS queries on title + tags
 CREATE INDEX IF NOT EXISTS idx_events_title_tags_fts ON events USING GIN(title_tags_fts);
@@ -66,8 +69,9 @@ CREATE INDEX IF NOT EXISTS idx_events_title_tags_fts ON events USING GIN(title_t
 CREATE INDEX IF NOT EXISTS idx_events_stream_session ON events(stream_session_id) 
     WHERE deleted_at IS NULL AND stream_session_id IS NOT NULL;
 
--- Index on status for filtering by event lifecycle
-CREATE INDEX IF NOT EXISTS idx_events_status ON events(status) WHERE deleted_at IS NULL;
+-- Index on status for filtering by event lifecycle (exclude soft-deleted and cancelled)
+CREATE INDEX IF NOT EXISTS idx_events_status ON events(status) 
+    WHERE deleted_at IS NULL AND cancelled_at IS NULL;
 
 -- Update table and column comments
 COMMENT ON COLUMN events.title IS 'Event title, indexed for full-text search';
