@@ -25,6 +25,11 @@ lerna-debug.log*
 configs/dev.env
 configs/prod.env
 configs/local.env
+# Env files
+.env*
+!/.env.example
+configs/*.env
+!configs/*.env.example
 
 # Go
 bin/
