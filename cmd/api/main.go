@@ -11,6 +11,9 @@ import (
 	"os/signal"
 	"syscall"
 	"time"
+
+	"github.com/onnwee/subcults/internal/api"
+	"github.com/onnwee/subcults/internal/middleware"
 )
 
 func main() {
@@ -34,7 +37,11 @@ func main() {
 	}
 
 	// Initialize logger
-	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
+	env := os.Getenv("SUBCULT_ENV")
+	if env == "" {
+		env = "development"
+	}
+	logger := middleware.NewLogger(env)
 	slog.SetDefault(logger)
 
 	// Create HTTP server with routes
@@ -51,6 +58,13 @@ func main() {
 
 	// Placeholder root endpoint
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		// Only handle exact root path, everything else returns 404
+		if r.URL.Path != "/" {
+			// Return structured 404 error
+			ctx := middleware.SetErrorCode(r.Context(), api.ErrCodeNotFound)
+			api.WriteError(w, ctx, http.StatusNotFound, api.ErrCodeNotFound, "The requested resource was not found")
+			return
+		}
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
 		if _, err := w.Write([]byte(`{"service":"subcults-api","version":"0.0.1"}`)); err != nil {
@@ -58,9 +72,12 @@ func main() {
 		}
 	})
 
+	// Apply middleware: RequestID -> Logging
+	handler := middleware.RequestID(middleware.Logging(logger)(mux))
+
 	server := &http.Server{
 		Addr:         ":" + port,
-		Handler:      mux,
+		Handler:      handler,
 		ReadTimeout:  15 * time.Second,
 		WriteTimeout: 15 * time.Second,
 		IdleTimeout:  60 * time.Second,

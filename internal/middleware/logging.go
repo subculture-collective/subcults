@@ -43,12 +43,13 @@ func GetErrorCode(ctx context.Context) string {
 	return ""
 }
 
-// responseWriter wraps http.ResponseWriter to capture status code and response size.
+// responseWriter wraps http.ResponseWriter to capture status code, response size, and context.
 type responseWriter struct {
 	http.ResponseWriter
 	statusCode  int
 	size        int
 	wroteHeader bool
+	ctx         context.Context // stores the latest context from handlers
 }
 
 // WriteHeader captures the status code before writing it.
@@ -70,11 +71,40 @@ func (rw *responseWriter) Write(b []byte) (int, error) {
 	return n, err
 }
 
+// SetContext allows handlers to update the context that will be used for logging.
+// This is called by error handling code to propagate error codes to the logging middleware.
+func (rw *responseWriter) SetContext(ctx context.Context) {
+	rw.ctx = ctx
+}
+
+// Context returns the latest context, falling back to the original if never set.
+func (rw *responseWriter) Context() context.Context {
+	if rw.ctx != nil {
+		return rw.ctx
+	}
+	return context.Background()
+}
+
+// ContextSetter is an interface for response writers that support context updates.
+// This allows error handling code to propagate context changes to the logging middleware.
+type ContextSetter interface {
+	SetContext(ctx context.Context)
+}
+
+// UpdateResponseContext updates the context in the response writer if it supports it.
+// This should be called by handlers after setting error codes in the context.
+func UpdateResponseContext(w http.ResponseWriter, ctx context.Context) {
+	if cs, ok := w.(ContextSetter); ok {
+		cs.SetContext(ctx)
+	}
+}
+
 // newResponseWriter creates a new responseWriter with default 200 status.
-func newResponseWriter(w http.ResponseWriter) *responseWriter {
+func newResponseWriter(w http.ResponseWriter, initialCtx context.Context) *responseWriter {
 	return &responseWriter{
 		ResponseWriter: w,
 		statusCode:     http.StatusOK,
+		ctx:            initialCtx,
 	}
 }
 
@@ -106,14 +136,17 @@ func Logging(logger *slog.Logger) func(http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			start := time.Now()
 
-			// Wrap response writer to capture status and size
-			rw := newResponseWriter(w)
+			// Wrap response writer to capture status, size, and context
+			rw := newResponseWriter(w, r.Context())
 
 			// Call the next handler
 			next.ServeHTTP(rw, r)
 
 			// Calculate latency in milliseconds
 			latency := time.Since(start).Milliseconds()
+
+			// Get the final context (may have been updated by handlers)
+			finalCtx := rw.Context()
 
 			// Build log attributes
 			attrs := []slog.Attr{
@@ -125,29 +158,29 @@ func Logging(logger *slog.Logger) func(http.Handler) http.Handler {
 			}
 
 			// Add request ID if present
-			if requestID := GetRequestID(r.Context()); requestID != "" {
+			if requestID := GetRequestID(finalCtx); requestID != "" {
 				attrs = append(attrs, slog.String("request_id", requestID))
 			}
 
 			// Add user DID if present
-			if userDID := GetUserDID(r.Context()); userDID != "" {
+			if userDID := GetUserDID(finalCtx); userDID != "" {
 				attrs = append(attrs, slog.String("user_did", userDID))
 			}
 
 			// Add error code for error responses (4xx and 5xx)
 			if rw.statusCode >= 400 {
-				if errorCode := GetErrorCode(r.Context()); errorCode != "" {
+				if errorCode := GetErrorCode(finalCtx); errorCode != "" {
 					attrs = append(attrs, slog.String("error_code", errorCode))
 				}
 			}
 
 			// Log at appropriate level based on status code using LogAttrs
 			if rw.statusCode >= 500 {
-				logger.LogAttrs(r.Context(), slog.LevelError, "request completed", attrs...)
+				logger.LogAttrs(finalCtx, slog.LevelError, "request completed", attrs...)
 			} else if rw.statusCode >= 400 {
-				logger.LogAttrs(r.Context(), slog.LevelWarn, "request completed", attrs...)
+				logger.LogAttrs(finalCtx, slog.LevelWarn, "request completed", attrs...)
 			} else {
-				logger.LogAttrs(r.Context(), slog.LevelInfo, "request completed", attrs...)
+				logger.LogAttrs(finalCtx, slog.LevelInfo, "request completed", attrs...)
 			}
 		})
 	}

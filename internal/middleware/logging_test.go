@@ -278,7 +278,7 @@ func TestSetErrorCode_GetErrorCode(t *testing.T) {
 
 func TestResponseWriter_WriteHeader(t *testing.T) {
 	w := httptest.NewRecorder()
-	rw := newResponseWriter(w)
+	rw := newResponseWriter(w, context.Background())
 
 	rw.WriteHeader(http.StatusCreated)
 
@@ -292,7 +292,7 @@ func TestResponseWriter_WriteHeader(t *testing.T) {
 
 func TestResponseWriter_MultipleWriteHeader(t *testing.T) {
 	w := httptest.NewRecorder()
-	rw := newResponseWriter(w)
+	rw := newResponseWriter(w, context.Background())
 
 	rw.WriteHeader(http.StatusCreated)
 	rw.WriteHeader(http.StatusBadRequest) // Second call should not change statusCode
@@ -305,7 +305,7 @@ func TestResponseWriter_MultipleWriteHeader(t *testing.T) {
 
 func TestResponseWriter_Write(t *testing.T) {
 	w := httptest.NewRecorder()
-	rw := newResponseWriter(w)
+	rw := newResponseWriter(w, context.Background())
 
 	data := []byte("test response body")
 	n, err := rw.Write(data)
