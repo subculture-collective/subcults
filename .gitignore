@@ -14,6 +14,7 @@ dist/
 # Env files
 .env*
 !/.env.example
+configs/*.env
 !configs/*.env.example
 
 # Go

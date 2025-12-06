@@ -78,7 +78,8 @@ func Load(configFilePath string) (*Config, []error) {
 	}
 
 	// Parse port from env, collecting error if invalid
-	port, portErr := getEnvIntOrDefault("PORT", k.Int("port"), DefaultPort)
+	// Try SUBCULT_PORT first, then PORT for backward compatibility
+	port, portErr := getEnvIntOrDefaultMulti([]string{"SUBCULT_PORT", "PORT"}, k.Int("port"), DefaultPort)
 	if portErr != nil {
 		loadErrs = append(loadErrs, portErr)
 	}
@@ -86,7 +87,7 @@ func Load(configFilePath string) (*Config, []error) {
 	// Build config struct, with env vars taking precedence over file values
 	cfg := &Config{
 		Port:                port,
-		Env:                 getEnvOrDefault("ENV", k.String("env"), DefaultEnv),
+		Env:                 getEnvOrDefaultMulti([]string{"SUBCULT_ENV", "ENV", "GO_ENV"}, k.String("env"), DefaultEnv),
 		DatabaseURL:         getEnvOrKoanf("DATABASE_URL", k, "database_url"),
 		JWTSecret:           getEnvOrKoanf("JWT_SECRET", k, "jwt_secret"),
 		LiveKitURL:          getEnvOrKoanf("LIVEKIT_URL", k, "livekit_url"),
@@ -124,6 +125,20 @@ func getEnvOrDefault(envKey string, koanfVal string, defaultVal string) string {
 	return defaultVal
 }
 
+// getEnvOrDefaultMulti tries multiple environment variable keys in order.
+// Returns the first non-empty value found, otherwise the koanf value, or default.
+func getEnvOrDefaultMulti(envKeys []string, koanfVal string, defaultVal string) string {
+	for _, key := range envKeys {
+		if val := os.Getenv(key); val != "" {
+			return val
+		}
+	}
+	if koanfVal != "" {
+		return koanfVal
+	}
+	return defaultVal
+}
+
 // getEnvIntOrDefault returns the environment variable as int if set, otherwise the koanf value, or default.
 // Returns an error if the environment variable is set but cannot be parsed as an integer.
 // Note: A port value of 0 from a YAML file will fall back to the default; port 0 is not supported in YAML files.
@@ -134,6 +149,25 @@ func getEnvIntOrDefault(envKey string, koanfVal int, defaultVal int) (int, error
 			return 0, fmt.Errorf("%s must be a valid integer: %w", envKey, ErrInvalidPort)
 		}
 		return i, nil
+	}
+	if koanfVal != 0 {
+		return koanfVal, nil
+	}
+	return defaultVal, nil
+}
+
+// getEnvIntOrDefaultMulti tries multiple environment variable keys in order.
+// Returns the first valid integer value found, otherwise the koanf value, or default.
+// Returns an error if any environment variable is set but cannot be parsed as an integer.
+func getEnvIntOrDefaultMulti(envKeys []string, koanfVal int, defaultVal int) (int, error) {
+	for _, key := range envKeys {
+		if val := os.Getenv(key); val != "" {
+			i, err := strconv.Atoi(val)
+			if err != nil {
+				return 0, fmt.Errorf("%s must be a valid integer: %w", key, ErrInvalidPort)
+			}
+			return i, nil
+		}
 	}
 	if koanfVal != 0 {
 		return koanfVal, nil
