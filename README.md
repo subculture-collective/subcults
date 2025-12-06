@@ -236,6 +236,15 @@ Check current migration version:
 
 The script automatically uses either the local `migrate` binary (if installed) or falls back to Docker.
 
+## Privacy
+
+Subcult is built with privacy as a core principle. See [docs/PRIVACY.md](docs/PRIVACY.md) for technical details on:
+
+- Location consent controls and coarse geohash handling
+- Media sanitization (EXIF stripping)
+- Access logging practices
+- User authentication and rate limiting
+
 ## License
 
 To be defined. (Planned: permissive OSS; Apache-2.0 or MIT.)
