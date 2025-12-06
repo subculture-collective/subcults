@@ -37,6 +37,6 @@ ALTER TABLE scenes DROP COLUMN IF EXISTS visibility;
 DROP INDEX IF EXISTS idx_scenes_tags;
 ALTER TABLE scenes DROP COLUMN IF EXISTS tags;
 
--- Restore original idx_scenes_owner (may have been modified)
+-- Restore original idx_scenes_owner with WHERE clause from 000000_initial_schema.up.sql
 DROP INDEX IF EXISTS idx_scenes_owner;
 CREATE INDEX idx_scenes_owner ON scenes(owner_did) WHERE deleted_at IS NULL;

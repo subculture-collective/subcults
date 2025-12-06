@@ -97,8 +97,9 @@ COMMENT ON COLUMN scenes.owner_user_id IS 'Foreign key to users table for owners
 -- ============================================
 
 -- Set a default coarse geohash for any existing rows without one
--- Using a geohash for lat=0, lng=0 (null island) as a placeholder
--- Real scenes should have proper geohashes set via application logic
+-- Using geohash 's00000' which represents coordinates (0,0) - "Null Island" in the Gulf of Guinea
+-- This is a safe placeholder as no real scenes should exist at this location
+-- Real scenes must have proper geohashes set via application logic before insertion
 UPDATE scenes 
 SET coarse_geohash = 's00000' 
 WHERE coarse_geohash IS NULL OR coarse_geohash = '';

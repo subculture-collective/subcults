@@ -15,7 +15,12 @@ import (
 	"os"
 	"testing"
 
-	"github.com/lib/pq" // PostgreSQL driver and array support
+	"github.com/lib/pq" // PostgreSQL driver; pq.Array used for scanning PostgreSQL arrays
+)
+
+const (
+	// testGeohash is a placeholder geohash for testing (represents 0,0 coordinates)
+	testGeohash = "s00000"
 )
 
 // TestMigration000009_CoarseGeohashNotNull verifies that coarse_geohash is NOT NULL
@@ -72,7 +77,7 @@ func TestMigration000009_SoftDelete(t *testing.T) {
 	var sceneID string
 	err = db.QueryRow(`
 		INSERT INTO scenes (name, owner_did, allow_precise, coarse_geohash) 
-		VALUES ('Soft Delete Test Scene', 'did:example:softdelete', false, 's00000')
+		VALUES ('Soft Delete Test Scene', 'did:example:softdelete', false, testGeohash)
 		RETURNING id
 	`).Scan(&sceneID)
 	if err != nil {
@@ -131,7 +136,7 @@ func TestMigration000009_FTSSearchVector(t *testing.T) {
 	var sceneID string
 	err = db.QueryRow(`
 		INSERT INTO scenes (name, description, owner_did, allow_precise, coarse_geohash, tags) 
-		VALUES ('FTS Test Scene', 'A scene for testing full-text search', 'did:example:fts', false, 's00000', ARRAY['electronic', 'underground'])
+		VALUES ('FTS Test Scene', 'A scene for testing full-text search', 'did:example:fts', false, testGeohash, ARRAY['electronic', 'underground'])
 		RETURNING id
 	`).Scan(&sceneID)
 	if err != nil {
@@ -190,7 +195,7 @@ func TestMigration000009_TagsColumn(t *testing.T) {
 	var sceneID string
 	err = db.QueryRow(`
 		INSERT INTO scenes (name, owner_did, allow_precise, coarse_geohash, tags) 
-		VALUES ('Tags Test Scene', 'did:example:tags', false, 's00000', ARRAY['techno', 'house', 'underground'])
+		VALUES ('Tags Test Scene', 'did:example:tags', false, testGeohash, ARRAY['techno', 'house', 'underground'])
 		RETURNING id
 	`).Scan(&sceneID)
 	if err != nil {
@@ -231,7 +236,7 @@ func TestMigration000009_VisibilityConstraint(t *testing.T) {
 	// Try to insert with invalid visibility - should fail
 	_, err = db.Exec(`
 		INSERT INTO scenes (name, owner_did, allow_precise, coarse_geohash, visibility) 
-		VALUES ('Invalid Visibility Test', 'did:example:invalid', false, 's00000', 'invalid_value')
+		VALUES ('Invalid Visibility Test', 'did:example:invalid', false, testGeohash, 'invalid_value')
 	`)
 	if err == nil {
 		t.Fatal("Expected error when inserting scene with invalid visibility, but got none")
@@ -244,7 +249,7 @@ func TestMigration000009_VisibilityConstraint(t *testing.T) {
 		var sceneID string
 		err = db.QueryRow(`
 			INSERT INTO scenes (name, owner_did, allow_precise, coarse_geohash, visibility) 
-			VALUES ($1, 'did:example:visibility', false, 's00000', $2)
+			VALUES ($1, 'did:example:visibility', false, testGeohash, $2)
 			RETURNING id
 		`, "Visibility Test "+vis, vis).Scan(&sceneID)
 		if err != nil {
@@ -277,7 +282,7 @@ func TestMigration000009_PaletteColumn(t *testing.T) {
 	var sceneID string
 	err = db.QueryRow(`
 		INSERT INTO scenes (name, owner_did, allow_precise, coarse_geohash, palette) 
-		VALUES ('Palette Test Scene', 'did:example:palette', false, 's00000', '{"primary": "#ff0000", "secondary": "#00ff00"}'::jsonb)
+		VALUES ('Palette Test Scene', 'did:example:palette', false, testGeohash, '{"primary": "#ff0000", "secondary": "#00ff00"}'::jsonb)
 		RETURNING id
 	`).Scan(&sceneID)
 	if err != nil {
@@ -320,7 +325,7 @@ func TestMigration000009_PrivacyConstraintsPreserved(t *testing.T) {
 	// Try to insert scene with precise_point but allow_precise=false - should fail
 	_, err = db.Exec(`
 		INSERT INTO scenes (name, owner_did, allow_precise, coarse_geohash, precise_point) 
-		VALUES ('Privacy Test', 'did:example:privacy', false, 's00000', ST_SetSRID(ST_MakePoint(-74.0060, 40.7128), 4326))
+		VALUES ('Privacy Test', 'did:example:privacy', false, testGeohash, ST_SetSRID(ST_MakePoint(-74.0060, 40.7128), 4326))
 	`)
 	if err == nil {
 		t.Fatal("Expected error when inserting scene with precise_point but allow_precise=false, but got none")
@@ -331,7 +336,7 @@ func TestMigration000009_PrivacyConstraintsPreserved(t *testing.T) {
 	var sceneID string
 	err = db.QueryRow(`
 		INSERT INTO scenes (name, owner_did, allow_precise, coarse_geohash, precise_point) 
-		VALUES ('Privacy Test With Consent', 'did:example:privacy2', true, 's00000', ST_SetSRID(ST_MakePoint(-74.0060, 40.7128), 4326))
+		VALUES ('Privacy Test With Consent', 'did:example:privacy2', true, testGeohash, ST_SetSRID(ST_MakePoint(-74.0060, 40.7128), 4326))
 		RETURNING id
 	`).Scan(&sceneID)
 	if err != nil {
