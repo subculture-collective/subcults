@@ -19,7 +19,10 @@ func clearEnv() {
 	os.Unsetenv("MAPTILER_API_KEY")
 	os.Unsetenv("JETSTREAM_URL")
 	os.Unsetenv("PORT")
+	os.Unsetenv("SUBCULT_PORT")
 	os.Unsetenv("ENV")
+	os.Unsetenv("GO_ENV")
+	os.Unsetenv("SUBCULT_ENV")
 }
 
 func TestLoad_MissingMandatory(t *testing.T) {
@@ -653,4 +656,167 @@ database_url: [unclosed bracket
 	if !found {
 		t.Errorf("Load() error should mention 'failed to load config file', got: %v", errs)
 	}
+}
+
+func TestLoad_SubcultEnvAliases(t *testing.T) {
+tests := []struct {
+name     string
+envVars  map[string]string
+wantPort int
+wantEnv  string
+}{
+{
+name: "SUBCULT_PORT and SUBCULT_ENV take precedence",
+envVars: map[string]string{
+"SUBCULT_PORT":          "9000",
+"PORT":                  "8080",
+"SUBCULT_ENV":           "production",
+"ENV":                   "development",
+"GO_ENV":                "staging",
+"DATABASE_URL":          "postgres://localhost/test",
+"JWT_SECRET":            "supersecret32characterlongvalue!",
+"LIVEKIT_URL":           "wss://livekit.example.com",
+"LIVEKIT_API_KEY":       "api_key",
+"LIVEKIT_API_SECRET":    "api_secret",
+"STRIPE_API_KEY":        "sk_test_123",
+"STRIPE_WEBHOOK_SECRET": "whsec_123",
+"MAPTILER_API_KEY":      "maptiler_key",
+"JETSTREAM_URL":         "wss://jetstream.example.com",
+},
+wantPort: 9000,
+wantEnv:  "production",
+},
+{
+name: "PORT fallback when SUBCULT_PORT not set",
+envVars: map[string]string{
+"PORT":                  "3000",
+"ENV":                   "staging",
+"DATABASE_URL":          "postgres://localhost/test",
+"JWT_SECRET":            "supersecret32characterlongvalue!",
+"LIVEKIT_URL":           "wss://livekit.example.com",
+"LIVEKIT_API_KEY":       "api_key",
+"LIVEKIT_API_SECRET":    "api_secret",
+"STRIPE_API_KEY":        "sk_test_123",
+"STRIPE_WEBHOOK_SECRET": "whsec_123",
+"MAPTILER_API_KEY":      "maptiler_key",
+"JETSTREAM_URL":         "wss://jetstream.example.com",
+},
+wantPort: 3000,
+wantEnv:  "staging",
+},
+{
+name: "GO_ENV fallback when SUBCULT_ENV and ENV not set",
+envVars: map[string]string{
+"GO_ENV":                "testing",
+"DATABASE_URL":          "postgres://localhost/test",
+"JWT_SECRET":            "supersecret32characterlongvalue!",
+"LIVEKIT_URL":           "wss://livekit.example.com",
+"LIVEKIT_API_KEY":       "api_key",
+"LIVEKIT_API_SECRET":    "api_secret",
+"STRIPE_API_KEY":        "sk_test_123",
+"STRIPE_WEBHOOK_SECRET": "whsec_123",
+"MAPTILER_API_KEY":      "maptiler_key",
+"JETSTREAM_URL":         "wss://jetstream.example.com",
+},
+wantPort: DefaultPort,
+wantEnv:  "testing",
+},
+{
+name: "defaults when no env vars set for port and env",
+envVars: map[string]string{
+"DATABASE_URL":          "postgres://localhost/test",
+"JWT_SECRET":            "supersecret32characterlongvalue!",
+"LIVEKIT_URL":           "wss://livekit.example.com",
+"LIVEKIT_API_KEY":       "api_key",
+"LIVEKIT_API_SECRET":    "api_secret",
+"STRIPE_API_KEY":        "sk_test_123",
+"STRIPE_WEBHOOK_SECRET": "whsec_123",
+"MAPTILER_API_KEY":      "maptiler_key",
+"JETSTREAM_URL":         "wss://jetstream.example.com",
+},
+wantPort: DefaultPort,
+wantEnv:  DefaultEnv,
+},
+}
+
+for _, tt := range tests {
+t.Run(tt.name, func(t *testing.T) {
+clearEnv()
+defer clearEnv()
+
+for k, v := range tt.envVars {
+os.Setenv(k, v)
+}
+
+cfg, errs := Load("")
+
+if len(errs) != 0 {
+t.Errorf("Load() returned errors: %v", errs)
+}
+
+if cfg.Port != tt.wantPort {
+t.Errorf("cfg.Port = %d, want %d", cfg.Port, tt.wantPort)
+}
+if cfg.Env != tt.wantEnv {
+t.Errorf("cfg.Env = %s, want %s", cfg.Env, tt.wantEnv)
+}
+})
+}
+}
+
+func TestLoad_InvalidSubcultPort(t *testing.T) {
+clearEnv()
+defer clearEnv()
+
+// Set all required env vars
+os.Setenv("DATABASE_URL", "postgres://localhost/test")
+os.Setenv("JWT_SECRET", "supersecret32characterlongvalue!")
+os.Setenv("LIVEKIT_URL", "wss://livekit.example.com")
+os.Setenv("LIVEKIT_API_KEY", "api_key")
+os.Setenv("LIVEKIT_API_SECRET", "api_secret")
+os.Setenv("STRIPE_API_KEY", "sk_test_123")
+os.Setenv("STRIPE_WEBHOOK_SECRET", "whsec_123")
+os.Setenv("MAPTILER_API_KEY", "maptiler_key")
+os.Setenv("JETSTREAM_URL", "wss://jetstream.example.com")
+
+tests := []struct {
+name    string
+portVal string
+wantErr bool
+}{
+{
+name:    "invalid SUBCULT_PORT",
+portVal: "not-a-number",
+wantErr: true,
+},
+{
+name:    "valid SUBCULT_PORT",
+portVal: "9090",
+wantErr: false,
+},
+}
+
+for _, tt := range tests {
+t.Run(tt.name, func(t *testing.T) {
+os.Setenv("SUBCULT_PORT", tt.portVal)
+defer os.Unsetenv("SUBCULT_PORT")
+
+_, errs := Load("")
+
+hasPortErr := false
+for _, err := range errs {
+if errors.Is(err, ErrInvalidPort) {
+hasPortErr = true
+break
+}
+}
+
+if tt.wantErr && !hasPortErr {
+t.Errorf("Load() with SUBCULT_PORT=%q should return port error, got errors: %v", tt.portVal, errs)
+}
+if !tt.wantErr && hasPortErr {
+t.Errorf("Load() with SUBCULT_PORT=%q should not return port error, got errors: %v", tt.portVal, errs)
+}
+})
+}
 }
