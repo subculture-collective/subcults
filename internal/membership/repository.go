@@ -68,9 +68,11 @@ func NewInMemoryMembershipRepository() *InMemoryMembershipRepository {
 	}
 }
 
-// makeKey creates a composite key from DID and rkey.
+// makeKey creates a composite key from DID and rkey using a null byte separator to avoid collisions.
+// AT Protocol DIDs contain colons (e.g., "did:plc:abc123"), so using a null byte prevents
+// collisions like did="a:b" + rkey="c" vs did="a" + rkey="b:c" both producing "a:b:c".
 func makeKey(did, rkey string) string {
-	return did + ":" + rkey
+	return did + "\x00" + rkey
 }
 
 // Upsert inserts a new membership or updates existing one based on (record_did, record_rkey).
