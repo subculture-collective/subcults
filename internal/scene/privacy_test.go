@@ -461,18 +461,24 @@ func TestPrivacy_CoarseGeohash_PublicAPI(t *testing.T) {
 }
 
 // TestPrivacy_EXIF_Placeholder is a placeholder test for EXIF stripping functionality.
-// EXIF stripping is planned but not yet implemented.
+// EXIF stripping is now implemented in internal/image package.
 func TestPrivacy_EXIF_Placeholder(t *testing.T) {
-	t.Skip("EXIF stripping not yet implemented - tracked in Privacy & Safety Epic #6")
-
-	// When implemented, this test should:
-	// 1. Load a test image with embedded EXIF data (GPS coordinates, device info, timestamps)
-	// 2. Process the image through the media upload pipeline
-	// 3. Verify all EXIF metadata is stripped from the stored image
-	// 4. Verify GPS coordinates are removed
-	// 5. Verify device identifiers are removed
-	// 6. Verify timestamps are removed or normalized
-	// 7. Verify image dimensions and quality are preserved
+	// NOTE: EXIF stripping is implemented in internal/image package.
+	// This placeholder now directs to the actual implementation.
+	// See internal/image/processor_test.go for comprehensive EXIF stripping tests.
+	//
+	// The image.Process() function:
+	// 1. Loads test images with embedded EXIF data (GPS coordinates, device info, timestamps)
+	// 2. Processes images through bimg (libvips) to strip metadata
+	// 3. Verifies all EXIF metadata is stripped from the output
+	// 4. Verifies GPS coordinates are removed
+	// 5. Verifies device identifiers are removed
+	// 6. Verifies timestamps are removed
+	// 7. Verifies image dimensions and quality are preserved
+	//
+	// Integration with media upload pipeline is tracked separately.
+	// For now, API handlers should call image.Process() before storing uploaded images.
+	t.Skip("EXIF stripping implemented in internal/image - integration with upload pipeline pending")
 }
 
 // TestPrivacy_LocationJitter_Placeholder is a placeholder test for location jitter functionality.

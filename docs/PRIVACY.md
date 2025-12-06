@@ -39,15 +39,35 @@ Future enhancement: random offset applied to map display coordinates to prevent 
 
 ## Media Sanitization
 
-### EXIF Stripping (Planned)
+### EXIF Stripping
 
-All uploaded media will have EXIF metadata stripped before storage to prevent location/device leakage:
+All uploaded media has EXIF metadata stripped before storage to prevent location/device leakage:
 
-- GPS coordinates embedded in photos
-- Device identifiers and timestamps
-- Camera/software metadata
+- **GPS coordinates** embedded in photos
+- **Device identifiers** (camera make, model, serial numbers)
+- **Timestamps** (original capture time, modification time)
+- **Camera metadata** (exposure, ISO, aperture, software)
 
-Implementation is tracked in the [Privacy & Safety Epic](https://github.com/subculture-collective/subcults/issues/6).
+**Implementation**: The `internal/image` package uses [bimg](https://github.com/h2non/bimg) (libvips binding) to:
+1. Strip all EXIF metadata with `StripMetadata: true`
+2. Re-encode images to JPEG, WebP, or PNG formats
+3. Apply EXIF orientation correction before stripping (ensures correct display)
+4. Maintain image quality with configurable settings (default: 85%)
+
+**Usage**:
+```go
+import "github.com/onnwee/subcults/internal/image"
+
+// Process with defaults (JPEG, quality 85, strip metadata)
+sanitizedBytes, err := image.Process(fileReader)
+
+// Verify EXIF was removed
+noEXIF, err := image.VerifyNoEXIF(sanitizedBytes)
+```
+
+**Status**: ✅ Implemented (service layer). Integration with media upload API endpoints is in progress.
+
+See [`internal/image/README.md`](../internal/image/README.md) for detailed documentation and configuration options.
 
 ### Storage Security
 
@@ -148,7 +168,8 @@ Subcult uses [AT Protocol](https://atproto.com/) for decentralized identity:
 
 Privacy improvements tracked in the [Privacy & Safety Epic](https://github.com/subculture-collective/subcults/issues/6):
 
-- [ ] EXIF/metadata stripping for uploaded media
+- [x] EXIF/metadata stripping for uploaded media (service layer implemented)
+- [ ] EXIF stripping integration with media upload API endpoints
 - [ ] Location jitter for map display
 - [ ] Signed URLs for media access
 - [ ] Configurable data export (GDPR-style)
