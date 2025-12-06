@@ -89,6 +89,11 @@ make migrate-down
 | 000000 | initial_schema | Core tables: scenes, events, posts, memberships, alliances, stream_sessions, indexer_state. Enables PostGIS and uuid-ossp extensions. |
 | 000001 | add_allow_precise | No-op migration kept for version continuity. The allow_precise column was originally added by this migration but is now included in the initial schema. Removing it would break existing deployments that have already run this version. |
 | 000002 | enable_postgis | Explicit PostGIS extension verification |
+| 000003 | posts_table | Enhanced posts table: JSONB attachments, moderation labels, full-text search (FTS), scene_id/event_id association constraint. Supports feed rendering and content moderation. |
+| 000004 | users_table | Users table for core identity and ATProto DID linking. Foundation for ownership and membership relations. |
+| 000005 | events_table | Enhanced events table: title (renamed from name), tags array, status with CHECK constraint, stream_session_id FK, full-text search (FTS) on title+tags. Supports schedule-based discovery. |
+| 000006 | trust_graph_columns | Adds trust_weight (0-1) and since columns to memberships. Adds reason, status, and since columns to alliances. Indexes on weight and status for filtering. Enables trust graph computation. |
+| 000007 | audit_logs | Audit logs table for privacy-compliant access logging. Records scene/event/post access with retention policies. |
 
 ## Writing New Migrations
 
@@ -110,13 +115,15 @@ make migrate-down
 
 ### Core Tables
 
+- **users**: Core identity with optional ATProto DID linking
 - **scenes**: Underground music scenes with privacy-controlled location data
 - **events**: Temporal happenings within scenes
 - **posts**: Content within scenes/events
-- **memberships**: Scene participation (member, curator, admin roles)
-- **alliances**: Trust relationships between scenes
+- **memberships**: Scene participation (member, curator, admin roles) with trust_weight (0-1) for trust scoring
+- **alliances**: Trust relationships between scenes with weight (0-1), reason, and status
 - **stream_sessions**: LiveKit audio rooms
 - **indexer_state**: Cursor tracking for Jetstream ingestion
+- **audit_logs**: Privacy-compliant access logging with retention policies
 
 ### Location Privacy
 

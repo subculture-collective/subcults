@@ -1,0 +1,222 @@
+// Package indexer provides filtering and processing of AT Protocol records
+// for the Subcults Jetstream indexer.
+package indexer
+
+import (
+	"encoding/json"
+	"errors"
+	"strings"
+	"sync/atomic"
+)
+
+// LexiconPrefix is the namespace prefix for Subcults domain records.
+const LexiconPrefix = "app.subcult."
+
+// Supported lexicon collection types within the app.subcult namespace.
+const (
+	CollectionScene = "app.subcult.scene"
+	CollectionEvent = "app.subcult.event"
+	CollectionPost  = "app.subcult.post"
+)
+
+// Errors for record filtering and validation.
+var (
+	ErrNonMatchingLexicon = errors.New("lexicon does not match app.subcult.* namespace")
+	ErrMalformedJSON      = errors.New("malformed JSON payload")
+	ErrMissingField       = errors.New("required field missing")
+	ErrInvalidFieldType   = errors.New("field has invalid type")
+)
+
+// FilterMetrics tracks counts for record filtering operations.
+// All operations are thread-safe using atomic counters.
+type FilterMetrics struct {
+	processed int64 // Total records received
+	matched   int64 // Records matching app.subcult.* prefix
+	discarded int64 // Records discarded due to validation errors
+}
+
+// NewFilterMetrics creates a new FilterMetrics instance.
+func NewFilterMetrics() *FilterMetrics {
+	return &FilterMetrics{}
+}
+
+// Processed returns the total number of records received.
+func (m *FilterMetrics) Processed() int64 {
+	return atomic.LoadInt64(&m.processed)
+}
+
+// Matched returns the number of records matching the lexicon prefix.
+func (m *FilterMetrics) Matched() int64 {
+	return atomic.LoadInt64(&m.matched)
+}
+
+// Discarded returns the number of records discarded due to validation errors.
+func (m *FilterMetrics) Discarded() int64 {
+	return atomic.LoadInt64(&m.discarded)
+}
+
+// incProcessed atomically increments the processed counter.
+func (m *FilterMetrics) incProcessed() {
+	atomic.AddInt64(&m.processed, 1)
+}
+
+// incMatched atomically increments the matched counter.
+func (m *FilterMetrics) incMatched() {
+	atomic.AddInt64(&m.matched, 1)
+}
+
+// incDiscarded atomically increments the discarded counter.
+func (m *FilterMetrics) incDiscarded() {
+	atomic.AddInt64(&m.discarded, 1)
+}
+
+// RecordFilter filters and validates AT Protocol records for the app.subcult.* namespace.
+type RecordFilter struct {
+	metrics *FilterMetrics
+}
+
+// NewRecordFilter creates a new RecordFilter with the given metrics collector.
+func NewRecordFilter(metrics *FilterMetrics) *RecordFilter {
+	return &RecordFilter{
+		metrics: metrics,
+	}
+}
+
+// MatchesLexicon checks if the given collection path matches the app.subcult.* namespace.
+func MatchesLexicon(collection string) bool {
+	return strings.HasPrefix(collection, LexiconPrefix)
+}
+
+// FilterResult represents the result of filtering and validating a record.
+type FilterResult struct {
+	Matched    bool            // Whether the record matched the lexicon prefix
+	Valid      bool            // Whether the record passed validation
+	Collection string          // The collection type (e.g., "app.subcult.scene")
+	Record     json.RawMessage // The validated record JSON
+	Error      error           // Validation error, if any
+}
+
+// Filter processes a record, checking if it matches the app.subcult.* namespace
+// and validating the JSON payload if it matches.
+func (f *RecordFilter) Filter(collection string, payload []byte) FilterResult {
+	f.metrics.incProcessed()
+
+	result := FilterResult{
+		Collection: collection,
+	}
+
+	// Check if collection matches our lexicon namespace
+	if !MatchesLexicon(collection) {
+		result.Matched = false
+		result.Error = ErrNonMatchingLexicon
+		return result
+	}
+
+	result.Matched = true
+	f.metrics.incMatched()
+
+	// Validate the JSON payload based on collection type
+	if err := f.validateRecord(collection, payload); err != nil {
+		result.Valid = false
+		result.Error = err
+		f.metrics.incDiscarded()
+		return result
+	}
+
+	result.Valid = true
+	result.Record = payload
+	return result
+}
+
+// validateRecord validates the JSON payload based on the collection type.
+func (f *RecordFilter) validateRecord(collection string, payload []byte) error {
+	switch collection {
+	case CollectionScene:
+		return validateSceneRecord(payload)
+	case CollectionEvent:
+		return validateEventRecord(payload)
+	case CollectionPost:
+		return validatePostRecord(payload)
+	default:
+		// For unknown app.subcult.* collections, just validate JSON syntax
+		return validateJSONSyntax(payload)
+	}
+}
+
+// validateJSONSyntax checks if the payload is valid JSON.
+func validateJSONSyntax(payload []byte) error {
+	var js json.RawMessage
+	if err := json.Unmarshal(payload, &js); err != nil {
+		return ErrMalformedJSON
+	}
+	return nil
+}
+
+// validateStringField checks if a required string field exists and has the correct type.
+func validateStringField(record map[string]interface{}, fieldName string) error {
+	value, exists := record[fieldName]
+	if !exists {
+		return ErrMissingField
+	}
+	if _, ok := value.(string); !ok {
+		return ErrInvalidFieldType
+	}
+	return nil
+}
+
+// SceneRecord documents the expected structure of an app.subcult.scene record.
+// Note: This type is for documentation only. Validation uses map-based checking
+// to allow extra fields while enforcing required field presence and types.
+type SceneRecord struct {
+	Name        string `json:"name"`
+	Description string `json:"description,omitempty"`
+}
+
+// validateSceneRecord validates a scene record's required fields.
+func validateSceneRecord(payload []byte) error {
+	var record map[string]interface{}
+	if err := json.Unmarshal(payload, &record); err != nil {
+		return ErrMalformedJSON
+	}
+	return validateStringField(record, "name")
+}
+
+// EventRecord documents the expected structure of an app.subcult.event record.
+// Note: This type is for documentation only. Validation uses map-based checking
+// to allow extra fields while enforcing required field presence and types.
+type EventRecord struct {
+	Name    string `json:"name"`
+	SceneID string `json:"sceneId"`
+}
+
+// validateEventRecord validates an event record's required fields.
+func validateEventRecord(payload []byte) error {
+	var record map[string]interface{}
+	if err := json.Unmarshal(payload, &record); err != nil {
+		return ErrMalformedJSON
+	}
+	if err := validateStringField(record, "name"); err != nil {
+		return err
+	}
+	return validateStringField(record, "sceneId")
+}
+
+// PostRecord documents the expected structure of an app.subcult.post record.
+// Note: This type is for documentation only. Validation uses map-based checking
+// to allow extra fields while enforcing required field presence and types.
+type PostRecord struct {
+	Text    string `json:"text"`
+	SceneID string `json:"sceneId"`
+}
+
+// validatePostRecord validates a post record's required fields.
+func validatePostRecord(payload []byte) error {
+	var record map[string]interface{}
+	if err := json.Unmarshal(payload, &record); err != nil {
+		return ErrMalformedJSON
+	}
+	if err := validateStringField(record, "text"); err != nil {
+		return err
+	}
+	return validateStringField(record, "sceneId")
+}
