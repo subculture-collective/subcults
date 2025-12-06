@@ -125,16 +125,20 @@ func getEnvOrDefault(envKey string, koanfVal string, defaultVal string) string {
 }
 
 // getEnvIntOrDefault returns the environment variable as int if set, otherwise the koanf value, or default.
-func getEnvIntOrDefault(envKey string, koanfVal int, defaultVal int) int {
+// Returns an error if the environment variable is set but cannot be parsed as an integer.
+// Note: A port value of 0 from a YAML file will fall back to the default; port 0 is not supported in YAML files.
+func getEnvIntOrDefault(envKey string, koanfVal int, defaultVal int) (int, error) {
 	if val := os.Getenv(envKey); val != "" {
-		if i, err := strconv.Atoi(val); err == nil {
-			return i
+		i, err := strconv.Atoi(val)
+		if err != nil {
+			return 0, fmt.Errorf("%s must be a valid integer: %w", envKey, ErrInvalidPort)
 		}
+		return i, nil
 	}
 	if koanfVal != 0 {
-		return koanfVal
+		return koanfVal, nil
 	}
-	return defaultVal
+	return defaultVal, nil
 }
 
 // Validate checks that all required configuration values are present.

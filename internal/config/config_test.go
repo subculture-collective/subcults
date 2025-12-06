@@ -1,7 +1,9 @@
 package config
 
 import (
+	"errors"
 	"os"
+	"strings"
 	"testing"
 )
 
@@ -22,10 +24,9 @@ func clearEnv() {
 
 func TestLoad_MissingMandatory(t *testing.T) {
 	tests := []struct {
-		name           string
-		envVars        map[string]string
-		wantErrs       []error
-		wantErrCount   int
+		name             string
+		envVars          map[string]string
+		wantErrCount     int
 		checkSpecificErr error
 	}{
 		{
@@ -517,5 +518,139 @@ jetstream_url: wss://file-jetstream.example.com
 	// File values should be used where env not set
 	if cfg.Env != "staging" {
 		t.Errorf("cfg.Env = %s, want staging (from file)", cfg.Env)
+	}
+}
+
+func TestLoad_InvalidPort(t *testing.T) {
+	clearEnv()
+	defer clearEnv()
+
+	// Set all required env vars
+	os.Setenv("DATABASE_URL", "postgres://localhost/test")
+	os.Setenv("JWT_SECRET", "supersecret32characterlongvalue!")
+	os.Setenv("LIVEKIT_URL", "wss://livekit.example.com")
+	os.Setenv("LIVEKIT_API_KEY", "api_key")
+	os.Setenv("LIVEKIT_API_SECRET", "api_secret")
+	os.Setenv("STRIPE_API_KEY", "sk_test_123")
+	os.Setenv("STRIPE_WEBHOOK_SECRET", "whsec_123")
+	os.Setenv("MAPTILER_API_KEY", "maptiler_key")
+	os.Setenv("JETSTREAM_URL", "wss://jetstream.example.com")
+
+	tests := []struct {
+		name     string
+		portVal  string
+		wantErr  bool
+	}{
+		{
+			name:    "non-numeric port",
+			portVal: "abc",
+			wantErr: true,
+		},
+		{
+			name:    "port with suffix",
+			portVal: "8080x",
+			wantErr: true,
+		},
+		{
+			name:    "empty port uses default",
+			portVal: "",
+			wantErr: false,
+		},
+		{
+			name:    "valid port",
+			portVal: "3000",
+			wantErr: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if tt.portVal != "" {
+				os.Setenv("PORT", tt.portVal)
+			} else {
+				os.Unsetenv("PORT")
+			}
+
+			_, errs := Load("")
+
+			hasPortErr := false
+			for _, err := range errs {
+				if errors.Is(err, ErrInvalidPort) {
+					hasPortErr = true
+					break
+				}
+			}
+
+			if tt.wantErr && !hasPortErr {
+				t.Errorf("Load() with PORT=%q should return port error, got errors: %v", tt.portVal, errs)
+			}
+			if !tt.wantErr && hasPortErr {
+				t.Errorf("Load() with PORT=%q should not return port error, got errors: %v", tt.portVal, errs)
+			}
+		})
+	}
+}
+
+func TestLoad_NonExistentConfigFile(t *testing.T) {
+	clearEnv()
+	defer clearEnv()
+
+	_, errs := Load("/nonexistent/path/config.yaml")
+
+	if len(errs) == 0 {
+		t.Error("Load() with non-existent file should return error")
+	}
+
+	// Check that the error mentions the file
+	found := false
+	for _, err := range errs {
+		if err != nil && strings.Contains(err.Error(), "failed to load config file") {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Errorf("Load() error should mention 'failed to load config file', got: %v", errs)
+	}
+}
+
+func TestLoad_InvalidYAMLSyntax(t *testing.T) {
+	clearEnv()
+	defer clearEnv()
+
+	// Create a temporary file with invalid YAML (unclosed bracket)
+	invalidYAML := `port: 3000
+env: staging
+database_url: [unclosed bracket
+`
+	tmpFile, err := os.CreateTemp("", "invalid-config-*.yaml")
+	if err != nil {
+		t.Fatalf("Failed to create temp file: %v", err)
+	}
+	defer os.Remove(tmpFile.Name())
+
+	if _, err := tmpFile.WriteString(invalidYAML); err != nil {
+		t.Fatalf("Failed to write to temp file: %v", err)
+	}
+	if err := tmpFile.Close(); err != nil {
+		t.Fatalf("Failed to close temp file: %v", err)
+	}
+
+	_, errs := Load(tmpFile.Name())
+
+	if len(errs) == 0 {
+		t.Error("Load() with invalid YAML should return error")
+	}
+
+	// Check that the error mentions the file
+	found := false
+	for _, err := range errs {
+		if err != nil && strings.Contains(err.Error(), "failed to load config file") {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Errorf("Load() error should mention 'failed to load config file', got: %v", errs)
 	}
 }
