@@ -5,22 +5,22 @@ import (
 	"testing"
 )
 
-func TestLoad_MissingMandatory(t *testing.T) {
-	// Clear all environment variables that might affect the test
-	clearEnv := func() {
-		os.Unsetenv("DATABASE_URL")
-		os.Unsetenv("JWT_SECRET")
-		os.Unsetenv("LIVEKIT_URL")
-		os.Unsetenv("LIVEKIT_API_KEY")
-		os.Unsetenv("LIVEKIT_API_SECRET")
-		os.Unsetenv("STRIPE_API_KEY")
-		os.Unsetenv("STRIPE_WEBHOOK_SECRET")
-		os.Unsetenv("MAPTILER_API_KEY")
-		os.Unsetenv("JETSTREAM_URL")
-		os.Unsetenv("PORT")
-		os.Unsetenv("ENV")
-	}
+// clearEnv clears all environment variables that might affect config loading tests.
+func clearEnv() {
+	os.Unsetenv("DATABASE_URL")
+	os.Unsetenv("JWT_SECRET")
+	os.Unsetenv("LIVEKIT_URL")
+	os.Unsetenv("LIVEKIT_API_KEY")
+	os.Unsetenv("LIVEKIT_API_SECRET")
+	os.Unsetenv("STRIPE_API_KEY")
+	os.Unsetenv("STRIPE_WEBHOOK_SECRET")
+	os.Unsetenv("MAPTILER_API_KEY")
+	os.Unsetenv("JETSTREAM_URL")
+	os.Unsetenv("PORT")
+	os.Unsetenv("ENV")
+}
 
+func TestLoad_MissingMandatory(t *testing.T) {
 	tests := []struct {
 		name           string
 		envVars        map[string]string
@@ -105,21 +105,6 @@ func TestLoad_MissingMandatory(t *testing.T) {
 }
 
 func TestLoad_ValidEnv(t *testing.T) {
-	// Clear all environment variables that might affect the test
-	clearEnv := func() {
-		os.Unsetenv("DATABASE_URL")
-		os.Unsetenv("JWT_SECRET")
-		os.Unsetenv("LIVEKIT_URL")
-		os.Unsetenv("LIVEKIT_API_KEY")
-		os.Unsetenv("LIVEKIT_API_SECRET")
-		os.Unsetenv("STRIPE_API_KEY")
-		os.Unsetenv("STRIPE_WEBHOOK_SECRET")
-		os.Unsetenv("MAPTILER_API_KEY")
-		os.Unsetenv("JETSTREAM_URL")
-		os.Unsetenv("PORT")
-		os.Unsetenv("ENV")
-	}
-
 	clearEnv()
 	defer clearEnv()
 
@@ -157,21 +142,6 @@ func TestLoad_ValidEnv(t *testing.T) {
 }
 
 func TestLoad_Defaults(t *testing.T) {
-	// Clear all environment variables that might affect the test
-	clearEnv := func() {
-		os.Unsetenv("DATABASE_URL")
-		os.Unsetenv("JWT_SECRET")
-		os.Unsetenv("LIVEKIT_URL")
-		os.Unsetenv("LIVEKIT_API_KEY")
-		os.Unsetenv("LIVEKIT_API_SECRET")
-		os.Unsetenv("STRIPE_API_KEY")
-		os.Unsetenv("STRIPE_WEBHOOK_SECRET")
-		os.Unsetenv("MAPTILER_API_KEY")
-		os.Unsetenv("JETSTREAM_URL")
-		os.Unsetenv("PORT")
-		os.Unsetenv("ENV")
-	}
-
 	clearEnv()
 	defer clearEnv()
 
@@ -450,21 +420,6 @@ func TestConfig_Validate(t *testing.T) {
 }
 
 func TestLoad_FromYAMLFile(t *testing.T) {
-	// Clear all environment variables that might affect the test
-	clearEnv := func() {
-		os.Unsetenv("DATABASE_URL")
-		os.Unsetenv("JWT_SECRET")
-		os.Unsetenv("LIVEKIT_URL")
-		os.Unsetenv("LIVEKIT_API_KEY")
-		os.Unsetenv("LIVEKIT_API_SECRET")
-		os.Unsetenv("STRIPE_API_KEY")
-		os.Unsetenv("STRIPE_WEBHOOK_SECRET")
-		os.Unsetenv("MAPTILER_API_KEY")
-		os.Unsetenv("JETSTREAM_URL")
-		os.Unsetenv("PORT")
-		os.Unsetenv("ENV")
-	}
-
 	clearEnv()
 	defer clearEnv()
 
@@ -512,21 +467,6 @@ jetstream_url: wss://file-jetstream.example.com
 }
 
 func TestLoad_EnvOverridesFile(t *testing.T) {
-	// Clear all environment variables that might affect the test
-	clearEnv := func() {
-		os.Unsetenv("DATABASE_URL")
-		os.Unsetenv("JWT_SECRET")
-		os.Unsetenv("LIVEKIT_URL")
-		os.Unsetenv("LIVEKIT_API_KEY")
-		os.Unsetenv("LIVEKIT_API_SECRET")
-		os.Unsetenv("STRIPE_API_KEY")
-		os.Unsetenv("STRIPE_WEBHOOK_SECRET")
-		os.Unsetenv("MAPTILER_API_KEY")
-		os.Unsetenv("JETSTREAM_URL")
-		os.Unsetenv("PORT")
-		os.Unsetenv("ENV")
-	}
-
 	clearEnv()
 	defer clearEnv()
 
