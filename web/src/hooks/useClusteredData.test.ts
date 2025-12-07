@@ -177,6 +177,7 @@ describe('useClusteredData', () => {
     mockFetch.mockResolvedValueOnce({
       ok: false,
       status: 404,
+      statusText: 'Not Found',
     });
 
     const { result } = renderHook(() => useClusteredData(null, { debounceMs: 50 }));
@@ -191,7 +192,7 @@ describe('useClusteredData', () => {
     });
 
     await waitFor(() => {
-      expect(result.current.error).toBe('Failed to fetch data');
+      expect(result.current.error).toContain('Failed to fetch scenes');
     }, { timeout: 3000 });
   });
 

@@ -135,7 +135,11 @@ export function ClusteredMapView(props: ClusteredMapViewProps) {
       
       if (source && 'getClusterExpansionZoom' in source && clusterId !== undefined) {
         source.getClusterExpansionZoom(clusterId, (err, zoom) => {
-          if (err || !features[0].geometry || features[0].geometry.type !== 'Point') return;
+          if (err) {
+            console.error('Failed to expand cluster:', err);
+            return;
+          }
+          if (!features[0].geometry || features[0].geometry.type !== 'Point') return;
 
           map.easeTo({
             center: features[0].geometry.coordinates as [number, number],

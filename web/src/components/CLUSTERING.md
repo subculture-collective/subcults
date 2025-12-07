@@ -67,9 +67,10 @@ The clustering system respects location privacy settings from the backend:
 
 1. **Scenes with `allow_precise=true`**: Use exact coordinates from `precise_point`
 2. **Scenes with `allow_precise=false`**: Use approximate coordinates from `coarse_geohash`
-3. **Events**: Use `precise_point` if available, otherwise fallback coordinates
+3. **Events with `allow_precise=true`**: Use exact coordinates from `precise_point`
+4. **Events with `allow_precise=false`**: Use approximate coordinates from `coarse_geohash` if available, otherwise throws error
 
-This ensures that users who opt out of precise location sharing have their coordinates approximated via geohash decoding.
+This ensures that users who opt out of precise location sharing have their coordinates approximated via geohash decoding. Events should include a `coarse_geohash` field (inherited from parent scene or independently set) to enable privacy-compliant display when precise location is not allowed.
 
 ## Usage
 

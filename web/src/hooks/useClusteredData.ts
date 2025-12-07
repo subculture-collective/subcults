@@ -148,8 +148,11 @@ export function useClusteredData(
         fetch(`${apiUrl}/events?${params}`, { signal: controller.signal }),
       ]);
 
-      if (!scenesRes.ok || !eventsRes.ok) {
-        throw new Error('Failed to fetch data');
+      if (!scenesRes.ok) {
+        throw new Error(`Failed to fetch scenes: ${scenesRes.status} ${scenesRes.statusText}`);
+      }
+      if (!eventsRes.ok) {
+        throw new Error(`Failed to fetch events: ${eventsRes.status} ${eventsRes.statusText}`);
       }
 
       const scenes: Scene[] = await scenesRes.json();

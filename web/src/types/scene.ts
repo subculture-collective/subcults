@@ -42,6 +42,7 @@ export interface Event {
   description?: string;
   allow_precise: boolean;
   precise_point?: Point;
+  coarse_geohash?: string;  // Optional coarse location for privacy when precise is not allowed
   record_did?: string;
   record_rkey?: string;
 }
