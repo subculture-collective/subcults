@@ -20,6 +20,10 @@ describe('decodeGeohash', () => {
   it('throws error for invalid geohash characters', () => {
     expect(() => decodeGeohash('invalid!')).toThrow('Invalid geohash character');
   });
+
+  it('throws error for empty geohash string', () => {
+    expect(() => decodeGeohash('')).toThrow('Invalid geohash: empty string');
+  });
 });
 
 describe('getDisplayCoordinates', () => {
@@ -78,7 +82,21 @@ describe('getDisplayCoordinates', () => {
     expect(result).toEqual({ lat: 37.7749, lng: -122.4194 });
   });
 
-  it('returns fallback coordinates when event has no precise point', () => {
+  it('returns coarse geohash coordinates when event has no precise point but has coarse_geohash', () => {
+    const event: Event = {
+      id: '1',
+      scene_id: 'scene1',
+      name: 'Test Event',
+      allow_precise: false,
+      coarse_geohash: '9q8yy',
+    };
+
+    const result = getDisplayCoordinates(event);
+    expect(result.lat).toBeCloseTo(37.77, 1);
+    expect(result.lng).toBeCloseTo(-122.42, 1);
+  });
+
+  it('throws error when event has no precise point and no coarse_geohash', () => {
     const event: Event = {
       id: '1',
       scene_id: 'scene1',
@@ -86,8 +104,22 @@ describe('getDisplayCoordinates', () => {
       allow_precise: false,
     };
 
-    const result = getDisplayCoordinates(event);
-    expect(result).toEqual({ lat: 0, lng: 0 });
+    expect(() => getDisplayCoordinates(event)).toThrow(
+      'Event 1 missing location data - events must have precise_point or coarse_geohash'
+    );
+  });
+
+  it('throws error when scene has no coarse_geohash', () => {
+    const scene: Scene = {
+      id: '1',
+      name: 'Test Scene',
+      allow_precise: false,
+      coarse_geohash: '',
+    };
+
+    expect(() => getDisplayCoordinates(scene)).toThrow(
+      'Scene 1 missing required coarse_geohash for privacy enforcement'
+    );
   });
 });
 

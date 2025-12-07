@@ -27,6 +27,10 @@ export interface FeatureProperties {
  * @returns Point with lat/lng coordinates at the center of the geohash cell
  */
 export function decodeGeohash(geohash: string): Point {
+  if (!geohash || geohash.length === 0) {
+    throw new Error('Invalid geohash: empty string');
+  }
+  
   const BASE32 = '0123456789bcdefghjkmnpqrstuvwxyz';
   let evenBit = true;
   let latMin = -90, latMax = 90;
@@ -79,16 +83,18 @@ export function decodeGeohash(geohash: string): Point {
  * @returns Point coordinates for display
  */
 export function getDisplayCoordinates(entity: Scene | Event): Point {
-  // For events, we don't have coarse_geohash, so we must use precise_point
-  // In a real implementation, events would inherit or reference scene location
+  // For events, check for precise point or coarse geohash
   if ('scene_id' in entity) {
     // Event: use precise point if available and allowed
     if (entity.allow_precise && entity.precise_point) {
       return entity.precise_point;
     }
-    // Fallback for events without location - this shouldn't happen in production
-    // but we need a safe default
-    return { lat: 0, lng: 0 };
+    // Use event's coarse geohash if available
+    if (entity.coarse_geohash) {
+      return decodeGeohash(entity.coarse_geohash);
+    }
+    // Data integrity error - events must have location data
+    throw new Error(`Event ${entity.id} missing location data - events must have precise_point or coarse_geohash`);
   }
   
   // Scene: use precise point if allowed, otherwise decode coarse geohash
@@ -97,6 +103,9 @@ export function getDisplayCoordinates(entity: Scene | Event): Point {
   }
   
   // Use coarse geohash for privacy
+  if (!entity.coarse_geohash) {
+    throw new Error(`Scene ${entity.id} missing required coarse_geohash for privacy enforcement`);
+  }
   return decodeGeohash(entity.coarse_geohash);
 }
 

@@ -176,7 +176,9 @@ const coords = decodeGeohash('9q8yy');
 - When enabled, uses `enableHighAccuracy: false` for coarse location
 - Scene/event locations respect `allow_precise` flag:
   - `true`: Use exact `precise_point` coordinates
-  - `false`: Use approximate `coarse_geohash` coordinates
+  - `false` (Scenes): Use approximate `coarse_geohash` coordinates (~1km precision)
+  - `false` (Events): Use approximate `coarse_geohash` coordinates if available
+- Events should include `coarse_geohash` field for privacy-compliant display
 - MapTiler API key is client-side (acceptable for public tile access)
 - Document key rotation procedure in production
 

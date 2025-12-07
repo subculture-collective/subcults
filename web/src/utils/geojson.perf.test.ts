@@ -53,6 +53,7 @@ function generateMockEvents(count: number): Event[] {
       description: `Test event ${i}`,
       allow_precise: i % 3 === 0, // 33% allow precise
       precise_point: { lat, lng },
+      coarse_geohash: '9q8yy', // Add coarse geohash for events without precise point
     });
   }
 
