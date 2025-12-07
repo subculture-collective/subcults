@@ -6,7 +6,7 @@ import type { LngLatBounds } from 'maplibre-gl';
 
 // Mock fetch
 const mockFetch = vi.fn();
-global.fetch = mockFetch;
+globalThis.fetch = mockFetch as never;
 
 describe('boundsToBox', () => {
   it('converts MapLibre bounds to BBox', () => {

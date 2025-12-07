@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { renderHook, act } from '@testing-library/react';
 import { useMapBBox } from './useMapBBox';
-import type { Map, LngLatBounds } from 'maplibre-gl';
+import type { Map as MapLibreMap, LngLatBounds } from 'maplibre-gl';
 
 type EventHandler = (...args: unknown[]) => void;
 
@@ -9,7 +9,7 @@ type EventHandler = (...args: unknown[]) => void;
  * Mock MapLibre Map with event listeners
  */
 class MockMap {
-  private listeners: Map<string, Array<EventHandler>> = new Map();
+  private listeners = new Map<string, Array<EventHandler>>();
   private mockBounds: LngLatBounds | null = null;
   
   constructor(bounds?: LngLatBounds) {
@@ -36,7 +36,7 @@ class MockMap {
   emit(event: string, ...args: unknown[]) {
     const handlers = this.listeners.get(event);
     if (handlers) {
-      handlers.forEach(handler => handler(...args));
+      handlers.forEach((handler: EventHandler) => handler(...args));
     }
   }
   
@@ -90,7 +90,7 @@ describe('useMapBBox', () => {
   it('returns null bbox when map has no bounds', () => {
     const mockMap = new MockMap();
     const callback = vi.fn();
-    const { result } = renderHook(() => useMapBBox(mockMap as unknown as Map, callback));
+    const { result } = renderHook(() => useMapBBox(mockMap as unknown as MapLibreMap, callback));
     
     expect(result.current.bbox).toBeNull();
     expect(result.current.loading).toBe(false);
@@ -101,7 +101,7 @@ describe('useMapBBox', () => {
     const mockMap = new MockMap(bounds);
     const callback = vi.fn();
     
-    renderHook(() => useMapBBox(mockMap as unknown as Map, callback, { immediate: true }));
+    renderHook(() => useMapBBox(mockMap as unknown as MapLibreMap, callback, { immediate: true }));
     
     await act(async () => {
       vi.runAllTimers();
@@ -115,7 +115,7 @@ describe('useMapBBox', () => {
     const mockMap = new MockMap(bounds);
     const callback = vi.fn();
     
-    renderHook(() => useMapBBox(mockMap as unknown as Map, callback, { debounceMs: 500 }));
+    renderHook(() => useMapBBox(mockMap as unknown as MapLibreMap, callback, { debounceMs: 500 }));
     
     // Simulate moveend event
     act(() => {
@@ -144,7 +144,7 @@ describe('useMapBBox', () => {
     const mockMap = new MockMap(bounds1);
     const callback = vi.fn();
     
-    renderHook(() => useMapBBox(mockMap as unknown as Map, callback, { debounceMs: 500 }));
+    renderHook(() => useMapBBox(mockMap as unknown as MapLibreMap, callback, { debounceMs: 500 }));
     
     // First movement
     act(() => {
@@ -198,7 +198,7 @@ describe('useMapBBox', () => {
     const callback = vi.fn();
     
     const { result } = renderHook(() => 
-      useMapBBox(mockMap as unknown as Map, callback, { debounceMs: 500 })
+      useMapBBox(mockMap as unknown as MapLibreMap, callback, { debounceMs: 500 })
     );
     
     expect(result.current.loading).toBe(false);
@@ -232,7 +232,7 @@ describe('useMapBBox', () => {
     const callback = vi.fn();
     
     const { result } = renderHook(() => 
-      useMapBBox(mockMap as unknown as Map, callback, { debounceMs: 300 })
+      useMapBBox(mockMap as unknown as MapLibreMap, callback, { debounceMs: 300 })
     );
     
     expect(result.current.bbox).toBeNull();
@@ -259,7 +259,7 @@ describe('useMapBBox', () => {
     const callback = vi.fn();
     
     const { result } = renderHook(() => 
-      useMapBBox(mockMap as unknown as Map, callback, { debounceMs: 300 })
+      useMapBBox(mockMap as unknown as MapLibreMap, callback, { debounceMs: 300 })
     );
     
     // First pan/zoom
@@ -300,7 +300,7 @@ describe('useMapBBox', () => {
     const callback = vi.fn();
     
     renderHook(() => 
-      useMapBBox(mockMap as unknown as Map, callback, { immediate: true })
+      useMapBBox(mockMap as unknown as MapLibreMap, callback, { immediate: true })
     );
     
     // Should be called immediately without waiting for debounce
@@ -318,7 +318,7 @@ describe('useMapBBox', () => {
     const callback = vi.fn();
     
     renderHook(() => 
-      useMapBBox(mockMap as unknown as Map, callback, { immediate: false })
+      useMapBBox(mockMap as unknown as MapLibreMap, callback, { immediate: false })
     );
     
     await act(async () => {
@@ -335,7 +335,7 @@ describe('useMapBBox', () => {
     const callback = vi.fn();
     
     renderHook(() => 
-      useMapBBox(mockMap as unknown as Map, callback, { debounceMs: 1000 })
+      useMapBBox(mockMap as unknown as MapLibreMap, callback, { debounceMs: 1000 })
     );
     
     act(() => {
@@ -362,7 +362,7 @@ describe('useMapBBox', () => {
     const callback = vi.fn();
     
     renderHook(() => 
-      useMapBBox(mockMap as unknown as Map, callback, { debounceMs: 500 })
+      useMapBBox(mockMap as unknown as MapLibreMap, callback, { debounceMs: 500 })
     );
     
     // Start movement
@@ -411,7 +411,7 @@ describe('useMapBBox', () => {
     const offSpy = vi.spyOn(mockMap, 'off');
     
     const { unmount } = renderHook(() => 
-      useMapBBox(mockMap as unknown as Map, callback)
+      useMapBBox(mockMap as unknown as MapLibreMap, callback)
     );
     
     unmount();
@@ -427,7 +427,7 @@ describe('useMapBBox', () => {
     const callback = vi.fn();
     
     const { unmount } = renderHook(() => 
-      useMapBBox(mockMap as unknown as Map, callback, { debounceMs: 500 })
+      useMapBBox(mockMap as unknown as MapLibreMap, callback, { debounceMs: 500 })
     );
     
     // Start movement
@@ -457,7 +457,7 @@ describe('useMapBBox', () => {
     const callback = vi.fn();
     
     renderHook(() => 
-      useMapBBox(mockMap as unknown as Map, callback, { debounceMs: 500 })
+      useMapBBox(mockMap as unknown as MapLibreMap, callback, { debounceMs: 500 })
     );
     
     // Pan 1
@@ -517,7 +517,7 @@ describe('useMapBBox', () => {
     const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
     
     const { result } = renderHook(() => 
-      useMapBBox(mockMap as unknown as Map, callback, { immediate: true })
+      useMapBBox(mockMap as unknown as MapLibreMap, callback, { immediate: true })
     );
     
     await act(async () => {
@@ -539,7 +539,7 @@ describe('useMapBBox', () => {
     const callback2 = vi.fn();
     
     const { rerender } = renderHook(
-      ({ cb }) => useMapBBox(mockMap as unknown as Map, cb, { debounceMs: 300 }),
+      ({ cb }) => useMapBBox(mockMap as unknown as MapLibreMap, cb, { debounceMs: 300 }),
       { initialProps: { cb: callback1 } }
     );
     
