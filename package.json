@@ -6,7 +6,7 @@
   "scripts": {
     "build": "cd web && npm run build && cd .. && mkdir -p dist && cp -r web/dist/* dist/",
     "test": "cd web && npm test",
-    "lint": "eslint . --ext .ts,.tsx,.js,.jsx && cd web && npm run lint",
+    "lint": "cd web && npm run lint",
     "format": "prettier --write .",
     "format:check": "prettier --check ."
   },
