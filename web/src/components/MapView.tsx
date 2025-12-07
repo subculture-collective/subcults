@@ -109,15 +109,27 @@ export const MapView = forwardRef<MapViewHandle, MapViewProps>(
     const mapRef = useRef<Map | null>(null);
     const resizeObserverRef = useRef<ResizeObserver | null>(null);
     const [isMapLoaded, setIsMapLoaded] = useState(false);
+    
+    // Store callbacks in refs to avoid map recreation when they change
+    const onLoadRef = useRef(onLoad);
+    const onGeolocationSuccessRef = useRef(onGeolocationSuccess);
+    const onGeolocationErrorRef = useRef(onGeolocationError);
+    
+    // Update refs when callbacks change
+    useEffect(() => {
+      onLoadRef.current = onLoad;
+    }, [onLoad]);
+    
+    useEffect(() => {
+      onGeolocationSuccessRef.current = onGeolocationSuccess;
+    }, [onGeolocationSuccess]);
+    
+    useEffect(() => {
+      onGeolocationErrorRef.current = onGeolocationError;
+    }, [onGeolocationError]);
 
     // Get API key from prop or environment variable
     const maptilerApiKey = apiKey || import.meta.env.VITE_MAPTILER_API_KEY;
-
-    if (!maptilerApiKey) {
-      console.error(
-        'MapTiler API key not provided. Set VITE_MAPTILER_API_KEY environment variable or pass apiKey prop.'
-      );
-    }
 
     // Expose imperative methods via ref
     useImperativeHandle(ref, () => ({
@@ -137,7 +149,7 @@ export const MapView = forwardRef<MapViewHandle, MapViewProps>(
     }));
 
     useEffect(() => {
-      if (!mapContainerRef.current || mapRef.current) return;
+      if (!maptilerApiKey || !mapContainerRef.current || mapRef.current) return;
 
       // Determine initial position
       let initialCenter: [number, number] = DEFAULT_CENTER as [number, number];
@@ -197,8 +209,8 @@ export const MapView = forwardRef<MapViewHandle, MapViewProps>(
           },
         });
 
-        if (onLoad) {
-          onLoad(map);
+        if (onLoadRef.current) {
+          onLoadRef.current(map);
         }
       });
 
@@ -217,14 +229,14 @@ export const MapView = forwardRef<MapViewHandle, MapViewProps>(
               zoom: 13,
               essential: true,
             });
-            if (onGeolocationSuccess) {
-              onGeolocationSuccess(position);
+            if (onGeolocationSuccessRef.current) {
+              onGeolocationSuccessRef.current(position);
             }
           },
           (error) => {
             console.warn('Geolocation failed:', error.message);
-            if (onGeolocationError) {
-              onGeolocationError(error);
+            if (onGeolocationErrorRef.current) {
+              onGeolocationErrorRef.current(error);
             }
           },
           {
@@ -260,10 +272,37 @@ export const MapView = forwardRef<MapViewHandle, MapViewProps>(
       maptilerApiKey,
       initialPosition,
       enableGeolocation,
-      onLoad,
-      onGeolocationSuccess,
-      onGeolocationError,
     ]);
+
+    // Show error if no API key
+    if (!maptilerApiKey) {
+      return (
+        <div
+          className={`map-error ${className}`}
+          style={{ 
+            width: '100%', 
+            height: '100%',
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: '2rem',
+            backgroundColor: '#fee',
+            color: '#c33',
+            borderRadius: '0.5rem'
+          }}
+          data-testid="map-error"
+        >
+          <h2 style={{ fontSize: '1.25rem', fontWeight: 600, marginBottom: '0.5rem' }}>
+            Map Unavailable
+          </h2>
+          <p style={{ textAlign: 'center' }}>
+            MapTiler API key not provided.<br />
+            Set <code style={{ backgroundColor: '#f5f5f5', padding: '0.25rem', borderRadius: '0.25rem' }}>VITE_MAPTILER_API_KEY</code> environment variable or pass <code style={{ backgroundColor: '#f5f5f5', padding: '0.25rem', borderRadius: '0.25rem' }}>apiKey</code> prop.
+          </p>
+        </div>
+      );
+    }
 
     return (
       <div
