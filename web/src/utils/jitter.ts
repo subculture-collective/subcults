@@ -16,14 +16,6 @@ export const DEFAULT_JITTER_RADIUS_METERS = 250;
 const METERS_PER_DEGREE_LAT = 111320;
 
 /**
- * Calculate meters per degree longitude at a given latitude
- * Longitude degrees get smaller as you move toward poles
- */
-function metersPerDegreeLng(lat: number): number {
-  return METERS_PER_DEGREE_LAT * Math.cos((lat * Math.PI) / 180);
-}
-
-/**
  * Simple hash function to generate deterministic pseudo-random values from a string
  * Uses FNV-1a hash algorithm for simplicity and speed
  * 
@@ -90,6 +82,9 @@ export function calculateJitterOffset(
  * as a base value. This function scales it by 1/cos(latitude) to maintain
  * the correct distance in meters at the given latitude.
  * 
+ * For extreme latitudes (near poles), the latitude is clamped to ±85° to prevent
+ * division by values too close to zero, which would cause excessive longitude offsets.
+ * 
  * @param lat - Original latitude
  * @param lng - Original longitude
  * @param entityId - Unique entity identifier for deterministic offset
@@ -104,10 +99,14 @@ export function applyJitter(
 ): { lat: number; lng: number } {
   const { latOffset, lngOffset } = calculateJitterOffset(entityId, radiusMeters);
   
+  // Clamp latitude to ±85° to avoid division by values too close to zero near poles
+  // This is the same limit used by Web Mercator projection (e.g., Google Maps, OpenStreetMap)
+  const clampedLat = Math.max(-85, Math.min(85, lat));
+  
   // Scale longitude offset to account for latitude
   // At equator: cos(0°) = 1.0, no scaling needed
   // At 60° lat: cos(60°) = 0.5, double the offset to maintain distance
-  const scaledLngOffset = lngOffset / Math.cos((lat * Math.PI) / 180);
+  const scaledLngOffset = lngOffset / Math.cos((clampedLat * Math.PI) / 180);
   
   return {
     lat: lat + latOffset,

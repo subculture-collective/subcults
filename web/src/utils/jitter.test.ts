@@ -159,6 +159,51 @@ describe('applyJitter', () => {
 
     expect(angle1).toBeCloseTo(angle2, 5);
   });
+
+  it('handles extreme latitudes near poles without excessive longitude offsets', () => {
+    const entityId = 'scene-polar';
+    const radiusMeters = 250;
+
+    // Test at 85° latitude (clamping threshold)
+    const lat85 = applyJitter(85, 0, entityId, radiusMeters);
+    const distance85 = haversineDistance(85, 0, lat85.lat, lat85.lng);
+    
+    // Distance should still be within reasonable bounds (allowing some variance)
+    expect(distance85).toBeLessThan(radiusMeters * 3); // 3x is generous for high latitude
+    
+    // Test at 89° latitude (near pole, should be clamped to 85)
+    const lat89 = applyJitter(89, 0, entityId, radiusMeters);
+    const distance89 = haversineDistance(89, 0, lat89.lat, lat89.lng);
+    
+    // Should not produce infinite or extremely large offsets
+    expect(distance89).toBeLessThan(radiusMeters * 3);
+    expect(isFinite(lat89.lng)).toBe(true);
+    
+    // Test at -87° latitude (southern hemisphere, near pole)
+    const latNeg87 = applyJitter(-87, 0, entityId, radiusMeters);
+    const distanceNeg87 = haversineDistance(-87, 0, latNeg87.lat, latNeg87.lng);
+    
+    expect(distanceNeg87).toBeLessThan(radiusMeters * 3);
+    expect(isFinite(latNeg87.lng)).toBe(true);
+  });
+
+  it('clamps latitude to ±85° for longitude scaling', () => {
+    const entityId = 'scene-clamp-test';
+    
+    // For the same entity ID, coordinates at 85° and 90° should produce
+    // similar longitude offsets (because 90° is clamped to 85°)
+    const jitter85 = applyJitter(85, 0, entityId);
+    const jitter90 = applyJitter(90, 0, entityId);
+    
+    // Longitude offsets should be similar (both use 85° for scaling)
+    expect(Math.abs(jitter85.lng - jitter90.lng)).toBeLessThan(0.0001);
+    
+    // Same for negative latitudes
+    const jitterNeg85 = applyJitter(-85, 0, entityId);
+    const jitterNeg90 = applyJitter(-90, 0, entityId);
+    
+    expect(Math.abs(jitterNeg85.lng - jitterNeg90.lng)).toBeLessThan(0.0001);
+  });
 });
 
 describe('shouldApplyJitter', () => {

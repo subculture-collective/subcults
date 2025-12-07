@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useCallback } from 'react';
 import { useClusteredData, boundsToBox } from '../hooks/useClusteredData';
 import { MapView, type MapViewHandle, type MapViewProps } from './MapView';
 import type { Map } from 'maplibre-gl';
@@ -37,7 +37,8 @@ export function ClusteredMapView(props: ClusteredMapViewProps) {
   const popupRef = useRef<maplibregl.Popup | null>(null);
 
   // Helper function to show privacy tooltip for jittered markers
-  const showPrivacyTooltip = (
+  // Memoized to avoid recreating on every render
+  const showPrivacyTooltip = useCallback((
     map: Map,
     coordinates: [number, number],
     name: string
@@ -68,7 +69,7 @@ export function ClusteredMapView(props: ClusteredMapViewProps) {
         </div>
       `)
       .addTo(map);
-  };
+  }, []); // Empty deps array since popup ref is stable and function doesn't depend on props/state
 
   // Handle map load event
   const handleMapLoad = (map: Map) => {
@@ -219,6 +220,11 @@ export function ClusteredMapView(props: ClusteredMapViewProps) {
         const isJittered = feature.properties?.is_jittered;
         const name = feature.properties?.name || 'Scene';
         
+        // Always remove existing popup first to prevent stale tooltips
+        if (popupRef.current) {
+          popupRef.current.remove();
+        }
+        
         if (isJittered) {
           const coordinates = (feature.geometry as GeoJSON.Point).coordinates.slice() as [number, number];
           showPrivacyTooltip(map, coordinates, name);
@@ -241,6 +247,11 @@ export function ClusteredMapView(props: ClusteredMapViewProps) {
         const feature = e.features[0];
         const isJittered = feature.properties?.is_jittered;
         const name = feature.properties?.name || 'Event';
+        
+        // Always remove existing popup first to prevent stale tooltips
+        if (popupRef.current) {
+          popupRef.current.remove();
+        }
         
         if (isJittered) {
           const coordinates = (feature.geometry as GeoJSON.Point).coordinates.slice() as [number, number];
