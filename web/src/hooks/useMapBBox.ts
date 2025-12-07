@@ -84,7 +84,7 @@ export function useMapBBox(
   const onBBoxChangeRef = useRef(onBBoxChange);
   
   // Track debounce timer
-  const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   
   // Track if we're currently moving (for loading state)
   const isMovingRef = useRef(false);

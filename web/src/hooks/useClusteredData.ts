@@ -114,7 +114,7 @@ export function useClusteredData(
   
   // Use ref to track the latest fetch controller for cancellation
   const abortControllerRef = useRef<AbortController | null>(null);
-  const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const fetchData = useCallback(async (currentBBox: BBox | null) => {
     // Cancel any pending fetch
