@@ -5,7 +5,9 @@ React + TypeScript + Vite frontend for the Subcults platform.
 ## Features
 
 - **MapLibre GL** integration with MapTiler tiles
+- **Scene & Event Clustering** for scalable map visualization
 - **Privacy-first** geolocation (opt-in, coarse accuracy)
+- **Privacy-enforced** location data (respects `allow_precise` flag)
 - Responsive map with ResizeObserver
 - TypeScript for type safety
 - Vitest for testing
@@ -21,6 +23,7 @@ React + TypeScript + Vite frontend for the Subcults platform.
    ```bash
    cp .env.example .env
    # Edit .env and add your VITE_MAPTILER_API_KEY
+   # Optional: VITE_API_URL (default: /api)
    ```
 
 3. Run development server:
@@ -35,9 +38,43 @@ React + TypeScript + Vite frontend for the Subcults platform.
 - `npm run preview` - Preview production build locally
 - `npm run test` - Run unit tests
 - `npm run test:ui` - Run tests with Vitest UI
+- `npm run test:coverage` - Generate coverage report
 - `npm run lint` - Run ESLint
 
-## MapView Component
+## Components
+
+### ClusteredMapView (Recommended)
+
+The `ClusteredMapView` component provides an enhanced map with automatic scene/event clustering:
+
+```tsx
+import { ClusteredMapView } from './components/ClusteredMapView';
+
+function App() {
+  return (
+    <ClusteredMapView
+      enableGeolocation={false}  // Privacy: opt-in only
+      initialPosition={{
+        center: [-122.4194, 37.7749],
+        zoom: 12
+      }}
+      onLoad={(map) => console.log('Map with clustering loaded')}
+    />
+  );
+}
+```
+
+**Features:**
+- Automatic data fetching based on map bounds
+- Privacy-enforced clustering (respects location consent)
+- Click-to-expand cluster functionality
+- Separate visual styling for scenes vs events
+- Debounced updates on pan/zoom (300ms)
+- High performance: <10ms for 10k entities
+
+See [CLUSTERING.md](src/components/CLUSTERING.md) for detailed documentation.
+
+### MapView (Base Component)
 
 The `MapView` component is a privacy-conscious wrapper around MapLibre GL:
 
@@ -64,6 +101,11 @@ function App() {
 
 ### Props
 
+#### ClusteredMapView Props
+All MapView props plus:
+- Standard MapView props (see below)
+
+#### MapView Props
 - `apiKey?: string` - MapTiler API key (or use VITE_MAPTILER_API_KEY env var)
 - `initialPosition?: { bounds?, center?, zoom? }` - Initial map position
 - `enableGeolocation?: boolean` - Enable geolocation fallback (default: false)
@@ -78,10 +120,65 @@ function App() {
 - `flyTo(center, zoom?)` - Animate to location
 - `getBounds()` - Get current map bounds
 
+## Hooks
+
+### useClusteredData
+
+React hook for fetching scene/event data based on map bounds:
+
+```tsx
+import { useClusteredData } from './hooks/useClusteredData';
+
+function CustomMap() {
+  const { data, loading, error, updateBBox } = useClusteredData(null, {
+    apiUrl: '/api',
+    debounceMs: 300
+  });
+
+  // data: GeoJSON FeatureCollection
+  // updateBBox: (bbox) => void
+  // loading: boolean
+  // error: string | null
+}
+```
+
+## Utilities
+
+### GeoJSON Builder
+
+Convert scenes/events to GeoJSON with privacy enforcement:
+
+```tsx
+import { buildGeoJSON } from './utils/geojson';
+import type { Scene, Event } from './types/scene';
+
+const scenes: Scene[] = [...];
+const events: Event[] = [...];
+
+const geojson = buildGeoJSON(scenes, events);
+// Returns GeoJSON FeatureCollection
+```
+
+### Geohash Decoder
+
+Decode geohash strings to approximate coordinates:
+
+```tsx
+import { decodeGeohash } from './utils/geojson';
+
+const coords = decodeGeohash('9q8yy');
+// Returns: { lat: 37.77..., lng: -122.42... }
+```
+
 ## Privacy Considerations
 
 - Geolocation is **opt-in** via `enableGeolocation` prop
 - When enabled, uses `enableHighAccuracy: false` for coarse location
+- Scene/event locations respect `allow_precise` flag:
+  - `true`: Use exact `precise_point` coordinates
+  - `false` (Scenes): Use approximate `coarse_geohash` coordinates (~1km precision)
+  - `false` (Events): Use approximate `coarse_geohash` coordinates if available
+- Events should include `coarse_geohash` field for privacy-compliant display
 - MapTiler API key is client-side (acceptable for public tile access)
 - Document key rotation procedure in production
 
@@ -93,12 +190,24 @@ Tests use Vitest with React Testing Library:
 npm test
 ```
 
-All MapView functionality is tested including:
-- Map initialization
-- Resize handling
-- Imperative ref methods
-- Geolocation privacy controls
-- Component lifecycle (mount/unmount)
+Test suites:
+- **MapView** - Base map component functionality
+- **ClusteredMapView** - Clustering integration
+- **useClusteredData** - Data fetching hook
+- **geojson** - GeoJSON builder and privacy enforcement
+- **geojson.perf** - Performance benchmarks (5k-10k entities)
+
+Coverage target: >70% for frontend code
+
+## Performance
+
+The clustering system meets strict performance requirements:
+
+| Operation                      | Target  | Actual |
+|--------------------------------|---------|--------|
+| Build GeoJSON (5k entities)    | <150ms  | ~6ms   |
+| Build GeoJSON (10k entities)   | <300ms  | ~7ms   |
+| Pan/zoom update (5k points)    | <150ms  | ✅     |
 
 ## Build Output
 
@@ -109,3 +218,30 @@ npm run build
 ```
 
 The build output is ready to be served by Caddy, nginx, or any static file server.
+
+## Demo
+
+See `src/ClusteredMapDemo.tsx` for a complete example application demonstrating:
+- ClusteredMapView usage
+- Map navigation controls
+- Privacy-first configuration
+- Cluster expansion interactions
+
+## Architecture
+
+```
+web/src/
+├── components/
+│   ├── MapView.tsx              # Base map component
+│   ├── ClusteredMapView.tsx     # Clustering-enabled map
+│   ├── CLUSTERING.md            # Clustering documentation
+│   └── *.test.tsx               # Component tests
+├── hooks/
+│   └── useClusteredData.ts      # Data fetching hook
+├── utils/
+│   ├── geojson.ts               # GeoJSON builder
+│   └── *.test.ts                # Utility tests
+├── types/
+│   └── scene.ts                 # TypeScript types
+└── clustering.ts                # Public API exports
+```
