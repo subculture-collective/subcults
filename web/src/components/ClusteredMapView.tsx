@@ -1,8 +1,10 @@
-import { useEffect, useRef, useCallback } from 'react';
+import { useEffect, useRef, useCallback, useState, forwardRef } from 'react';
 import { useClusteredData, boundsToBox } from '../hooks/useClusteredData';
 import { MapView, type MapViewHandle, type MapViewProps } from './MapView';
-import type { Map } from 'maplibre-gl';
+import type { Map as MapLibreMap, GeoJSONSource } from 'maplibre-gl';
 import maplibregl from 'maplibre-gl';
+import { DetailPanel } from './DetailPanel';
+import type { Scene, Event } from '../types/scene';
 
 /**
  * Props for ClusteredMapView component
@@ -11,7 +13,7 @@ export interface ClusteredMapViewProps extends Omit<MapViewProps, 'onLoad'> {
   /**
    * Custom handler when map loads (receives map instance)
    */
-  onLoad?: (map: Map) => void;
+  onLoad?: (map: MapLibreMap) => void;
 }
 
 /**
@@ -20,26 +22,99 @@ export interface ClusteredMapViewProps extends Omit<MapViewProps, 'onLoad'> {
  * This component wraps MapView and adds:
  * - Automatic data fetching based on map bounds
  * - Real-time cluster rendering for scenes and events
- * - Click handlers for cluster expansion
+ * - Click handlers for cluster expansion and detail panel
  * - Separate icon styling for scenes vs events
  * - Privacy jitter visualization with tooltips
+ * - Detail panel for marker interaction
  * 
  * Privacy considerations:
  * - Respects location consent flags from backend
  * - Uses coarse geohash coordinates when precise location is not allowed
  * - Applies deterministic jitter to coarse coordinates
  * - Shows privacy notice in tooltips for jittered locations (HTML-escaped)
+ * - Detail panel enforces privacy for coordinate display
  */
-export function ClusteredMapView(props: ClusteredMapViewProps) {
+export const ClusteredMapView = forwardRef<MapViewHandle, ClusteredMapViewProps>(function ClusteredMapView(props, ref) {
   const mapRef = useRef<MapViewHandle>(null);
   const { data, updateBBox, loading, error } = useClusteredData(null, { debounceMs: 300 });
-  const mapInstanceRef = useRef<Map | null>(null);
+  const mapInstanceRef = useRef<MapLibreMap | null>(null);
   const popupRef = useRef<maplibregl.Popup | null>(null);
+  
+  // Detail panel state
+  const [selectedEntity, setSelectedEntity] = useState<Scene | Event | null>(null);
+  const [panelLoading, setPanelLoading] = useState(false);
+  const entityCacheRef = useRef(new Map<string, Scene | Event>());
+
+  // Fetch entity details
+  const fetchEntityDetails = useCallback(async (id: string, type: 'scene' | 'event') => {
+    // Check cache first
+    const entityCache = entityCacheRef.current;
+    const cacheKey = `${type}-${id}`;
+    if (entityCache.has(cacheKey)) {
+      setSelectedEntity(entityCache.get(cacheKey)!);
+      return;
+    }
+
+    setPanelLoading(true);
+    try {
+      const apiUrl = import.meta.env.VITE_API_URL || '/api';
+      const endpoint = type === 'scene' ? 'scenes' : 'events';
+      const response = await fetch(`${apiUrl}/${endpoint}/${id}`);
+      
+      if (!response.ok) {
+        throw new Error(`Failed to fetch ${type}: ${response.status}`);
+      }
+      
+      const entity: Scene | Event = await response.json();
+      
+      // Cache the entity
+      entityCache.set(cacheKey, entity);
+      setSelectedEntity(entity);
+    } catch (err) {
+      console.error(`Failed to fetch ${type} details:`, err);
+      // Keep basic info from GeoJSON properties displayed
+    } finally {
+      setPanelLoading(false);
+    }
+  }, []);
+
+  // Handle marker click
+  const handleMarkerClick = useCallback((feature: GeoJSON.Feature) => {
+    if (!feature.properties) return;
+    
+    const { id, type, name, description, tags, allow_precise, coarse_geohash } = feature.properties;
+    
+    // Create a basic entity from GeoJSON properties
+    const basicEntity: Scene | Event = type === 'scene'
+      ? {
+          id,
+          name,
+          description,
+          allow_precise: allow_precise || false,
+          coarse_geohash: coarse_geohash || '',
+          tags: tags ? tags.split(',') : undefined,
+          visibility: feature.properties.visibility || 'public',
+        }
+      : {
+          id,
+          scene_id: feature.properties.scene_id || '',
+          name,
+          description,
+          allow_precise: allow_precise || false,
+          coarse_geohash: coarse_geohash || undefined,
+        };
+    
+    // Show basic info immediately
+    setSelectedEntity(basicEntity);
+    
+    // Fetch full details in background
+    fetchEntityDetails(id, type);
+  }, [fetchEntityDetails]);
 
   // Helper function to show privacy tooltip for jittered markers
   // Memoized to avoid recreating on every render
   const showPrivacyTooltip = useCallback((
-    map: Map,
+    map: MapLibreMap,
     coordinates: [number, number],
     name: string
   ) => {
@@ -72,7 +147,7 @@ export function ClusteredMapView(props: ClusteredMapViewProps) {
   }, []); // Empty deps array since popup ref is stable and function doesn't depend on props/state
 
   // Handle map load event
-  const handleMapLoad = (map: Map) => {
+  const handleMapLoad = (map: MapLibreMap) => {
     mapInstanceRef.current = map;
 
     // Remove placeholder source and layers
@@ -188,7 +263,8 @@ export function ClusteredMapView(props: ClusteredMapViewProps) {
       const source = map.getSource('scenes-events');
       
       if (source && 'getClusterExpansionZoom' in source && clusterId !== undefined) {
-        source.getClusterExpansionZoom(clusterId, (err, zoom) => {
+        // Cast to any for callback-based getClusterExpansionZoom (MapLibre runtime supports both Promise and callback)
+        (source as GeoJSONSource & { getClusterExpansionZoom(clusterId: number, callback: (err: Error | null, zoom: number | null) => void): void }).getClusterExpansionZoom(clusterId, (err, zoom) => {
           if (err) {
             console.error('Failed to expand cluster:', err);
             return;
@@ -267,6 +343,32 @@ export function ClusteredMapView(props: ClusteredMapViewProps) {
       }
     });
 
+    // Add click handler for unclustered scene points
+    map.on('click', 'unclustered-scene-point', (e) => {
+      if (e.features && e.features.length > 0) {
+        const feature = e.features[0];
+        handleMarkerClick(feature as GeoJSON.Feature);
+        
+        // Remove tooltip if showing
+        if (popupRef.current) {
+          popupRef.current.remove();
+        }
+      }
+    });
+
+    // Add click handler for unclustered event points
+    map.on('click', 'unclustered-event-point', (e) => {
+      if (e.features && e.features.length > 0) {
+        const feature = e.features[0];
+        handleMarkerClick(feature as GeoJSON.Feature);
+        
+        // Remove tooltip if showing
+        if (popupRef.current) {
+          popupRef.current.remove();
+        }
+      }
+    });
+
     // Update bbox on map move
     map.on('moveend', () => {
       const bounds = map.getBounds();
@@ -290,7 +392,8 @@ export function ClusteredMapView(props: ClusteredMapViewProps) {
 
     const source = map.getSource('scenes-events');
     if (source && 'setData' in source) {
-      source.setData(data);
+      // Cast to GeoJSONSource - setData is defined on the type
+      (source as GeoJSONSource).setData(data);
     }
   }, [data]);
 
@@ -312,5 +415,27 @@ export function ClusteredMapView(props: ClusteredMapViewProps) {
     console.log('Loading clustered data...');
   }
 
-  return <MapView {...props} ref={mapRef} onLoad={handleMapLoad} />;
-}
+  // Handle panel close
+  const handlePanelClose = useCallback(() => {
+    setSelectedEntity(null);
+  }, []);
+
+  // Analytics callback (placeholder for future implementation)
+  const handleAnalyticsEvent = useCallback((eventName: string, data?: Record<string, unknown>) => {
+    console.log('Analytics event:', eventName, data);
+    // TODO: Integrate with analytics service
+  }, []);
+
+  return (
+    <>
+      <MapView {...props} ref={ref || mapRef} onLoad={handleMapLoad} />
+      <DetailPanel
+        isOpen={selectedEntity !== null}
+        onClose={handlePanelClose}
+        entity={selectedEntity}
+        loading={panelLoading}
+        onAnalyticsEvent={handleAnalyticsEvent}
+      />
+    </>
+  );
+});

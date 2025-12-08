@@ -54,7 +54,7 @@ function ClusteredMapDemo() {
           </button>
         </div>
         <div style={{ marginTop: '0.5rem', fontSize: '0.75rem', opacity: 0.6 }}>
-          💡 Tip: Click clusters to expand • Blue = Scenes • Pink = Events
+          💡 Tip: Click clusters to expand • Click markers for details • Blue = Scenes • Pink = Events
         </div>
       </div>
       <div style={{ flex: 1, position: 'relative' }}>
