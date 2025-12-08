@@ -40,6 +40,11 @@ export const ClusteredMapView = forwardRef<MapViewHandle, ClusteredMapViewProps>
   const mapInstanceRef = useRef<MapLibreMap | null>(null);
   const popupRef = useRef<maplibregl.Popup | null>(null);
   
+  // Counters for unique performance mark IDs
+  const initCounterRef = useRef(0);
+  const updateCounterRef = useRef(0);
+  const renderCounterRef = useRef(0);
+  
   // Detail panel state
   const [selectedEntity, setSelectedEntity] = useState<Scene | Event | null>(null);
   const [panelLoading, setPanelLoading] = useState(false);
@@ -149,7 +154,7 @@ export const ClusteredMapView = forwardRef<MapViewHandle, ClusteredMapViewProps>
   // Handle map load event
   const handleMapLoad = (map: MapLibreMap) => {
     // Performance mark: Start map initialization
-    const initId = `map-init-${Date.now()}`;
+    const initId = `map-init-${++initCounterRef.current}`;
     performance.mark(`${initId}-start`);
 
     mapInstanceRef.current = map;
@@ -406,7 +411,7 @@ export const ClusteredMapView = forwardRef<MapViewHandle, ClusteredMapViewProps>
     const source = map.getSource('scenes-events');
     if (source && 'setData' in source) {
       // Performance mark: Start source update
-      const updateId = `source-update-${Date.now()}`;
+      const updateId = `source-update-${++updateCounterRef.current}`;
       performance.mark(`${updateId}-start`);
 
       // Cast to GeoJSONSource - setData is defined on the type
@@ -423,7 +428,7 @@ export const ClusteredMapView = forwardRef<MapViewHandle, ClusteredMapViewProps>
 
       // Schedule render complete detection
       requestAnimationFrame(() => {
-        const renderId = `render-complete-${Date.now()}`;
+        const renderId = `render-complete-${++renderCounterRef.current}`;
         performance.mark(renderId);
         console.log(`[Performance] Layer render complete`);
       });

@@ -116,6 +116,9 @@ export function useClusteredData(
   const abortControllerRef = useRef<AbortController | null>(null);
   const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  // Counter for unique performance mark IDs
+  const fetchCounterRef = useRef(0);
+
   const fetchData = useCallback(async (currentBBox: BBox | null) => {
     // Cancel any pending fetch
     if (abortControllerRef.current) {
@@ -134,7 +137,7 @@ export function useClusteredData(
     abortControllerRef.current = controller;
 
     // Performance mark: Start data fetch
-    const fetchId = `data-fetch-${Date.now()}`;
+    const fetchId = `data-fetch-${++fetchCounterRef.current}`;
     performance.mark(`${fetchId}-start`);
 
     try {
