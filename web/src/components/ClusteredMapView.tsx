@@ -1,7 +1,7 @@
 import { useEffect, useRef, useCallback, useState, forwardRef } from 'react';
 import { useClusteredData, boundsToBox } from '../hooks/useClusteredData';
 import { MapView, type MapViewHandle, type MapViewProps } from './MapView';
-import type { Map as MapLibreMap } from 'maplibre-gl';
+import type { Map as MapLibreMap, GeoJSONSource } from 'maplibre-gl';
 import maplibregl from 'maplibre-gl';
 import { DetailPanel } from './DetailPanel';
 import type { Scene, Event } from '../types/scene';
@@ -72,8 +72,7 @@ export const ClusteredMapView = forwardRef<MapViewHandle, ClusteredMapViewProps>
       setSelectedEntity(entity);
     } catch (err) {
       console.error(`Failed to fetch ${type} details:`, err);
-      // Still show basic info from GeoJSON properties
-      setSelectedEntity(null);
+      // Keep basic info from GeoJSON properties displayed
     } finally {
       setPanelLoading(false);
     }
@@ -94,6 +93,7 @@ export const ClusteredMapView = forwardRef<MapViewHandle, ClusteredMapViewProps>
           allow_precise: allow_precise || false,
           coarse_geohash: coarse_geohash || '',
           tags: tags ? tags.split(',') : undefined,
+          visibility: feature.properties.visibility || 'public',
         }
       : {
           id,
@@ -263,8 +263,8 @@ export const ClusteredMapView = forwardRef<MapViewHandle, ClusteredMapViewProps>
       const source = map.getSource('scenes-events');
       
       if (source && 'getClusterExpansionZoom' in source && clusterId !== undefined) {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        (source as any).getClusterExpansionZoom(clusterId, (err: Error | null, zoom: number | null) => {
+        // Cast to any for callback-based getClusterExpansionZoom (MapLibre runtime supports both Promise and callback)
+        (source as GeoJSONSource & { getClusterExpansionZoom(clusterId: number, callback: (err: Error | null, zoom: number | null) => void): void }).getClusterExpansionZoom(clusterId, (err, zoom) => {
           if (err) {
             console.error('Failed to expand cluster:', err);
             return;
@@ -392,8 +392,8 @@ export const ClusteredMapView = forwardRef<MapViewHandle, ClusteredMapViewProps>
 
     const source = map.getSource('scenes-events');
     if (source && 'setData' in source) {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      (source as any).setData(data);
+      // Cast to GeoJSONSource - setData is defined on the type
+      (source as GeoJSONSource).setData(data);
     }
   }, [data]);
 

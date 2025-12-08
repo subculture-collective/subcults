@@ -127,7 +127,7 @@ The DetailPanel component enforces privacy by:
 ### Caching Strategy
 Entities are cached by `${type}-${id}` key to avoid refetching:
 ```tsx
-const cacheKey = `scene-${entity.id}`;
+const cacheKey = `${type}-${id}`;
 if (entityCache.has(cacheKey)) {
   return entityCache.get(cacheKey);
 }

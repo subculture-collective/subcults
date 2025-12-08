@@ -297,9 +297,9 @@ export function DetailPanel({
                   Tags
                 </h3>
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }}>
-                  {(entity as Scene).tags!.map((tag, index) => (
+                  {(entity as Scene).tags!.map((tag) => (
                     <span
-                      key={index}
+                      key={tag}
                       style={{
                         padding: '0.25rem 0.75rem',
                         backgroundColor: '#333',
