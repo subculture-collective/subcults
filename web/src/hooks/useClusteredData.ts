@@ -133,6 +133,10 @@ export function useClusteredData(
     const controller = new AbortController();
     abortControllerRef.current = controller;
 
+    // Performance mark: Start data fetch
+    const fetchId = `data-fetch-${Date.now()}`;
+    performance.mark(`${fetchId}-start`);
+
     try {
       // Build query parameters
       const params = new URLSearchParams({
@@ -158,11 +162,30 @@ export function useClusteredData(
       const scenes: Scene[] = await scenesRes.json();
       const events: Event[] = await eventsRes.json();
 
+      // Performance mark: Start GeoJSON build
+      performance.mark(`${fetchId}-geojson-start`);
+
       // Build GeoJSON from entities
       const geojson = buildGeoJSON(scenes, events);
       
+      // Performance mark: Complete GeoJSON build
+      performance.mark(`${fetchId}-geojson-end`);
+      performance.measure(`${fetchId}-geojson-build`, `${fetchId}-geojson-start`, `${fetchId}-geojson-end`);
+      
       setData(geojson);
       setError(null);
+
+      // Performance mark: Complete data fetch
+      performance.mark(`${fetchId}-end`);
+      performance.measure(`${fetchId}-total`, `${fetchId}-start`, `${fetchId}-end`);
+
+      // Log performance metrics
+      const totalMeasure = performance.getEntriesByName(`${fetchId}-total`)[0] as PerformanceMeasure;
+      const geojsonMeasure = performance.getEntriesByName(`${fetchId}-geojson-build`)[0] as PerformanceMeasure;
+      
+      if (totalMeasure && geojsonMeasure) {
+        console.log(`[Performance] Data fetch: ${totalMeasure.duration.toFixed(2)}ms (GeoJSON build: ${geojsonMeasure.duration.toFixed(2)}ms)`);
+      }
     } catch (err) {
       if (err instanceof Error && err.name === 'AbortError') {
         // Fetch was cancelled, ignore
