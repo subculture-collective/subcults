@@ -2,6 +2,7 @@ package membership
 
 import (
 	"testing"
+	"time"
 )
 
 func strPtr(s string) *string {
@@ -225,5 +226,202 @@ func TestMembershipRepository_GetByID_AfterUpsert(t *testing.T) {
 
 	if retrieved.Role != "member" {
 		t.Errorf("Expected role 'member', got %s", retrieved.Role)
+	}
+}
+
+func TestMembershipRepository_GetBySceneAndUser(t *testing.T) {
+	repo := NewInMemoryMembershipRepository()
+
+	membership := &Membership{
+		SceneID:     "scene-123",
+		UserDID:     "did:plc:user456",
+		Role:        "curator",
+		Status:      "active",
+		TrustWeight: 0.8,
+	}
+
+	result, err := repo.Upsert(membership)
+	if err != nil {
+		t.Fatalf("Upsert failed: %v", err)
+	}
+
+	// Retrieve by scene and user
+	retrieved, err := repo.GetBySceneAndUser("scene-123", "did:plc:user456")
+	if err != nil {
+		t.Fatalf("GetBySceneAndUser failed: %v", err)
+	}
+
+	if retrieved.ID != result.ID {
+		t.Errorf("Expected ID %s, got %s", result.ID, retrieved.ID)
+	}
+
+	if retrieved.Role != "curator" {
+		t.Errorf("Expected role 'curator', got %s", retrieved.Role)
+	}
+
+	// Try with non-existent combination
+	_, err = repo.GetBySceneAndUser("scene-123", "did:plc:other")
+	if err != ErrMembershipNotFound {
+		t.Errorf("Expected ErrMembershipNotFound, got %v", err)
+	}
+
+	_, err = repo.GetBySceneAndUser("other-scene", "did:plc:user456")
+	if err != ErrMembershipNotFound {
+		t.Errorf("Expected ErrMembershipNotFound, got %v", err)
+	}
+}
+
+func TestMembershipRepository_UpdateStatus(t *testing.T) {
+	repo := NewInMemoryMembershipRepository()
+
+	membership := &Membership{
+		SceneID:     "scene-123",
+		UserDID:     "did:plc:user456",
+		Role:        "member",
+		Status:      "pending",
+		TrustWeight: 0.5,
+	}
+
+	result, err := repo.Upsert(membership)
+	if err != nil {
+		t.Fatalf("Upsert failed: %v", err)
+	}
+
+	// Update status to active
+	now := time.Now()
+	err = repo.UpdateStatus(result.ID, "active", &now)
+	if err != nil {
+		t.Fatalf("UpdateStatus failed: %v", err)
+	}
+
+	// Verify update
+	retrieved, err := repo.GetByID(result.ID)
+	if err != nil {
+		t.Fatalf("GetByID failed: %v", err)
+	}
+
+	if retrieved.Status != "active" {
+		t.Errorf("Expected status 'active', got %s", retrieved.Status)
+	}
+
+	if !retrieved.Since.Equal(now) {
+		t.Errorf("Expected since %v, got %v", now, retrieved.Since)
+	}
+
+	// Update status without changing since
+	err = repo.UpdateStatus(result.ID, "rejected", nil)
+	if err != nil {
+		t.Fatalf("UpdateStatus failed: %v", err)
+	}
+
+	retrieved, err = repo.GetByID(result.ID)
+	if err != nil {
+		t.Fatalf("GetByID failed: %v", err)
+	}
+
+	if retrieved.Status != "rejected" {
+		t.Errorf("Expected status 'rejected', got %s", retrieved.Status)
+	}
+
+	if !retrieved.Since.Equal(now) {
+		t.Errorf("Expected since to remain %v, got %v", now, retrieved.Since)
+	}
+
+	// Try updating non-existent membership
+	err = repo.UpdateStatus("nonexistent", "active", nil)
+	if err != ErrMembershipNotFound {
+		t.Errorf("Expected ErrMembershipNotFound, got %v", err)
+	}
+}
+
+func TestMembershipRepository_ListByScene(t *testing.T) {
+	repo := NewInMemoryMembershipRepository()
+
+	// Create multiple memberships
+	memberships := []*Membership{
+		{
+			SceneID:     "scene-123",
+			UserDID:     "did:plc:user1",
+			Role:        "member",
+			Status:      "active",
+			TrustWeight: 0.5,
+		},
+		{
+			SceneID:     "scene-123",
+			UserDID:     "did:plc:user2",
+			Role:        "curator",
+			Status:      "active",
+			TrustWeight: 0.8,
+		},
+		{
+			SceneID:     "scene-123",
+			UserDID:     "did:plc:user3",
+			Role:        "member",
+			Status:      "pending",
+			TrustWeight: 0.5,
+		},
+		{
+			SceneID:     "scene-456",
+			UserDID:     "did:plc:user4",
+			Role:        "member",
+			Status:      "active",
+			TrustWeight: 0.6,
+		},
+	}
+
+	for _, m := range memberships {
+		if _, err := repo.Upsert(m); err != nil {
+			t.Fatalf("Upsert failed: %v", err)
+		}
+	}
+
+	// List all memberships for scene-123
+	allMembers, err := repo.ListByScene("scene-123", "")
+	if err != nil {
+		t.Fatalf("ListByScene failed: %v", err)
+	}
+
+	if len(allMembers) != 3 {
+		t.Errorf("Expected 3 memberships, got %d", len(allMembers))
+	}
+
+	// List only active memberships for scene-123
+	activeMembers, err := repo.ListByScene("scene-123", "active")
+	if err != nil {
+		t.Fatalf("ListByScene failed: %v", err)
+	}
+
+	if len(activeMembers) != 2 {
+		t.Errorf("Expected 2 active memberships, got %d", len(activeMembers))
+	}
+
+	// List pending memberships for scene-123
+	pendingMembers, err := repo.ListByScene("scene-123", "pending")
+	if err != nil {
+		t.Fatalf("ListByScene failed: %v", err)
+	}
+
+	if len(pendingMembers) != 1 {
+		t.Errorf("Expected 1 pending membership, got %d", len(pendingMembers))
+	}
+
+	// List memberships for scene-456
+	scene456Members, err := repo.ListByScene("scene-456", "")
+	if err != nil {
+		t.Fatalf("ListByScene failed: %v", err)
+	}
+
+	if len(scene456Members) != 1 {
+		t.Errorf("Expected 1 membership for scene-456, got %d", len(scene456Members))
+	}
+
+	// List memberships for non-existent scene
+	nonExistent, err := repo.ListByScene("nonexistent", "")
+	if err != nil {
+		t.Fatalf("ListByScene failed: %v", err)
+	}
+
+	if len(nonExistent) != 0 {
+		t.Errorf("Expected 0 memberships for non-existent scene, got %d", len(nonExistent))
 	}
 }

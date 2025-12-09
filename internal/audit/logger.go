@@ -28,6 +28,7 @@ var ValidEntityTypes = map[string]bool{
 	"user":        true,
 	"admin_panel": true,
 	"post":        true,
+	"membership":  true,
 }
 
 // ValidActions defines the allowed actions for audit logging.
@@ -40,6 +41,9 @@ var ValidActions = map[string]bool{
 	"view_scene_details":      true,
 	"view_event_details":      true,
 	"export_member_data":      true,
+	"membership_request":      true,
+	"membership_approve":      true,
+	"membership_reject":       true,
 }
 
 // validateLogEntry validates the required fields of a log entry against whitelists.

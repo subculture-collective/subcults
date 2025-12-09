@@ -50,6 +50,17 @@ type MembershipRepository interface {
 
 	// GetByRecordKey retrieves a membership by its AT Protocol record key.
 	GetByRecordKey(did, rkey string) (*Membership, error)
+
+	// GetBySceneAndUser retrieves a membership by scene ID and user DID.
+	GetBySceneAndUser(sceneID, userDID string) (*Membership, error)
+
+	// UpdateStatus updates the status and optional since timestamp of a membership.
+	// If since is nil, the timestamp is not updated.
+	UpdateStatus(id, status string, since *time.Time) error
+
+	// ListByScene retrieves all memberships for a scene, optionally filtered by status.
+	// If status is empty, returns all memberships regardless of status.
+	ListByScene(sceneID, status string) ([]*Membership, error)
 }
 
 // InMemoryMembershipRepository is an in-memory implementation of MembershipRepository.
@@ -167,4 +178,56 @@ func (r *InMemoryMembershipRepository) GetByRecordKey(did, rkey string) (*Member
 	membership := r.memberships[id]
 	membershipCopy := *membership
 	return &membershipCopy, nil
+}
+
+// GetBySceneAndUser retrieves a membership by scene ID and user DID.
+func (r *InMemoryMembershipRepository) GetBySceneAndUser(sceneID, userDID string) (*Membership, error) {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+
+	for _, membership := range r.memberships {
+		if membership.SceneID == sceneID && membership.UserDID == userDID {
+			membershipCopy := *membership
+			return &membershipCopy, nil
+		}
+	}
+
+	return nil, ErrMembershipNotFound
+}
+
+// UpdateStatus updates the status and optional since timestamp of a membership.
+func (r *InMemoryMembershipRepository) UpdateStatus(id, status string, since *time.Time) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	membership, ok := r.memberships[id]
+	if !ok {
+		return ErrMembershipNotFound
+	}
+
+	membership.Status = status
+	if since != nil {
+		membership.Since = *since
+	}
+	membership.UpdatedAt = time.Now()
+
+	return nil
+}
+
+// ListByScene retrieves all memberships for a scene, optionally filtered by status.
+func (r *InMemoryMembershipRepository) ListByScene(sceneID, status string) ([]*Membership, error) {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+
+	var result []*Membership
+	for _, membership := range r.memberships {
+		if membership.SceneID == sceneID {
+			if status == "" || membership.Status == status {
+				membershipCopy := *membership
+				result = append(result, &membershipCopy)
+			}
+		}
+	}
+
+	return result, nil
 }
