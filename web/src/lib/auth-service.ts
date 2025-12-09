@@ -4,7 +4,7 @@
  */
 
 import { apiClient } from './api-client';
-import { authStore, User } from '../stores/authStore';
+import { authStore, type User } from '../stores/authStore';
 
 export interface LoginCredentials {
   username: string;

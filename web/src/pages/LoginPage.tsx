@@ -18,10 +18,13 @@ export const LoginPage: React.FC = () => {
 
   const handleLogin = (role: 'user' | 'admin') => {
     // Placeholder login - will be replaced with real auth
-    authStore.setUser({
-      did: 'did:example:test-user',
-      role,
-    });
+    authStore.setUser(
+      {
+        did: 'did:example:test-user',
+        role,
+      },
+      'placeholder-access-token' // Placeholder token
+    );
     navigate(from, { replace: true });
   };
 

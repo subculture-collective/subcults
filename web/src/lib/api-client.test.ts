@@ -291,4 +291,334 @@ describe('ApiClient', () => {
       );
     });
   });
+
+  describe('retry logic', () => {
+    beforeEach(() => {
+      mockGetAccessToken.mockReturnValue('token');
+    });
+
+    it('retries GET requests on 5xx errors with exponential backoff', async () => {
+      vi.useFakeTimers();
+
+      global.fetch = vi
+        .fn()
+        .mockResolvedValueOnce({
+          ok: false,
+          status: 503,
+          headers: new Headers({ 'content-type': 'application/json' }),
+          json: async () => ({ code: 'service_unavailable', message: 'Service unavailable' }),
+        })
+        .mockResolvedValueOnce({
+          ok: false,
+          status: 502,
+          headers: new Headers({ 'content-type': 'application/json' }),
+          json: async () => ({ code: 'bad_gateway', message: 'Bad gateway' }),
+        })
+        .mockResolvedValueOnce({
+          ok: true,
+          status: 200,
+          headers: new Headers({ 'content-type': 'application/json' }),
+          json: async () => ({ data: 'success' }),
+        });
+
+      const requestPromise = apiClient.get<{ data: string }>('/test');
+      
+      // Run all timers (delays)
+      await vi.runAllTimersAsync();
+      
+      const result = await requestPromise;
+
+      expect(global.fetch).toHaveBeenCalledTimes(3);
+      expect(result).toEqual({ data: 'success' });
+
+      vi.useRealTimers();
+    });
+
+    it('does not retry POST requests on 5xx errors', async () => {
+      global.fetch = vi.fn().mockResolvedValue({
+        ok: false,
+        status: 500,
+        headers: new Headers({ 'content-type': 'application/json' }),
+        json: async () => ({ code: 'internal_error', message: 'Internal server error' }),
+      });
+
+      await expect(apiClient.post('/test', { data: 'test' })).rejects.toThrow(ApiClientError);
+      expect(global.fetch).toHaveBeenCalledTimes(1); // No retries
+    });
+
+    it('retries PUT and DELETE requests on 5xx errors', async () => {
+      vi.useFakeTimers();
+
+      // Mock for PUT
+      global.fetch = vi
+        .fn()
+        .mockResolvedValueOnce({
+          ok: false,
+          status: 500,
+          headers: new Headers({ 'content-type': 'application/json' }),
+          json: async () => ({ code: 'internal_error', message: 'Internal error' }),
+        })
+        .mockResolvedValueOnce({
+          ok: true,
+          status: 200,
+          headers: new Headers({ 'content-type': 'application/json' }),
+          json: async () => ({ data: 'success' }),
+        });
+
+      const putPromise = apiClient.put('/test', { data: 'test' });
+      await vi.runAllTimersAsync();
+      await putPromise;
+
+      expect(global.fetch).toHaveBeenCalledTimes(2);
+
+      // Reset and test DELETE
+      vi.clearAllMocks();
+      global.fetch = vi
+        .fn()
+        .mockResolvedValueOnce({
+          ok: false,
+          status: 503,
+          headers: new Headers({ 'content-type': 'application/json' }),
+          json: async () => ({ code: 'service_unavailable', message: 'Service unavailable' }),
+        })
+        .mockResolvedValueOnce({
+          ok: true,
+          status: 204,
+          headers: new Headers(),
+        });
+
+      const deletePromise = apiClient.delete('/test');
+      await vi.runAllTimersAsync();
+      await deletePromise;
+
+      expect(global.fetch).toHaveBeenCalledTimes(2);
+
+      vi.useRealTimers();
+    });
+
+    it('stops retrying after max attempts and includes retry count in error', async () => {
+      vi.useFakeTimers();
+
+      global.fetch = vi.fn().mockResolvedValue({
+        ok: false,
+        status: 500,
+        headers: new Headers({ 'content-type': 'application/json' }),
+        json: async () => ({ code: 'internal_error', message: 'Internal error' }),
+      });
+
+      const requestPromise = apiClient.get('/test');
+      await vi.runAllTimersAsync();
+
+      await expect(requestPromise).rejects.toMatchObject({
+        status: 500,
+        code: 'internal_error',
+        retryCount: 2, // 0, 1, 2 = 3 attempts
+      });
+
+      expect(global.fetch).toHaveBeenCalledTimes(3); // Max 3 attempts
+
+      vi.useRealTimers();
+    });
+
+    it('does not retry when skipAutoRetry is true', async () => {
+      global.fetch = vi.fn().mockResolvedValue({
+        ok: false,
+        status: 500,
+        headers: new Headers({ 'content-type': 'application/json' }),
+        json: async () => ({ code: 'internal_error', message: 'Internal error' }),
+      });
+
+      await expect(apiClient.get('/test', { skipAutoRetry: true })).rejects.toThrow(ApiClientError);
+      expect(global.fetch).toHaveBeenCalledTimes(1); // No retries
+    });
+
+    it('retries on network errors (status 0)', async () => {
+      vi.useFakeTimers();
+
+      global.fetch = vi
+        .fn()
+        .mockRejectedValueOnce(new Error('Network failure'))
+        .mockResolvedValueOnce({
+          ok: true,
+          status: 200,
+          headers: new Headers({ 'content-type': 'application/json' }),
+          json: async () => ({ data: 'success' }),
+        });
+
+      const requestPromise = apiClient.get('/test');
+      await vi.runAllTimersAsync();
+      const result = await requestPromise;
+
+      expect(result).toEqual({ data: 'success' });
+      expect(global.fetch).toHaveBeenCalledTimes(2);
+
+      vi.useRealTimers();
+    });
+  });
+
+  describe('timeout support', () => {
+    beforeEach(() => {
+      mockGetAccessToken.mockReturnValue('token');
+    });
+
+    it('aborts request after timeout', async () => {
+      // Use real timers and a very short timeout for testing
+      global.fetch = vi.fn().mockImplementation(
+        (_, options: RequestInit) =>
+          new Promise((resolve, reject) => {
+            // Simulate AbortError when signal is aborted
+            options.signal?.addEventListener('abort', () => {
+              const error = new Error('The operation was aborted');
+              error.name = 'AbortError';
+              reject(error);
+            });
+            // Never resolve this promise - it will timeout
+          })
+      );
+
+      await expect(apiClient.get('/test', { timeout: 100 })).rejects.toMatchObject({
+        status: 0,
+        code: 'timeout',
+        message: expect.stringContaining('100ms'),
+      });
+    });
+
+    it('completes request before timeout expires', async () => {
+      global.fetch = vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        headers: new Headers({ 'content-type': 'application/json' }),
+        json: async () => ({ data: 'success' }),
+      });
+
+      const result = await apiClient.get('/test', { timeout: 5000 });
+      expect(result).toEqual({ data: 'success' });
+    });
+  });
+
+  describe('telemetry', () => {
+    let mockOnTelemetry: ReturnType<typeof vi.fn>;
+
+    beforeEach(() => {
+      mockGetAccessToken.mockReturnValue('token');
+      mockOnTelemetry = vi.fn();
+      
+      // Reinitialize with telemetry callback
+      apiClient.initialize({
+        baseURL: mockBaseURL,
+        getAccessToken: mockGetAccessToken,
+        refreshToken: mockRefreshToken,
+        onUnauthorized: mockOnUnauthorized,
+        onTelemetry: mockOnTelemetry,
+      });
+    });
+
+    it('emits api_request and api_response events on success', async () => {
+      global.fetch = vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        headers: new Headers({ 'content-type': 'application/json' }),
+        json: async () => ({ data: 'success' }),
+      });
+
+      await apiClient.get('/test');
+
+      expect(mockOnTelemetry).toHaveBeenCalledTimes(2);
+      
+      // First call: request event
+      expect(mockOnTelemetry).toHaveBeenNthCalledWith(1, {
+        type: 'api_request',
+        method: 'GET',
+        endpoint: '/test',
+        timestamp: expect.any(Number),
+      });
+
+      // Second call: response event
+      expect(mockOnTelemetry).toHaveBeenNthCalledWith(2, {
+        type: 'api_response',
+        method: 'GET',
+        endpoint: '/test',
+        status: 200,
+        duration: expect.any(Number),
+        retryCount: 0,
+        timestamp: expect.any(Number),
+      });
+    });
+
+    it('emits api_response event with retry count on retries', async () => {
+      vi.useFakeTimers();
+
+      global.fetch = vi
+        .fn()
+        .mockResolvedValueOnce({
+          ok: false,
+          status: 500,
+          headers: new Headers({ 'content-type': 'application/json' }),
+          json: async () => ({ code: 'internal_error', message: 'Internal error' }),
+        })
+        .mockResolvedValueOnce({
+          ok: true,
+          status: 200,
+          headers: new Headers({ 'content-type': 'application/json' }),
+          json: async () => ({ data: 'success' }),
+        });
+
+      const requestPromise = apiClient.get('/test');
+      await vi.runAllTimersAsync();
+      await requestPromise;
+
+      // Should emit: 1 request + 1 response (with retry count)
+      expect(mockOnTelemetry).toHaveBeenCalledTimes(2);
+      expect(mockOnTelemetry).toHaveBeenNthCalledWith(2, {
+        type: 'api_response',
+        method: 'GET',
+        endpoint: '/test',
+        status: 200,
+        duration: expect.any(Number),
+        retryCount: 1, // Second attempt succeeded
+        timestamp: expect.any(Number),
+      });
+
+      vi.useRealTimers();
+    });
+
+    it('emits api_response event on error', async () => {
+      global.fetch = vi.fn().mockResolvedValue({
+        ok: false,
+        status: 404,
+        headers: new Headers({ 'content-type': 'application/json' }),
+        json: async () => ({ code: 'not_found', message: 'Not found' }),
+      });
+
+      await expect(apiClient.get('/test')).rejects.toThrow(ApiClientError);
+
+      expect(mockOnTelemetry).toHaveBeenCalledTimes(2);
+      expect(mockOnTelemetry).toHaveBeenNthCalledWith(2, {
+        type: 'api_response',
+        method: 'GET',
+        endpoint: '/test',
+        status: 404,
+        duration: expect.any(Number),
+        retryCount: 0,
+        timestamp: expect.any(Number),
+      });
+    });
+
+    it('does not break request if telemetry callback throws', async () => {
+      mockOnTelemetry.mockImplementation(() => {
+        throw new Error('Telemetry error');
+      });
+
+      global.fetch = vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        headers: new Headers({ 'content-type': 'application/json' }),
+        json: async () => ({ data: 'success' }),
+      });
+
+      // Request should still succeed despite telemetry error
+      const result = await apiClient.get('/test');
+      expect(result).toEqual({ data: 'success' });
+    });
+  });
 });

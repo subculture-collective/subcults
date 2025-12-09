@@ -6,22 +6,33 @@
 export interface RequestConfig extends RequestInit {
   skipAuth?: boolean; // Skip adding Authorization header
   skipRetry?: boolean; // Skip retry on 401
+  timeout?: number; // Request timeout in milliseconds (default: 10000)
+  skipAutoRetry?: boolean; // Skip automatic retry on network/5xx errors
 }
 
 export interface ApiError {
   status: number;
   code: string;
   message: string;
+  retryCount: number; // Number of retry attempts made
 }
 
 export class ApiClientError extends Error {
+  public status: number;
+  public code: string;
+  public retryCount: number;
+
   constructor(
-    public status: number,
-    public code: string,
-    message: string
+    status: number,
+    code: string,
+    message: string,
+    retryCount: number = 0
   ) {
     super(message);
     this.name = 'ApiClientError';
+    this.status = status;
+    this.code = code;
+    this.retryCount = retryCount;
   }
 }
 
@@ -32,6 +43,85 @@ export class ApiClientError extends Error {
 export type RefreshTokenCallback = () => Promise<string | null>;
 
 /**
+ * Telemetry event types
+ */
+export interface ApiRequestEvent {
+  type: 'api_request';
+  method: string;
+  endpoint: string;
+  timestamp: number;
+}
+
+export interface ApiResponseEvent {
+  type: 'api_response';
+  method: string;
+  endpoint: string;
+  status: number;
+  duration: number; // milliseconds
+  retryCount: number;
+  timestamp: number;
+}
+
+export type TelemetryEvent = ApiRequestEvent | ApiResponseEvent;
+export type TelemetryCallback = (event: TelemetryEvent) => void;
+
+/**
+ * Default retry configuration
+ */
+const RETRY_CONFIG = {
+  maxAttempts: 3,
+  initialDelay: 100, // 100ms
+  maxDelay: 2000, // 2s
+  jitterFactor: 0.3, // 30% random jitter
+};
+
+/**
+ * Default timeout for requests (10 seconds)
+ */
+const DEFAULT_TIMEOUT = 10000;
+
+/**
+ * Check if HTTP method is idempotent and can be safely retried
+ */
+function isIdempotentMethod(method: string): boolean {
+  const idempotentMethods = ['GET', 'PUT', 'DELETE', 'HEAD', 'OPTIONS'];
+  return idempotentMethods.includes(method.toUpperCase());
+}
+
+/**
+ * Check if error/response should trigger a retry
+ * Retries on network errors (status 0) and 5xx server errors
+ */
+function shouldRetry(status: number, method: string, skipAutoRetry: boolean): boolean {
+  if (skipAutoRetry) return false;
+  if (!isIdempotentMethod(method)) return false;
+  // Retry on network errors (0) or 5xx server errors
+  return status === 0 || (status >= 500 && status < 600);
+}
+
+/**
+ * Calculate delay with exponential backoff and jitter
+ */
+function calculateDelay(attempt: number): number {
+  const exponentialDelay = Math.min(
+    RETRY_CONFIG.initialDelay * Math.pow(2, attempt),
+    RETRY_CONFIG.maxDelay
+  );
+  
+  // Add random jitter to prevent thundering herd
+  const jitter = exponentialDelay * RETRY_CONFIG.jitterFactor * (Math.random() - 0.5) * 2;
+  
+  return Math.max(0, exponentialDelay + jitter);
+}
+
+/**
+ * Sleep utility for retry delays
+ */
+function sleep(ms: number): Promise<void> {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+/**
  * API Client configuration
  */
 interface ApiClientConfig {
@@ -39,6 +129,7 @@ interface ApiClientConfig {
   getAccessToken: () => string | null;
   refreshToken: RefreshTokenCallback;
   onUnauthorized: () => void; // Called when refresh fails
+  onTelemetry?: TelemetryCallback; // Optional telemetry callback
 }
 
 class ApiClient {
@@ -55,7 +146,8 @@ class ApiClient {
 
   /**
    * Make an authenticated API request
-   * Automatically adds Authorization header and handles 401 with token refresh
+   * Automatically adds Authorization header, handles 401 with token refresh,
+   * implements retry logic for idempotent methods, and emits telemetry events
    */
   async request<T>(
     endpoint: string,
@@ -65,10 +157,144 @@ class ApiClient {
       throw new Error('ApiClient not initialized. Call initialize() first.');
     }
 
-    const { skipAuth, skipRetry, ...fetchOptions } = options;
+    const { 
+      skipAuth, 
+      skipRetry, 
+      timeout = DEFAULT_TIMEOUT,
+      skipAutoRetry = false,
+      ...fetchOptions 
+    } = options;
 
-    // Build full URL
+    const method = fetchOptions.method?.toUpperCase() || 'GET';
     const url = `${this.config.baseURL}${endpoint}`;
+    const startTime = Date.now();
+
+    // Emit request telemetry
+    this.emitTelemetry({
+      type: 'api_request',
+      method,
+      endpoint,
+      timestamp: startTime,
+    });
+
+    // Execute request with retry logic
+    let lastError: ApiClientError | null = null;
+    let retryCount = 0;
+
+    for (let attempt = 0; attempt < RETRY_CONFIG.maxAttempts; attempt++) {
+      try {
+        // Create AbortController for timeout
+        const abortController = new AbortController();
+        const timeoutId = setTimeout(() => abortController.abort(), timeout);
+
+        try {
+          const response = await this.executeRequest(
+            url,
+            fetchOptions,
+            skipAuth,
+            skipRetry,
+            abortController.signal
+          );
+
+          clearTimeout(timeoutId);
+
+          // Emit success telemetry
+          this.emitTelemetry({
+            type: 'api_response',
+            method,
+            endpoint,
+            status: response.status,
+            duration: Date.now() - startTime,
+            retryCount: attempt,
+            timestamp: Date.now(),
+          });
+
+          return response.data;
+        } catch (error) {
+          clearTimeout(timeoutId);
+
+          // Handle AbortError (timeout)
+          if (error instanceof Error && error.name === 'AbortError') {
+            lastError = new ApiClientError(
+              0,
+              'timeout',
+              `Request timeout after ${timeout}ms`,
+              attempt
+            );
+          } else if (error instanceof ApiClientError) {
+            lastError = error;
+            lastError.retryCount = attempt;
+          } else {
+            // Network error or other fetch failure
+            lastError = new ApiClientError(
+              0,
+              'network_error',
+              error instanceof Error ? error.message : 'Network request failed',
+              attempt
+            );
+          }
+
+          // Determine if we should retry
+          const shouldRetryRequest = shouldRetry(
+            lastError.status,
+            method,
+            skipAutoRetry
+          );
+
+          // Don't retry on last attempt
+          if (!shouldRetryRequest || attempt === RETRY_CONFIG.maxAttempts - 1) {
+            // Emit error telemetry
+            this.emitTelemetry({
+              type: 'api_response',
+              method,
+              endpoint,
+              status: lastError.status,
+              duration: Date.now() - startTime,
+              retryCount: attempt,
+              timestamp: Date.now(),
+            });
+
+            throw lastError;
+          }
+
+          // Calculate delay and wait before retry
+          retryCount++;
+          const delay = calculateDelay(attempt);
+          await sleep(delay);
+        }
+      } catch (error) {
+        // If error is thrown from the inner try-catch, rethrow it
+        if (error instanceof ApiClientError) {
+          throw error;
+        }
+        // Unexpected error, wrap and throw
+        throw new ApiClientError(
+          0,
+          'unknown_error',
+          error instanceof Error ? error.message : 'Unknown error occurred',
+          attempt
+        );
+      }
+    }
+
+    // Should never reach here, but TypeScript requires a return
+    throw lastError || new ApiClientError(0, 'unknown_error', 'Unknown error occurred', retryCount);
+  }
+
+  /**
+   * Execute a single request attempt
+   * Handles authentication, 401 refresh, and error parsing
+   */
+  private async executeRequest(
+    url: string,
+    fetchOptions: RequestInit,
+    skipAuth: boolean | undefined,
+    skipRetry: boolean | undefined,
+    signal: AbortSignal
+  ): Promise<{ data: any; status: number }> {
+    if (!this.config) {
+      throw new Error('ApiClient not initialized');
+    }
 
     // Prepare headers
     const headers = new Headers(fetchOptions.headers);
@@ -95,6 +321,7 @@ class ApiClient {
       ...fetchOptions,
       headers,
       credentials: fetchOptions.credentials || 'include', // Include cookies by default
+      signal,
     });
 
     // Handle 401 Unauthorized
@@ -109,13 +336,11 @@ class ApiClient {
           ...fetchOptions,
           headers,
           credentials: fetchOptions.credentials || 'include',
+          signal,
         });
       } else {
         // Refresh failed, onUnauthorized was called and will handle redirect
-        // Return early to avoid race condition with the redirect
-        return Promise.reject(
-          new ApiClientError(401, 'unauthorized', 'Session expired. Redirecting to login.')
-        );
+        throw new ApiClientError(401, 'unauthorized', 'Session expired. Redirecting to login.');
       }
     }
 
@@ -127,17 +352,33 @@ class ApiClient {
 
     // Parse response
     const contentType = response.headers.get('content-type');
+    let data: any;
+
     if (contentType?.includes('application/json')) {
-      return await response.json();
+      data = await response.json();
+    } else if (response.status === 204) {
+      // Return empty object for 204 No Content
+      data = {};
+    } else {
+      // For non-JSON responses, return as text
+      data = await response.text();
     }
 
-    // Return empty object for 204 No Content
-    if (response.status === 204) {
-      return {} as T;
-    }
+    return { data, status: response.status };
+  }
 
-    // For non-JSON responses, return as text
-    return (await response.text()) as unknown as T;
+  /**
+   * Emit telemetry event if callback is configured
+   */
+  private emitTelemetry(event: TelemetryEvent): void {
+    if (this.config?.onTelemetry) {
+      try {
+        this.config.onTelemetry(event);
+      } catch (error) {
+        // Never let telemetry errors break the request
+        console.warn('[apiClient] Telemetry callback error:', error);
+      }
+    }
   }
 
   /**
@@ -197,6 +438,7 @@ class ApiClient {
           status: response.status,
           code: body.code || 'unknown_error',
           message: body.message || response.statusText,
+          retryCount: 0, // Will be set by caller
         };
       } catch {
         // Fall through to default error
@@ -207,6 +449,7 @@ class ApiClient {
       status: response.status,
       code: 'unknown_error',
       message: response.statusText || 'An error occurred',
+      retryCount: 0, // Will be set by caller
     };
   }
 
