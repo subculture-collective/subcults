@@ -4,6 +4,7 @@ package api
 import (
 	"encoding/json"
 	"html"
+	"log/slog"
 	"net/http"
 	"regexp"
 	"strings"
@@ -141,6 +142,7 @@ func (h *SceneHandlers) CreateScene(w http.ResponseWriter, r *http.Request) {
 	// Check for duplicate name
 	exists, err := h.repo.ExistsByOwnerAndName(req.OwnerDID, req.Name, "")
 	if err != nil {
+		slog.ErrorContext(r.Context(), "failed to check duplicate scene name", "error", err, "owner_did", req.OwnerDID, "name", req.Name)
 		ctx := middleware.SetErrorCode(r.Context(), ErrCodeInternal)
 		WriteError(w, ctx, http.StatusInternalServerError, ErrCodeInternal, "Failed to check for duplicate scene name")
 		return
@@ -149,6 +151,15 @@ func (h *SceneHandlers) CreateScene(w http.ResponseWriter, r *http.Request) {
 		ctx := middleware.SetErrorCode(r.Context(), ErrCodeConflict)
 		WriteError(w, ctx, http.StatusConflict, ErrCodeConflict, "Scene with this name already exists for this owner")
 		return
+	}
+
+	// Sanitize description to prevent HTML injection
+	req.Description = html.EscapeString(req.Description)
+
+	// Sanitize tags to prevent HTML injection
+	sanitizedTags := make([]string, len(req.Tags))
+	for i, tag := range req.Tags {
+		sanitizedTags[i] = html.EscapeString(tag)
 	}
 
 	// Create scene
@@ -161,7 +172,7 @@ func (h *SceneHandlers) CreateScene(w http.ResponseWriter, r *http.Request) {
 		AllowPrecise:  req.AllowPrecise,
 		PrecisePoint:  req.PrecisePoint,
 		CoarseGeohash: req.CoarseGeohash,
-		Tags:          req.Tags,
+		Tags:          sanitizedTags,
 		Visibility:    req.Visibility,
 		Palette:       req.Palette,
 		CreatedAt:     &now,
@@ -171,6 +182,7 @@ func (h *SceneHandlers) CreateScene(w http.ResponseWriter, r *http.Request) {
 	// Insert into repository (will automatically enforce location consent).
 	// If AllowPrecise is false, PrecisePoint will be cleared before storage.
 	if err := h.repo.Insert(newScene); err != nil {
+		slog.ErrorContext(r.Context(), "failed to insert scene", "error", err, "scene_id", newScene.ID)
 		ctx := middleware.SetErrorCode(r.Context(), ErrCodeInternal)
 		WriteError(w, ctx, http.StatusInternalServerError, ErrCodeInternal, "Failed to create scene")
 		return
@@ -179,6 +191,7 @@ func (h *SceneHandlers) CreateScene(w http.ResponseWriter, r *http.Request) {
 	// Retrieve the stored scene to get privacy-enforced version
 	stored, err := h.repo.GetByID(newScene.ID)
 	if err != nil {
+		slog.ErrorContext(r.Context(), "failed to retrieve created scene", "error", err, "scene_id", newScene.ID)
 		ctx := middleware.SetErrorCode(r.Context(), ErrCodeInternal)
 		WriteError(w, ctx, http.StatusInternalServerError, ErrCodeInternal, "Failed to retrieve created scene")
 		return
@@ -221,6 +234,7 @@ func (h *SceneHandlers) UpdateScene(w http.ResponseWriter, r *http.Request) {
 			WriteError(w, ctx, http.StatusNotFound, ErrCodeNotFound, "Scene not found")
 			return
 		}
+		slog.ErrorContext(r.Context(), "failed to retrieve scene", "error", err, "scene_id", sceneID)
 		ctx := middleware.SetErrorCode(r.Context(), ErrCodeInternal)
 		WriteError(w, ctx, http.StatusInternalServerError, ErrCodeInternal, "Failed to retrieve scene")
 		return
@@ -240,6 +254,7 @@ func (h *SceneHandlers) UpdateScene(w http.ResponseWriter, r *http.Request) {
 		// Check for duplicate name (excluding current scene)
 		exists, err := h.repo.ExistsByOwnerAndName(existingScene.OwnerDID, newName, sceneID)
 		if err != nil {
+			slog.ErrorContext(r.Context(), "failed to check duplicate scene name", "error", err, "owner_did", existingScene.OwnerDID, "name", newName, "scene_id", sceneID)
 			ctx := middleware.SetErrorCode(r.Context(), ErrCodeInternal)
 			WriteError(w, ctx, http.StatusInternalServerError, ErrCodeInternal, "Failed to check for duplicate scene name")
 			return
@@ -253,11 +268,15 @@ func (h *SceneHandlers) UpdateScene(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if req.Description != nil {
-		existingScene.Description = *req.Description
+		existingScene.Description = html.EscapeString(*req.Description)
 	}
 
 	if req.Tags != nil {
-		existingScene.Tags = req.Tags
+		sanitizedTags := make([]string, len(req.Tags))
+		for i, tag := range req.Tags {
+			sanitizedTags[i] = html.EscapeString(tag)
+		}
+		existingScene.Tags = sanitizedTags
 	}
 
 	if req.Visibility != nil {
@@ -291,6 +310,7 @@ func (h *SceneHandlers) UpdateScene(w http.ResponseWriter, r *http.Request) {
 
 	// Update in repository (will enforce location consent)
 	if err := h.repo.Update(existingScene); err != nil {
+		slog.ErrorContext(r.Context(), "failed to update scene", "error", err, "scene_id", sceneID)
 		ctx := middleware.SetErrorCode(r.Context(), ErrCodeInternal)
 		WriteError(w, ctx, http.StatusInternalServerError, ErrCodeInternal, "Failed to update scene")
 		return
@@ -299,6 +319,7 @@ func (h *SceneHandlers) UpdateScene(w http.ResponseWriter, r *http.Request) {
 	// Retrieve updated scene
 	updated, err := h.repo.GetByID(sceneID)
 	if err != nil {
+		slog.ErrorContext(r.Context(), "failed to retrieve updated scene", "error", err, "scene_id", sceneID)
 		ctx := middleware.SetErrorCode(r.Context(), ErrCodeInternal)
 		WriteError(w, ctx, http.StatusInternalServerError, ErrCodeInternal, "Failed to retrieve updated scene")
 		return
@@ -330,6 +351,7 @@ func (h *SceneHandlers) DeleteScene(w http.ResponseWriter, r *http.Request) {
 			WriteError(w, ctx, http.StatusNotFound, ErrCodeNotFound, "Scene not found")
 			return
 		}
+		slog.ErrorContext(r.Context(), "failed to delete scene", "error", err, "scene_id", sceneID)
 		ctx := middleware.SetErrorCode(r.Context(), ErrCodeInternal)
 		WriteError(w, ctx, http.StatusInternalServerError, ErrCodeInternal, "Failed to delete scene")
 		return
