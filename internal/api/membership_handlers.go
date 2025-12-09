@@ -3,9 +3,9 @@ package api
 
 import (
 	"encoding/json"
-	"html"
 	"log/slog"
 	"net/http"
+	"net/url"
 	"strings"
 	"time"
 
@@ -158,7 +158,14 @@ func (h *MembershipHandlers) ApproveMembership(w http.ResponseWriter, r *http.Re
 		return
 	}
 	sceneID := pathParts[0]
-	targetUserDID := html.UnescapeString(pathParts[2]) // URL decode the DID
+	
+	// URL decode the DID
+	targetUserDID, err := url.PathUnescape(pathParts[2])
+	if err != nil {
+		ctx := middleware.SetErrorCode(r.Context(), ErrCodeBadRequest)
+		WriteError(w, ctx, http.StatusBadRequest, ErrCodeBadRequest, "Invalid user DID in URL")
+		return
+	}
 
 	// Get authenticated user DID from context
 	ownerDID := middleware.GetUserDID(r.Context())
@@ -258,7 +265,14 @@ func (h *MembershipHandlers) RejectMembership(w http.ResponseWriter, r *http.Req
 		return
 	}
 	sceneID := pathParts[0]
-	targetUserDID := html.UnescapeString(pathParts[2]) // URL decode the DID
+	
+	// URL decode the DID
+	targetUserDID, err := url.PathUnescape(pathParts[2])
+	if err != nil {
+		ctx := middleware.SetErrorCode(r.Context(), ErrCodeBadRequest)
+		WriteError(w, ctx, http.StatusBadRequest, ErrCodeBadRequest, "Invalid user DID in URL")
+		return
+	}
 
 	// Get authenticated user DID from context
 	ownerDID := middleware.GetUserDID(r.Context())
