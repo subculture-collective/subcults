@@ -273,7 +273,6 @@ func (r *InMemorySceneRepository) ExistsByOwnerAndName(ownerDID, name string, ex
 
 	// Normalize name to lowercase for case-insensitive comparison
 	normalizedName := strings.ToLower(name)
-	
 	for id, scene := range r.scenes {
 		if id == excludeID {
 			continue
