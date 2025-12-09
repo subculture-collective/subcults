@@ -9,7 +9,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/onnwee/subcults/internal/audit"
 	"github.com/onnwee/subcults/internal/membership"
 	"github.com/onnwee/subcults/internal/middleware"
@@ -102,23 +101,17 @@ func (h *MembershipHandlers) RequestMembership(w http.ResponseWriter, r *http.Re
 	}
 
 	// Create or update membership request
-	now := time.Now()
 	newMembership := &membership.Membership{
 		SceneID:     sceneID,
 		UserDID:     userDID,
 		Role:        "member", // Default role for requests
 		Status:      "pending",
 		TrustWeight: 0.5, // Default trust weight
-		Since:       now,
-		CreatedAt:   now,
-		UpdatedAt:   now,
 	}
 
-	// If there's a rejected membership, update it instead of creating new
+	// If there's a rejected membership, update it by setting the ID
 	if existingMembership != nil && existingMembership.Status == "rejected" {
 		newMembership.ID = existingMembership.ID
-	} else {
-		newMembership.ID = uuid.New().String()
 	}
 
 	result, err := h.membershipRepo.Upsert(newMembership)
@@ -137,10 +130,19 @@ func (h *MembershipHandlers) RequestMembership(w http.ResponseWriter, r *http.Re
 		}
 	}
 
+	// Retrieve the created/updated membership to get complete data with timestamps
+	createdMembership, err := h.membershipRepo.GetByID(result.ID)
+	if err != nil {
+		slog.ErrorContext(r.Context(), "failed to retrieve created membership", "error", err, "membership_id", result.ID)
+		ctx := middleware.SetErrorCode(r.Context(), ErrCodeInternal)
+		WriteError(w, ctx, http.StatusInternalServerError, ErrCodeInternal, "Failed to retrieve created membership")
+		return
+	}
+
 	// Return created membership
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)
-	if err := json.NewEncoder(w).Encode(newMembership); err != nil {
+	if err := json.NewEncoder(w).Encode(createdMembership); err != nil {
 		return
 	}
 }
