@@ -425,3 +425,70 @@ func TestMembershipRepository_ListByScene(t *testing.T) {
 		t.Errorf("Expected 0 memberships for non-existent scene, got %d", len(nonExistent))
 	}
 }
+
+func TestMembershipRepository_CountByScenes(t *testing.T) {
+repo := NewInMemoryMembershipRepository()
+
+// Create memberships for different scenes
+scene1 := "scene-1"
+scene2 := "scene-2"
+scene3 := "scene-3"
+
+// Scene 1: 2 active, 1 pending
+m1 := &Membership{ID: "m1", SceneID: scene1, UserDID: "user1", Status: "active"}
+m2 := &Membership{ID: "m2", SceneID: scene1, UserDID: "user2", Status: "active"}
+m3 := &Membership{ID: "m3", SceneID: scene1, UserDID: "user3", Status: "pending"}
+
+// Scene 2: 1 active
+m4 := &Membership{ID: "m4", SceneID: scene2, UserDID: "user4", Status: "active"}
+
+// Scene 3: no memberships
+
+for _, m := range []*Membership{m1, m2, m3, m4} {
+if _, err := repo.Upsert(m); err != nil {
+t.Fatalf("Upsert failed: %v", err)
+}
+}
+
+// Test: Count active memberships for all scenes
+counts, err := repo.CountByScenes([]string{scene1, scene2, scene3}, "active")
+if err != nil {
+t.Fatalf("CountByScenes failed: %v", err)
+}
+
+if counts[scene1] != 2 {
+t.Errorf("Expected 2 active members for scene1, got %d", counts[scene1])
+}
+if counts[scene2] != 1 {
+t.Errorf("Expected 1 active member for scene2, got %d", counts[scene2])
+}
+if counts[scene3] != 0 {
+t.Errorf("Expected 0 active members for scene3, got %d", counts[scene3])
+}
+
+// Test: Count all memberships (including pending)
+allCounts, err := repo.CountByScenes([]string{scene1, scene2}, "")
+if err != nil {
+t.Fatalf("CountByScenes failed: %v", err)
+}
+
+if allCounts[scene1] != 3 {
+t.Errorf("Expected 3 total members for scene1, got %d", allCounts[scene1])
+}
+if allCounts[scene2] != 1 {
+t.Errorf("Expected 1 total member for scene2, got %d", allCounts[scene2])
+}
+}
+
+func TestMembershipRepository_CountByScenes_EmptyInput(t *testing.T) {
+repo := NewInMemoryMembershipRepository()
+
+counts, err := repo.CountByScenes([]string{}, "active")
+if err != nil {
+t.Fatalf("CountByScenes failed: %v", err)
+}
+
+if len(counts) != 0 {
+t.Errorf("Expected empty map, got %d entries", len(counts))
+}
+}

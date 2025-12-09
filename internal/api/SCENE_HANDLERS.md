@@ -147,6 +147,13 @@ Lists all scenes owned by the authenticated user with summary statistics.
 - Excludes heavy fields: `palette`, `precise_point`
 - Excludes soft-deleted scenes (deleted_at IS NULL)
 
+**Performance:**
+- Uses batch queries to avoid N+1 query problem
+- Single query for all scenes: `ListByOwner(userDID)`
+- Single query for all membership counts: `CountByScenes(sceneIDs, "active")`
+- Single query for all active stream checks: `HasActiveStreamsForScenes(sceneIDs)`
+- Total: 3 queries regardless of number of scenes owned
+
 **Error Responses:**
 - `401 Unauthorized` - Authentication required (no user DID in context)
 

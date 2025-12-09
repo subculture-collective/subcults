@@ -662,27 +662,43 @@ func (h *SceneHandlers) ListOwnedScenes(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
+	// Early return if no scenes
+	if len(scenes) == 0 {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		if err := json.NewEncoder(w).Encode([]OwnedSceneSummary{}); err != nil {
+			slog.ErrorContext(r.Context(), "failed to encode response", "error", err)
+		}
+		return
+	}
+
+	// Collect all scene IDs for batch queries
+	sceneIDs := make([]string, len(scenes))
+	for i, sc := range scenes {
+		sceneIDs[i] = sc.ID
+	}
+
+	// Batch query for membership counts (avoids N+1 query problem)
+	membershipCounts, err := h.membershipRepo.CountByScenes(sceneIDs, "active")
+	if err != nil {
+		slog.ErrorContext(r.Context(), "failed to count memberships", "error", err, "user_did", userDID)
+		ctx := middleware.SetErrorCode(r.Context(), ErrCodeInternal)
+		WriteError(w, ctx, http.StatusInternalServerError, ErrCodeInternal, "Failed to retrieve membership counts")
+		return
+	}
+
+	// Batch query for active streams (avoids N+1 query problem)
+	activeStreams, err := h.streamRepo.HasActiveStreamsForScenes(sceneIDs)
+	if err != nil {
+		slog.ErrorContext(r.Context(), "failed to check active streams", "error", err, "user_did", userDID)
+		ctx := middleware.SetErrorCode(r.Context(), ErrCodeInternal)
+		WriteError(w, ctx, http.StatusInternalServerError, ErrCodeInternal, "Failed to check active streams")
+		return
+	}
+
 	// Build summary for each scene
 	summaries := make([]OwnedSceneSummary, 0, len(scenes))
 	for _, sc := range scenes {
-		// Count active memberships
-		memberships, err := h.membershipRepo.ListByScene(sc.ID, "active")
-		if err != nil {
-			slog.ErrorContext(r.Context(), "failed to count memberships", "error", err, "scene_id", sc.ID)
-			ctx := middleware.SetErrorCode(r.Context(), ErrCodeInternal)
-			WriteError(w, ctx, http.StatusInternalServerError, ErrCodeInternal, "Failed to retrieve membership count")
-			return
-		}
-
-		// Check for active stream
-		hasActiveStream, err := h.streamRepo.HasActiveStreamForScene(sc.ID)
-		if err != nil {
-			slog.ErrorContext(r.Context(), "failed to check active stream", "error", err, "scene_id", sc.ID)
-			ctx := middleware.SetErrorCode(r.Context(), ErrCodeInternal)
-			WriteError(w, ctx, http.StatusInternalServerError, ErrCodeInternal, "Failed to check active streams")
-			return
-		}
-
 		summary := OwnedSceneSummary{
 			ID:              sc.ID,
 			Name:            sc.Name,
@@ -692,8 +708,8 @@ func (h *SceneHandlers) ListOwnedScenes(w http.ResponseWriter, r *http.Request) 
 			Visibility:      sc.Visibility,
 			CreatedAt:       sc.CreatedAt,
 			UpdatedAt:       sc.UpdatedAt,
-			MembersCount:    len(memberships),
-			HasActiveStream: hasActiveStream,
+			MembersCount:    membershipCounts[sc.ID], // Defaults to 0 if not in map
+			HasActiveStream: activeStreams[sc.ID],     // Defaults to false if not in map
 		}
 		summaries = append(summaries, summary)
 	}

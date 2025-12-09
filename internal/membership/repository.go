@@ -61,6 +61,11 @@ type MembershipRepository interface {
 	// ListByScene retrieves all memberships for a scene, optionally filtered by status.
 	// If status is empty, returns all memberships regardless of status.
 	ListByScene(sceneID, status string) ([]*Membership, error)
+	
+	// CountByScenes returns a map of scene IDs to their membership counts.
+	// Only counts memberships matching the specified status (empty string matches all).
+	// This is a batch operation to avoid N+1 queries.
+	CountByScenes(sceneIDs []string, status string) (map[string]int, error)
 }
 
 // InMemoryMembershipRepository is an in-memory implementation of MembershipRepository.
@@ -230,4 +235,30 @@ func (r *InMemoryMembershipRepository) ListByScene(sceneID, status string) ([]*M
 	}
 
 	return result, nil
+}
+
+// CountByScenes returns a map of scene IDs to their membership counts.
+// Only counts memberships matching the specified status (empty string matches all).
+// This is a batch operation to avoid N+1 queries.
+func (r *InMemoryMembershipRepository) CountByScenes(sceneIDs []string, status string) (map[string]int, error) {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+
+	// Create a set of scene IDs for efficient lookup
+	sceneIDSet := make(map[string]bool, len(sceneIDs))
+	for _, id := range sceneIDs {
+		sceneIDSet[id] = true
+	}
+
+	// Count memberships for each scene
+	counts := make(map[string]int)
+	for _, membership := range r.memberships {
+		if sceneIDSet[membership.SceneID] {
+			if status == "" || membership.Status == status {
+				counts[membership.SceneID]++
+			}
+		}
+	}
+
+	return counts, nil
 }
