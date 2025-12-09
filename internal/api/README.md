@@ -49,6 +49,7 @@ The package provides the following predefined error codes:
 |----------|------|-------------|-------------|
 | `ErrCodeValidation` | `validation_error` | 400 | Input validation failure |
 | `ErrCodeBadRequest` | `bad_request` | 400 | Malformed request |
+| `ErrCodeInvalidTimeRange` | `invalid_time_range` | 400 | Event start time not before end time |
 | `ErrCodeAuthFailed` | `auth_failed` | 401 | Authentication failure |
 | `ErrCodeForbidden` | `forbidden` | 403 | Request is forbidden |
 | `ErrCodeNotFound` | `not_found` | 404 | Resource not found |
