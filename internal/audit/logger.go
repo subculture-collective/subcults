@@ -44,6 +44,7 @@ var ValidActions = map[string]bool{
 	"membership_request":      true,
 	"membership_approve":      true,
 	"membership_reject":       true,
+	"event_cancel":            true,
 }
 
 // validateLogEntry validates the required fields of a log entry against whitelists.

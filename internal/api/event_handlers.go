@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/onnwee/subcults/internal/audit"
 	"github.com/onnwee/subcults/internal/middleware"
 	"github.com/onnwee/subcults/internal/scene"
 )
@@ -48,17 +49,24 @@ type UpdateEventRequest struct {
 	EndsAt        *time.Time     `json:"ends_at,omitempty"`
 }
 
+// CancelEventRequest represents the request body for cancelling an event.
+type CancelEventRequest struct {
+	Reason *string `json:"reason,omitempty"`
+}
+
 // EventHandlers holds dependencies for event HTTP handlers.
 type EventHandlers struct {
 	eventRepo scene.EventRepository
 	sceneRepo scene.SceneRepository
+	auditRepo audit.Repository
 }
 
 // NewEventHandlers creates a new EventHandlers instance.
-func NewEventHandlers(eventRepo scene.EventRepository, sceneRepo scene.SceneRepository) *EventHandlers {
+func NewEventHandlers(eventRepo scene.EventRepository, sceneRepo scene.SceneRepository, auditRepo audit.Repository) *EventHandlers {
 	return &EventHandlers{
 		eventRepo: eventRepo,
 		sceneRepo: sceneRepo,
+		auditRepo: auditRepo,
 	}
 }
 
@@ -413,6 +421,108 @@ func (h *EventHandlers) GetEvent(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 	if err := json.NewEncoder(w).Encode(foundEvent); err != nil {
+		// Log error but response already started
+		slog.ErrorContext(r.Context(), "failed to encode event response", "error", err)
+	}
+}
+
+// CancelEvent handles POST /events/{id}/cancel - cancels an event.
+func (h *EventHandlers) CancelEvent(w http.ResponseWriter, r *http.Request) {
+	// Extract event ID from URL path
+	pathParts := strings.Split(strings.TrimPrefix(r.URL.Path, "/events/"), "/")
+	if len(pathParts) < 2 || pathParts[0] == "" {
+		ctx := middleware.SetErrorCode(r.Context(), ErrCodeBadRequest)
+		WriteError(w, ctx, http.StatusBadRequest, ErrCodeBadRequest, "Event ID is required")
+		return
+	}
+	eventID := pathParts[0]
+
+	// Parse request body (optional reason)
+	var req CancelEventRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		// If body is empty or malformed, just proceed without reason
+		req.Reason = nil
+	}
+
+	// Sanitize reason if provided to prevent HTML injection
+	if req.Reason != nil {
+		sanitized := html.EscapeString(*req.Reason)
+		req.Reason = &sanitized
+	}
+
+	// Get existing event
+	existingEvent, err := h.eventRepo.GetByID(eventID)
+	if err != nil {
+		if err == scene.ErrEventNotFound {
+			ctx := middleware.SetErrorCode(r.Context(), ErrCodeNotFound)
+			WriteError(w, ctx, http.StatusNotFound, ErrCodeNotFound, "Event not found")
+			return
+		}
+		slog.ErrorContext(r.Context(), "failed to get event", "error", err, "event_id", eventID)
+		ctx := middleware.SetErrorCode(r.Context(), ErrCodeInternal)
+		WriteError(w, ctx, http.StatusInternalServerError, ErrCodeInternal, "Failed to retrieve event")
+		return
+	}
+
+	// Get user DID from context (set by auth middleware)
+	userDID := middleware.GetUserDID(r.Context())
+	if userDID == "" {
+		ctx := middleware.SetErrorCode(r.Context(), ErrCodeAuthFailed)
+		WriteError(w, ctx, http.StatusUnauthorized, ErrCodeAuthFailed, "Authentication required")
+		return
+	}
+
+	// Check if user is scene owner (authorization)
+	isOwner, err := h.isSceneOwner(r.Context(), existingEvent.SceneID, userDID)
+	if err != nil {
+		if err == scene.ErrSceneNotFound || err == scene.ErrSceneDeleted {
+			ctx := middleware.SetErrorCode(r.Context(), ErrCodeNotFound)
+			WriteError(w, ctx, http.StatusNotFound, ErrCodeNotFound, "Scene not found")
+			return
+		}
+		slog.ErrorContext(r.Context(), "failed to check scene ownership", "error", err, "scene_id", existingEvent.SceneID)
+		ctx := middleware.SetErrorCode(r.Context(), ErrCodeInternal)
+		WriteError(w, ctx, http.StatusInternalServerError, ErrCodeInternal, "Failed to verify scene ownership")
+		return
+	}
+	if !isOwner {
+		ctx := middleware.SetErrorCode(r.Context(), ErrCodeForbidden)
+		WriteError(w, ctx, http.StatusForbidden, ErrCodeForbidden, "You do not have permission to cancel this event")
+		return
+	}
+
+	// Track whether event was already cancelled for audit log decision
+	alreadyCancelled := existingEvent.Status == "cancelled" && existingEvent.CancelledAt != nil
+
+	// Cancel the event (idempotent)
+	if err := h.eventRepo.Cancel(eventID, req.Reason); err != nil {
+		slog.ErrorContext(r.Context(), "failed to cancel event", "error", err, "event_id", eventID)
+		ctx := middleware.SetErrorCode(r.Context(), ErrCodeInternal)
+		WriteError(w, ctx, http.StatusInternalServerError, ErrCodeInternal, "Failed to cancel event")
+		return
+	}
+
+	// Emit audit log only if this was the first cancellation (not idempotent case)
+	if !alreadyCancelled {
+		if err := audit.LogAccessFromRequest(r, h.auditRepo, "event", eventID, "event_cancel"); err != nil {
+			slog.ErrorContext(r.Context(), "failed to log event cancellation", "error", err, "event_id", eventID)
+			// Don't fail the request, but log the error
+		}
+	}
+
+	// Retrieve the updated event
+	cancelledEvent, err := h.eventRepo.GetByID(eventID)
+	if err != nil {
+		slog.ErrorContext(r.Context(), "failed to retrieve cancelled event", "error", err, "event_id", eventID)
+		ctx := middleware.SetErrorCode(r.Context(), ErrCodeInternal)
+		WriteError(w, ctx, http.StatusInternalServerError, ErrCodeInternal, "Failed to retrieve cancelled event")
+		return
+	}
+
+	// Return cancelled event
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	if err := json.NewEncoder(w).Encode(cancelledEvent); err != nil {
 		// Log error but response already started
 		slog.ErrorContext(r.Context(), "failed to encode event response", "error", err)
 	}

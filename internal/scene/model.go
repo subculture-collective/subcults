@@ -78,6 +78,9 @@ type Event struct {
 	DeletedAt   *time.Time `json:"deleted_at,omitempty"`
 	CancelledAt *time.Time `json:"cancelled_at,omitempty"`
 	
+	// Cancellation details
+	CancellationReason *string `json:"cancellation_reason,omitempty"`
+	
 	// AT Protocol record tracking
 	RecordDID  *string `json:"record_did,omitempty"`
 	RecordRKey *string `json:"record_rkey,omitempty"`

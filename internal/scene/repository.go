@@ -82,6 +82,12 @@ type EventRepository interface {
 
 	// GetByRecordKey retrieves an event by its AT Protocol record key.
 	GetByRecordKey(did, rkey string) (*Event, error)
+	
+	// Cancel marks an event as cancelled with an optional reason.
+	// Sets status to "cancelled", stores cancelled_at timestamp, and cancellation_reason.
+	// Returns ErrEventNotFound if event doesn't exist.
+	// Idempotent: returns nil if event is already cancelled.
+	Cancel(id string, reason *string) error
 }
 
 // InMemorySceneRepository is an in-memory implementation of SceneRepository.
@@ -457,4 +463,32 @@ func (r *InMemoryEventRepository) GetByRecordKey(did, rkey string) (*Event, erro
 		eventCopy.PrecisePoint = &pointCopy
 	}
 	return &eventCopy, nil
+}
+
+// Cancel marks an event as cancelled with an optional reason.
+// Sets status to "cancelled", stores cancelled_at timestamp, and cancellation_reason.
+// Returns ErrEventNotFound if event doesn't exist.
+// Idempotent: returns nil if event is already cancelled.
+func (r *InMemoryEventRepository) Cancel(id string, reason *string) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	event, ok := r.events[id]
+	if !ok {
+		return ErrEventNotFound
+	}
+
+	// Idempotent: if already cancelled, return success
+	if event.Status == "cancelled" && event.CancelledAt != nil {
+		return nil
+	}
+
+	// Update event status and cancellation metadata
+	now := time.Now()
+	event.Status = "cancelled"
+	event.CancelledAt = &now
+	event.CancellationReason = reason
+	event.UpdatedAt = &now
+
+	return nil
 }
