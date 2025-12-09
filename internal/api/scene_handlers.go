@@ -439,9 +439,9 @@ func (h *SceneHandlers) UpdateScenePalette(w http.ResponseWriter, r *http.Reques
 	if err != nil {
 		ctx := middleware.SetErrorCode(r.Context(), ErrCodeInvalidPalette)
 		if ratio > 0 {
-			WriteError(w, ctx, http.StatusBadRequest, ErrCodeInvalidPalette, 
-				"Insufficient contrast between text and background colors (got "+
-				formatRatio(ratio)+":1, need 4.5:1 minimum for WCAG AA)")
+			msg := fmt.Sprintf("Insufficient contrast between text and background colors (got %s:1, need 4.5:1 minimum for WCAG AA)", 
+				formatRatio(ratio))
+			WriteError(w, ctx, http.StatusBadRequest, ErrCodeInvalidPalette, msg)
 		} else {
 			WriteError(w, ctx, http.StatusBadRequest, ErrCodeInvalidPalette, err.Error())
 		}
@@ -494,8 +494,13 @@ func (h *SceneHandlers) UpdateScenePalette(w http.ResponseWriter, r *http.Reques
 	}
 }
 
-// formatRatio formats a contrast ratio to 1 decimal place.
+// formatRatio formats a contrast ratio to 1 decimal place, removing trailing zeros.
+// Examples: 4.5 -> "4.5", 4.0 -> "4", 21.0 -> "21"
 func formatRatio(ratio float64) string {
-	return strings.TrimRight(strings.TrimRight(
-		fmt.Sprintf("%.1f", ratio), "0"), ".")
+	formatted := fmt.Sprintf("%.1f", ratio)
+	// Remove trailing zeros after decimal point
+	formatted = strings.TrimRight(formatted, "0")
+	// Remove decimal point if no fractional part remains
+	formatted = strings.TrimRight(formatted, ".")
+	return formatted
 }
