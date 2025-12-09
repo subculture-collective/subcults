@@ -11,7 +11,7 @@ export const LoadingSkeleton: React.FC = () => {
       className="loading-skeleton"
       role="status"
       aria-live="polite"
-      aria-label="Loading content"
+      aria-busy="true"
       style={{
         display: 'flex',
         alignItems: 'center',

@@ -7,6 +7,11 @@ import React, { useState } from 'react';
 import { Outlet, Link, useNavigate } from 'react-router-dom';
 import { useAuth, authStore } from '../stores/authStore';
 
+// Display constants
+const DID_DISPLAY_LENGTH = 20; // Characters to show before truncation
+const BREAKPOINT_MOBILE = 767; // Max width for mobile layout
+const BREAKPOINT_DESKTOP = 768; // Min width for desktop layout
+
 export const AppLayout: React.FC = () => {
   const { isAuthenticated, isAdmin, user } = useAuth();
   const navigate = useNavigate();
@@ -96,6 +101,8 @@ export const AppLayout: React.FC = () => {
               type="search"
               placeholder="Search scenes, events..."
               disabled
+              title="Search feature coming soon"
+              aria-describedby="search-status"
               style={{
                 width: '100%',
                 padding: '0.5rem',
@@ -106,6 +113,9 @@ export const AppLayout: React.FC = () => {
               }}
               aria-label="Search"
             />
+            <span id="search-status" style={{ display: 'none' }}>
+              Search feature is not yet implemented
+            </span>
           </div>
 
           {/* Auth status and desktop nav */}
@@ -151,7 +161,7 @@ export const AppLayout: React.FC = () => {
             {isAuthenticated ? (
               <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
                 <span style={{ fontSize: '0.875rem' }}>
-                  {user?.did.slice(0, 20)}...
+                  {user?.did.slice(0, DID_DISPLAY_LENGTH)}...
                 </span>
                 <button
                   onClick={handleLogout}
@@ -348,7 +358,7 @@ export const AppLayout: React.FC = () => {
       </nav>
 
       <style>{`
-        @media (min-width: 768px) {
+        @media (min-width: ${BREAKPOINT_DESKTOP}px) {
           .desktop-nav {
             display: flex !important;
             align-items: center;
@@ -361,7 +371,7 @@ export const AppLayout: React.FC = () => {
             display: block !important;
           }
         }
-        @media (max-width: 767px) {
+        @media (max-width: ${BREAKPOINT_MOBILE}px) {
           .bottom-nav {
             display: block !important;
           }

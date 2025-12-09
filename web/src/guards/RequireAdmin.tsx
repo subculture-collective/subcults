@@ -5,7 +5,7 @@
  */
 
 import React from 'react';
-import { Navigate } from 'react-router-dom';
+import { Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../stores/authStore';
 
 interface RequireAdminProps {
@@ -14,10 +14,11 @@ interface RequireAdminProps {
 
 export const RequireAdmin: React.FC<RequireAdminProps> = ({ children }) => {
   const { isAuthenticated, isAdmin } = useAuth();
+  const location = useLocation();
 
   if (!isAuthenticated) {
-    // Not authenticated - redirect to login
-    return <Navigate to="/account/login" replace />;
+    // Not authenticated - redirect to login, preserving the attempted location
+    return <Navigate to="/account/login" state={{ from: location }} replace />;
   }
 
   if (!isAdmin) {

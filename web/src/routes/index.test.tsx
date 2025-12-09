@@ -5,7 +5,7 @@
 
 import { describe, it, expect, beforeEach } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
-import { MemoryRouter, Routes, Route } from 'react-router-dom';
+import { MemoryRouter, Routes, Route, useLocation } from 'react-router-dom';
 import { RequireAuth } from '../guards/RequireAuth';
 import { RequireAdmin } from '../guards/RequireAdmin';
 import { authStore } from '../stores/authStore';
@@ -14,7 +14,17 @@ import { authStore } from '../stores/authStore';
 const MockPublicPage = () => <div>Public Page</div>;
 const MockProtectedPage = () => <div>Protected Page</div>;
 const MockAdminPage = () => <div>Admin Page</div>;
-const MockLoginPage = () => <div>Login Page</div>;
+const MockLoginPage = () => {
+  const location = useLocation();
+  const from = (location.state as { from?: { pathname: string } } | null)?.from
+    ?.pathname;
+  return (
+    <div>
+      Login Page
+      {from && <span data-testid="return-url">{from}</span>}
+    </div>
+  );
+};
 
 describe('Route Guards', () => {
   beforeEach(() => {
@@ -42,6 +52,29 @@ describe('Route Guards', () => {
 
       await waitFor(() => {
         expect(screen.getByText('Login Page')).toBeInTheDocument();
+      });
+    });
+
+    it('preserves return URL when redirecting to login', async () => {
+      render(
+        <MemoryRouter initialEntries={['/protected']}>
+          <Routes>
+            <Route path="/account/login" element={<MockLoginPage />} />
+            <Route
+              path="/protected"
+              element={
+                <RequireAuth>
+                  <MockProtectedPage />
+                </RequireAuth>
+              }
+            />
+          </Routes>
+        </MemoryRouter>
+      );
+
+      await waitFor(() => {
+        expect(screen.getByText('Login Page')).toBeInTheDocument();
+        expect(screen.getByTestId('return-url')).toHaveTextContent('/protected');
       });
     });
 
