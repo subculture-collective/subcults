@@ -134,7 +134,7 @@ The main layout shell provides:
 
 #### Auth Store (`stores/authStore.ts`)
 
-Simple in-memory store for authentication state:
+Production-ready authentication state management with secure token handling:
 
 ```typescript
 interface User {
@@ -146,22 +146,124 @@ interface AuthState {
   user: User | null;
   isAuthenticated: boolean;
   isAdmin: boolean;
+  isLoading: boolean;
+  accessToken: string | null;
 }
 ```
+
+**Security Architecture**:
+- **Access Token**: Stored in memory only (15min expiry) - prevents XSS token theft
+- **Refresh Token**: Stored in httpOnly secure cookie (7d expiry) - set by backend
+- **Cookie Flags**: SameSite=Lax, Secure=true for CSRF protection
 
 **Methods**:
 - `getState()` - Get current auth state
 - `subscribe(listener)` - Subscribe to auth changes
-- `setUser(user)` - Set authenticated user
-- `logout()` - Clear user session
+- `setUser(user, accessToken)` - Set authenticated user with access token
+- `logout()` - Clear user session (calls backend to clear refresh token cookie)
+- `initialize()` - Check for existing session on app startup
 
-**Hook**: `useAuth()` - React hook for accessing auth state in components
+**Hook**: `useAuth()` - React hook for accessing auth state with logout function
 
-**Note**: This is a placeholder implementation. Future iterations will integrate with:
-- JWT token management
-- Persistent storage (localStorage/sessionStorage)
-- Token refresh logic
-- Full state management solution (Zustand/Redux)
+**Token Refresh Flow**:
+
+```
+┌─────────────┐
+│  API Call   │
+│  (401)      │
+└──────┬──────┘
+       │
+       ▼
+┌─────────────────────┐
+│  Detect 401         │
+│  Unauthorized       │
+└──────┬──────────────┘
+       │
+       ▼
+┌─────────────────────┐     ┌──────────────────┐
+│  Call Refresh       │────▶│  Exponential     │
+│  Endpoint           │     │  Backoff Retry   │
+│  (httpOnly cookie)  │◀────│  (3 attempts)    │
+└──────┬──────────────┘     └──────────────────┘
+       │
+       ├─Success────▶ Update access token in memory
+       │              Retry original request
+       │              
+       └─Failure────▶ Clear auth state
+                      Broadcast logout to tabs
+                      Redirect to /account/login
+```
+
+**Exponential Backoff**:
+- **Max Retries**: 3 attempts
+- **Initial Delay**: 1 second
+- **Max Delay**: 10 seconds
+- **Formula**: delay = min(initial * 2^retry, maxDelay)
+- **Retry Triggers**: 5xx errors, network failures
+- **No Retry**: 401 errors (invalid refresh token)
+
+**Multi-Tab Synchronization**:
+- Uses `BroadcastChannel` API for cross-tab communication
+- Logout in one tab immediately logs out all other tabs
+- Prevents inconsistent auth state across browser tabs
+- Gracefully degrades if BroadcastChannel not supported
+
+**Request Deduplication**:
+- Multiple concurrent 401 responses share single refresh attempt
+- Prevents refresh token endpoint overload
+- All waiting requests receive same new token
+
+#### API Client (`lib/api-client.ts`)
+
+Type-safe HTTP client with automatic authentication and error handling:
+
+**Features**:
+- Automatic Authorization header injection
+- Transparent token refresh on 401 responses
+- Request/response interceptors
+- Error handling with structured error types
+- Convenience methods (GET, POST, PUT, PATCH, DELETE)
+
+**Configuration**:
+```typescript
+apiClient.initialize({
+  baseURL: '/api',
+  getAccessToken: () => string | null,
+  refreshToken: () => Promise<string | null>,
+  onUnauthorized: () => void
+});
+```
+
+**Usage Examples**:
+```typescript
+// GET request
+const scenes = await apiClient.get<Scene[]>('/scenes');
+
+// POST with body
+const newScene = await apiClient.post('/scenes', { name: 'My Scene' });
+
+// Skip auth for public endpoints
+const data = await apiClient.get('/public/data', { skipAuth: true });
+
+// Skip retry for specific requests
+const response = await apiClient.get('/endpoint', { skipRetry: true });
+```
+
+**Error Handling**:
+```typescript
+try {
+  await apiClient.get('/scenes');
+} catch (error) {
+  if (error instanceof ApiClientError) {
+    console.error(error.status, error.code, error.message);
+  }
+}
+```
+
+**Automatic Retry Behavior**:
+- 401 responses trigger token refresh + retry (unless `skipRetry: true`)
+- Non-401 errors throw immediately (no automatic retry)
+- Refresh failures call `onUnauthorized` callback
 
 ### Component Organization
 
@@ -192,6 +294,8 @@ web/src/
 │   └── index.tsx
 ├── stores/            # State management
 │   └── authStore.ts
+├── lib/               # Core libraries
+│   └── api-client.ts
 ├── hooks/             # Custom React hooks
 ├── utils/             # Utility functions
 └── types/             # TypeScript type definitions
