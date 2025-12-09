@@ -113,7 +113,16 @@ export const AppLayout: React.FC = () => {
               }}
               aria-label="Search"
             />
-            <span id="search-status" style={{ display: 'none' }}>
+            <span
+              id="search-status"
+              style={{
+                position: 'absolute',
+                left: '-10000px',
+                width: '1px',
+                height: '1px',
+                overflow: 'hidden',
+              }}
+            >
               Search feature is not yet implemented
             </span>
           </div>

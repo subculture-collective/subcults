@@ -14,10 +14,14 @@ import { authStore } from '../stores/authStore';
 const MockPublicPage = () => <div>Public Page</div>;
 const MockProtectedPage = () => <div>Protected Page</div>;
 const MockAdminPage = () => <div>Admin Page</div>;
+interface LocationState {
+  from?: { pathname: string };
+}
+
 const MockLoginPage = () => {
   const location = useLocation();
-  const from = (location.state as { from?: { pathname: string } } | null)?.from
-    ?.pathname;
+  const state = location.state as LocationState | null;
+  const from = state?.from?.pathname;
   return (
     <div>
       Login Page

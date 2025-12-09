@@ -12,6 +12,7 @@ export const LoadingSkeleton: React.FC = () => {
       role="status"
       aria-live="polite"
       aria-busy="true"
+      aria-label="Loading content"
       style={{
         display: 'flex',
         alignItems: 'center',
