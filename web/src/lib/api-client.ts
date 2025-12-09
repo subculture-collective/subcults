@@ -165,7 +165,7 @@ class ApiClient {
       }
 
       return newToken;
-    } catch (error) {
+    } catch {
       // Clear refresh promise on error
       this.refreshPromise = null;
       
