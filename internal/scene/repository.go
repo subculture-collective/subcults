@@ -17,6 +17,7 @@ var (
 	ErrSceneDeleted       = errors.New("scene deleted")
 	ErrEventNotFound      = errors.New("event not found")
 	ErrDuplicateSceneName = errors.New("scene name already exists for this owner")
+	ErrRSVPNotFound       = errors.New("rsvp not found")
 )
 
 // UpsertResult tracks statistics for upsert operations.
@@ -88,6 +89,24 @@ type EventRepository interface {
 	// Returns ErrEventNotFound if event doesn't exist.
 	// Idempotent: returns nil if event is already cancelled.
 	Cancel(id string, reason *string) error
+}
+
+// RSVPRepository defines the interface for RSVP data operations.
+type RSVPRepository interface {
+	// Upsert inserts or updates an RSVP for an event.
+	// Idempotent: if RSVP exists with same status, returns without error.
+	Upsert(rsvp *RSVP) error
+
+	// Delete removes an RSVP for a user and event.
+	// Returns ErrRSVPNotFound if RSVP doesn't exist.
+	Delete(eventID, userID string) error
+
+	// GetByEventAndUser retrieves an RSVP for a specific user and event.
+	// Returns ErrRSVPNotFound if RSVP doesn't exist.
+	GetByEventAndUser(eventID, userID string) (*RSVP, error)
+
+	// GetCountsByEvent returns aggregated RSVP counts by status for an event.
+	GetCountsByEvent(eventID string) (*RSVPCounts, error)
 }
 
 // InMemorySceneRepository is an in-memory implementation of SceneRepository.
@@ -491,4 +510,105 @@ func (r *InMemoryEventRepository) Cancel(id string, reason *string) error {
 	event.UpdatedAt = &now
 
 	return nil
+}
+
+// InMemoryRSVPRepository is an in-memory implementation of RSVPRepository.
+// Used for testing and development. Thread-safe via RWMutex.
+type InMemoryRSVPRepository struct {
+	mu    sync.RWMutex
+	rsvps map[string]*RSVP // key: "eventID:userID"
+}
+
+// NewInMemoryRSVPRepository creates a new in-memory RSVP repository.
+func NewInMemoryRSVPRepository() *InMemoryRSVPRepository {
+	return &InMemoryRSVPRepository{
+		rsvps: make(map[string]*RSVP),
+	}
+}
+
+// makeRSVPKey creates a composite key from event ID and user ID.
+func makeRSVPKey(eventID, userID string) string {
+	return eventID + ":" + userID
+}
+
+// Upsert inserts or updates an RSVP for an event.
+// Idempotent: if RSVP exists with same status, returns without error.
+func (r *InMemoryRSVPRepository) Upsert(rsvp *RSVP) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	key := makeRSVPKey(rsvp.EventID, rsvp.UserID)
+	now := time.Now()
+
+	// Check if RSVP already exists
+	existing, exists := r.rsvps[key]
+	if exists {
+		// Update existing RSVP
+		existing.Status = rsvp.Status
+		existing.UpdatedAt = &now
+	} else {
+		// Create new RSVP
+		rsvpCopy := *rsvp
+		rsvpCopy.CreatedAt = &now
+		rsvpCopy.UpdatedAt = &now
+		r.rsvps[key] = &rsvpCopy
+	}
+
+	return nil
+}
+
+// Delete removes an RSVP for a user and event.
+// Returns ErrRSVPNotFound if RSVP doesn't exist.
+func (r *InMemoryRSVPRepository) Delete(eventID, userID string) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	key := makeRSVPKey(eventID, userID)
+	if _, exists := r.rsvps[key]; !exists {
+		return ErrRSVPNotFound
+	}
+
+	delete(r.rsvps, key)
+	return nil
+}
+
+// GetByEventAndUser retrieves an RSVP for a specific user and event.
+// Returns ErrRSVPNotFound if RSVP doesn't exist.
+func (r *InMemoryRSVPRepository) GetByEventAndUser(eventID, userID string) (*RSVP, error) {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+
+	key := makeRSVPKey(eventID, userID)
+	rsvp, exists := r.rsvps[key]
+	if !exists {
+		return nil, ErrRSVPNotFound
+	}
+
+	// Return a copy to avoid external modification
+	rsvpCopy := *rsvp
+	return &rsvpCopy, nil
+}
+
+// GetCountsByEvent returns aggregated RSVP counts by status for an event.
+func (r *InMemoryRSVPRepository) GetCountsByEvent(eventID string) (*RSVPCounts, error) {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+
+	counts := &RSVPCounts{
+		Going: 0,
+		Maybe: 0,
+	}
+
+	for _, rsvp := range r.rsvps {
+		if rsvp.EventID == eventID {
+			switch rsvp.Status {
+			case "going":
+				counts.Going++
+			case "maybe":
+				counts.Maybe++
+			}
+		}
+	}
+
+	return counts, nil
 }
