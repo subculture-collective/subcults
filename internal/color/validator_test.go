@@ -294,7 +294,7 @@ func TestValidateContrast(t *testing.T) {
 			wantErr:   true,
 		},
 		{
-			name:      "dark blue on black background - fails (insufficient contrast)",
+			name:      "dark blue on black - fails",
 			textColor: "#0066ff",
 			bgColor:   "#000000",
 			wantErr:   true,

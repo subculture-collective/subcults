@@ -387,51 +387,65 @@ func (h *SceneHandlers) UpdateScenePalette(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	// Validate all color fields are present and valid hex colors
-	colors := map[string]string{
-		"primary":    req.Palette.Primary,
-		"secondary":  req.Palette.Secondary,
-		"accent":     req.Palette.Accent,
-		"background": req.Palette.Background,
-		"text":       req.Palette.Text,
+	// Get existing scene first to check ownership
+	existingScene, err := h.repo.GetByID(sceneID)
+	if err != nil {
+		if err == scene.ErrSceneNotFound {
+			ctx := middleware.SetErrorCode(r.Context(), ErrCodeNotFound)
+			WriteError(w, ctx, http.StatusNotFound, ErrCodeNotFound, "Scene not found")
+			return
+		}
+		slog.ErrorContext(r.Context(), "failed to retrieve scene", "error", err, "scene_id", sceneID)
+		ctx := middleware.SetErrorCode(r.Context(), ErrCodeInternal)
+		WriteError(w, ctx, http.StatusInternalServerError, ErrCodeInternal, "Failed to retrieve scene")
+		return
 	}
 
-	for field, colorValue := range colors {
+	// Authorization: Only the owner can update the palette
+	userDID := middleware.GetUserDID(r.Context())
+	if userDID == "" {
+		ctx := middleware.SetErrorCode(r.Context(), ErrCodeAuthFailed)
+		WriteError(w, ctx, http.StatusUnauthorized, ErrCodeAuthFailed, "Authentication required")
+		return
+	}
+	if existingScene.OwnerDID != userDID {
+		ctx := middleware.SetErrorCode(r.Context(), ErrCodeForbidden)
+		WriteError(w, ctx, http.StatusForbidden, ErrCodeForbidden, "Forbidden: you do not own this scene")
+		return
+	}
+
+	// Define color fields in deterministic order for consistent validation
+	type colorField struct {
+		name  string
+		value *string // Pointer to the palette field
+	}
+	colorFields := []colorField{
+		{"primary", &req.Palette.Primary},
+		{"secondary", &req.Palette.Secondary},
+		{"accent", &req.Palette.Accent},
+		{"background", &req.Palette.Background},
+		{"text", &req.Palette.Text},
+	}
+
+	// Validate and sanitize all color fields
+	for _, field := range colorFields {
 		// Check if field is provided
-		if strings.TrimSpace(colorValue) == "" {
+		if strings.TrimSpace(*field.value) == "" {
 			ctx := middleware.SetErrorCode(r.Context(), ErrCodeInvalidPalette)
-			WriteError(w, ctx, http.StatusBadRequest, ErrCodeInvalidPalette, field+" color is required")
+			WriteError(w, ctx, http.StatusBadRequest, ErrCodeInvalidPalette, field.name+" color is required")
 			return
 		}
 
-		// Validate hex format
-		if err := color.ValidateHexColor(colorValue); err != nil {
-			ctx := middleware.SetErrorCode(r.Context(), ErrCodeInvalidPalette)
-			WriteError(w, ctx, http.StatusBadRequest, ErrCodeInvalidPalette, field+" color: "+err.Error())
-			return
-		}
-
-		// Sanitize to prevent script injection
-		sanitized := color.SanitizeColor(colorValue)
+		// Sanitize to prevent script injection (also validates hex format)
+		sanitized := color.SanitizeColor(*field.value)
 		if sanitized == "" {
 			ctx := middleware.SetErrorCode(r.Context(), ErrCodeInvalidPalette)
-			WriteError(w, ctx, http.StatusBadRequest, ErrCodeInvalidPalette, field+" color contains invalid characters")
+			WriteError(w, ctx, http.StatusBadRequest, ErrCodeInvalidPalette, field.name+" color: invalid hex color format, expected #RRGGBB")
 			return
 		}
 
 		// Update the palette with sanitized value
-		switch field {
-		case "primary":
-			req.Palette.Primary = sanitized
-		case "secondary":
-			req.Palette.Secondary = sanitized
-		case "accent":
-			req.Palette.Accent = sanitized
-		case "background":
-			req.Palette.Background = sanitized
-		case "text":
-			req.Palette.Text = sanitized
-		}
+		*field.value = sanitized
 	}
 
 	// Validate contrast ratio between text and background (WCAG AA minimum 4.5:1)
@@ -445,20 +459,6 @@ func (h *SceneHandlers) UpdateScenePalette(w http.ResponseWriter, r *http.Reques
 		} else {
 			WriteError(w, ctx, http.StatusBadRequest, ErrCodeInvalidPalette, err.Error())
 		}
-		return
-	}
-
-	// Get existing scene
-	existingScene, err := h.repo.GetByID(sceneID)
-	if err != nil {
-		if err == scene.ErrSceneNotFound {
-			ctx := middleware.SetErrorCode(r.Context(), ErrCodeNotFound)
-			WriteError(w, ctx, http.StatusNotFound, ErrCodeNotFound, "Scene not found")
-			return
-		}
-		slog.ErrorContext(r.Context(), "failed to retrieve scene", "error", err, "scene_id", sceneID)
-		ctx := middleware.SetErrorCode(r.Context(), ErrCodeInternal)
-		WriteError(w, ctx, http.StatusInternalServerError, ErrCodeInternal, "Failed to retrieve scene")
 		return
 	}
 
@@ -477,19 +477,10 @@ func (h *SceneHandlers) UpdateScenePalette(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	// Retrieve updated scene
-	updated, err := h.repo.GetByID(sceneID)
-	if err != nil {
-		slog.ErrorContext(r.Context(), "failed to retrieve updated scene", "error", err, "scene_id", sceneID)
-		ctx := middleware.SetErrorCode(r.Context(), ErrCodeInternal)
-		WriteError(w, ctx, http.StatusInternalServerError, ErrCodeInternal, "Failed to retrieve updated scene")
-		return
-	}
-
 	// Return updated scene
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
-	if err := json.NewEncoder(w).Encode(updated); err != nil {
+	if err := json.NewEncoder(w).Encode(existingScene); err != nil {
 		return
 	}
 }

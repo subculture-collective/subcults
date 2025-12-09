@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/onnwee/subcults/internal/middleware"
 	"github.com/onnwee/subcults/internal/scene"
 )
 
@@ -624,6 +625,9 @@ t.Fatalf("failed to marshal request: %v", err)
 
 req := httptest.NewRequest(http.MethodPatch, "/scenes/test-scene-id/palette", bytes.NewReader(body))
 req.Header.Set("Content-Type", "application/json")
+// Add authentication context
+ctx := middleware.SetUserDID(req.Context(), "did:plc:test123")
+req = req.WithContext(ctx)
 w := httptest.NewRecorder()
 
 handlers.UpdateScenePalette(w, req)
@@ -741,6 +745,9 @@ t.Fatalf("failed to marshal request: %v", err)
 req := httptest.NewRequest(http.MethodPatch, "/scenes/test-scene-id/palette", bytes.NewReader(body))
 req.Header.Set("Content-Type", "application/json")
 w := httptest.NewRecorder()
+// Add authentication context
+ctx := middleware.SetUserDID(req.Context(), "did:plc:test123")
+req = req.WithContext(ctx)
 
 handlers.UpdateScenePalette(w, req)
 
@@ -825,6 +832,9 @@ t.Fatalf("failed to marshal request: %v", err)
 
 req := httptest.NewRequest(http.MethodPatch, "/scenes/test-scene-id/palette", bytes.NewReader(body))
 req.Header.Set("Content-Type", "application/json")
+// Add authentication context
+ctx := middleware.SetUserDID(req.Context(), "did:plc:test123")
+req = req.WithContext(ctx)
 w := httptest.NewRecorder()
 
 handlers.UpdateScenePalette(w, req)
@@ -886,6 +896,9 @@ t.Fatalf("failed to marshal request: %v", err)
 
 req := httptest.NewRequest(http.MethodPatch, "/scenes/test-scene-id/palette", bytes.NewReader(body))
 req.Header.Set("Content-Type", "application/json")
+// Add authentication context
+ctx := middleware.SetUserDID(req.Context(), "did:plc:test123")
+req = req.WithContext(ctx)
 w := httptest.NewRecorder()
 
 handlers.UpdateScenePalette(w, req)
@@ -926,6 +939,9 @@ t.Fatalf("failed to marshal request: %v", err)
 
 req := httptest.NewRequest(http.MethodPatch, "/scenes/nonexistent-id/palette", bytes.NewReader(body))
 req.Header.Set("Content-Type", "application/json")
+// Add authentication context
+ctx := middleware.SetUserDID(req.Context(), "did:plc:test123")
+req = req.WithContext(ctx)
 w := httptest.NewRecorder()
 
 handlers.UpdateScenePalette(w, req)
@@ -941,5 +957,119 @@ t.Fatalf("failed to decode error response: %v", err)
 
 if errResp.Error.Code != ErrCodeNotFound {
 t.Errorf("expected error code %s, got %s", ErrCodeNotFound, errResp.Error.Code)
+}
+}
+
+// TestUpdateScenePalette_Unauthorized tests rejection when no auth token is provided.
+func TestUpdateScenePalette_Unauthorized(t *testing.T) {
+repo := scene.NewInMemorySceneRepository()
+handlers := NewSceneHandlers(repo)
+
+// Create a scene first
+now := time.Now()
+testScene := &scene.Scene{
+ID:            "test-scene-id",
+Name:          "Test Scene",
+OwnerDID:      "did:plc:owner",
+CoarseGeohash: "dr5regw",
+Visibility:    "public",
+CreatedAt:     &now,
+UpdatedAt:     &now,
+}
+if err := repo.Insert(testScene); err != nil {
+t.Fatalf("failed to insert test scene: %v", err)
+}
+
+reqBody := UpdateScenePaletteRequest{
+Palette: scene.Palette{
+Primary:    "#ff0000",
+Secondary:  "#00ff00",
+Accent:     "#0000ff",
+Background: "#ffffff",
+Text:       "#000000",
+},
+}
+
+body, err := json.Marshal(reqBody)
+if err != nil {
+t.Fatalf("failed to marshal request: %v", err)
+}
+
+req := httptest.NewRequest(http.MethodPatch, "/scenes/test-scene-id/palette", bytes.NewReader(body))
+req.Header.Set("Content-Type", "application/json")
+// No authentication context provided
+w := httptest.NewRecorder()
+
+handlers.UpdateScenePalette(w, req)
+
+if w.Code != http.StatusUnauthorized {
+t.Errorf("expected status 401, got %d: %s", w.Code, w.Body.String())
+}
+
+var errResp ErrorResponse
+if err := json.NewDecoder(w.Body).Decode(&errResp); err != nil {
+t.Fatalf("failed to decode error response: %v", err)
+}
+
+if errResp.Error.Code != ErrCodeAuthFailed {
+t.Errorf("expected error code %s, got %s", ErrCodeAuthFailed, errResp.Error.Code)
+}
+}
+
+// TestUpdateScenePalette_Forbidden tests rejection when user is not the owner.
+func TestUpdateScenePalette_Forbidden(t *testing.T) {
+repo := scene.NewInMemorySceneRepository()
+handlers := NewSceneHandlers(repo)
+
+// Create a scene owned by a different user
+now := time.Now()
+testScene := &scene.Scene{
+ID:            "test-scene-id",
+Name:          "Test Scene",
+OwnerDID:      "did:plc:owner",
+CoarseGeohash: "dr5regw",
+Visibility:    "public",
+CreatedAt:     &now,
+UpdatedAt:     &now,
+}
+if err := repo.Insert(testScene); err != nil {
+t.Fatalf("failed to insert test scene: %v", err)
+}
+
+reqBody := UpdateScenePaletteRequest{
+Palette: scene.Palette{
+Primary:    "#ff0000",
+Secondary:  "#00ff00",
+Accent:     "#0000ff",
+Background: "#ffffff",
+Text:       "#000000",
+},
+}
+
+body, err := json.Marshal(reqBody)
+if err != nil {
+t.Fatalf("failed to marshal request: %v", err)
+}
+
+req := httptest.NewRequest(http.MethodPatch, "/scenes/test-scene-id/palette", bytes.NewReader(body))
+req.Header.Set("Content-Type", "application/json")
+// Authenticate as a different user
+ctx := middleware.SetUserDID(req.Context(), "did:plc:different-user")
+req = req.WithContext(ctx)
+w := httptest.NewRecorder()
+
+handlers.UpdateScenePalette(w, req)
+
+if w.Code != http.StatusForbidden {
+t.Errorf("expected status 403, got %d: %s", w.Code, w.Body.String())
+}
+
+var errResp ErrorResponse
+if err := json.NewDecoder(w.Body).Decode(&errResp); err != nil {
+t.Fatalf("failed to decode error response: %v", err)
+}
+
+if errResp.Error.Code != ErrCodeForbidden {
+t.Errorf("expected error code %s, got %s", ErrCodeForbidden, errResp.Error.Code)
 }
 }
