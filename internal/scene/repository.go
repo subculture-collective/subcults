@@ -267,7 +267,6 @@ func (r *InMemorySceneRepository) ExistsByOwnerAndName(ownerDID, name string, ex
 	return false, nil
 }
 
-
 // InMemoryEventRepository is an in-memory implementation of EventRepository.
 // Used for testing and development. Thread-safe via RWMutex.
 type InMemoryEventRepository struct {

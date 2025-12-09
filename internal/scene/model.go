@@ -35,12 +35,12 @@ type Scene struct {
 	Visibility    string     `json:"visibility,omitempty"`
 	Palette       *Palette   `json:"palette,omitempty"`    // Color scheme
 	OwnerUserID   *string    `json:"owner_user_id,omitempty"` // FK to users table
-	
+
 	// Timestamps
 	CreatedAt *time.Time `json:"created_at,omitempty"`
 	UpdatedAt *time.Time `json:"updated_at,omitempty"`
 	DeletedAt *time.Time `json:"deleted_at,omitempty"`
-	
+
 	// AT Protocol record tracking
 	RecordDID  *string `json:"record_did,omitempty"`
 	RecordRKey *string `json:"record_rkey,omitempty"`

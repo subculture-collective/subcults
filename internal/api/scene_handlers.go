@@ -168,7 +168,8 @@ func (h *SceneHandlers) CreateScene(w http.ResponseWriter, r *http.Request) {
 		UpdatedAt:     &now,
 	}
 
-	// Insert into repository (will enforce location consent)
+	// Insert into repository (will automatically enforce location consent).
+	// If AllowPrecise is false, PrecisePoint will be cleared before storage.
 	if err := h.repo.Insert(newScene); err != nil {
 		ctx := middleware.SetErrorCode(r.Context(), ErrCodeInternal)
 		WriteError(w, ctx, http.StatusInternalServerError, ErrCodeInternal, "Failed to create scene")
@@ -279,6 +280,10 @@ func (h *SceneHandlers) UpdateScene(w http.ResponseWriter, r *http.Request) {
 	if req.PrecisePoint != nil {
 		existingScene.PrecisePoint = req.PrecisePoint
 	}
+
+	// Note: Repository Update will automatically enforce location consent.
+	// If AllowPrecise is false, PrecisePoint will be cleared regardless of request value.
+	// This is defense in depth - handler accepts both fields, repository enforces privacy.
 
 	// Update timestamp
 	now := time.Now()
