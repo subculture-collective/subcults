@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"html"
+	"io"
 	"log/slog"
 	"net/http"
 	"strings"
@@ -429,8 +430,9 @@ func (h *EventHandlers) GetEvent(w http.ResponseWriter, r *http.Request) {
 // CancelEvent handles POST /events/{id}/cancel - cancels an event.
 func (h *EventHandlers) CancelEvent(w http.ResponseWriter, r *http.Request) {
 	// Extract event ID from URL path
+	// Note: The routing layer already validates this is a /events/{id}/cancel request
 	pathParts := strings.Split(strings.TrimPrefix(r.URL.Path, "/events/"), "/")
-	if len(pathParts) < 2 || pathParts[0] == "" {
+	if len(pathParts) == 0 || pathParts[0] == "" {
 		ctx := middleware.SetErrorCode(r.Context(), ErrCodeBadRequest)
 		WriteError(w, ctx, http.StatusBadRequest, ErrCodeBadRequest, "Event ID is required")
 		return
@@ -439,9 +441,11 @@ func (h *EventHandlers) CancelEvent(w http.ResponseWriter, r *http.Request) {
 
 	// Parse request body (optional reason)
 	var req CancelEventRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		// If body is empty or malformed, just proceed without reason
-		req.Reason = nil
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil && err != io.EOF {
+		// Allow empty body (io.EOF) but reject malformed JSON
+		ctx := middleware.SetErrorCode(r.Context(), ErrCodeBadRequest)
+		WriteError(w, ctx, http.StatusBadRequest, ErrCodeBadRequest, "Invalid JSON in request body")
+		return
 	}
 
 	// Sanitize reason if provided to prevent HTML injection

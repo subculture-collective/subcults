@@ -117,7 +117,7 @@ func TestCreateEvent_InvalidTimeWindow(t *testing.T) {
 			eventRepo := scene.NewInMemoryEventRepository()
 			sceneRepo := scene.NewInMemorySceneRepository()
 			auditRepo := audit.NewInMemoryRepository()
-	handlers := NewEventHandlers(eventRepo, sceneRepo, auditRepo)
+			handlers := NewEventHandlers(eventRepo, sceneRepo, auditRepo)
 
 			// Create a scene first
 			testScene := &scene.Scene{
@@ -365,7 +365,7 @@ func TestCreateEvent_TitleValidation(t *testing.T) {
 			eventRepo := scene.NewInMemoryEventRepository()
 			sceneRepo := scene.NewInMemorySceneRepository()
 			auditRepo := audit.NewInMemoryRepository()
-	handlers := NewEventHandlers(eventRepo, sceneRepo, auditRepo)
+			handlers := NewEventHandlers(eventRepo, sceneRepo, auditRepo)
 
 			// Create a scene first
 			testScene := &scene.Scene{
@@ -1024,7 +1024,9 @@ func TestCancelEvent_Idempotent(t *testing.T) {
 	}
 
 	// Verify idempotency - cancelled_at should be the same
-	if !firstCancel.CancelledAt.Equal(*secondCancel.CancelledAt) {
+	if firstCancel.CancelledAt == nil || secondCancel.CancelledAt == nil {
+		t.Error("expected both cancellations to have cancelled_at set")
+	} else if !firstCancel.CancelledAt.Equal(*secondCancel.CancelledAt) {
 		t.Errorf("expected cancelled_at to remain unchanged on second cancel")
 	}
 }

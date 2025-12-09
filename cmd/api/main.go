@@ -75,7 +75,7 @@ func main() {
 		pathParts := strings.Split(strings.TrimPrefix(r.URL.Path, "/events/"), "/")
 		
 		// Check if this is a cancel request: /events/{id}/cancel
-		if len(pathParts) == 2 && pathParts[1] == "cancel" && r.Method == http.MethodPost {
+		if len(pathParts) == 2 && pathParts[0] != "" && pathParts[1] == "cancel" && r.Method == http.MethodPost {
 			eventHandlers.CancelEvent(w, r)
 			return
 		}
