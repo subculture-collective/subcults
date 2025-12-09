@@ -17,6 +17,7 @@ import (
 	"github.com/onnwee/subcults/internal/membership"
 	"github.com/onnwee/subcults/internal/middleware"
 	"github.com/onnwee/subcults/internal/scene"
+	"github.com/onnwee/subcults/internal/stream"
 )
 
 // Scene name validation constraints
@@ -62,13 +63,15 @@ type UpdateScenePaletteRequest struct {
 type SceneHandlers struct {
 	repo           scene.SceneRepository
 	membershipRepo membership.MembershipRepository
+	streamRepo     stream.SessionRepository
 }
 
 // NewSceneHandlers creates a new SceneHandlers instance.
-func NewSceneHandlers(repo scene.SceneRepository, membershipRepo membership.MembershipRepository) *SceneHandlers {
+func NewSceneHandlers(repo scene.SceneRepository, membershipRepo membership.MembershipRepository, streamRepo stream.SessionRepository) *SceneHandlers {
 	return &SceneHandlers{
 		repo:           repo,
 		membershipRepo: membershipRepo,
+		streamRepo:     streamRepo,
 	}
 }
 
@@ -623,4 +626,99 @@ func formatRatio(ratio float64) string {
 	// Remove decimal point if no fractional part remains
 	formatted = strings.TrimRight(formatted, ".")
 	return formatted
+}
+
+// OwnedSceneSummary represents a summary of a scene owned by the user.
+// Used for the dashboard endpoint to provide key metrics without heavy fields.
+type OwnedSceneSummary struct {
+	ID              string         `json:"id"`
+	Name            string         `json:"name"`
+	Description     string         `json:"description,omitempty"`
+	CoarseGeohash   string         `json:"coarse_geohash"`
+	Tags            []string       `json:"tags,omitempty"`
+	Visibility      string         `json:"visibility"`
+	CreatedAt       *time.Time     `json:"created_at,omitempty"`
+	UpdatedAt       *time.Time     `json:"updated_at,omitempty"`
+	MembersCount    int            `json:"members_count"`
+	HasActiveStream bool           `json:"has_active_stream"`
+}
+
+// ListOwnedScenes handles GET /scenes/owned - lists all scenes owned by the authenticated user.
+func (h *SceneHandlers) ListOwnedScenes(w http.ResponseWriter, r *http.Request) {
+	// Get authenticated user DID
+	userDID := middleware.GetUserDID(r.Context())
+	if userDID == "" {
+		ctx := middleware.SetErrorCode(r.Context(), ErrCodeAuthFailed)
+		WriteError(w, ctx, http.StatusUnauthorized, ErrCodeAuthFailed, "Authentication required")
+		return
+	}
+
+	// Get all scenes owned by user
+	scenes, err := h.repo.ListByOwner(userDID)
+	if err != nil {
+		slog.ErrorContext(r.Context(), "failed to list owned scenes", "error", err, "user_did", userDID)
+		ctx := middleware.SetErrorCode(r.Context(), ErrCodeInternal)
+		WriteError(w, ctx, http.StatusInternalServerError, ErrCodeInternal, "Failed to retrieve scenes")
+		return
+	}
+
+	// Early return if no scenes
+	if len(scenes) == 0 {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		if err := json.NewEncoder(w).Encode([]OwnedSceneSummary{}); err != nil {
+			slog.ErrorContext(r.Context(), "failed to encode response", "error", err)
+		}
+		return
+	}
+
+	// Collect all scene IDs for batch queries
+	sceneIDs := make([]string, len(scenes))
+	for i, sc := range scenes {
+		sceneIDs[i] = sc.ID
+	}
+
+	// Batch query for membership counts (avoids N+1 query problem)
+	membershipCounts, err := h.membershipRepo.CountByScenes(sceneIDs, "active")
+	if err != nil {
+		slog.ErrorContext(r.Context(), "failed to count memberships", "error", err, "user_did", userDID)
+		ctx := middleware.SetErrorCode(r.Context(), ErrCodeInternal)
+		WriteError(w, ctx, http.StatusInternalServerError, ErrCodeInternal, "Failed to retrieve membership counts")
+		return
+	}
+
+	// Batch query for active streams (avoids N+1 query problem)
+	activeStreams, err := h.streamRepo.HasActiveStreamsForScenes(sceneIDs)
+	if err != nil {
+		slog.ErrorContext(r.Context(), "failed to check active streams", "error", err, "user_did", userDID)
+		ctx := middleware.SetErrorCode(r.Context(), ErrCodeInternal)
+		WriteError(w, ctx, http.StatusInternalServerError, ErrCodeInternal, "Failed to check active streams")
+		return
+	}
+
+	// Build summary for each scene
+	summaries := make([]OwnedSceneSummary, 0, len(scenes))
+	for _, sc := range scenes {
+		summary := OwnedSceneSummary{
+			ID:              sc.ID,
+			Name:            sc.Name,
+			Description:     sc.Description,
+			CoarseGeohash:   sc.CoarseGeohash,
+			Tags:            sc.Tags,
+			Visibility:      sc.Visibility,
+			CreatedAt:       sc.CreatedAt,
+			UpdatedAt:       sc.UpdatedAt,
+			MembersCount:    membershipCounts[sc.ID], // Defaults to 0 if not in map
+			HasActiveStream: activeStreams[sc.ID],     // Defaults to false if not in map
+		}
+		summaries = append(summaries, summary)
+	}
+
+	// Return summaries
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	if err := json.NewEncoder(w).Encode(summaries); err != nil {
+		slog.ErrorContext(r.Context(), "failed to encode response", "error", err)
+		return
+	}
 }

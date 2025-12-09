@@ -12,13 +12,15 @@ import (
 	"github.com/onnwee/subcults/internal/membership"
 	"github.com/onnwee/subcults/internal/middleware"
 	"github.com/onnwee/subcults/internal/scene"
+	"github.com/onnwee/subcults/internal/stream"
 )
 
 // TestCreateScene_Success tests successful scene creation.
 func TestCreateScene_Success(t *testing.T) {
 	repo := scene.NewInMemorySceneRepository()
 	membershipRepo := membership.NewInMemoryMembershipRepository()
-	handlers := NewSceneHandlers(repo, membershipRepo)
+	streamRepo := stream.NewInMemorySessionRepository()
+	handlers := NewSceneHandlers(repo, membershipRepo, streamRepo)
 
 	reqBody := CreateSceneRequest{
 		Name:          "Test Scene",
@@ -73,7 +75,8 @@ func TestCreateScene_Success(t *testing.T) {
 func TestCreateScene_DefaultVisibility(t *testing.T) {
 	repo := scene.NewInMemorySceneRepository()
 	membershipRepo := membership.NewInMemoryMembershipRepository()
-	handlers := NewSceneHandlers(repo, membershipRepo)
+	streamRepo := stream.NewInMemorySessionRepository()
+	handlers := NewSceneHandlers(repo, membershipRepo, streamRepo)
 
 	reqBody := CreateSceneRequest{
 		Name:          "Test Scene",
@@ -109,7 +112,8 @@ func TestCreateScene_DefaultVisibility(t *testing.T) {
 func TestCreateScene_PrivacyEnforcement(t *testing.T) {
 	repo := scene.NewInMemorySceneRepository()
 	membershipRepo := membership.NewInMemoryMembershipRepository()
-	handlers := NewSceneHandlers(repo, membershipRepo)
+	streamRepo := stream.NewInMemorySessionRepository()
+	handlers := NewSceneHandlers(repo, membershipRepo, streamRepo)
 
 	reqBody := CreateSceneRequest{
 		Name:          "Private Scene",
@@ -147,7 +151,8 @@ func TestCreateScene_PrivacyEnforcement(t *testing.T) {
 func TestCreateScene_DuplicateName(t *testing.T) {
 	repo := scene.NewInMemorySceneRepository()
 	membershipRepo := membership.NewInMemoryMembershipRepository()
-	handlers := NewSceneHandlers(repo, membershipRepo)
+	streamRepo := stream.NewInMemorySessionRepository()
+	handlers := NewSceneHandlers(repo, membershipRepo, streamRepo)
 
 	// Create first scene
 	firstReq := CreateSceneRequest{
@@ -223,7 +228,8 @@ func TestCreateScene_InvalidName(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			repo := scene.NewInMemorySceneRepository()
 			membershipRepo := membership.NewInMemoryMembershipRepository()
-	handlers := NewSceneHandlers(repo, membershipRepo)
+	streamRepo := stream.NewInMemorySessionRepository()
+	handlers := NewSceneHandlers(repo, membershipRepo, streamRepo)
 
 			reqBody := CreateSceneRequest{
 				Name:          tt.sceneName,
@@ -279,7 +285,8 @@ func TestCreateScene_MissingRequiredFields(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			repo := scene.NewInMemorySceneRepository()
 			membershipRepo := membership.NewInMemoryMembershipRepository()
-	handlers := NewSceneHandlers(repo, membershipRepo)
+	streamRepo := stream.NewInMemorySessionRepository()
+	handlers := NewSceneHandlers(repo, membershipRepo, streamRepo)
 
 			body, _ := json.Marshal(tt.reqBody)
 			req := httptest.NewRequest(http.MethodPost, "/scenes", bytes.NewReader(body))
@@ -307,7 +314,8 @@ func TestCreateScene_MissingRequiredFields(t *testing.T) {
 func TestUpdateScene_Success(t *testing.T) {
 	repo := scene.NewInMemorySceneRepository()
 	membershipRepo := membership.NewInMemoryMembershipRepository()
-	handlers := NewSceneHandlers(repo, membershipRepo)
+	streamRepo := stream.NewInMemorySessionRepository()
+	handlers := NewSceneHandlers(repo, membershipRepo, streamRepo)
 
 	// Create a scene first
 	now := time.Now()
@@ -372,7 +380,8 @@ func TestUpdateScene_Success(t *testing.T) {
 func TestUpdateScene_NotFound(t *testing.T) {
 	repo := scene.NewInMemorySceneRepository()
 	membershipRepo := membership.NewInMemoryMembershipRepository()
-	handlers := NewSceneHandlers(repo, membershipRepo)
+	streamRepo := stream.NewInMemorySessionRepository()
+	handlers := NewSceneHandlers(repo, membershipRepo, streamRepo)
 
 	newName := "Updated Name"
 	updateReq := UpdateSceneRequest{
@@ -403,7 +412,8 @@ func TestUpdateScene_NotFound(t *testing.T) {
 func TestUpdateScene_DuplicateName(t *testing.T) {
 	repo := scene.NewInMemorySceneRepository()
 	membershipRepo := membership.NewInMemoryMembershipRepository()
-	handlers := NewSceneHandlers(repo, membershipRepo)
+	streamRepo := stream.NewInMemorySessionRepository()
+	handlers := NewSceneHandlers(repo, membershipRepo, streamRepo)
 
 	now := time.Now()
 
@@ -459,7 +469,8 @@ func TestUpdateScene_DuplicateName(t *testing.T) {
 func TestDeleteScene_Success(t *testing.T) {
 	repo := scene.NewInMemorySceneRepository()
 	membershipRepo := membership.NewInMemoryMembershipRepository()
-	handlers := NewSceneHandlers(repo, membershipRepo)
+	streamRepo := stream.NewInMemorySessionRepository()
+	handlers := NewSceneHandlers(repo, membershipRepo, streamRepo)
 
 	now := time.Now()
 	testScene := &scene.Scene{
@@ -492,7 +503,8 @@ func TestDeleteScene_Success(t *testing.T) {
 func TestDeleteScene_NotFound(t *testing.T) {
 	repo := scene.NewInMemorySceneRepository()
 	membershipRepo := membership.NewInMemoryMembershipRepository()
-	handlers := NewSceneHandlers(repo, membershipRepo)
+	streamRepo := stream.NewInMemorySessionRepository()
+	handlers := NewSceneHandlers(repo, membershipRepo, streamRepo)
 
 	req := httptest.NewRequest(http.MethodDelete, "/scenes/nonexistent-id", nil)
 	w := httptest.NewRecorder()
@@ -517,7 +529,8 @@ func TestDeleteScene_NotFound(t *testing.T) {
 func TestDeleteScene_AlreadyDeleted(t *testing.T) {
 	repo := scene.NewInMemorySceneRepository()
 	membershipRepo := membership.NewInMemoryMembershipRepository()
-	handlers := NewSceneHandlers(repo, membershipRepo)
+	streamRepo := stream.NewInMemorySessionRepository()
+	handlers := NewSceneHandlers(repo, membershipRepo, streamRepo)
 
 	now := time.Now()
 	testScene := &scene.Scene{
@@ -614,7 +627,8 @@ func TestValidateVisibility(t *testing.T) {
 func TestUpdateScenePalette_Success(t *testing.T) {
 repo := scene.NewInMemorySceneRepository()
 membershipRepo := membership.NewInMemoryMembershipRepository()
-	handlers := NewSceneHandlers(repo, membershipRepo)
+	streamRepo := stream.NewInMemorySessionRepository()
+	handlers := NewSceneHandlers(repo, membershipRepo, streamRepo)
 
 // Create a scene first
 now := time.Now()
@@ -680,7 +694,8 @@ t.Errorf("expected text color #000000, got %s", updatedScene.Palette.Text)
 func TestUpdateScenePalette_InvalidHexColor(t *testing.T) {
 repo := scene.NewInMemorySceneRepository()
 membershipRepo := membership.NewInMemoryMembershipRepository()
-	handlers := NewSceneHandlers(repo, membershipRepo)
+	streamRepo := stream.NewInMemorySessionRepository()
+	handlers := NewSceneHandlers(repo, membershipRepo, streamRepo)
 
 // Create a scene first
 now := time.Now()
@@ -800,7 +815,8 @@ t.Errorf("expected error message to contain %q, got %q", tt.wantErr, errResp.Err
 func TestUpdateScenePalette_InsufficientContrast(t *testing.T) {
 repo := scene.NewInMemorySceneRepository()
 membershipRepo := membership.NewInMemoryMembershipRepository()
-	handlers := NewSceneHandlers(repo, membershipRepo)
+	streamRepo := stream.NewInMemorySessionRepository()
+	handlers := NewSceneHandlers(repo, membershipRepo, streamRepo)
 
 // Create a scene first
 now := time.Now()
@@ -889,7 +905,8 @@ t.Errorf("expected error message to contain 'contrast', got %q", errResp.Error.M
 func TestUpdateScenePalette_ScriptTagSanitization(t *testing.T) {
 repo := scene.NewInMemorySceneRepository()
 membershipRepo := membership.NewInMemoryMembershipRepository()
-	handlers := NewSceneHandlers(repo, membershipRepo)
+	streamRepo := stream.NewInMemorySessionRepository()
+	handlers := NewSceneHandlers(repo, membershipRepo, streamRepo)
 
 // Create a scene first
 now := time.Now()
@@ -948,7 +965,8 @@ t.Errorf("expected error code %s, got %s", ErrCodeInvalidPalette, errResp.Error.
 func TestUpdateScenePalette_SceneNotFound(t *testing.T) {
 repo := scene.NewInMemorySceneRepository()
 membershipRepo := membership.NewInMemoryMembershipRepository()
-	handlers := NewSceneHandlers(repo, membershipRepo)
+	streamRepo := stream.NewInMemorySessionRepository()
+	handlers := NewSceneHandlers(repo, membershipRepo, streamRepo)
 
 reqBody := UpdateScenePaletteRequest{
 Palette: scene.Palette{
@@ -992,7 +1010,8 @@ t.Errorf("expected error code %s, got %s", ErrCodeNotFound, errResp.Error.Code)
 func TestUpdateScenePalette_Unauthorized(t *testing.T) {
 repo := scene.NewInMemorySceneRepository()
 membershipRepo := membership.NewInMemoryMembershipRepository()
-	handlers := NewSceneHandlers(repo, membershipRepo)
+	streamRepo := stream.NewInMemorySessionRepository()
+	handlers := NewSceneHandlers(repo, membershipRepo, streamRepo)
 
 // Create a scene first
 now := time.Now()
@@ -1049,7 +1068,8 @@ t.Errorf("expected error code %s, got %s", ErrCodeAuthFailed, errResp.Error.Code
 func TestUpdateScenePalette_Forbidden(t *testing.T) {
 repo := scene.NewInMemorySceneRepository()
 membershipRepo := membership.NewInMemoryMembershipRepository()
-	handlers := NewSceneHandlers(repo, membershipRepo)
+	streamRepo := stream.NewInMemorySessionRepository()
+	handlers := NewSceneHandlers(repo, membershipRepo, streamRepo)
 
 // Create a scene owned by a different user
 now := time.Now()
@@ -1108,7 +1128,8 @@ t.Errorf("expected error code %s, got %s", ErrCodeForbidden, errResp.Error.Code)
 func TestGetScene_PublicScene(t *testing.T) {
 repo := scene.NewInMemorySceneRepository()
 membershipRepo := membership.NewInMemoryMembershipRepository()
-handlers := NewSceneHandlers(repo, membershipRepo)
+streamRepo := stream.NewInMemorySessionRepository()
+	handlers := NewSceneHandlers(repo, membershipRepo, streamRepo)
 
 // Create a public scene
 now := time.Now()
@@ -1161,7 +1182,8 @@ t.Errorf("expected status 200 for authenticated user, got %d", w2.Code)
 func TestGetScene_MembersOnlyScene_NonMember(t *testing.T) {
 repo := scene.NewInMemorySceneRepository()
 membershipRepo := membership.NewInMemoryMembershipRepository()
-handlers := NewSceneHandlers(repo, membershipRepo)
+streamRepo := stream.NewInMemorySessionRepository()
+	handlers := NewSceneHandlers(repo, membershipRepo, streamRepo)
 
 // Create a members-only scene
 now := time.Now()
@@ -1216,7 +1238,8 @@ t.Errorf("expected status 404 for non-member, got %d", w2.Code)
 func TestGetScene_MembersOnlyScene_ActiveMember(t *testing.T) {
 repo := scene.NewInMemorySceneRepository()
 membershipRepo := membership.NewInMemoryMembershipRepository()
-handlers := NewSceneHandlers(repo, membershipRepo)
+streamRepo := stream.NewInMemorySessionRepository()
+	handlers := NewSceneHandlers(repo, membershipRepo, streamRepo)
 
 // Create a members-only scene
 now := time.Now()
@@ -1269,7 +1292,8 @@ t.Errorf("expected scene ID 'members-scene-id', got %s", retrievedScene.ID)
 func TestGetScene_MembersOnlyScene_PendingMember(t *testing.T) {
 repo := scene.NewInMemorySceneRepository()
 membershipRepo := membership.NewInMemoryMembershipRepository()
-handlers := NewSceneHandlers(repo, membershipRepo)
+streamRepo := stream.NewInMemorySessionRepository()
+	handlers := NewSceneHandlers(repo, membershipRepo, streamRepo)
 
 // Create a members-only scene
 now := time.Now()
@@ -1314,7 +1338,8 @@ t.Errorf("expected status 404 for pending member, got %d: %s", w.Code, w.Body.St
 func TestGetScene_MembersOnlyScene_Owner(t *testing.T) {
 repo := scene.NewInMemorySceneRepository()
 membershipRepo := membership.NewInMemoryMembershipRepository()
-handlers := NewSceneHandlers(repo, membershipRepo)
+streamRepo := stream.NewInMemorySessionRepository()
+	handlers := NewSceneHandlers(repo, membershipRepo, streamRepo)
 
 // Create a members-only scene
 now := time.Now()
@@ -1348,7 +1373,8 @@ t.Errorf("expected status 200 for owner, got %d: %s", w.Code, w.Body.String())
 func TestGetScene_HiddenScene_Owner(t *testing.T) {
 repo := scene.NewInMemorySceneRepository()
 membershipRepo := membership.NewInMemoryMembershipRepository()
-handlers := NewSceneHandlers(repo, membershipRepo)
+streamRepo := stream.NewInMemorySessionRepository()
+	handlers := NewSceneHandlers(repo, membershipRepo, streamRepo)
 
 // Create a hidden scene
 now := time.Now()
@@ -1391,7 +1417,8 @@ t.Errorf("expected scene ID 'hidden-scene-id', got %s", retrievedScene.ID)
 func TestGetScene_HiddenScene_NonOwner(t *testing.T) {
 repo := scene.NewInMemorySceneRepository()
 membershipRepo := membership.NewInMemoryMembershipRepository()
-handlers := NewSceneHandlers(repo, membershipRepo)
+streamRepo := stream.NewInMemorySessionRepository()
+	handlers := NewSceneHandlers(repo, membershipRepo, streamRepo)
 
 // Create a hidden scene
 now := time.Now()
@@ -1445,7 +1472,8 @@ t.Errorf("expected status 404 for unauthenticated user, got %d", w2.Code)
 func TestGetScene_NotFound(t *testing.T) {
 repo := scene.NewInMemorySceneRepository()
 membershipRepo := membership.NewInMemoryMembershipRepository()
-handlers := NewSceneHandlers(repo, membershipRepo)
+streamRepo := stream.NewInMemorySessionRepository()
+	handlers := NewSceneHandlers(repo, membershipRepo, streamRepo)
 
 // Test access to non-existent scene
 req := httptest.NewRequest(http.MethodGet, "/scenes/non-existent-id", nil)
@@ -1476,7 +1504,8 @@ t.Errorf("expected error message 'Scene not found', got %s", errResp.Error.Messa
 func TestGetScene_PrivacyEnforcement(t *testing.T) {
 repo := scene.NewInMemorySceneRepository()
 membershipRepo := membership.NewInMemoryMembershipRepository()
-handlers := NewSceneHandlers(repo, membershipRepo)
+streamRepo := stream.NewInMemorySessionRepository()
+	handlers := NewSceneHandlers(repo, membershipRepo, streamRepo)
 
 // Create a public scene with allow_precise=false
 now := time.Now()
@@ -1520,7 +1549,8 @@ t.Errorf("expected precise_point to be nil when allow_precise=false, got %+v", r
 func TestGetScene_SoftDeleted(t *testing.T) {
 repo := scene.NewInMemorySceneRepository()
 membershipRepo := membership.NewInMemoryMembershipRepository()
-handlers := NewSceneHandlers(repo, membershipRepo)
+streamRepo := stream.NewInMemorySessionRepository()
+	handlers := NewSceneHandlers(repo, membershipRepo, streamRepo)
 
 // Create a scene
 now := time.Now()
@@ -1572,7 +1602,8 @@ t.Errorf("expected error message 'Scene not found', got %s", errResp.Error.Messa
 func TestGetScene_NonExistentVsDeleted(t *testing.T) {
 repo := scene.NewInMemorySceneRepository()
 membershipRepo := membership.NewInMemoryMembershipRepository()
-handlers := NewSceneHandlers(repo, membershipRepo)
+streamRepo := stream.NewInMemorySessionRepository()
+	handlers := NewSceneHandlers(repo, membershipRepo, streamRepo)
 
 // Create and delete a scene
 now := time.Now()
@@ -1639,7 +1670,8 @@ deletedErrResp.Error.Message, notFoundErrResp.Error.Message)
 func TestGetScene_OtherScenesAccessibleAfterDeletion(t *testing.T) {
 repo := scene.NewInMemorySceneRepository()
 membershipRepo := membership.NewInMemoryMembershipRepository()
-handlers := NewSceneHandlers(repo, membershipRepo)
+streamRepo := stream.NewInMemorySessionRepository()
+	handlers := NewSceneHandlers(repo, membershipRepo, streamRepo)
 
 now := time.Now()
 
@@ -1724,7 +1756,8 @@ t.Errorf("expected scene-3 to be accessible (200), got %d: %s", w3.Code, w3.Body
 func TestDeleteScene_AlreadyDeletedReturnsSceneDeleted(t *testing.T) {
 repo := scene.NewInMemorySceneRepository()
 membershipRepo := membership.NewInMemoryMembershipRepository()
-handlers := NewSceneHandlers(repo, membershipRepo)
+streamRepo := stream.NewInMemorySessionRepository()
+	handlers := NewSceneHandlers(repo, membershipRepo, streamRepo)
 
 now := time.Now()
 testScene := &scene.Scene{
@@ -1821,4 +1854,262 @@ t.Fatalf("ExistsByOwnerAndName failed: %v", err)
 if !exists {
 t.Error("new scene with same name should be found by ExistsByOwnerAndName")
 }
+}
+
+func TestListOwnedScenes_Success(t *testing.T) {
+	repo := scene.NewInMemorySceneRepository()
+	membershipRepo := membership.NewInMemoryMembershipRepository()
+	streamRepo := stream.NewInMemorySessionRepository()
+	handlers := NewSceneHandlers(repo, membershipRepo, streamRepo)
+
+	userDID := "did:plc:testuser"
+
+	// Create scenes for the user
+	scene1 := &scene.Scene{
+		ID:            "scene-1",
+		Name:          "Scene 1",
+		Description:   "First scene",
+		OwnerDID:      userDID,
+		CoarseGeohash: "dr5regw",
+		Visibility:    "public",
+		Tags:          []string{"tag1"},
+	}
+	scene2 := &scene.Scene{
+		ID:            "scene-2",
+		Name:          "Scene 2",
+		Description:   "Second scene",
+		OwnerDID:      userDID,
+		CoarseGeohash: "dr5regx",
+		Visibility:    "private",
+	}
+
+	if err := repo.Insert(scene1); err != nil {
+		t.Fatalf("Insert scene1 failed: %v", err)
+	}
+	if err := repo.Insert(scene2); err != nil {
+		t.Fatalf("Insert scene2 failed: %v", err)
+	}
+
+	// Add memberships to scene1
+	membership1 := &membership.Membership{
+		ID:      "m1",
+		SceneID: "scene-1",
+		UserDID: "did:plc:member1",
+		Status:  "active",
+	}
+	membership2 := &membership.Membership{
+		ID:      "m2",
+		SceneID: "scene-1",
+		UserDID: "did:plc:member2",
+		Status:  "active",
+	}
+	membership3 := &membership.Membership{
+		ID:      "m3",
+		SceneID: "scene-1",
+		UserDID: "did:plc:member3",
+		Status:  "pending", // Should not be counted
+	}
+
+	if _, err := membershipRepo.Upsert(membership1); err != nil {
+		t.Fatalf("Upsert membership1 failed: %v", err)
+	}
+	if _, err := membershipRepo.Upsert(membership2); err != nil {
+		t.Fatalf("Upsert membership2 failed: %v", err)
+	}
+	if _, err := membershipRepo.Upsert(membership3); err != nil {
+		t.Fatalf("Upsert membership3 failed: %v", err)
+	}
+
+	// Add active stream to scene1
+	sceneID1 := "scene-1"
+	session := &stream.Session{
+		ID:               "stream-1",
+		SceneID:          &sceneID1,
+		RoomName:         "room-1",
+		HostDID:          userDID,
+		ParticipantCount: 5,
+		EndedAt:          nil,
+	}
+	if _, err := streamRepo.Upsert(session); err != nil {
+		t.Fatalf("Upsert stream failed: %v", err)
+	}
+
+	// Create request with authenticated user
+	req := httptest.NewRequest(http.MethodGet, "/scenes/owned", nil)
+	ctx := middleware.SetUserDID(req.Context(), userDID)
+	req = req.WithContext(ctx)
+	w := httptest.NewRecorder()
+
+	handlers.ListOwnedScenes(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("expected status 200, got %d", w.Code)
+		t.Logf("Response body: %s", w.Body.String())
+	}
+
+	var summaries []OwnedSceneSummary
+	if err := json.NewDecoder(w.Body).Decode(&summaries); err != nil {
+		t.Fatalf("failed to decode response: %v", err)
+	}
+
+	if len(summaries) != 2 {
+		t.Errorf("expected 2 scenes, got %d", len(summaries))
+	}
+
+	// Find scene1 in results
+	var scene1Summary *OwnedSceneSummary
+	for i := range summaries {
+		if summaries[i].ID == "scene-1" {
+			scene1Summary = &summaries[i]
+			break
+		}
+	}
+
+	if scene1Summary == nil {
+		t.Fatal("scene-1 not found in results")
+	}
+
+	// Verify scene1 stats
+	if scene1Summary.MembersCount != 2 {
+		t.Errorf("expected 2 active members, got %d", scene1Summary.MembersCount)
+	}
+	if !scene1Summary.HasActiveStream {
+		t.Error("expected active stream for scene-1")
+	}
+
+	// Find scene2 in results
+	var scene2Summary *OwnedSceneSummary
+	for i := range summaries {
+		if summaries[i].ID == "scene-2" {
+			scene2Summary = &summaries[i]
+			break
+		}
+	}
+
+	if scene2Summary == nil {
+		t.Fatal("scene-2 not found in results")
+	}
+
+	// Verify scene2 stats
+	if scene2Summary.MembersCount != 0 {
+		t.Errorf("expected 0 members, got %d", scene2Summary.MembersCount)
+	}
+	if scene2Summary.HasActiveStream {
+		t.Error("expected no active stream for scene-2")
+	}
+}
+
+func TestListOwnedScenes_Unauthenticated(t *testing.T) {
+	repo := scene.NewInMemorySceneRepository()
+	membershipRepo := membership.NewInMemoryMembershipRepository()
+	streamRepo := stream.NewInMemorySessionRepository()
+	handlers := NewSceneHandlers(repo, membershipRepo, streamRepo)
+
+	req := httptest.NewRequest(http.MethodGet, "/scenes/owned", nil)
+	w := httptest.NewRecorder()
+
+	handlers.ListOwnedScenes(w, req)
+
+	if w.Code != http.StatusUnauthorized {
+		t.Errorf("expected status 401, got %d", w.Code)
+	}
+
+	var errResp ErrorResponse
+	if err := json.NewDecoder(w.Body).Decode(&errResp); err != nil {
+		t.Fatalf("failed to decode error response: %v", err)
+	}
+
+	if errResp.Error.Code != ErrCodeAuthFailed {
+		t.Errorf("expected error code %s, got %s", ErrCodeAuthFailed, errResp.Error.Code)
+	}
+}
+
+func TestListOwnedScenes_ExcludesDeleted(t *testing.T) {
+	repo := scene.NewInMemorySceneRepository()
+	membershipRepo := membership.NewInMemoryMembershipRepository()
+	streamRepo := stream.NewInMemorySessionRepository()
+	handlers := NewSceneHandlers(repo, membershipRepo, streamRepo)
+
+	userDID := "did:plc:testuser"
+
+	// Create scenes
+	scene1 := &scene.Scene{
+		ID:            "scene-1",
+		Name:          "Scene 1",
+		OwnerDID:      userDID,
+		CoarseGeohash: "dr5regw",
+	}
+	scene2 := &scene.Scene{
+		ID:            "scene-2",
+		Name:          "Scene 2",
+		OwnerDID:      userDID,
+		CoarseGeohash: "dr5regx",
+	}
+
+	if err := repo.Insert(scene1); err != nil {
+		t.Fatalf("Insert scene1 failed: %v", err)
+	}
+	if err := repo.Insert(scene2); err != nil {
+		t.Fatalf("Insert scene2 failed: %v", err)
+	}
+
+	// Delete scene1
+	if err := repo.Delete("scene-1"); err != nil {
+		t.Fatalf("Delete failed: %v", err)
+	}
+
+	// Create request
+	req := httptest.NewRequest(http.MethodGet, "/scenes/owned", nil)
+	ctx := middleware.SetUserDID(req.Context(), userDID)
+	req = req.WithContext(ctx)
+	w := httptest.NewRecorder()
+
+	handlers.ListOwnedScenes(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("expected status 200, got %d", w.Code)
+	}
+
+	var summaries []OwnedSceneSummary
+	if err := json.NewDecoder(w.Body).Decode(&summaries); err != nil {
+		t.Fatalf("failed to decode response: %v", err)
+	}
+
+	// Should only return non-deleted scene
+	if len(summaries) != 1 {
+		t.Errorf("expected 1 scene, got %d", len(summaries))
+	}
+	if len(summaries) > 0 && summaries[0].ID != "scene-2" {
+		t.Errorf("expected scene-2, got %s", summaries[0].ID)
+	}
+}
+
+func TestListOwnedScenes_EmptyList(t *testing.T) {
+	repo := scene.NewInMemorySceneRepository()
+	membershipRepo := membership.NewInMemoryMembershipRepository()
+	streamRepo := stream.NewInMemorySessionRepository()
+	handlers := NewSceneHandlers(repo, membershipRepo, streamRepo)
+
+	userDID := "did:plc:testuser"
+
+	// Create request without any scenes
+	req := httptest.NewRequest(http.MethodGet, "/scenes/owned", nil)
+	ctx := middleware.SetUserDID(req.Context(), userDID)
+	req = req.WithContext(ctx)
+	w := httptest.NewRecorder()
+
+	handlers.ListOwnedScenes(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("expected status 200, got %d", w.Code)
+	}
+
+	var summaries []OwnedSceneSummary
+	if err := json.NewDecoder(w.Body).Decode(&summaries); err != nil {
+		t.Fatalf("failed to decode response: %v", err)
+	}
+
+	if len(summaries) != 0 {
+		t.Errorf("expected empty list, got %d scenes", len(summaries))
+	}
 }

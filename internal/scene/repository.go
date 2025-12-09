@@ -54,6 +54,10 @@ type SceneRepository interface {
 	// ExistsByOwnerAndName checks if a non-deleted scene with the given name
 	// exists for the specified owner. Used for duplicate name validation.
 	ExistsByOwnerAndName(ownerDID, name string, excludeID string) (bool, error)
+	
+	// ListByOwner retrieves all non-deleted scenes owned by the specified DID.
+	// Returns empty slice if no scenes found.
+	ListByOwner(ownerDID string) ([]*Scene, error)
 }
 
 // EventRepository defines the interface for event data operations.
@@ -274,6 +278,28 @@ func (r *InMemorySceneRepository) ExistsByOwnerAndName(ownerDID, name string, ex
 		}
 	}
 	return false, nil
+}
+
+// ListByOwner retrieves all non-deleted scenes owned by the specified DID.
+// Returns empty slice if no scenes found.
+func (r *InMemorySceneRepository) ListByOwner(ownerDID string) ([]*Scene, error) {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+
+	var result []*Scene
+	for _, scene := range r.scenes {
+		if scene.DeletedAt == nil && scene.OwnerDID == ownerDID {
+			// Return a copy to avoid external modification
+			sceneCopy := *scene
+			if scene.PrecisePoint != nil {
+				pointCopy := *scene.PrecisePoint
+				sceneCopy.PrecisePoint = &pointCopy
+			}
+			result = append(result, &sceneCopy)
+		}
+	}
+
+	return result, nil
 }
 
 // InMemoryEventRepository is an in-memory implementation of EventRepository.

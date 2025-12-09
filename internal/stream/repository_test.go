@@ -2,6 +2,7 @@ package stream
 
 import (
 	"testing"
+	"time"
 )
 
 func strPtr(s string) *string {
@@ -225,4 +226,155 @@ func TestSessionRepository_GetByID_AfterUpsert(t *testing.T) {
 	if retrieved.RoomName != "test-room" {
 		t.Errorf("Expected room name 'test-room', got %s", retrieved.RoomName)
 	}
+}
+
+func TestSessionRepository_HasActiveStreamForScene(t *testing.T) {
+repo := NewInMemorySessionRepository()
+sceneID1 := "scene-1"
+sceneID2 := "scene-2"
+
+// Insert active stream for scene-1
+session1 := &Session{
+ID:               "stream-1",
+SceneID:          &sceneID1,
+RoomName:         "room-1",
+HostDID:          "did:plc:host1",
+ParticipantCount: 5,
+EndedAt:          nil, // Active stream
+}
+if _, err := repo.Upsert(session1); err != nil {
+t.Fatalf("Upsert session1 failed: %v", err)
+}
+
+// Insert ended stream for scene-1
+endTime := timePtr()
+session2 := &Session{
+ID:               "stream-2",
+SceneID:          &sceneID1,
+RoomName:         "room-2",
+HostDID:          "did:plc:host2",
+ParticipantCount: 3,
+EndedAt:          endTime, // Ended stream
+}
+if _, err := repo.Upsert(session2); err != nil {
+t.Fatalf("Upsert session2 failed: %v", err)
+}
+
+// Test: scene-1 should have active stream
+hasActive, err := repo.HasActiveStreamForScene(sceneID1)
+if err != nil {
+t.Fatalf("HasActiveStreamForScene failed: %v", err)
+}
+if !hasActive {
+t.Error("Expected scene-1 to have active stream")
+}
+
+// Test: scene-2 should not have active stream
+hasActive, err = repo.HasActiveStreamForScene(sceneID2)
+if err != nil {
+t.Fatalf("HasActiveStreamForScene failed: %v", err)
+}
+if hasActive {
+t.Error("Expected scene-2 to not have active stream")
+}
+}
+
+func TestSessionRepository_HasActiveStreamForScene_AllEnded(t *testing.T) {
+repo := NewInMemorySessionRepository()
+sceneID := "scene-1"
+endTime := timePtr()
+
+// Insert only ended streams
+session1 := &Session{
+ID:               "stream-1",
+SceneID:          &sceneID,
+RoomName:         "room-1",
+HostDID:          "did:plc:host1",
+ParticipantCount: 5,
+EndedAt:          endTime,
+}
+if _, err := repo.Upsert(session1); err != nil {
+t.Fatalf("Upsert failed: %v", err)
+}
+
+// Test: should not have active stream
+hasActive, err := repo.HasActiveStreamForScene(sceneID)
+if err != nil {
+t.Fatalf("HasActiveStreamForScene failed: %v", err)
+}
+if hasActive {
+t.Error("Expected no active stream when all streams are ended")
+}
+}
+
+func timePtr() *time.Time {
+t := time.Now()
+return &t
+}
+
+func TestSessionRepository_HasActiveStreamsForScenes(t *testing.T) {
+repo := NewInMemorySessionRepository()
+
+scene1 := "scene-1"
+scene2 := "scene-2"
+scene3 := "scene-3"
+
+// Scene 1: has active stream
+session1 := &Session{
+ID:               "stream-1",
+SceneID:          &scene1,
+RoomName:         "room-1",
+HostDID:          "did:plc:host1",
+ParticipantCount: 5,
+EndedAt:          nil, // Active
+}
+
+// Scene 2: has ended stream only
+endTime := timePtr()
+session2 := &Session{
+ID:               "stream-2",
+SceneID:          &scene2,
+RoomName:         "room-2",
+HostDID:          "did:plc:host2",
+ParticipantCount: 3,
+EndedAt:          endTime, // Ended
+}
+
+// Scene 3: no streams
+
+if _, err := repo.Upsert(session1); err != nil {
+t.Fatalf("Upsert session1 failed: %v", err)
+}
+if _, err := repo.Upsert(session2); err != nil {
+t.Fatalf("Upsert session2 failed: %v", err)
+}
+
+// Test: Check active streams for all scenes
+activeStreams, err := repo.HasActiveStreamsForScenes([]string{scene1, scene2, scene3})
+if err != nil {
+t.Fatalf("HasActiveStreamsForScenes failed: %v", err)
+}
+
+if !activeStreams[scene1] {
+t.Error("Expected scene1 to have active stream")
+}
+if activeStreams[scene2] {
+t.Error("Expected scene2 to not have active stream (ended)")
+}
+if activeStreams[scene3] {
+t.Error("Expected scene3 to not have active stream (no streams)")
+}
+}
+
+func TestSessionRepository_HasActiveStreamsForScenes_EmptyInput(t *testing.T) {
+repo := NewInMemorySessionRepository()
+
+activeStreams, err := repo.HasActiveStreamsForScenes([]string{})
+if err != nil {
+t.Fatalf("HasActiveStreamsForScenes failed: %v", err)
+}
+
+if len(activeStreams) != 0 {
+t.Errorf("Expected empty map, got %d entries", len(activeStreams))
+}
 }

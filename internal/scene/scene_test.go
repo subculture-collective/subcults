@@ -779,3 +779,117 @@ if retrieved2.PrecisePoint == nil {
 t.Error("Expected PrecisePoint to be preserved when consent is true")
 }
 }
+
+func TestSceneRepository_ListByOwner(t *testing.T) {
+repo := NewInMemorySceneRepository()
+
+// Create scenes for different owners
+owner1 := "did:plc:owner1"
+owner2 := "did:plc:owner2"
+
+scene1 := &Scene{
+ID:            "scene-1",
+Name:          "Scene 1",
+OwnerDID:      owner1,
+CoarseGeohash: "dr5regw",
+AllowPrecise:  false,
+}
+scene2 := &Scene{
+ID:            "scene-2",
+Name:          "Scene 2",
+OwnerDID:      owner1,
+CoarseGeohash: "dr5regw",
+AllowPrecise:  false,
+}
+scene3 := &Scene{
+ID:            "scene-3",
+Name:          "Scene 3",
+OwnerDID:      owner2,
+CoarseGeohash: "dr5regw",
+AllowPrecise:  false,
+}
+
+// Insert scenes
+if err := repo.Insert(scene1); err != nil {
+t.Fatalf("Insert scene1 failed: %v", err)
+}
+if err := repo.Insert(scene2); err != nil {
+t.Fatalf("Insert scene2 failed: %v", err)
+}
+if err := repo.Insert(scene3); err != nil {
+t.Fatalf("Insert scene3 failed: %v", err)
+}
+
+// Test: List scenes for owner1
+scenes, err := repo.ListByOwner(owner1)
+if err != nil {
+t.Fatalf("ListByOwner failed: %v", err)
+}
+if len(scenes) != 2 {
+t.Errorf("Expected 2 scenes for owner1, got %d", len(scenes))
+}
+
+// Test: List scenes for owner2
+scenes, err = repo.ListByOwner(owner2)
+if err != nil {
+t.Fatalf("ListByOwner failed: %v", err)
+}
+if len(scenes) != 1 {
+t.Errorf("Expected 1 scene for owner2, got %d", len(scenes))
+}
+
+// Test: List scenes for owner with no scenes
+scenes, err = repo.ListByOwner("did:plc:noowner")
+if err != nil {
+t.Fatalf("ListByOwner failed: %v", err)
+}
+if len(scenes) != 0 {
+t.Errorf("Expected 0 scenes for unknown owner, got %d", len(scenes))
+}
+}
+
+func TestSceneRepository_ListByOwner_ExcludesDeleted(t *testing.T) {
+repo := NewInMemorySceneRepository()
+
+owner := "did:plc:owner1"
+
+scene1 := &Scene{
+ID:            "scene-1",
+Name:          "Scene 1",
+OwnerDID:      owner,
+CoarseGeohash: "dr5regw",
+AllowPrecise:  false,
+}
+scene2 := &Scene{
+ID:            "scene-2",
+Name:          "Scene 2",
+OwnerDID:      owner,
+CoarseGeohash: "dr5regw",
+AllowPrecise:  false,
+}
+
+// Insert scenes
+if err := repo.Insert(scene1); err != nil {
+t.Fatalf("Insert scene1 failed: %v", err)
+}
+if err := repo.Insert(scene2); err != nil {
+t.Fatalf("Insert scene2 failed: %v", err)
+}
+
+// Delete scene1
+if err := repo.Delete("scene-1"); err != nil {
+t.Fatalf("Delete failed: %v", err)
+}
+
+// List scenes - should only return non-deleted scene
+scenes, err := repo.ListByOwner(owner)
+if err != nil {
+t.Fatalf("ListByOwner failed: %v", err)
+}
+if len(scenes) != 1 {
+t.Errorf("Expected 1 non-deleted scene, got %d", len(scenes))
+}
+if scenes[0].ID != "scene-2" {
+t.Errorf("Expected scene-2, got %s", scenes[0].ID)
+}
+}

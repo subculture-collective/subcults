@@ -105,6 +105,58 @@ Soft-deletes a scene by setting `deleted_at` timestamp.
 **Error Responses:**
 - `404 Not Found` - Scene not found or already deleted
 
+### GET /scenes/owned
+
+Lists all scenes owned by the authenticated user with summary statistics.
+
+**Authentication:** Required (JWT token with user DID in context)
+
+**Response:** `200 OK`
+```json
+[
+  {
+    "id": "550e8400-e29b-41d4-a716-446655440000",
+    "name": "Underground Jazz Club",
+    "description": "Weekly jazz sessions in the basement",
+    "coarse_geohash": "dr5regw",
+    "tags": ["jazz", "live-music"],
+    "visibility": "public",
+    "created_at": "2024-01-15T10:30:00Z",
+    "updated_at": "2024-01-15T10:30:00Z",
+    "members_count": 15,
+    "has_active_stream": true
+  },
+  {
+    "id": "660e8400-e29b-41d4-a716-446655440001",
+    "name": "Electronic Music Collective",
+    "description": "Experimental electronic music sessions",
+    "coarse_geohash": "dr5rex1",
+    "tags": ["electronic", "experimental"],
+    "visibility": "private",
+    "created_at": "2024-01-20T14:00:00Z",
+    "updated_at": "2024-01-22T18:45:00Z",
+    "members_count": 8,
+    "has_active_stream": false
+  }
+]
+```
+
+**Response Fields:**
+- `members_count`: Number of active memberships (status="active")
+- `has_active_stream`: Boolean indicating if there's an active stream (ended_at IS NULL)
+- Excludes heavy fields: `palette`, `precise_point`
+- Excludes soft-deleted scenes (deleted_at IS NULL)
+
+**Performance:**
+- Uses batch queries to avoid N+1 query problem
+- Single query for all scenes: `ListByOwner(userDID)`
+- Single query for all membership counts: `CountByScenes(sceneIDs, "active")`
+- Single query for all active stream checks: `HasActiveStreamsForScenes(sceneIDs)`
+- Total: 3 queries regardless of number of scenes owned
+
+**Error Responses:**
+- `401 Unauthorized` - Authentication required (no user DID in context)
+
 ## Privacy Enforcement
 
 All endpoints enforce location privacy:
@@ -143,20 +195,23 @@ go test -v ./internal/api/... -run Scene
 
 ```go
 // Initialize handlers
-repo := scene.NewInMemorySceneRepository()
-handlers := api.NewSceneHandlers(repo)
+sceneRepo := scene.NewInMemorySceneRepository()
+membershipRepo := membership.NewInMemoryMembershipRepository()
+streamRepo := stream.NewInMemorySessionRepository()
+handlers := api.NewSceneHandlers(sceneRepo, membershipRepo, streamRepo)
 
 // Register routes (example with http.ServeMux)
 mux := http.NewServeMux()
 mux.HandleFunc("POST /scenes", handlers.CreateScene)
 mux.HandleFunc("PATCH /scenes/", handlers.UpdateScene)
 mux.HandleFunc("DELETE /scenes/", handlers.DeleteScene)
+mux.HandleFunc("GET /scenes/owned", handlers.ListOwnedScenes)
 ```
 
 ## Future Enhancements
 
 - Integration with chi router for cleaner URL parameter extraction
-- GET endpoints for listing and searching scenes
+- GET endpoints for public scene listing and searching
 - Batch operations
 - Filtering by visibility, tags, location
-- Pagination support
+- Pagination support for /scenes/owned endpoint

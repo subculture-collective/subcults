@@ -49,6 +49,14 @@ type SessionRepository interface {
 
 	// GetByRecordKey retrieves a session by its AT Protocol record key.
 	GetByRecordKey(did, rkey string) (*Session, error)
+	
+	// HasActiveStreamForScene checks if there's an active stream (ended_at IS NULL) for the given scene.
+	HasActiveStreamForScene(sceneID string) (bool, error)
+	
+	// HasActiveStreamsForScenes returns a map of scene IDs to their active stream status.
+	// Returns true for scenes with at least one active stream (ended_at IS NULL).
+	// This is a batch operation to avoid N+1 queries.
+	HasActiveStreamsForScenes(sceneIDs []string) (map[string]bool, error)
 }
 
 // InMemorySessionRepository is an in-memory implementation of SessionRepository.
@@ -162,4 +170,46 @@ func (r *InMemorySessionRepository) GetByRecordKey(did, rkey string) (*Session, 
 	session := r.sessions[id]
 	sessionCopy := *session
 	return &sessionCopy, nil
+}
+
+// HasActiveStreamForScene checks if there's an active stream (ended_at IS NULL) for the given scene.
+func (r *InMemorySessionRepository) HasActiveStreamForScene(sceneID string) (bool, error) {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+
+	for _, session := range r.sessions {
+		if session.SceneID != nil && *session.SceneID == sceneID && session.EndedAt == nil {
+			return true, nil
+		}
+	}
+	return false, nil
+}
+
+// HasActiveStreamsForScenes returns a map of scene IDs to their active stream status.
+// Returns true for scenes with at least one active stream (ended_at IS NULL).
+// This is a batch operation to avoid N+1 queries.
+func (r *InMemorySessionRepository) HasActiveStreamsForScenes(sceneIDs []string) (map[string]bool, error) {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+
+	// Create a set of scene IDs for efficient lookup
+	sceneIDSet := make(map[string]bool, len(sceneIDs))
+	for _, id := range sceneIDs {
+		sceneIDSet[id] = true
+	}
+
+	// Initialize result map with false for all scenes
+	result := make(map[string]bool, len(sceneIDs))
+	for _, id := range sceneIDs {
+		result[id] = false
+	}
+
+	// Check for active streams
+	for _, session := range r.sessions {
+		if session.SceneID != nil && sceneIDSet[*session.SceneID] && session.EndedAt == nil {
+			result[*session.SceneID] = true
+		}
+	}
+
+	return result, nil
 }
