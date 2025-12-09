@@ -585,3 +585,361 @@ func TestValidateVisibility(t *testing.T) {
 		})
 	}
 }
+
+// TestUpdateScenePalette_Success tests successful palette update.
+func TestUpdateScenePalette_Success(t *testing.T) {
+repo := scene.NewInMemorySceneRepository()
+handlers := NewSceneHandlers(repo)
+
+// Create a scene first
+now := time.Now()
+testScene := &scene.Scene{
+ID:            "test-scene-id",
+Name:          "Test Scene",
+OwnerDID:      "did:plc:test123",
+CoarseGeohash: "dr5regw",
+Visibility:    "public",
+CreatedAt:     &now,
+UpdatedAt:     &now,
+}
+if err := repo.Insert(testScene); err != nil {
+t.Fatalf("failed to insert test scene: %v", err)
+}
+
+// Update palette
+reqBody := UpdateScenePaletteRequest{
+Palette: scene.Palette{
+Primary:    "#ff0000",
+Secondary:  "#00ff00",
+Accent:     "#0000ff",
+Background: "#ffffff",
+Text:       "#000000",
+},
+}
+
+body, err := json.Marshal(reqBody)
+if err != nil {
+t.Fatalf("failed to marshal request: %v", err)
+}
+
+req := httptest.NewRequest(http.MethodPatch, "/scenes/test-scene-id/palette", bytes.NewReader(body))
+req.Header.Set("Content-Type", "application/json")
+w := httptest.NewRecorder()
+
+handlers.UpdateScenePalette(w, req)
+
+if w.Code != http.StatusOK {
+t.Errorf("expected status 200, got %d: %s", w.Code, w.Body.String())
+}
+
+var updatedScene scene.Scene
+if err := json.NewDecoder(w.Body).Decode(&updatedScene); err != nil {
+t.Fatalf("failed to decode response: %v", err)
+}
+
+if updatedScene.Palette == nil {
+t.Fatal("expected palette to be set")
+}
+if updatedScene.Palette.Primary != "#ff0000" {
+t.Errorf("expected primary color #ff0000, got %s", updatedScene.Palette.Primary)
+}
+if updatedScene.Palette.Text != "#000000" {
+t.Errorf("expected text color #000000, got %s", updatedScene.Palette.Text)
+}
+}
+
+// TestUpdateScenePalette_InvalidHexColor tests rejection of invalid hex colors.
+func TestUpdateScenePalette_InvalidHexColor(t *testing.T) {
+repo := scene.NewInMemorySceneRepository()
+handlers := NewSceneHandlers(repo)
+
+// Create a scene first
+now := time.Now()
+testScene := &scene.Scene{
+ID:            "test-scene-id",
+Name:          "Test Scene",
+OwnerDID:      "did:plc:test123",
+CoarseGeohash: "dr5regw",
+Visibility:    "public",
+CreatedAt:     &now,
+UpdatedAt:     &now,
+}
+if err := repo.Insert(testScene); err != nil {
+t.Fatalf("failed to insert test scene: %v", err)
+}
+
+tests := []struct {
+name    string
+palette scene.Palette
+wantErr string
+}{
+{
+name: "invalid primary color",
+palette: scene.Palette{
+Primary:    "not-a-color",
+Secondary:  "#00ff00",
+Accent:     "#0000ff",
+Background: "#ffffff",
+Text:       "#000000",
+},
+wantErr: "primary color",
+},
+{
+name: "missing hash in secondary",
+palette: scene.Palette{
+Primary:    "#ff0000",
+Secondary:  "00ff00",
+Accent:     "#0000ff",
+Background: "#ffffff",
+Text:       "#000000",
+},
+wantErr: "secondary color",
+},
+{
+name: "too short accent color",
+palette: scene.Palette{
+Primary:    "#ff0000",
+Secondary:  "#00ff00",
+Accent:     "#00f",
+Background: "#ffffff",
+Text:       "#000000",
+},
+wantErr: "accent color",
+},
+{
+name: "empty background color",
+palette: scene.Palette{
+Primary:    "#ff0000",
+Secondary:  "#00ff00",
+Accent:     "#0000ff",
+Background: "",
+Text:       "#000000",
+},
+wantErr: "background color is required",
+},
+{
+name: "empty text color",
+palette: scene.Palette{
+Primary:    "#ff0000",
+Secondary:  "#00ff00",
+Accent:     "#0000ff",
+Background: "#ffffff",
+Text:       "",
+},
+wantErr: "text color is required",
+},
+}
+
+for _, tt := range tests {
+t.Run(tt.name, func(t *testing.T) {
+reqBody := UpdateScenePaletteRequest{Palette: tt.palette}
+body, err := json.Marshal(reqBody)
+if err != nil {
+t.Fatalf("failed to marshal request: %v", err)
+}
+
+req := httptest.NewRequest(http.MethodPatch, "/scenes/test-scene-id/palette", bytes.NewReader(body))
+req.Header.Set("Content-Type", "application/json")
+w := httptest.NewRecorder()
+
+handlers.UpdateScenePalette(w, req)
+
+if w.Code != http.StatusBadRequest {
+t.Errorf("expected status 400, got %d", w.Code)
+}
+
+var errResp ErrorResponse
+if err := json.NewDecoder(w.Body).Decode(&errResp); err != nil {
+t.Fatalf("failed to decode error response: %v", err)
+}
+
+if errResp.Error.Code != ErrCodeInvalidPalette {
+t.Errorf("expected error code %s, got %s", ErrCodeInvalidPalette, errResp.Error.Code)
+}
+
+if !strings.Contains(errResp.Error.Message, tt.wantErr) {
+t.Errorf("expected error message to contain %q, got %q", tt.wantErr, errResp.Error.Message)
+}
+})
+}
+}
+
+// TestUpdateScenePalette_InsufficientContrast tests rejection of palettes with poor contrast.
+func TestUpdateScenePalette_InsufficientContrast(t *testing.T) {
+repo := scene.NewInMemorySceneRepository()
+handlers := NewSceneHandlers(repo)
+
+// Create a scene first
+now := time.Now()
+testScene := &scene.Scene{
+ID:            "test-scene-id",
+Name:          "Test Scene",
+OwnerDID:      "did:plc:test123",
+CoarseGeohash: "dr5regw",
+Visibility:    "public",
+CreatedAt:     &now,
+UpdatedAt:     &now,
+}
+if err := repo.Insert(testScene); err != nil {
+t.Fatalf("failed to insert test scene: %v", err)
+}
+
+tests := []struct {
+name string
+text string
+bg   string
+}{
+{
+name: "light gray on white",
+text: "#cccccc",
+bg:   "#ffffff",
+},
+{
+name: "yellow on white",
+text: "#ffff00",
+bg:   "#ffffff",
+},
+{
+name: "light blue on white",
+text: "#aaddff",
+bg:   "#ffffff",
+},
+}
+
+for _, tt := range tests {
+t.Run(tt.name, func(t *testing.T) {
+reqBody := UpdateScenePaletteRequest{
+Palette: scene.Palette{
+Primary:    "#ff0000",
+Secondary:  "#00ff00",
+Accent:     "#0000ff",
+Background: tt.bg,
+Text:       tt.text,
+},
+}
+
+body, err := json.Marshal(reqBody)
+if err != nil {
+t.Fatalf("failed to marshal request: %v", err)
+}
+
+req := httptest.NewRequest(http.MethodPatch, "/scenes/test-scene-id/palette", bytes.NewReader(body))
+req.Header.Set("Content-Type", "application/json")
+w := httptest.NewRecorder()
+
+handlers.UpdateScenePalette(w, req)
+
+if w.Code != http.StatusBadRequest {
+t.Errorf("expected status 400, got %d: %s", w.Code, w.Body.String())
+}
+
+var errResp ErrorResponse
+if err := json.NewDecoder(w.Body).Decode(&errResp); err != nil {
+t.Fatalf("failed to decode error response: %v", err)
+}
+
+if errResp.Error.Code != ErrCodeInvalidPalette {
+t.Errorf("expected error code %s, got %s", ErrCodeInvalidPalette, errResp.Error.Code)
+}
+
+if !strings.Contains(errResp.Error.Message, "contrast") {
+t.Errorf("expected error message to contain 'contrast', got %q", errResp.Error.Message)
+}
+})
+}
+}
+
+// TestUpdateScenePalette_ScriptTagSanitization tests XSS prevention.
+func TestUpdateScenePalette_ScriptTagSanitization(t *testing.T) {
+repo := scene.NewInMemorySceneRepository()
+handlers := NewSceneHandlers(repo)
+
+// Create a scene first
+now := time.Now()
+testScene := &scene.Scene{
+ID:            "test-scene-id",
+Name:          "Test Scene",
+OwnerDID:      "did:plc:test123",
+CoarseGeohash: "dr5regw",
+Visibility:    "public",
+CreatedAt:     &now,
+UpdatedAt:     &now,
+}
+if err := repo.Insert(testScene); err != nil {
+t.Fatalf("failed to insert test scene: %v", err)
+}
+
+reqBody := UpdateScenePaletteRequest{
+Palette: scene.Palette{
+Primary:    "<script>alert(1)</script>",
+Secondary:  "#00ff00",
+Accent:     "#0000ff",
+Background: "#ffffff",
+Text:       "#000000",
+},
+}
+
+body, err := json.Marshal(reqBody)
+if err != nil {
+t.Fatalf("failed to marshal request: %v", err)
+}
+
+req := httptest.NewRequest(http.MethodPatch, "/scenes/test-scene-id/palette", bytes.NewReader(body))
+req.Header.Set("Content-Type", "application/json")
+w := httptest.NewRecorder()
+
+handlers.UpdateScenePalette(w, req)
+
+if w.Code != http.StatusBadRequest {
+t.Errorf("expected status 400, got %d", w.Code)
+}
+
+var errResp ErrorResponse
+if err := json.NewDecoder(w.Body).Decode(&errResp); err != nil {
+t.Fatalf("failed to decode error response: %v", err)
+}
+
+if errResp.Error.Code != ErrCodeInvalidPalette {
+t.Errorf("expected error code %s, got %s", ErrCodeInvalidPalette, errResp.Error.Code)
+}
+}
+
+// TestUpdateScenePalette_SceneNotFound tests handling of non-existent scene.
+func TestUpdateScenePalette_SceneNotFound(t *testing.T) {
+repo := scene.NewInMemorySceneRepository()
+handlers := NewSceneHandlers(repo)
+
+reqBody := UpdateScenePaletteRequest{
+Palette: scene.Palette{
+Primary:    "#ff0000",
+Secondary:  "#00ff00",
+Accent:     "#0000ff",
+Background: "#ffffff",
+Text:       "#000000",
+},
+}
+
+body, err := json.Marshal(reqBody)
+if err != nil {
+t.Fatalf("failed to marshal request: %v", err)
+}
+
+req := httptest.NewRequest(http.MethodPatch, "/scenes/nonexistent-id/palette", bytes.NewReader(body))
+req.Header.Set("Content-Type", "application/json")
+w := httptest.NewRecorder()
+
+handlers.UpdateScenePalette(w, req)
+
+if w.Code != http.StatusNotFound {
+t.Errorf("expected status 404, got %d", w.Code)
+}
+
+var errResp ErrorResponse
+if err := json.NewDecoder(w.Body).Decode(&errResp); err != nil {
+t.Fatalf("failed to decode error response: %v", err)
+}
+
+if errResp.Error.Code != ErrCodeNotFound {
+t.Errorf("expected error code %s, got %s", ErrCodeNotFound, errResp.Error.Code)
+}
+}

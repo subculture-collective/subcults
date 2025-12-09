@@ -35,6 +35,9 @@ const (
 
 	// ErrCodeBadRequest indicates a malformed request.
 	ErrCodeBadRequest = "bad_request"
+
+	// ErrCodeInvalidPalette indicates an invalid palette configuration.
+	ErrCodeInvalidPalette = "invalid_palette"
 )
 
 // ErrorResponse represents the standard error response format.

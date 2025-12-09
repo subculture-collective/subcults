@@ -11,9 +11,13 @@ type Point struct {
 }
 
 // Palette represents the color scheme for a scene's visual identity.
+// All colors should be hex codes in format #RRGGBB.
 type Palette struct {
-	Primary   string `json:"primary"`
-	Secondary string `json:"secondary"`
+	Primary    string `json:"primary"`
+	Secondary  string `json:"secondary"`
+	Accent     string `json:"accent"`
+	Background string `json:"background"`
+	Text       string `json:"text"`
 }
 
 // Scene represents a subcultural scene with optional precise location data.
