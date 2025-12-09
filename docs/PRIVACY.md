@@ -107,6 +107,57 @@ Structured request logging captures security-relevant events without excessive p
 - **4xx errors:** `WARN` level
 - **Success:** `INFO` level
 
+### Privacy Enforcement Logging
+
+Scene visibility enforcement events are logged at **DEBUG level only** to prevent information leakage:
+
+- Access denials for members-only scenes
+- Access denials for hidden scenes
+- Visibility mode of protected scenes
+
+Production logs (INFO and above) do not reveal:
+- Whether a forbidden scene exists
+- The visibility mode of inaccessible scenes
+- Who attempted to access protected scenes
+
+This prevents attackers from discovering scenes through log analysis.
+
+## Scene Visibility Controls
+
+Scenes support three visibility modes that control access and discoverability:
+
+### Public Scenes
+
+- Accessible to all users (authenticated and unauthenticated)
+- Appear in search results and map views
+- Use case: Open community scenes, public events
+
+### Members-Only Scenes
+
+- Accessible only to the scene owner and active members
+- Appear in search results only for authorized users
+- Membership status must be `"active"` (pending/rejected members denied)
+- Use case: Curated communities, invite-only scenes, trust-based groups
+
+### Hidden Scenes
+
+- Accessible only to the scene owner
+- **Exempt from search results** (even for members)
+- Accessible via direct URL only if user is owner
+- Use case: Personal archives, draft scenes, private collections
+
+### User Enumeration Prevention
+
+All unauthorized access attempts return the same `404 Not Found` error as non-existent scenes. This prevents:
+
+- Discovering which scenes exist by trying different IDs
+- Determining scene visibility modes through error messages
+- Building a database of scenes through brute force
+
+**Example**: Attempting to access a members-only scene as a non-member returns the same error as requesting a non-existent scene.
+
+See [Scene Visibility Documentation](./api/SCENE_VISIBILITY.md) for complete API details.
+
 ## User Controls
 
 ### Authentication
@@ -169,7 +220,9 @@ Subcult uses [AT Protocol](https://atproto.com/) for decentralized identity:
 Privacy improvements tracked in the [Privacy & Safety Epic](https://github.com/subculture-collective/subcults/issues/6):
 
 - [x] EXIF/metadata stripping for uploaded media (service layer implemented)
+- [x] Scene visibility controls (public, members-only, hidden)
 - [ ] EXIF stripping integration with media upload API endpoints
+- [ ] Search endpoint integration for hidden scene exclusion
 - [ ] Location jitter for map display
 - [ ] Signed URLs for media access
 - [ ] Configurable data export (GDPR-style)
