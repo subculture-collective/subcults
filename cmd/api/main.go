@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/onnwee/subcults/internal/api"
+	"github.com/onnwee/subcults/internal/audit"
 	"github.com/onnwee/subcults/internal/middleware"
 	"github.com/onnwee/subcults/internal/scene"
 )
@@ -48,9 +49,10 @@ func main() {
 	// Initialize repositories
 	eventRepo := scene.NewInMemoryEventRepository()
 	sceneRepo := scene.NewInMemorySceneRepository()
+	auditRepo := audit.NewInMemoryRepository()
 
 	// Initialize handlers
-	eventHandlers := api.NewEventHandlers(eventRepo, sceneRepo)
+	eventHandlers := api.NewEventHandlers(eventRepo, sceneRepo, auditRepo)
 
 	// Create HTTP server with routes
 	mux := http.NewServeMux()
