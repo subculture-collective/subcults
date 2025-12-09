@@ -5,14 +5,16 @@ package scene
 import (
 	"errors"
 	"sync"
+	"time"
 
 	"github.com/google/uuid"
 )
 
 // Common errors for scene and event operations.
 var (
-	ErrSceneNotFound = errors.New("scene not found")
-	ErrEventNotFound = errors.New("event not found")
+	ErrSceneNotFound     = errors.New("scene not found")
+	ErrEventNotFound     = errors.New("event not found")
+	ErrDuplicateSceneName = errors.New("scene name already exists for this owner")
 )
 
 // UpsertResult tracks statistics for upsert operations.
@@ -38,10 +40,19 @@ type SceneRepository interface {
 	Upsert(scene *Scene) (*UpsertResult, error)
 
 	// GetByID retrieves a scene by its ID.
+	// Returns ErrSceneNotFound if scene doesn't exist or is soft-deleted.
 	GetByID(id string) (*Scene, error)
 
 	// GetByRecordKey retrieves a scene by its AT Protocol record key.
 	GetByRecordKey(did, rkey string) (*Scene, error)
+	
+	// Delete soft-deletes a scene by setting deleted_at timestamp.
+	// Returns ErrSceneNotFound if scene doesn't exist or is already deleted.
+	Delete(id string) error
+	
+	// ExistsByOwnerAndName checks if a non-deleted scene with the given name
+	// exists for the specified owner. Used for duplicate name validation.
+	ExistsByOwnerAndName(ownerDID, name string, excludeID string) (bool, error)
 }
 
 // EventRepository defines the interface for event data operations.
@@ -122,11 +133,12 @@ func (r *InMemorySceneRepository) Update(scene *Scene) error {
 }
 
 // GetByID retrieves a scene by its ID.
+// Returns ErrSceneNotFound if scene doesn't exist or is soft-deleted.
 func (r *InMemorySceneRepository) GetByID(id string) (*Scene, error) {
 	r.mu.RLock()
 	scene, ok := r.scenes[id]
 	r.mu.RUnlock()
-	if !ok {
+	if !ok || scene.DeletedAt != nil {
 		return nil, ErrSceneNotFound
 	}
 	// Return a copy to avoid external modification
@@ -218,6 +230,41 @@ func (r *InMemorySceneRepository) GetByRecordKey(did, rkey string) (*Scene, erro
 		sceneCopy.PrecisePoint = &pointCopy
 	}
 	return &sceneCopy, nil
+}
+
+// Delete soft-deletes a scene by setting deleted_at timestamp.
+// Returns ErrSceneNotFound if scene doesn't exist or is already deleted.
+func (r *InMemorySceneRepository) Delete(id string) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	scene, ok := r.scenes[id]
+	if !ok || scene.DeletedAt != nil {
+		return ErrSceneNotFound
+	}
+
+	now := time.Now()
+	scene.DeletedAt = &now
+	return nil
+}
+
+// ExistsByOwnerAndName checks if a non-deleted scene with the given name
+// exists for the specified owner. Used for duplicate name validation.
+// excludeID allows checking for duplicates while excluding a specific scene
+// (useful when updating a scene's name).
+func (r *InMemorySceneRepository) ExistsByOwnerAndName(ownerDID, name string, excludeID string) (bool, error) {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+
+	for id, scene := range r.scenes {
+		if id == excludeID {
+			continue
+		}
+		if scene.DeletedAt == nil && scene.OwnerDID == ownerDID && scene.Name == name {
+			return true, nil
+		}
+	}
+	return false, nil
 }
 
 // InMemoryEventRepository is an in-memory implementation of EventRepository.

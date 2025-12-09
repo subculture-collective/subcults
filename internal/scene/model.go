@@ -2,6 +2,8 @@
 // with location privacy controls.
 package scene
 
+import "time"
+
 // Point represents a geographic coordinate with latitude and longitude.
 type Point struct {
 	Lat float64 `json:"lat"`
@@ -20,6 +22,7 @@ type Scene struct {
 	ID            string   `json:"id"`
 	Name          string   `json:"name"`
 	Description   string   `json:"description,omitempty"`
+	OwnerDID      string   `json:"owner_did"`           // Decentralized Identifier
 	AllowPrecise  bool     `json:"allow_precise"`
 	PrecisePoint  *Point   `json:"precise_point,omitempty"`
 	// CoarseGeohash is a required NOT NULL field for privacy-conscious discovery.
@@ -29,10 +32,15 @@ type Scene struct {
 	Tags          []string `json:"tags,omitempty"`       // Categorization tags
 	// Visibility mode for the scene. Valid values are "public", "private", or "unlisted".
 	// Enforced by database CHECK constraint.
-	Visibility    string   `json:"visibility,omitempty"`
-	Palette       *Palette `json:"palette,omitempty"`    // Color scheme
-	OwnerUserID   *string  `json:"owner_user_id,omitempty"` // FK to users table
-	
+	Visibility    string     `json:"visibility,omitempty"`
+	Palette       *Palette   `json:"palette,omitempty"`    // Color scheme
+	OwnerUserID   *string    `json:"owner_user_id,omitempty"` // FK to users table
+
+	// Timestamps
+	CreatedAt *time.Time `json:"created_at,omitempty"`
+	UpdatedAt *time.Time `json:"updated_at,omitempty"`
+	DeletedAt *time.Time `json:"deleted_at,omitempty"`
+
 	// AT Protocol record tracking
 	RecordDID  *string `json:"record_did,omitempty"`
 	RecordRKey *string `json:"record_rkey,omitempty"`
