@@ -1,10 +1,10 @@
 /**
  * Auth Store
- * Simple auth state management for route guards
- * This is a placeholder implementation until full auth is implemented
+ * Authentication state management with token refresh and multi-tab synchronization
  */
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
+import { apiClient } from '../lib/api-client';
 
 export interface User {
   did: string;
@@ -15,16 +15,198 @@ interface AuthState {
   user: User | null;
   isAuthenticated: boolean;
   isAdmin: boolean;
+  isLoading: boolean;
+  accessToken: string | null;
 }
 
-// Simple in-memory store (will be replaced with proper state management)
+// BroadcastChannel for multi-tab synchronization
+const LOGOUT_CHANNEL = 'subcults_auth_logout';
+let logoutChannel: BroadcastChannel | null = null;
+
+// Initialize BroadcastChannel if supported
+// NOTE: This module is intended for browser contexts only.
+if (typeof BroadcastChannel !== 'undefined') {
+  try {
+    logoutChannel = new BroadcastChannel(LOGOUT_CHANNEL);
+  } catch (e) {
+    // Fallback: disable multi-tab sync if BroadcastChannel fails
+    console.warn('[authStore] BroadcastChannel initialization failed, multi-tab sync disabled:', e);
+    logoutChannel = null;
+  }
+}
+
+// In-memory auth state (access token stored here, refresh token in httpOnly cookie)
 let authState: AuthState = {
   user: null,
   isAuthenticated: false,
   isAdmin: false,
+  isLoading: true, // Start as loading until we check for existing session
+  accessToken: null,
 };
 
 const listeners = new Set<(state: AuthState) => void>();
+
+// Exponential backoff configuration
+const RETRY_CONFIG = {
+  maxRetries: 3,
+  initialDelay: 1000, // 1 second
+  maxDelay: 10000, // 10 seconds
+};
+
+/**
+ * Sleep utility for retry delays.
+ * Assumes the timer will complete - safe because only used within try-catch blocks.
+ */
+const sleep = (ms: number): Promise<void> => {
+  return new Promise(resolve => setTimeout(resolve, ms));
+};
+
+/**
+ * Refresh access token using refresh token (stored in httpOnly cookie)
+ * Implements exponential backoff for transient failures
+ */
+const refreshAccessToken = async (
+  retryCount = 0
+): Promise<string | null> => {
+  try {
+    // Call refresh endpoint (refresh token sent automatically via httpOnly cookie)
+    const response = await fetch('/api/auth/refresh', {
+      method: 'POST',
+      credentials: 'include', // Include cookies
+    });
+
+    if (!response.ok) {
+      // Don't retry on 401 (refresh token invalid/expired)
+      if (response.status === 401) {
+        return null;
+      }
+
+      // Log unexpected 4xx errors for debugging (except 401)
+      if (response.status >= 400 && response.status < 500) {
+        // Do not log PII or tokens
+        console.warn(
+          `[authStore] Token refresh failed with status ${response.status}: ${response.statusText}`
+        );
+      }
+
+      // Retry on transient errors (5xx, network issues)
+      if (response.status >= 500 && retryCount < RETRY_CONFIG.maxRetries) {
+        const delay = Math.min(
+          RETRY_CONFIG.initialDelay * Math.pow(2, retryCount),
+          RETRY_CONFIG.maxDelay
+        );
+        await sleep(delay);
+        return refreshAccessToken(retryCount + 1);
+      }
+
+      return null;
+    }
+
+    const data = await response.json();
+    
+    // Update access token in memory
+    authState.accessToken = data.accessToken;
+    authState.user = data.user;
+    authState.isAuthenticated = true;
+    authState.isAdmin = data.user.role === 'admin';
+    authState.isLoading = false;
+    
+    notifyListeners();
+    
+    return data.accessToken;
+  } catch (error) {
+    // Retry on network errors
+    if (retryCount < RETRY_CONFIG.maxRetries) {
+      const delay = Math.min(
+        RETRY_CONFIG.initialDelay * Math.pow(2, retryCount),
+        RETRY_CONFIG.maxDelay
+      );
+      await sleep(delay);
+      return refreshAccessToken(retryCount + 1);
+    }
+
+    console.error('Token refresh failed:', error);
+    return null;
+  }
+};
+
+/**
+ * Handle unauthorized state (refresh failed)
+ */
+const handleUnauthorized = (): void => {
+  // Clear auth state
+  authState = {
+    user: null,
+    isAuthenticated: false,
+    isAdmin: false,
+    isLoading: false,
+    accessToken: null,
+  };
+  
+  notifyListeners();
+  
+  // Broadcast logout to other tabs
+  if (logoutChannel) {
+    logoutChannel.postMessage({ type: 'logout' });
+  }
+  
+  // Redirect to login if not already there
+  // Note: Uses window.location.href for forced logout (full page reload)
+  // to ensure complete state cleanup, though this breaks SPA navigation
+  if (window.location.pathname !== '/account/login') {
+    window.location.href = '/account/login';
+  }
+};
+
+/**
+ * Notify all listeners of state changes
+ */
+const notifyListeners = (): void => {
+  listeners.forEach((listener) => listener(authState));
+};
+
+/**
+ * Initialize API client and event listeners.
+ * Separated to avoid circular dependency issues with module-level initialization.
+ */
+const initializeApiClient = (): void => {
+  apiClient.initialize({
+    baseURL: '/api',
+    getAccessToken: () => authState.accessToken,
+    refreshToken: refreshAccessToken,
+    onUnauthorized: handleUnauthorized,
+  });
+};
+
+// Initialize API client with auth callbacks
+initializeApiClient();
+
+// Listen for logout events from other tabs
+if (logoutChannel) {
+  logoutChannel.addEventListener('message', (event) => {
+    if (event.data.type === 'logout') {
+      // Only process logout if currently authenticated to avoid redundant state changes
+      if (authState.isAuthenticated) {
+        // Another tab logged out, sync this tab
+        authState = {
+          user: null,
+          isAuthenticated: false,
+          isAdmin: false,
+          isLoading: false,
+          accessToken: null,
+        };
+        notifyListeners();
+        
+        // Redirect to login if not already there
+        // Note: Uses window.location.href for forced logout (full page reload)
+        // to ensure complete state cleanup, though this breaks SPA navigation
+        if (window.location.pathname !== '/account/login') {
+          window.location.href = '/account/login';
+        }
+      }
+    }
+  });
+}
 
 export const authStore = {
   getState: (): AuthState => authState,
@@ -36,22 +218,77 @@ export const authStore = {
     };
   },
 
-  setUser: (user: User | null) => {
+  /**
+   * Set user and access token (called after successful login).
+   * 
+   * Note: This replaces the previous setUser(user | null) signature.
+   * To clear auth state, use logout() instead of setUser(null).
+   * 
+   * @param user - The authenticated user object
+   * @param accessToken - The access token received from login
+   */
+  setUser: (user: User, accessToken: string): void => {
     authState = {
       user,
-      isAuthenticated: !!user,
-      isAdmin: user?.role === 'admin',
+      isAuthenticated: true,
+      isAdmin: user.role === 'admin',
+      isLoading: false,
+      accessToken,
     };
-    listeners.forEach((listener) => listener(authState));
+    notifyListeners();
   },
 
-  logout: () => {
+  /**
+   * Logout user and clear tokens
+   * Refresh token is cleared by calling backend logout endpoint
+   */
+  logout: async (): Promise<void> => {
+    try {
+      // Call logout endpoint to clear refresh token cookie
+      await fetch('/api/auth/logout', {
+        method: 'POST',
+        credentials: 'include',
+      });
+    } catch (error) {
+      console.error('Logout request failed:', error);
+      // Continue with local logout even if request fails
+    }
+
+    // Clear local state
     authState = {
       user: null,
       isAuthenticated: false,
       isAdmin: false,
+      isLoading: false,
+      accessToken: null,
     };
-    listeners.forEach((listener) => listener(authState));
+    notifyListeners();
+
+    // Broadcast logout to other tabs
+    if (logoutChannel) {
+      logoutChannel.postMessage({ type: 'logout' });
+    }
+  },
+
+  /**
+   * Initialize auth state by checking for existing session
+   * Should be called on app startup
+   */
+  initialize: async (): Promise<void> => {
+    try {
+      // Try to refresh token to check if we have a valid session
+      const token = await refreshAccessToken();
+      
+      if (!token) {
+        // No valid session
+        authState.isLoading = false;
+        notifyListeners();
+      }
+    } catch (error) {
+      console.error('Auth initialization failed:', error);
+      authState.isLoading = false;
+      notifyListeners();
+    }
   },
 };
 
@@ -66,5 +303,13 @@ export const useAuth = () => {
     return unsubscribe;
   }, []);
 
-  return state;
+  // Provide logout function that components can call
+  const logout = useCallback(async () => {
+    await authStore.logout();
+  }, []);
+
+  return {
+    ...state,
+    logout,
+  };
 };
