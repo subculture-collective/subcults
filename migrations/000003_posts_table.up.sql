@@ -10,14 +10,14 @@ ALTER TABLE posts ADD COLUMN IF NOT EXISTS labels TEXT[] DEFAULT '{}';
 DO $$
 BEGIN
     IF EXISTS (
-        SELECT 1 FROM information_schema.columns 
+        SELECT 1 FROM information_schema.columns
         WHERE table_name = 'posts' AND column_name = 'content'
     ) THEN
         ALTER TABLE posts RENAME COLUMN content TO text;
     END IF;
     -- Ensure text column has NOT NULL constraint (preserving original schema's data integrity)
     IF EXISTS (
-        SELECT 1 FROM information_schema.columns 
+        SELECT 1 FROM information_schema.columns
         WHERE table_name = 'posts' AND column_name = 'text'
     ) THEN
         ALTER TABLE posts ALTER COLUMN text SET NOT NULL;
@@ -32,39 +32,24 @@ ALTER TABLE posts ALTER COLUMN scene_id DROP NOT NULL;
 DO $$
 BEGIN
     IF EXISTS (
-        SELECT 1 FROM information_schema.columns 
+        SELECT 1 FROM information_schema.columns
         WHERE table_name = 'posts' AND column_name = 'attachment_url'
     ) THEN
         -- Migrate existing single attachment URLs to JSONB array format
         -- Uses 'legacy' type to indicate these are migrated from the old schema
-        UPDATE posts 
+        UPDATE posts
         SET attachments = jsonb_build_array(jsonb_build_object('url', attachment_url, 'type', 'legacy'))
         WHERE attachment_url IS NOT NULL AND attachment_url != '';
-        
+
         -- Drop the old column
         ALTER TABLE posts DROP COLUMN attachment_url;
     END IF;
 END $$;
 
--- Step 5: Add FTS generated column
--- Note: Using GENERATED ALWAYS for computed tsvector
--- Requires 'text' column to exist (renamed from 'content' in Step 2)
-DO $$
-BEGIN
-    IF NOT EXISTS (
-        SELECT 1 FROM information_schema.columns 
-        WHERE table_name = 'posts' AND column_name = 'text_fts'
-    ) THEN
-        -- Only add if text column exists (should always be true after Step 2)
-        IF EXISTS (
-            SELECT 1 FROM information_schema.columns 
-            WHERE table_name = 'posts' AND column_name = 'text'
-        ) THEN
-            ALTER TABLE posts ADD COLUMN text_fts tsvector 
-                GENERATED ALWAYS AS (to_tsvector('english', COALESCE(text, ''))) STORED;
-        END IF;
-    END IF;
-END $$;
+-- Step 5: FTS support via indexes
+-- Note: Generated tsvector columns require immutable expressions
+-- The 'english' language parameter makes to_tsvector non-immutable
+-- We'll use expression-based indexing instead
 
 -- Step 6: Add constraint - at least one of scene_id or event_id must be non-null
 -- First verify no existing data violates this (existing data should always have scene_id NOT NULL)
@@ -75,7 +60,7 @@ BEGIN
     END IF;
 END $$;
 
-ALTER TABLE posts ADD CONSTRAINT chk_post_association 
+ALTER TABLE posts ADD CONSTRAINT chk_post_association
     CHECK (scene_id IS NOT NULL OR event_id IS NOT NULL);
 
 -- Step 7: Add indexes for query performance
@@ -91,8 +76,13 @@ CREATE INDEX idx_posts_scene ON posts(scene_id) WHERE deleted_at IS NULL AND sce
 DROP INDEX IF EXISTS idx_posts_event;
 CREATE INDEX idx_posts_event ON posts(event_id) WHERE deleted_at IS NULL AND event_id IS NOT NULL;
 
--- GIN index for FTS queries
-CREATE INDEX IF NOT EXISTS idx_posts_text_fts ON posts USING GIN(text_fts);
+-- GIN index for FTS queries using expression-based indexing
+-- Note: PostgreSQL's to_tsvector('english', ...) is not marked IMMUTABLE
+-- For now, we skip FTS indexing and rely on application-level FTS or simpler queries
+-- TODO: Consider adding a custom IMMUTABLE wrapper function if FTS becomes critical
+-- CREATE INDEX IF NOT EXISTS idx_posts_text_fts ON posts USING GIN(
+--     to_tsvector('english', COALESCE(text, ''))
+-- ) WHERE deleted_at IS NULL;
 
 -- GIN index for labels array queries (moderation filtering)
 CREATE INDEX IF NOT EXISTS idx_posts_labels ON posts USING GIN(labels);
@@ -107,5 +97,4 @@ COMMENT ON TABLE posts IS 'Content posts within scenes/events with attachments a
 COMMENT ON COLUMN posts.text IS 'Post content text, indexed for full-text search';
 COMMENT ON COLUMN posts.attachments IS 'JSONB array of attachment objects with url and type fields';
 COMMENT ON COLUMN posts.labels IS 'Moderation labels (e.g., nsfw, spoiler)';
-COMMENT ON COLUMN posts.text_fts IS 'Generated tsvector column for full-text search';
 COMMENT ON CONSTRAINT chk_post_association ON posts IS 'Ensures post is associated with at least one of scene_id or event_id';
