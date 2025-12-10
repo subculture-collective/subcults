@@ -15,6 +15,7 @@ import (
 
 	"github.com/onnwee/subcults/internal/api"
 	"github.com/onnwee/subcults/internal/audit"
+	"github.com/onnwee/subcults/internal/livekit"
 	"github.com/onnwee/subcults/internal/middleware"
 	"github.com/onnwee/subcults/internal/scene"
 )
@@ -52,6 +53,24 @@ func main() {
 	sceneRepo := scene.NewInMemorySceneRepository()
 	auditRepo := audit.NewInMemoryRepository()
 	rsvpRepo := scene.NewInMemoryRSVPRepository()
+
+	// Initialize LiveKit token service
+	// Get credentials from environment variables
+	livekitAPIKey := os.Getenv("LIVEKIT_API_KEY")
+	livekitAPISecret := os.Getenv("LIVEKIT_API_SECRET")
+	
+	var livekitHandlers *api.LiveKitHandlers
+	if livekitAPIKey != "" && livekitAPISecret != "" {
+		tokenService, err := livekit.NewTokenService(livekitAPIKey, livekitAPISecret)
+		if err != nil {
+			logger.Error("failed to initialize LiveKit token service", "error", err)
+			os.Exit(1)
+		}
+		livekitHandlers = api.NewLiveKitHandlers(tokenService, auditRepo)
+		logger.Info("LiveKit token service initialized")
+	} else {
+		logger.Warn("LiveKit credentials not configured, token endpoint will not be available")
+	}
 
 	// Initialize handlers
 	eventHandlers := api.NewEventHandlers(eventRepo, sceneRepo, auditRepo, rsvpRepo)
@@ -106,6 +125,18 @@ func main() {
 			api.WriteError(w, ctx, http.StatusMethodNotAllowed, api.ErrCodeBadRequest, "Method not allowed")
 		}
 	})
+
+	// LiveKit token endpoint (if configured)
+	if livekitHandlers != nil {
+		mux.HandleFunc("/livekit/token", func(w http.ResponseWriter, r *http.Request) {
+			if r.Method != http.MethodPost {
+				ctx := middleware.SetErrorCode(r.Context(), api.ErrCodeBadRequest)
+				api.WriteError(w, ctx, http.StatusMethodNotAllowed, api.ErrCodeBadRequest, "Method not allowed")
+				return
+			}
+			livekitHandlers.IssueToken(w, r)
+		})
+	}
 
 	// Health check endpoint
 	mux.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
