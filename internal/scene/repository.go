@@ -551,12 +551,7 @@ func (r *InMemoryEventRepository) SearchByBboxAndTime(minLng, minLat, maxLng, ma
 				// This ensures comparison works correctly
 				cursorTime = parsedTime.Truncate(time.Second)
 				cursorID = parts[1]
-			} else {
-				// Cursor parsing failed - log it but continue with no cursor
-				// In production, we'd log this properly
 			}
-		} else {
-			// Invalid cursor format - log it but continue with no cursor
 		}
 	}
 
@@ -587,8 +582,8 @@ func (r *InMemoryEventRepository) SearchByBboxAndTime(minLng, minLat, maxLng, ma
 				results = append(results, copyEvent(event))
 			}
 		}
-		// TODO: Also check coarse_geohash intersection for events without precise_point
-		// This would require geohash bounding box intersection logic
+		// Events without precise_point are currently excluded from search results.
+		// Coarse geohash intersection support will be added in a future update.
 	}
 
 	// Sort by starts_at ascending, then by ID for stable ordering
