@@ -73,16 +73,28 @@ func (h *StreamHandlers) CreateStream(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Validate that at least one of scene_id or event_id is provided
-	if (req.SceneID == nil || strings.TrimSpace(*req.SceneID) == "") &&
-		(req.EventID == nil || strings.TrimSpace(*req.EventID) == "") {
+	// Validate that exactly one of scene_id or event_id is provided
+	sceneIDProvided := req.SceneID != nil && strings.TrimSpace(*req.SceneID) != ""
+	eventIDProvided := req.EventID != nil && strings.TrimSpace(*req.EventID) != ""
+	
+	if sceneIDProvided == eventIDProvided { // both true or both false
 		ctx = middleware.SetErrorCode(ctx, ErrCodeValidation)
-		WriteError(w, ctx, http.StatusBadRequest, ErrCodeValidation, "Either scene_id or event_id must be provided")
+		WriteError(w, ctx, http.StatusBadRequest, ErrCodeValidation, "Exactly one of scene_id or event_id must be provided")
 		return
 	}
 
+	// Trim whitespace from provided IDs
+	if sceneIDProvided {
+		trimmed := strings.TrimSpace(*req.SceneID)
+		req.SceneID = &trimmed
+	}
+	if eventIDProvided {
+		trimmed := strings.TrimSpace(*req.EventID)
+		req.EventID = &trimmed
+	}
+
 	// Validate ownership
-	if req.SceneID != nil && *req.SceneID != "" {
+	if sceneIDProvided {
 		// Check if user is the scene owner
 		isOwner, err := h.isSceneOwner(ctx, *req.SceneID, userDID)
 		if err != nil {
@@ -103,7 +115,7 @@ func (h *StreamHandlers) CreateStream(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	if req.EventID != nil && *req.EventID != "" {
+	if eventIDProvided {
 		// Check if user is the event host (scene owner)
 		event, err := h.eventRepo.GetByID(*req.EventID)
 		if err != nil {

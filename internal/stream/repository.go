@@ -230,6 +230,11 @@ func (r *InMemorySessionRepository) CreateStreamSession(sceneID *string, eventID
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
+	// Validate that hostDID is not empty
+	if hostDID == "" {
+		return "", "", errors.New("hostDID must not be empty")
+	}
+
 	// Validate that at least one of sceneID or eventID is provided
 	if (sceneID == nil || *sceneID == "") && (eventID == nil || *eventID == "") {
 		return "", "", errors.New("either scene_id or event_id must be provided")

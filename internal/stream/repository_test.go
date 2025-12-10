@@ -545,3 +545,18 @@ if !session2.EndedAt.Equal(*endedAt1) {
 t.Error("Expected ended_at to remain unchanged on idempotent call")
 }
 }
+
+func TestSessionRepository_CreateStreamSession_EmptyHostDID(t *testing.T) {
+repo := NewInMemorySessionRepository()
+sceneID := "scene-123"
+
+_, _, err := repo.CreateStreamSession(&sceneID, nil, "")
+if err == nil {
+t.Error("Expected error when hostDID is empty")
+}
+
+expectedErrMsg := "hostDID must not be empty"
+if err != nil && err.Error() != expectedErrMsg {
+t.Errorf("Expected error message '%s', got '%s'", expectedErrMsg, err.Error())
+}
+}

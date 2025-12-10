@@ -176,6 +176,73 @@ func TestCreateStream_NoSceneOrEvent(t *testing.T) {
 	}
 }
 
+// TestCreateStream_BothSceneAndEvent tests rejection when both scene_id and event_id are provided.
+func TestCreateStream_BothSceneAndEvent(t *testing.T) {
+	streamRepo := stream.NewInMemorySessionRepository()
+	sceneRepo := scene.NewInMemorySceneRepository()
+	eventRepo := scene.NewInMemoryEventRepository()
+	auditRepo := audit.NewInMemoryRepository()
+	handlers := NewStreamHandlers(streamRepo, sceneRepo, eventRepo, auditRepo)
+
+	// Create a scene and event
+	testScene := &scene.Scene{
+		ID:            uuid.New().String(),
+		Name:          "Test Scene",
+		OwnerDID:      "did:plc:test123",
+		CoarseGeohash: "dr5regw",
+		CreatedAt:     &time.Time{},
+	}
+	if err := sceneRepo.Insert(testScene); err != nil {
+		t.Fatalf("failed to insert scene: %v", err)
+	}
+
+	startsAt := time.Now().Add(24 * time.Hour)
+	testEvent := &scene.Event{
+		ID:            uuid.New().String(),
+		SceneID:       testScene.ID,
+		Title:         "Test Event",
+		CoarseGeohash: "dr5regw",
+		StartsAt:      startsAt,
+		Status:        "scheduled",
+	}
+	if err := eventRepo.Insert(testEvent); err != nil {
+		t.Fatalf("failed to insert event: %v", err)
+	}
+
+	// Provide both scene_id and event_id
+	reqBody := CreateStreamRequest{
+		SceneID: ptrString(testScene.ID),
+		EventID: ptrString(testEvent.ID),
+	}
+
+	body, err := json.Marshal(reqBody)
+	if err != nil {
+		t.Fatalf("failed to marshal request: %v", err)
+	}
+
+	req := httptest.NewRequest(http.MethodPost, "/streams", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	ctx := middleware.SetUserDID(req.Context(), "did:plc:test123")
+	req = req.WithContext(ctx)
+	w := httptest.NewRecorder()
+
+	handlers.CreateStream(w, req)
+
+	if w.Code != http.StatusBadRequest {
+		t.Errorf("expected status 400, got %d: %s", w.Code, w.Body.String())
+	}
+
+	var response ErrorResponse
+	if err := json.NewDecoder(w.Body).Decode(&response); err != nil {
+		t.Fatalf("failed to decode response: %v", err)
+	}
+
+	if response.Error.Code != ErrCodeValidation {
+		t.Errorf("expected error code %s, got %s", ErrCodeValidation, response.Error.Code)
+	}
+}
+
+
 // TestCreateStream_Forbidden_NotSceneOwner tests permission check for scene ownership.
 func TestCreateStream_Forbidden_NotSceneOwner(t *testing.T) {
 	streamRepo := stream.NewInMemorySessionRepository()
