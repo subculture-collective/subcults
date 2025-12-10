@@ -50,7 +50,23 @@ func TestCreateOrUpdateRSVP_Success(t *testing.T) {
 		t.Errorf("Expected status 200, got %d: %s", w.Code, w.Body.String())
 	}
 
-	// Verify RSVP was created
+	// Verify response doesn't contain user_id (privacy requirement)
+	var response RSVPResponse
+	if err := json.Unmarshal(w.Body.Bytes(), &response); err != nil {
+		t.Fatalf("Failed to unmarshal response: %v", err)
+	}
+	if response.Status != "going" {
+		t.Errorf("Expected response status 'going', got %s", response.Status)
+	}
+	if response.EventID != "event-1" {
+		t.Errorf("Expected response event_id 'event-1', got %s", response.EventID)
+	}
+	// Verify user_id is not in the raw JSON response (privacy check)
+	if bytes.Contains(w.Body.Bytes(), []byte("user_id")) {
+		t.Error("Response should not contain 'user_id' field (privacy violation)")
+	}
+
+	// Verify RSVP was created in repository
 	stored, err := rsvpRepo.GetByEventAndUser("event-1", "did:plc:user1")
 	if err != nil {
 		t.Fatalf("Failed to get RSVP: %v", err)
@@ -112,6 +128,76 @@ func TestCreateOrUpdateRSVP_UpdateStatus(t *testing.T) {
 	}
 	if stored.Status != "going" {
 		t.Errorf("Expected status 'going', got %s", stored.Status)
+	}
+}
+
+func TestCreateOrUpdateRSVP_Idempotent(t *testing.T) {
+	rsvpRepo := scene.NewInMemoryRSVPRepository()
+	eventRepo := scene.NewInMemoryEventRepository()
+	handlers := NewRSVPHandlers(rsvpRepo, eventRepo)
+
+	// Create a future event
+	futureTime := time.Now().Add(24 * time.Hour)
+	event := &scene.Event{
+		ID:            "event-1",
+		SceneID:       "scene-1",
+		Title:         "Test Event",
+		CoarseGeohash: "dr5regw",
+		StartsAt:      futureTime,
+	}
+	if err := eventRepo.Insert(event); err != nil {
+		t.Fatalf("Failed to insert event: %v", err)
+	}
+
+	// First RSVP with "going"
+	reqBody := RSVPRequest{Status: "going"}
+	body, _ := json.Marshal(reqBody)
+	
+	// First request
+	req1 := httptest.NewRequest("POST", "/events/event-1/rsvp", bytes.NewReader(body))
+	req1.Header.Set("Content-Type", "application/json")
+	ctx1 := middleware.SetUserDID(req1.Context(), "did:plc:user1")
+	req1 = req1.WithContext(ctx1)
+
+	w1 := httptest.NewRecorder()
+	handlers.CreateOrUpdateRSVP(w1, req1)
+
+	// Verify first response
+	if w1.Code != http.StatusOK {
+		t.Errorf("Expected status 200 on first RSVP, got %d: %s", w1.Code, w1.Body.String())
+	}
+
+	// Second request with same status (idempotent test)
+	body2, _ := json.Marshal(reqBody)
+	req2 := httptest.NewRequest("POST", "/events/event-1/rsvp", bytes.NewReader(body2))
+	req2.Header.Set("Content-Type", "application/json")
+	ctx2 := middleware.SetUserDID(req2.Context(), "did:plc:user1")
+	req2 = req2.WithContext(ctx2)
+
+	w2 := httptest.NewRecorder()
+	handlers.CreateOrUpdateRSVP(w2, req2)
+
+	// Verify second response is also 200 (idempotent)
+	if w2.Code != http.StatusOK {
+		t.Errorf("Expected status 200 on duplicate RSVP (idempotent), got %d: %s", w2.Code, w2.Body.String())
+	}
+
+	// Verify RSVP still exists with correct status
+	stored, err := rsvpRepo.GetByEventAndUser("event-1", "did:plc:user1")
+	if err != nil {
+		t.Fatalf("Failed to get RSVP: %v", err)
+	}
+	if stored.Status != "going" {
+		t.Errorf("Expected status 'going', got %s", stored.Status)
+	}
+
+	// Verify no duplicate was created (should still be just one RSVP)
+	counts, err := rsvpRepo.GetCountsByEvent("event-1")
+	if err != nil {
+		t.Fatalf("Failed to get counts: %v", err)
+	}
+	if counts.Going != 1 {
+		t.Errorf("Expected 1 'going' RSVP, got %d (duplicate may have been created)", counts.Going)
 	}
 }
 

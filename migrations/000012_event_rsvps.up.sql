@@ -16,8 +16,9 @@ ALTER TABLE event_rsvps ADD CONSTRAINT chk_rsvp_status
     CHECK (status IN ('going', 'maybe'));
 
 -- Step 3: Add indexes for query performance
--- Index on event_id for aggregation queries (count RSVPs per event)
-CREATE INDEX IF NOT EXISTS idx_event_rsvps_event_id ON event_rsvps(event_id);
+-- Note: Index on event_id alone is not needed because PostgreSQL can use the
+-- left portion of the composite PRIMARY KEY (event_id, user_id) for queries
+-- filtering on event_id. We only need an index on user_id for reverse lookups.
 
 -- Index on user_id for user's RSVP history queries
 CREATE INDEX IF NOT EXISTS idx_event_rsvps_user_id ON event_rsvps(user_id);

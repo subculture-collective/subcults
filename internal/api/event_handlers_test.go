@@ -119,7 +119,7 @@ func TestCreateEvent_InvalidTimeWindow(t *testing.T) {
 			sceneRepo := scene.NewInMemorySceneRepository()
 			auditRepo := audit.NewInMemoryRepository()
 			rsvpRepo := scene.NewInMemoryRSVPRepository()
-	handlers := NewEventHandlers(eventRepo, sceneRepo, auditRepo, rsvpRepo)
+			handlers := NewEventHandlers(eventRepo, sceneRepo, auditRepo, rsvpRepo)
 
 			// Create a scene first
 			testScene := &scene.Scene{

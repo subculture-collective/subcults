@@ -17,6 +17,15 @@ type RSVPRequest struct {
 	Status string `json:"status"` // "going" or "maybe"
 }
 
+// RSVPResponse represents the response body for RSVP operations.
+// Note: UserID is intentionally omitted to protect user privacy.
+type RSVPResponse struct {
+	EventID   string     `json:"event_id"`
+	Status    string     `json:"status"`
+	CreatedAt *time.Time `json:"created_at,omitempty"`
+	UpdatedAt *time.Time `json:"updated_at,omitempty"`
+}
+
 // RSVPHandlers holds dependencies for RSVP HTTP handlers.
 type RSVPHandlers struct {
 	rsvpRepo  scene.RSVPRepository
@@ -80,8 +89,10 @@ func (h *RSVPHandlers) CreateOrUpdateRSVP(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	// Validate event is upcoming (starts_at > now)
-	if !existingEvent.StartsAt.After(time.Now()) {
+	// Validate event is strictly upcoming (starts_at > now)
+	// Business rule: RSVPs are only allowed for events that haven't started yet
+	now := time.Now()
+	if !existingEvent.StartsAt.After(now) {
 		ctx := middleware.SetErrorCode(r.Context(), ErrCodeValidation)
 		WriteError(w, ctx, http.StatusBadRequest, ErrCodeValidation, "Cannot RSVP to past or ongoing events")
 		return
@@ -95,7 +106,7 @@ func (h *RSVPHandlers) CreateOrUpdateRSVP(w http.ResponseWriter, r *http.Request
 	}
 
 	if err := h.rsvpRepo.Upsert(rsvp); err != nil {
-		slog.ErrorContext(r.Context(), "failed to upsert RSVP", "error", err, "event_id", eventID, "user_id", userDID)
+		slog.ErrorContext(r.Context(), "failed to upsert RSVP", "error", err, "event_id", eventID)
 		ctx := middleware.SetErrorCode(r.Context(), ErrCodeInternal)
 		WriteError(w, ctx, http.StatusInternalServerError, ErrCodeInternal, "Failed to save RSVP")
 		return
@@ -104,16 +115,24 @@ func (h *RSVPHandlers) CreateOrUpdateRSVP(w http.ResponseWriter, r *http.Request
 	// Retrieve the stored RSVP to get timestamps
 	stored, err := h.rsvpRepo.GetByEventAndUser(eventID, userDID)
 	if err != nil {
-		slog.ErrorContext(r.Context(), "failed to retrieve RSVP", "error", err, "event_id", eventID, "user_id", userDID)
+		slog.ErrorContext(r.Context(), "failed to retrieve RSVP", "error", err, "event_id", eventID)
 		ctx := middleware.SetErrorCode(r.Context(), ErrCodeInternal)
 		WriteError(w, ctx, http.StatusInternalServerError, ErrCodeInternal, "Failed to retrieve RSVP")
 		return
 	}
 
+	// Create response without exposing user_id (privacy requirement)
+	response := RSVPResponse{
+		EventID:   stored.EventID,
+		Status:    stored.Status,
+		CreatedAt: stored.CreatedAt,
+		UpdatedAt: stored.UpdatedAt,
+	}
+
 	// Return created/updated RSVP
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
-	if err := json.NewEncoder(w).Encode(stored); err != nil {
+	if err := json.NewEncoder(w).Encode(response); err != nil {
 		// Log error but response already started
 		slog.ErrorContext(r.Context(), "failed to encode RSVP response", "error", err)
 	}
@@ -152,8 +171,10 @@ func (h *RSVPHandlers) DeleteRSVP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Validate event is upcoming (starts_at > now)
-	if !existingEvent.StartsAt.After(time.Now()) {
+	// Validate event is strictly upcoming (starts_at > now)
+	// Business rule: RSVP modifications are only allowed for events that haven't started yet
+	now := time.Now()
+	if !existingEvent.StartsAt.After(now) {
 		ctx := middleware.SetErrorCode(r.Context(), ErrCodeValidation)
 		WriteError(w, ctx, http.StatusBadRequest, ErrCodeValidation, "Cannot modify RSVP for past or ongoing events")
 		return
@@ -166,7 +187,7 @@ func (h *RSVPHandlers) DeleteRSVP(w http.ResponseWriter, r *http.Request) {
 			WriteError(w, ctx, http.StatusNotFound, ErrCodeNotFound, "RSVP not found")
 			return
 		}
-		slog.ErrorContext(r.Context(), "failed to delete RSVP", "error", err, "event_id", eventID, "user_id", userDID)
+		slog.ErrorContext(r.Context(), "failed to delete RSVP", "error", err, "event_id", eventID)
 		ctx := middleware.SetErrorCode(r.Context(), ErrCodeInternal)
 		WriteError(w, ctx, http.StatusInternalServerError, ErrCodeInternal, "Failed to delete RSVP")
 		return

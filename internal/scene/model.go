@@ -116,7 +116,9 @@ func (s *Scene) IsOwner(userDID string) bool {
 
 // RSVP represents a user's attendance intent for an event.
 type RSVP struct {
-	EventID   string     `json:"event_id"`
+	EventID string `json:"event_id"`
+	// UserID stores the user's DID (Decentralized Identifier), not a UUID or FK to a users table.
+	// This allows guest RSVPs and aligns with the database schema (see migration 000012 comment).
 	UserID    string     `json:"user_id"`
 	Status    string     `json:"status"` // "going" or "maybe"
 	CreatedAt *time.Time `json:"created_at,omitempty"`
