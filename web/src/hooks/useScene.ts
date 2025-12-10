@@ -32,8 +32,9 @@ export function useScene(id: string | undefined): UseSceneResult {
 
     if (shouldFetch && !cached?.metadata.loading) {
       // Background fetch if stale (stale-while-revalidate)
-      fetchScene(id).catch((error) => {
-        console.error(`Failed to fetch scene ${id}:`, error);
+      // Errors are stored in metadata and exposed via the error property
+      fetchScene(id).catch(() => {
+        // Error is captured in store metadata
       });
     }
   }, [id, cached, fetchScene]);

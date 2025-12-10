@@ -6,7 +6,6 @@
 // Entity Store
 export {
   useEntityStore,
-  User,
   isStale,
   createFreshMetadata,
   setLoadingMetadata,
@@ -26,5 +25,5 @@ export {
   type EntityStore,
 } from './entityStore';
 
-// Auth Store
-export { authStore, useAuth, type User as AuthUser } from './authStore';
+// Auth Store - User type is the canonical definition
+export { authStore, useAuth, type User } from './authStore';

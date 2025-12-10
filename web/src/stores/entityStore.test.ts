@@ -6,15 +6,15 @@
 import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest';
 import {
   useEntityStore,
-  User,
   isStale,
   createFreshMetadata,
   setLoadingMetadata,
   setSuccessMetadata,
   setErrorMetadata,
   TTL_CONFIG,
-  inFlightRequests,
+  resetInFlightRequests,
 } from './entityStore';
+import type { User } from './authStore';
 import { Scene, Event } from '../types/scene';
 import * as apiClientModule from '../lib/api-client';
 
@@ -39,7 +39,7 @@ describe('entityStore', () => {
     });
 
     // Clear in-flight requests
-    inFlightRequests.clear();
+    resetInFlightRequests();
 
     vi.clearAllMocks();
   });

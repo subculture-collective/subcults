@@ -32,8 +32,9 @@ export function useEvent(id: string | undefined): UseEventResult {
 
     if (shouldFetch && !cached?.metadata.loading) {
       // Background fetch if stale (stale-while-revalidate)
-      fetchEvent(id).catch((error) => {
-        console.error(`Failed to fetch event ${id}:`, error);
+      // Errors are stored in metadata and exposed via the error property
+      fetchEvent(id).catch(() => {
+        // Error is captured in store metadata
       });
     }
   }, [id, cached, fetchEvent]);

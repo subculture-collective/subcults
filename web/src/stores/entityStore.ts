@@ -5,15 +5,7 @@
 
 import { create } from 'zustand';
 import { Scene, Event } from '../types/scene';
-
-/**
- * User type (minimal PII)
- * Matches User from authStore but defined here to avoid circular dependency
- */
-export interface User {
-  did: string;
-  role: 'user' | 'admin';
-}
+import type { User } from './authStore';
 
 /**
  * Cache entry metadata
@@ -208,28 +200,49 @@ export type EntityStore = EntityStoreState & EntityStoreActions;
 
 /**
  * In-flight requests tracker to prevent duplicate fetches
+ * Internal implementation detail, not exported
  */
-export const inFlightRequests = new Map<string, Promise<unknown>>();
+const inFlightRequests = new Map<string, Promise<unknown>>();
+
+// Default timeout for in-flight requests (ms)
+const IN_FLIGHT_REQUEST_TIMEOUT = 60000; // 60 seconds
 
 /**
  * Get or create in-flight request
  * Deduplicates concurrent requests for the same entity
+ * Cleans up after timeout to prevent memory leaks
  */
 export function getOrCreateRequest<T>(
   key: string,
-  requestFn: () => Promise<T>
+  requestFn: () => Promise<T>,
+  timeoutMs: number = IN_FLIGHT_REQUEST_TIMEOUT
 ): Promise<T> {
   const existing = inFlightRequests.get(key);
   if (existing) {
     return existing as Promise<T>;
   }
 
+  let timeoutId: ReturnType<typeof setTimeout> | null = null;
   const promise = requestFn().finally(() => {
     inFlightRequests.delete(key);
+    if (timeoutId) clearTimeout(timeoutId);
   });
 
   inFlightRequests.set(key, promise);
+  
+  // Set timeout to clean up if promise never resolves
+  timeoutId = setTimeout(() => {
+    inFlightRequests.delete(key);
+  }, timeoutMs);
+
   return promise;
+}
+
+/**
+ * For testing: reset in-flight requests map
+ */
+export function resetInFlightRequests(): void {
+  inFlightRequests.clear();
 }
 
 /**

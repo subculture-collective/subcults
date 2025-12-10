@@ -139,7 +139,6 @@ export const createSceneSlice: StateCreator<
     const cached = state.scene.scenes[sceneId];
 
     if (!cached) {
-      console.warn(`Cannot optimistically join scene ${sceneId}: not in cache`);
       return;
     }
 
@@ -154,8 +153,8 @@ export const createSceneSlice: StateCreator<
       },
     }));
 
-    // Apply optimistic update (this is a placeholder - actual membership logic may vary)
-    // In a real implementation, this would update membership count or status
+    // Apply optimistic update
+    // Add a temporary marker field that UI can use for optimistic feedback
     set((state) => ({
       scene: {
         ...state.scene,
@@ -165,9 +164,10 @@ export const createSceneSlice: StateCreator<
             ...cached,
             data: {
               ...cached.data,
-              // Optimistic update marker - actual fields depend on Scene type
-              // For now, just mark as modified
-            },
+              // Temporary marker for optimistic UI feedback
+              // Cast to any to allow adding non-standard field
+              _optimisticJoin: true,
+            } as Scene,
           },
         },
       },
@@ -179,7 +179,6 @@ export const createSceneSlice: StateCreator<
     const backup = state.scene.optimisticUpdates[sceneId];
 
     if (!backup) {
-      console.warn(`No optimistic update to rollback for scene ${sceneId}`);
       return;
     }
 

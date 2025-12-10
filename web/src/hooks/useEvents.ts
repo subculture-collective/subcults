@@ -9,13 +9,13 @@ import { Event } from '../types/scene';
 
 export interface UseEventsOptions {
   filterByScene?: string;
-  sortBy?: 'name' | 'date';
+  sortBy?: 'name';
   includeLoading?: boolean;
 }
 
 export interface UseEventsResult {
   events: Event[];
-  upcomingCount: number;
+  totalCount: number;
   loading: boolean;
 }
 
@@ -49,22 +49,14 @@ export function useEvents(options: UseEventsOptions = {}): UseEventsResult {
       filtered = filtered.filter((event) => event.scene_id === filterByScene);
     }
 
-    // Sort events
-    const sorted = [...filtered].sort((a, b) => {
-      if (sortBy === 'date') {
-        // Sort by date (this requires the Event type to have a date field)
-        // For now, sort by name as fallback
-        return a.name.localeCompare(b.name);
-      }
-      return a.name.localeCompare(b.name);
-    });
+    // Sort events by name
+    const sorted = [...filtered].sort((a, b) => a.name.localeCompare(b.name));
 
     return sorted;
-  }, [cachedEvents, filterByScene, sortBy, includeLoading]);
+  }, [cachedEvents, filterByScene, includeLoading]);
 
-  // Calculate upcoming events count (placeholder - needs date logic)
-  const upcomingCount = useMemo(() => {
-    // In a real implementation, this would filter by future dates
+  // Calculate total count
+  const totalCount = useMemo(() => {
     return events.length;
   }, [events]);
 
@@ -75,7 +67,7 @@ export function useEvents(options: UseEventsOptions = {}): UseEventsResult {
 
   return {
     events,
-    upcomingCount,
+    totalCount,
     loading,
   };
 }
@@ -99,8 +91,9 @@ export function useSceneEvents(sceneId: string | undefined): UseEventsResult {
 }
 
 /**
- * Hook to get upcoming events sorted by date
+ * Hook to get all events sorted by name
+ * TODO: Add date-based filtering when Event type includes date fields
  */
 export function useUpcomingEvents(): UseEventsResult {
-  return useEvents({ sortBy: 'date' });
+  return useEvents({ sortBy: 'name' });
 }

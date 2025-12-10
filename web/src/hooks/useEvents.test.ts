@@ -90,18 +90,17 @@ describe('useEvents', () => {
   });
 
   it('sorts events by name', () => {
-    const { result } = renderHook(() => useEvents({ sortBy: 'name' }));
+    const { result } = renderHook(() => useEvents());
 
     expect(result.current.events[0].name).toBe('Another Event');
     expect(result.current.events[1].name).toBe('Test Event 1');
     expect(result.current.events[2].name).toBe('Test Event 2');
   });
 
-  it('calculates upcoming count', () => {
+  it('calculates total count', () => {
     const { result } = renderHook(() => useEvents());
 
-    // For now, upcoming count equals total count (placeholder logic)
-    expect(result.current.upcomingCount).toBe(3);
+    expect(result.current.totalCount).toBe(3);
   });
 
   it('excludes loading events by default', () => {
@@ -285,10 +284,9 @@ describe('useUpcomingEvents', () => {
     });
   });
 
-  it('returns events sorted by date', () => {
+  it('returns events sorted by name', () => {
     const { result } = renderHook(() => useUpcomingEvents());
 
     expect(result.current.events).toHaveLength(1);
-    // Currently sorts by name as date sorting is a placeholder
   });
 });
