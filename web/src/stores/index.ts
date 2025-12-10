@@ -27,3 +27,12 @@ export {
 
 // Auth Store - User type is the canonical definition
 export { authStore, useAuth, type User } from './authStore';
+
+// Toast Store
+export {
+  useToastStore,
+  useToasts,
+  type Toast,
+  type ToastType,
+  type ToastStore,
+} from './toastStore';
