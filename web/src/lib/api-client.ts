@@ -485,6 +485,24 @@ class ApiClient {
   async delete<T>(endpoint: string, options?: RequestConfig): Promise<T> {
     return this.request<T>(endpoint, { ...options, method: 'DELETE' });
   }
+
+  /**
+   * Fetch LiveKit token for joining an audio room
+   * @param roomId - Room identifier
+   * @param sceneId - Optional scene ID
+   * @param eventId - Optional event ID
+   */
+  async getLiveKitToken(
+    roomId: string,
+    sceneId?: string,
+    eventId?: string
+  ): Promise<{ token: string; expires_at: string }> {
+    return this.post('/livekit/token', {
+      room_id: roomId,
+      scene_id: sceneId,
+      event_id: eventId,
+    });
+  }
 }
 
 // Export singleton instance

@@ -1,0 +1,119 @@
+/**
+ * AudioControls Component Tests
+ */
+
+import { describe, it, expect, vi } from 'vitest';
+import { render, screen, fireEvent } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
+import { AudioControls } from './AudioControls';
+
+describe('AudioControls', () => {
+  const defaultProps = {
+    isMuted: false,
+    onToggleMute: vi.fn(),
+    onLeave: vi.fn(),
+    onVolumeChange: vi.fn(),
+  };
+
+  it('renders mute button with unmuted state', () => {
+    render(<AudioControls {...defaultProps} />);
+
+    const muteButton = screen.getByRole('button', {
+      name: /mute microphone/i,
+    });
+    expect(muteButton).toBeInTheDocument();
+    expect(muteButton).not.toBeDisabled();
+  });
+
+  it('renders mute button with muted state', () => {
+    render(<AudioControls {...defaultProps} isMuted={true} />);
+
+    const muteButton = screen.getByRole('button', {
+      name: /unmute microphone/i,
+    });
+    expect(muteButton).toBeInTheDocument();
+  });
+
+  it('calls onToggleMute when mute button clicked', async () => {
+    const onToggleMute = vi.fn();
+    const user = userEvent.setup();
+
+    render(<AudioControls {...defaultProps} onToggleMute={onToggleMute} />);
+
+    const muteButton = screen.getByRole('button', {
+      name: /mute microphone/i,
+    });
+    await user.click(muteButton);
+
+    expect(onToggleMute).toHaveBeenCalledTimes(1);
+  });
+
+  it('renders volume control button', () => {
+    render(<AudioControls {...defaultProps} />);
+
+    const volumeButton = screen.getByRole('button', { name: /volume control/i });
+    expect(volumeButton).toBeInTheDocument();
+  });
+
+  it('shows volume slider when volume button clicked', async () => {
+    const user = userEvent.setup();
+
+    render(<AudioControls {...defaultProps} />);
+
+    const volumeButton = screen.getByRole('button', { name: /volume control/i });
+    await user.click(volumeButton);
+
+    const slider = screen.getByRole('slider', { name: /volume slider/i });
+    expect(slider).toBeInTheDocument();
+  });
+
+  it('calls onVolumeChange when slider changed', async () => {
+    const onVolumeChange = vi.fn();
+    const user = userEvent.setup();
+
+    render(<AudioControls {...defaultProps} onVolumeChange={onVolumeChange} />);
+
+    // Open volume slider
+    const volumeButton = screen.getByRole('button', { name: /volume control/i });
+    await user.click(volumeButton);
+
+    // Change volume using fireEvent for React synthetic events
+    const slider = screen.getByRole('slider', { name: /volume slider/i });
+    fireEvent.change(slider, { target: { value: '75' } });
+
+    expect(onVolumeChange).toHaveBeenCalledWith(75);
+  });
+
+  it('renders leave button', () => {
+    render(<AudioControls {...defaultProps} />);
+
+    const leaveButton = screen.getByRole('button', { name: /leave room/i });
+    expect(leaveButton).toBeInTheDocument();
+  });
+
+  it('calls onLeave when leave button clicked', async () => {
+    const onLeave = vi.fn();
+    const user = userEvent.setup();
+
+    render(<AudioControls {...defaultProps} onLeave={onLeave} />);
+
+    const leaveButton = screen.getByRole('button', { name: /leave room/i });
+    await user.click(leaveButton);
+
+    expect(onLeave).toHaveBeenCalledTimes(1);
+  });
+
+  it('disables all controls when disabled prop is true', () => {
+    render(<AudioControls {...defaultProps} disabled={true} />);
+
+    const muteButton = screen.getByRole('button', {
+      name: /mute microphone/i,
+    });
+    const volumeButton = screen.getByRole('button', { name: /volume control/i });
+    const leaveButton = screen.getByRole('button', { name: /leave room/i });
+
+    expect(muteButton).toBeDisabled();
+    expect(volumeButton).toBeDisabled();
+    expect(leaveButton).toBeDisabled();
+  });
+});

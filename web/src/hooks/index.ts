@@ -24,3 +24,6 @@ export {
 // Map hooks
 export { useMapBBox } from './useMapBBox';
 export { useClusteredData } from './useClusteredData';
+
+// Streaming hooks
+export { useLiveAudio, type UseLiveAudioOptions, type UseLiveAudioResult } from './useLiveAudio';

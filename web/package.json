@@ -13,6 +13,7 @@
     "test:coverage": "vitest --coverage"
   },
   "dependencies": {
+    "livekit-client": "^2.16.0",
     "maplibre-gl": "^5.14.0",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
