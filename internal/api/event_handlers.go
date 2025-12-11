@@ -9,6 +9,7 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
@@ -553,4 +554,176 @@ func (h *EventHandlers) CancelEvent(w http.ResponseWriter, r *http.Request) {
 		// Log error but response already started
 		slog.ErrorContext(r.Context(), "failed to encode event response", "error", err)
 	}
+}
+
+// SearchEventsResponse represents the response for event search.
+type SearchEventsResponse struct {
+	Events     []*scene.Event `json:"events"`
+	NextCursor string         `json:"next_cursor,omitempty"`
+}
+
+// SearchEvents handles GET /search/events - searches events by bbox and time range.
+func (h *EventHandlers) SearchEvents(w http.ResponseWriter, r *http.Request) {
+	// Parse query parameters
+	query := r.URL.Query()
+	
+	// Parse bbox (format: minLng,minLat,maxLng,maxLat)
+	bboxStr := query.Get("bbox")
+	if bboxStr == "" {
+		ctx := middleware.SetErrorCode(r.Context(), ErrCodeValidation)
+		WriteError(w, ctx, http.StatusBadRequest, ErrCodeValidation, "bbox parameter is required")
+		return
+	}
+	
+	bboxParts := strings.Split(bboxStr, ",")
+	if len(bboxParts) != 4 {
+		ctx := middleware.SetErrorCode(r.Context(), ErrCodeValidation)
+		WriteError(w, ctx, http.StatusBadRequest, ErrCodeValidation, "bbox must be in format: minLng,minLat,maxLng,maxLat")
+		return
+	}
+	
+	// Parse and validate bbox coordinates
+	var minLng, minLat, maxLng, maxLat float64
+	var err error
+	
+	if minLng, err = parseFloat(bboxParts[0], "minLng"); err != nil {
+		ctx := middleware.SetErrorCode(r.Context(), ErrCodeValidation)
+		WriteError(w, ctx, http.StatusBadRequest, ErrCodeValidation, err.Error())
+		return
+	}
+	if minLat, err = parseFloat(bboxParts[1], "minLat"); err != nil {
+		ctx := middleware.SetErrorCode(r.Context(), ErrCodeValidation)
+		WriteError(w, ctx, http.StatusBadRequest, ErrCodeValidation, err.Error())
+		return
+	}
+	if maxLng, err = parseFloat(bboxParts[2], "maxLng"); err != nil {
+		ctx := middleware.SetErrorCode(r.Context(), ErrCodeValidation)
+		WriteError(w, ctx, http.StatusBadRequest, ErrCodeValidation, err.Error())
+		return
+	}
+	if maxLat, err = parseFloat(bboxParts[3], "maxLat"); err != nil {
+		ctx := middleware.SetErrorCode(r.Context(), ErrCodeValidation)
+		WriteError(w, ctx, http.StatusBadRequest, ErrCodeValidation, err.Error())
+		return
+	}
+	
+	// Validate bbox ranges
+	if minLng < -180 || minLng > 180 || maxLng < -180 || maxLng > 180 {
+		ctx := middleware.SetErrorCode(r.Context(), ErrCodeValidation)
+		WriteError(w, ctx, http.StatusBadRequest, ErrCodeValidation, "longitude must be between -180 and 180")
+		return
+	}
+	if minLat < -90 || minLat > 90 || maxLat < -90 || maxLat > 90 {
+		ctx := middleware.SetErrorCode(r.Context(), ErrCodeValidation)
+		WriteError(w, ctx, http.StatusBadRequest, ErrCodeValidation, "latitude must be between -90 and 90")
+		return
+	}
+	if minLng >= maxLng {
+		ctx := middleware.SetErrorCode(r.Context(), ErrCodeValidation)
+		WriteError(w, ctx, http.StatusBadRequest, ErrCodeValidation, "minLng must be less than maxLng")
+		return
+	}
+	if minLat >= maxLat {
+		ctx := middleware.SetErrorCode(r.Context(), ErrCodeValidation)
+		WriteError(w, ctx, http.StatusBadRequest, ErrCodeValidation, "minLat must be less than maxLat")
+		return
+	}
+	
+	// Parse time range
+	fromStr := query.Get("from")
+	toStr := query.Get("to")
+	
+	if fromStr == "" || toStr == "" {
+		ctx := middleware.SetErrorCode(r.Context(), ErrCodeValidation)
+		WriteError(w, ctx, http.StatusBadRequest, ErrCodeValidation, "both 'from' and 'to' parameters are required")
+		return
+	}
+	
+	from, err := time.Parse(time.RFC3339, fromStr)
+	if err != nil {
+		ctx := middleware.SetErrorCode(r.Context(), ErrCodeValidation)
+		WriteError(w, ctx, http.StatusBadRequest, ErrCodeValidation, "invalid 'from' timestamp, must be RFC3339 format")
+		return
+	}
+	
+	to, err := time.Parse(time.RFC3339, toStr)
+	if err != nil {
+		ctx := middleware.SetErrorCode(r.Context(), ErrCodeValidation)
+		WriteError(w, ctx, http.StatusBadRequest, ErrCodeValidation, "invalid 'to' timestamp, must be RFC3339 format")
+		return
+	}
+	
+	// Validate time range
+	if !from.Before(to) {
+		ctx := middleware.SetErrorCode(r.Context(), ErrCodeInvalidTimeRange)
+		WriteError(w, ctx, http.StatusBadRequest, ErrCodeInvalidTimeRange, "'from' must be before 'to'")
+		return
+	}
+	
+	// Validate max window length (30 days)
+	maxWindow := 30 * 24 * time.Hour
+	if to.Sub(from) > maxWindow {
+		ctx := middleware.SetErrorCode(r.Context(), ErrCodeValidation)
+		WriteError(w, ctx, http.StatusBadRequest, ErrCodeValidation, "time window cannot exceed 30 days")
+		return
+	}
+	
+	// Parse pagination parameters
+	limitStr := query.Get("limit")
+	limit := 50 // default limit
+	if limitStr != "" {
+		parsedLimit, err := parseIntInRange(limitStr, "limit", 1, 100)
+		if err != nil {
+			ctx := middleware.SetErrorCode(r.Context(), ErrCodeValidation)
+			WriteError(w, ctx, http.StatusBadRequest, ErrCodeValidation, err.Error())
+			return
+		}
+		limit = parsedLimit
+	}
+	
+	cursor := query.Get("cursor")
+	
+	// Search events
+	events, nextCursor, err := h.eventRepo.SearchByBboxAndTime(minLng, minLat, maxLng, maxLat, from, to, limit, cursor)
+	if err != nil {
+		slog.ErrorContext(r.Context(), "failed to search events", "error", err)
+		ctx := middleware.SetErrorCode(r.Context(), ErrCodeInternal)
+		WriteError(w, ctx, http.StatusInternalServerError, ErrCodeInternal, "Failed to search events")
+		return
+	}
+	
+	// Return response
+	response := SearchEventsResponse{
+		Events:     events,
+		NextCursor: nextCursor,
+	}
+	
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	if err := json.NewEncoder(w).Encode(response); err != nil {
+		slog.ErrorContext(r.Context(), "failed to encode search response", "error", err)
+	}
+}
+
+// parseFloat parses a float64 from a string with contextual error message.
+func parseFloat(s, fieldName string) (float64, error) {
+	s = strings.TrimSpace(s)
+	val, err := strconv.ParseFloat(s, 64)
+	if err != nil {
+		return 0, fmt.Errorf("%s must be a valid number", fieldName)
+	}
+	return val, nil
+}
+
+// parseIntInRange parses an integer from a string with range validation.
+func parseIntInRange(s, fieldName string, min, max int) (int, error) {
+	s = strings.TrimSpace(s)
+	val, err := strconv.Atoi(s)
+	if err != nil {
+		return 0, fmt.Errorf("%s must be a valid integer", fieldName)
+	}
+	if val < min || val > max {
+		return 0, fmt.Errorf("%s must be between %d and %d", fieldName, min, max)
+	}
+	return val, nil
 }
