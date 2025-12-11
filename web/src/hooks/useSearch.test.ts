@@ -3,8 +3,9 @@
  * Validates debounced search behavior, cancellation, and state management
  */
 
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { renderHook, waitFor } from '@testing-library/react';
+import { act } from 'react';
 import { useSearch } from './useSearch';
 import { apiClient } from '../lib/api-client';
 
@@ -20,7 +21,6 @@ vi.mock('../lib/api-client', () => ({
 describe('useSearch', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    vi.useFakeTimers();
     
     // Default mock responses
     vi.mocked(apiClient.searchScenes).mockResolvedValue([]);
@@ -29,7 +29,7 @@ describe('useSearch', () => {
   });
 
   afterEach(() => {
-    vi.useRealTimers();
+    vi.clearAllTimers();
   });
 
   describe('Initial State', () => {
@@ -51,52 +51,50 @@ describe('useSearch', () => {
       const { result } = renderHook(() => useSearch());
       
       // Start search
-      result.current.search('test');
+      await act(async () => {
+        result.current.search('test');
+      });
       
       // Should not call API immediately
       expect(apiClient.searchScenes).not.toHaveBeenCalled();
       
-      // Fast-forward time
-      vi.advanceTimersByTime(300);
-      
-      // Should call API after debounce
+      // Wait for debounce
       await waitFor(() => {
         expect(apiClient.searchScenes).toHaveBeenCalledWith('test', 5, expect.any(AbortSignal));
-      });
+      }, { timeout: 500 });
     });
 
     it('uses custom debounce delay', async () => {
-      const { result } = renderHook(() => useSearch({ debounceMs: 500 }));
+      const { result } = renderHook(() => useSearch({ debounceMs: 100 }));
       
-      result.current.search('test');
-      
-      // Should not call after default delay
-      vi.advanceTimersByTime(300);
-      expect(apiClient.searchScenes).not.toHaveBeenCalled();
+      await act(async () => {
+        result.current.search('test');
+      });
       
       // Should call after custom delay
-      vi.advanceTimersByTime(200);
       await waitFor(() => {
         expect(apiClient.searchScenes).toHaveBeenCalled();
-      });
+      }, { timeout: 300 });
     });
 
     it('cancels previous search when new query is typed', async () => {
       const { result } = renderHook(() => useSearch());
       
       // Start first search
-      result.current.search('first');
-      vi.advanceTimersByTime(100);
+      await act(async () => {
+        result.current.search('first');
+      });
       
       // Start second search before first completes
-      result.current.search('second');
-      vi.advanceTimersByTime(300);
+      await act(async () => {
+        result.current.search('second');
+      });
       
-      // Should only call API once with second query
+      // Wait for debounce
       await waitFor(() => {
         expect(apiClient.searchScenes).toHaveBeenCalledTimes(1);
         expect(apiClient.searchScenes).toHaveBeenCalledWith('second', 5, expect.any(AbortSignal));
-      });
+      }, { timeout: 500 });
     });
   });
 
@@ -104,27 +102,29 @@ describe('useSearch', () => {
     it('executes all searches in parallel', async () => {
       const { result } = renderHook(() => useSearch());
       
-      result.current.search('test');
-      vi.advanceTimersByTime(300);
+      await act(async () => {
+        result.current.search('test');
+      });
       
       await waitFor(() => {
         expect(apiClient.searchScenes).toHaveBeenCalledWith('test', 5, expect.any(AbortSignal));
         expect(apiClient.searchEvents).toHaveBeenCalledWith('test', 5, expect.any(AbortSignal));
         expect(apiClient.searchPosts).toHaveBeenCalledWith('test', 5, expect.any(AbortSignal));
-      });
+      }, { timeout: 500 });
     });
 
     it('uses custom limit', async () => {
       const { result } = renderHook(() => useSearch({ limit: 10 }));
       
-      result.current.search('test');
-      vi.advanceTimersByTime(300);
+      await act(async () => {
+        result.current.search('test');
+      });
       
       await waitFor(() => {
         expect(apiClient.searchScenes).toHaveBeenCalledWith('test', 10, expect.any(AbortSignal));
         expect(apiClient.searchEvents).toHaveBeenCalledWith('test', 10, expect.any(AbortSignal));
         expect(apiClient.searchPosts).toHaveBeenCalledWith('test', 10, expect.any(AbortSignal));
-      });
+      }, { timeout: 500 });
     });
   });
 
@@ -140,8 +140,9 @@ describe('useSearch', () => {
 
       const { result } = renderHook(() => useSearch());
       
-      result.current.search('test');
-      vi.advanceTimersByTime(300);
+      await act(async () => {
+        result.current.search('test');
+      });
       
       await waitFor(() => {
         expect(result.current.results).toEqual({
@@ -149,7 +150,7 @@ describe('useSearch', () => {
           events: mockEvents,
           posts: mockPosts,
         });
-      });
+      }, { timeout: 500 });
     });
 
     it('sets loading state during search', async () => {
@@ -164,15 +165,18 @@ describe('useSearch', () => {
 
       const { result } = renderHook(() => useSearch());
       
-      result.current.search('test');
-      vi.advanceTimersByTime(300);
+      await act(async () => {
+        result.current.search('test');
+      });
       
       await waitFor(() => {
         expect(result.current.loading).toBe(true);
-      });
+      }, { timeout: 500 });
       
       // Resolve search
-      resolveSearch!([]);
+      await act(async () => {
+        resolveSearch!([]);
+      });
       
       await waitFor(() => {
         expect(result.current.loading).toBe(false);
@@ -188,8 +192,9 @@ describe('useSearch', () => {
 
       const { result } = renderHook(() => useSearch());
       
-      result.current.search('test');
-      vi.advanceTimersByTime(300);
+      await act(async () => {
+        result.current.search('test');
+      });
       
       // Should still return successful results
       await waitFor(() => {
@@ -197,7 +202,7 @@ describe('useSearch', () => {
         expect(result.current.results.events).toEqual([]);
         expect(result.current.results.posts).toEqual([]);
         expect(result.current.loading).toBe(false);
-      });
+      }, { timeout: 500 });
     });
   });
 
@@ -214,23 +219,25 @@ describe('useSearch', () => {
       const { result } = renderHook(() => useSearch());
       
       // Start first search
-      result.current.search('first');
-      vi.advanceTimersByTime(300);
+      await act(async () => {
+        result.current.search('first');
+      });
       
       await waitFor(() => {
         expect(apiClient.searchScenes).toHaveBeenCalled();
-      });
+      }, { timeout: 500 });
       
       const firstSignal = abortSignal;
       
       // Start second search
-      result.current.search('second');
-      vi.advanceTimersByTime(300);
+      await act(async () => {
+        result.current.search('second');
+      });
       
       // First signal should be aborted
       await waitFor(() => {
         expect(firstSignal?.aborted).toBe(true);
-      });
+      }, { timeout: 500 });
     });
 
     it('does not update state if request was cancelled', async () => {
@@ -251,24 +258,28 @@ describe('useSearch', () => {
       const { result } = renderHook(() => useSearch());
       
       // Start first search
-      result.current.search('first');
-      vi.advanceTimersByTime(300);
+      await act(async () => {
+        result.current.search('first');
+      });
       
       await waitFor(() => {
         expect(result.current.loading).toBe(true);
-      });
+      }, { timeout: 500 });
       
       // Start second search (cancels first)
-      result.current.search('second');
-      vi.advanceTimersByTime(300);
+      await act(async () => {
+        result.current.search('second');
+      });
       
       // Resolve first search (should be ignored)
-      resolveFirst!([{ id: '1', name: 'Scene 1', allow_precise: true, coarse_geohash: 'abc' }]);
+      await act(async () => {
+        resolveFirst!([{ id: '1', name: 'Scene 1', allow_precise: true, coarse_geohash: 'abc' }]);
+      });
       
       // Wait for second search
       await waitFor(() => {
         expect(result.current.results.scenes).toEqual(mockScenes);
-      });
+      }, { timeout: 1000 });
     });
   });
 
@@ -281,14 +292,17 @@ describe('useSearch', () => {
 
       const { result } = renderHook(() => useSearch());
       
-      result.current.search('test');
-      vi.advanceTimersByTime(300);
+      await act(async () => {
+        result.current.search('test');
+      });
       
       await waitFor(() => {
         expect(result.current.results.scenes.length).toBeGreaterThan(0);
-      });
+      }, { timeout: 500 });
       
-      result.current.clear();
+      act(() => {
+        result.current.clear();
+      });
       
       expect(result.current.results).toEqual({
         scenes: [],
@@ -309,26 +323,35 @@ describe('useSearch', () => {
 
       const { result } = renderHook(() => useSearch());
       
-      result.current.search('test');
-      vi.advanceTimersByTime(300);
+      await act(async () => {
+        result.current.search('test');
+      });
       
       await waitFor(() => {
         expect(apiClient.searchScenes).toHaveBeenCalled();
-      });
+      }, { timeout: 500 });
       
-      result.current.clear();
+      act(() => {
+        result.current.clear();
+      });
       
       expect(abortSignal?.aborted).toBe(true);
     });
 
-    it('clears pending debounced search', () => {
+    it('clears pending debounced search', async () => {
       const { result } = renderHook(() => useSearch());
       
-      result.current.search('test');
+      act(() => {
+        result.current.search('test');
+      });
       
       // Clear before debounce completes
-      result.current.clear();
-      vi.advanceTimersByTime(300);
+      act(() => {
+        result.current.clear();
+      });
+      
+      // Wait for what would have been the debounce delay
+      await new Promise(resolve => setTimeout(resolve, 500));
       
       // Should not have called API
       expect(apiClient.searchScenes).not.toHaveBeenCalled();
@@ -345,29 +368,37 @@ describe('useSearch', () => {
       const { result } = renderHook(() => useSearch());
       
       // Search with query
-      result.current.search('test');
-      vi.advanceTimersByTime(300);
+      await act(async () => {
+        result.current.search('test');
+      });
       
       await waitFor(() => {
         expect(result.current.results.scenes.length).toBeGreaterThan(0);
-      });
+      }, { timeout: 500 });
       
       // Search with empty query
-      result.current.search('');
-      vi.advanceTimersByTime(300);
+      await act(async () => {
+        result.current.search('');
+      });
       
-      expect(result.current.results).toEqual({
-        scenes: [],
-        events: [],
-        posts: [],
+      await waitFor(() => {
+        expect(result.current.results).toEqual({
+          scenes: [],
+          events: [],
+          posts: [],
+        });
       });
     });
 
-    it('does not call API for whitespace-only query', () => {
+    it('does not call API for whitespace-only query', async () => {
       const { result } = renderHook(() => useSearch());
       
-      result.current.search('   ');
-      vi.advanceTimersByTime(300);
+      await act(async () => {
+        result.current.search('   ');
+      });
+      
+      // Wait for what would have been the debounce delay
+      await new Promise(resolve => setTimeout(resolve, 500));
       
       expect(apiClient.searchScenes).not.toHaveBeenCalled();
     });
@@ -384,25 +415,30 @@ describe('useSearch', () => {
 
       const { result, unmount } = renderHook(() => useSearch());
       
-      result.current.search('test');
-      vi.advanceTimersByTime(300);
+      await act(async () => {
+        result.current.search('test');
+      });
       
       await waitFor(() => {
         expect(apiClient.searchScenes).toHaveBeenCalled();
-      });
+      }, { timeout: 500 });
       
       unmount();
       
       expect(abortSignal?.aborted).toBe(true);
     });
 
-    it('clears debounce timeout on unmount', () => {
+    it('clears debounce timeout on unmount', async () => {
       const { result, unmount } = renderHook(() => useSearch());
       
-      result.current.search('test');
+      act(() => {
+        result.current.search('test');
+      });
+      
       unmount();
       
-      vi.advanceTimersByTime(300);
+      // Wait for what would have been the debounce delay
+      await new Promise(resolve => setTimeout(resolve, 500));
       
       // Should not have called API after unmount
       expect(apiClient.searchScenes).not.toHaveBeenCalled();

@@ -27,3 +27,6 @@ export { useClusteredData } from './useClusteredData';
 
 // Streaming hooks
 export { useLiveAudio, type UseLiveAudioOptions, type UseLiveAudioResult } from './useLiveAudio';
+
+// Search hooks
+export { useSearch, type UseSearchResult, type UseSearchOptions } from './useSearch';
