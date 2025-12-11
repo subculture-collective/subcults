@@ -3,6 +3,9 @@
  * HTTP client with automatic token refresh and retry logic
  */
 
+import type { Scene, Event } from '../types/scene';
+import type { Post } from '../types/search';
+
 export interface RequestConfig extends RequestInit {
   skipAuth?: boolean; // Skip adding Authorization header
   skipRetry?: boolean; // Skip retry on 401
@@ -501,6 +504,57 @@ class ApiClient {
       room_id: roomId,
       scene_id: sceneId,
       event_id: eventId,
+    });
+  }
+
+  /**
+   * Search scenes by query string
+   * @param query - Search query
+   * @param limit - Maximum results (default: 10)
+   * @param signal - AbortSignal for request cancellation
+   */
+  async searchScenes(
+    query: string,
+    limit: number = 10,
+    signal?: AbortSignal
+  ): Promise<Scene[]> {
+    return this.get(`/search/scenes?q=${encodeURIComponent(query)}&limit=${limit}`, {
+      signal,
+      skipAutoRetry: true, // Don't retry searches
+    });
+  }
+
+  /**
+   * Search events by query string
+   * @param query - Search query
+   * @param limit - Maximum results (default: 10)
+   * @param signal - AbortSignal for request cancellation
+   */
+  async searchEvents(
+    query: string,
+    limit: number = 10,
+    signal?: AbortSignal
+  ): Promise<Event[]> {
+    return this.get(`/search/events?q=${encodeURIComponent(query)}&limit=${limit}`, {
+      signal,
+      skipAutoRetry: true, // Don't retry searches
+    });
+  }
+
+  /**
+   * Search posts by query string
+   * @param query - Search query
+   * @param limit - Maximum results (default: 10)
+   * @param signal - AbortSignal for request cancellation
+   */
+  async searchPosts(
+    query: string,
+    limit: number = 10,
+    signal?: AbortSignal
+  ): Promise<Post[]> {
+    return this.get(`/search/posts?q=${encodeURIComponent(query)}&limit=${limit}`, {
+      signal,
+      skipAutoRetry: true, // Don't retry searches
     });
   }
 }
