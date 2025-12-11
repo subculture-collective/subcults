@@ -1,6 +1,7 @@
 package stream
 
 import (
+	"strings"
 	"testing"
 	"time"
 )
@@ -376,5 +377,186 @@ t.Fatalf("HasActiveStreamsForScenes failed: %v", err)
 
 if len(activeStreams) != 0 {
 t.Errorf("Expected empty map, got %d entries", len(activeStreams))
+}
+}
+
+func TestSessionRepository_CreateStreamSession_WithSceneID(t *testing.T) {
+repo := NewInMemorySessionRepository()
+sceneID := "scene-123"
+hostDID := "did:plc:host456"
+
+id, roomName, err := repo.CreateStreamSession(&sceneID, nil, hostDID)
+if err != nil {
+t.Fatalf("CreateStreamSession failed: %v", err)
+}
+
+if id == "" {
+t.Error("Expected non-empty session ID")
+}
+
+// Verify room name format: scene-{sceneId}-{timestamp}
+if !strings.Contains(roomName, "scene-scene-123-") {
+t.Errorf("Expected room name to contain 'scene-scene-123-', got %s", roomName)
+}
+
+// Verify session was created
+session, err := repo.GetByID(id)
+if err != nil {
+t.Fatalf("GetByID failed: %v", err)
+}
+
+if session.SceneID == nil || *session.SceneID != sceneID {
+t.Errorf("Expected scene_id %s, got %v", sceneID, session.SceneID)
+}
+
+if session.HostDID != hostDID {
+t.Errorf("Expected host_did %s, got %s", hostDID, session.HostDID)
+}
+
+if session.EndedAt != nil {
+t.Error("Expected ended_at to be nil (active stream)")
+}
+
+if session.RoomName != roomName {
+t.Errorf("Expected room_name %s, got %s", roomName, session.RoomName)
+}
+}
+
+func TestSessionRepository_CreateStreamSession_WithEventID(t *testing.T) {
+repo := NewInMemorySessionRepository()
+eventID := "event-789"
+hostDID := "did:plc:host456"
+
+id, roomName, err := repo.CreateStreamSession(nil, &eventID, hostDID)
+if err != nil {
+t.Fatalf("CreateStreamSession failed: %v", err)
+}
+
+if id == "" {
+t.Error("Expected non-empty session ID")
+}
+
+// Verify room name format: event-{eventId}-{timestamp}
+if !strings.Contains(roomName, "event-event-789-") {
+t.Errorf("Expected room name to contain 'event-event-789-', got %s", roomName)
+}
+
+// Verify session was created
+session, err := repo.GetByID(id)
+if err != nil {
+t.Fatalf("GetByID failed: %v", err)
+}
+
+if session.EventID == nil || *session.EventID != eventID {
+t.Errorf("Expected event_id %s, got %v", eventID, session.EventID)
+}
+}
+
+func TestSessionRepository_CreateStreamSession_NoSceneOrEvent(t *testing.T) {
+repo := NewInMemorySessionRepository()
+hostDID := "did:plc:host456"
+
+_, _, err := repo.CreateStreamSession(nil, nil, hostDID)
+if err == nil {
+t.Error("Expected error when neither scene_id nor event_id provided")
+}
+
+// Test with empty strings
+emptyScene := ""
+emptyEvent := ""
+_, _, err = repo.CreateStreamSession(&emptyScene, &emptyEvent, hostDID)
+if err == nil {
+t.Error("Expected error when both scene_id and event_id are empty")
+}
+}
+
+func TestSessionRepository_EndStreamSession_Success(t *testing.T) {
+repo := NewInMemorySessionRepository()
+sceneID := "scene-123"
+hostDID := "did:plc:host456"
+
+// Create a session
+id, _, err := repo.CreateStreamSession(&sceneID, nil, hostDID)
+if err != nil {
+t.Fatalf("CreateStreamSession failed: %v", err)
+}
+
+// Verify it's active
+session, _ := repo.GetByID(id)
+if session.EndedAt != nil {
+t.Error("Expected session to be active before ending")
+}
+
+// End the session
+err = repo.EndStreamSession(id)
+if err != nil {
+t.Fatalf("EndStreamSession failed: %v", err)
+}
+
+// Verify it's now ended
+session, err = repo.GetByID(id)
+if err != nil {
+t.Fatalf("GetByID failed: %v", err)
+}
+
+if session.EndedAt == nil {
+t.Error("Expected ended_at to be set after ending session")
+}
+}
+
+func TestSessionRepository_EndStreamSession_NotFound(t *testing.T) {
+repo := NewInMemorySessionRepository()
+
+err := repo.EndStreamSession("nonexistent-id")
+if err != ErrStreamNotFound {
+t.Errorf("Expected ErrStreamNotFound, got %v", err)
+}
+}
+
+func TestSessionRepository_EndStreamSession_Idempotent(t *testing.T) {
+repo := NewInMemorySessionRepository()
+sceneID := "scene-123"
+hostDID := "did:plc:host456"
+
+// Create and end a session
+id, _, err := repo.CreateStreamSession(&sceneID, nil, hostDID)
+if err != nil {
+t.Fatalf("CreateStreamSession failed: %v", err)
+}
+
+err = repo.EndStreamSession(id)
+if err != nil {
+t.Fatalf("First EndStreamSession failed: %v", err)
+}
+
+// Get the ended_at timestamp
+session1, _ := repo.GetByID(id)
+endedAt1 := session1.EndedAt
+
+// End it again (idempotent)
+err = repo.EndStreamSession(id)
+if err != nil {
+t.Fatalf("Second EndStreamSession failed: %v", err)
+}
+
+// Verify ended_at didn't change
+session2, _ := repo.GetByID(id)
+if !session2.EndedAt.Equal(*endedAt1) {
+t.Error("Expected ended_at to remain unchanged on idempotent call")
+}
+}
+
+func TestSessionRepository_CreateStreamSession_EmptyHostDID(t *testing.T) {
+repo := NewInMemorySessionRepository()
+sceneID := "scene-123"
+
+_, _, err := repo.CreateStreamSession(&sceneID, nil, "")
+if err == nil {
+t.Error("Expected error when hostDID is empty")
+}
+
+expectedErrMsg := "hostDID must not be empty"
+if err != nil && err.Error() != expectedErrMsg {
+t.Errorf("Expected error message '%s', got '%s'", expectedErrMsg, err.Error())
 }
 }

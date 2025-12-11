@@ -1,0 +1,486 @@
+package api
+
+import (
+	"bytes"
+	"encoding/json"
+	"net/http"
+	"net/http/httptest"
+	"testing"
+	"time"
+
+	"github.com/google/uuid"
+	"github.com/onnwee/subcults/internal/audit"
+	"github.com/onnwee/subcults/internal/middleware"
+	"github.com/onnwee/subcults/internal/scene"
+	"github.com/onnwee/subcults/internal/stream"
+)
+
+// Helper functions
+
+func ptrString(s string) *string {
+	return &s
+}
+
+// TestCreateStream_Success_WithSceneID tests successful stream creation with scene_id.
+func TestCreateStream_Success_WithSceneID(t *testing.T) {
+	streamRepo := stream.NewInMemorySessionRepository()
+	sceneRepo := scene.NewInMemorySceneRepository()
+	eventRepo := scene.NewInMemoryEventRepository()
+	auditRepo := audit.NewInMemoryRepository()
+	handlers := NewStreamHandlers(streamRepo, sceneRepo, eventRepo, auditRepo)
+
+	// Create a scene first
+	testScene := &scene.Scene{
+		ID:            uuid.New().String(),
+		Name:          "Test Scene",
+		OwnerDID:      "did:plc:test123",
+		CoarseGeohash: "dr5regw",
+		CreatedAt:     &time.Time{},
+	}
+	if err := sceneRepo.Insert(testScene); err != nil {
+		t.Fatalf("failed to insert scene: %v", err)
+	}
+
+	reqBody := CreateStreamRequest{
+		SceneID: ptrString(testScene.ID),
+	}
+
+	body, err := json.Marshal(reqBody)
+	if err != nil {
+		t.Fatalf("failed to marshal request: %v", err)
+	}
+
+	req := httptest.NewRequest(http.MethodPost, "/streams", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	ctx := middleware.SetUserDID(req.Context(), "did:plc:test123")
+	req = req.WithContext(ctx)
+	w := httptest.NewRecorder()
+
+	handlers.CreateStream(w, req)
+
+	if w.Code != http.StatusCreated {
+		t.Errorf("expected status 201, got %d: %s", w.Code, w.Body.String())
+	}
+
+	var response StreamSessionResponse
+	if err := json.NewDecoder(w.Body).Decode(&response); err != nil {
+		t.Fatalf("failed to decode response: %v", err)
+	}
+
+	if response.ID == "" {
+		t.Error("expected non-empty session ID")
+	}
+
+	if response.RoomName == "" {
+		t.Error("expected non-empty room name")
+	}
+
+	if response.Status != "active" {
+		t.Errorf("expected status 'active', got %s", response.Status)
+	}
+
+	if response.SceneID == nil || *response.SceneID != testScene.ID {
+		t.Errorf("expected scene_id %s, got %v", testScene.ID, response.SceneID)
+	}
+}
+
+// TestCreateStream_Success_WithEventID tests successful stream creation with event_id.
+func TestCreateStream_Success_WithEventID(t *testing.T) {
+	streamRepo := stream.NewInMemorySessionRepository()
+	sceneRepo := scene.NewInMemorySceneRepository()
+	eventRepo := scene.NewInMemoryEventRepository()
+	auditRepo := audit.NewInMemoryRepository()
+	handlers := NewStreamHandlers(streamRepo, sceneRepo, eventRepo, auditRepo)
+
+	// Create a scene and event
+	testScene := &scene.Scene{
+		ID:            uuid.New().String(),
+		Name:          "Test Scene",
+		OwnerDID:      "did:plc:test123",
+		CoarseGeohash: "dr5regw",
+		CreatedAt:     &time.Time{},
+	}
+	if err := sceneRepo.Insert(testScene); err != nil {
+		t.Fatalf("failed to insert scene: %v", err)
+	}
+
+	startsAt := time.Now().Add(24 * time.Hour)
+	testEvent := &scene.Event{
+		ID:            uuid.New().String(),
+		SceneID:       testScene.ID,
+		Title:         "Test Event",
+		CoarseGeohash: "dr5regw",
+		StartsAt:      startsAt,
+		Status:        "scheduled",
+	}
+	if err := eventRepo.Insert(testEvent); err != nil {
+		t.Fatalf("failed to insert event: %v", err)
+	}
+
+	reqBody := CreateStreamRequest{
+		EventID: ptrString(testEvent.ID),
+	}
+
+	body, err := json.Marshal(reqBody)
+	if err != nil {
+		t.Fatalf("failed to marshal request: %v", err)
+	}
+
+	req := httptest.NewRequest(http.MethodPost, "/streams", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	ctx := middleware.SetUserDID(req.Context(), "did:plc:test123")
+	req = req.WithContext(ctx)
+	w := httptest.NewRecorder()
+
+	handlers.CreateStream(w, req)
+
+	if w.Code != http.StatusCreated {
+		t.Errorf("expected status 201, got %d: %s", w.Code, w.Body.String())
+	}
+
+	var response StreamSessionResponse
+	if err := json.NewDecoder(w.Body).Decode(&response); err != nil {
+		t.Fatalf("failed to decode response: %v", err)
+	}
+
+	if response.EventID == nil || *response.EventID != testEvent.ID {
+		t.Errorf("expected event_id %s, got %v", testEvent.ID, response.EventID)
+	}
+}
+
+// TestCreateStream_NoSceneOrEvent tests rejection when neither scene_id nor event_id provided.
+func TestCreateStream_NoSceneOrEvent(t *testing.T) {
+	streamRepo := stream.NewInMemorySessionRepository()
+	sceneRepo := scene.NewInMemorySceneRepository()
+	eventRepo := scene.NewInMemoryEventRepository()
+	auditRepo := audit.NewInMemoryRepository()
+	handlers := NewStreamHandlers(streamRepo, sceneRepo, eventRepo, auditRepo)
+
+	reqBody := CreateStreamRequest{}
+
+	body, err := json.Marshal(reqBody)
+	if err != nil {
+		t.Fatalf("failed to marshal request: %v", err)
+	}
+
+	req := httptest.NewRequest(http.MethodPost, "/streams", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	ctx := middleware.SetUserDID(req.Context(), "did:plc:test123")
+	req = req.WithContext(ctx)
+	w := httptest.NewRecorder()
+
+	handlers.CreateStream(w, req)
+
+	if w.Code != http.StatusBadRequest {
+		t.Errorf("expected status 400, got %d", w.Code)
+	}
+}
+
+// TestCreateStream_BothSceneAndEvent tests rejection when both scene_id and event_id are provided.
+func TestCreateStream_BothSceneAndEvent(t *testing.T) {
+	streamRepo := stream.NewInMemorySessionRepository()
+	sceneRepo := scene.NewInMemorySceneRepository()
+	eventRepo := scene.NewInMemoryEventRepository()
+	auditRepo := audit.NewInMemoryRepository()
+	handlers := NewStreamHandlers(streamRepo, sceneRepo, eventRepo, auditRepo)
+
+	// Create a scene and event
+	testScene := &scene.Scene{
+		ID:            uuid.New().String(),
+		Name:          "Test Scene",
+		OwnerDID:      "did:plc:test123",
+		CoarseGeohash: "dr5regw",
+		CreatedAt:     &time.Time{},
+	}
+	if err := sceneRepo.Insert(testScene); err != nil {
+		t.Fatalf("failed to insert scene: %v", err)
+	}
+
+	startsAt := time.Now().Add(24 * time.Hour)
+	testEvent := &scene.Event{
+		ID:            uuid.New().String(),
+		SceneID:       testScene.ID,
+		Title:         "Test Event",
+		CoarseGeohash: "dr5regw",
+		StartsAt:      startsAt,
+		Status:        "scheduled",
+	}
+	if err := eventRepo.Insert(testEvent); err != nil {
+		t.Fatalf("failed to insert event: %v", err)
+	}
+
+	// Provide both scene_id and event_id
+	reqBody := CreateStreamRequest{
+		SceneID: ptrString(testScene.ID),
+		EventID: ptrString(testEvent.ID),
+	}
+
+	body, err := json.Marshal(reqBody)
+	if err != nil {
+		t.Fatalf("failed to marshal request: %v", err)
+	}
+
+	req := httptest.NewRequest(http.MethodPost, "/streams", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	ctx := middleware.SetUserDID(req.Context(), "did:plc:test123")
+	req = req.WithContext(ctx)
+	w := httptest.NewRecorder()
+
+	handlers.CreateStream(w, req)
+
+	if w.Code != http.StatusBadRequest {
+		t.Errorf("expected status 400, got %d: %s", w.Code, w.Body.String())
+	}
+
+	var response ErrorResponse
+	if err := json.NewDecoder(w.Body).Decode(&response); err != nil {
+		t.Fatalf("failed to decode response: %v", err)
+	}
+
+	if response.Error.Code != ErrCodeValidation {
+		t.Errorf("expected error code %s, got %s", ErrCodeValidation, response.Error.Code)
+	}
+}
+
+
+// TestCreateStream_Forbidden_NotSceneOwner tests permission check for scene ownership.
+func TestCreateStream_Forbidden_NotSceneOwner(t *testing.T) {
+	streamRepo := stream.NewInMemorySessionRepository()
+	sceneRepo := scene.NewInMemorySceneRepository()
+	eventRepo := scene.NewInMemoryEventRepository()
+	auditRepo := audit.NewInMemoryRepository()
+	handlers := NewStreamHandlers(streamRepo, sceneRepo, eventRepo, auditRepo)
+
+	// Create a scene owned by someone else
+	testScene := &scene.Scene{
+		ID:            uuid.New().String(),
+		Name:          "Test Scene",
+		OwnerDID:      "did:plc:owner123",
+		CoarseGeohash: "dr5regw",
+		CreatedAt:     &time.Time{},
+	}
+	if err := sceneRepo.Insert(testScene); err != nil {
+		t.Fatalf("failed to insert scene: %v", err)
+	}
+
+	reqBody := CreateStreamRequest{
+		SceneID: ptrString(testScene.ID),
+	}
+
+	body, err := json.Marshal(reqBody)
+	if err != nil {
+		t.Fatalf("failed to marshal request: %v", err)
+	}
+
+	req := httptest.NewRequest(http.MethodPost, "/streams", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	// Different user trying to create stream
+	ctx := middleware.SetUserDID(req.Context(), "did:plc:different456")
+	req = req.WithContext(ctx)
+	w := httptest.NewRecorder()
+
+	handlers.CreateStream(w, req)
+
+	if w.Code != http.StatusForbidden {
+		t.Errorf("expected status 403, got %d: %s", w.Code, w.Body.String())
+	}
+}
+
+// TestCreateStream_Forbidden_NotEventHost tests permission check for event host.
+func TestCreateStream_Forbidden_NotEventHost(t *testing.T) {
+	streamRepo := stream.NewInMemorySessionRepository()
+	sceneRepo := scene.NewInMemorySceneRepository()
+	eventRepo := scene.NewInMemoryEventRepository()
+	auditRepo := audit.NewInMemoryRepository()
+	handlers := NewStreamHandlers(streamRepo, sceneRepo, eventRepo, auditRepo)
+
+	// Create a scene and event owned by someone else
+	testScene := &scene.Scene{
+		ID:            uuid.New().String(),
+		Name:          "Test Scene",
+		OwnerDID:      "did:plc:owner123",
+		CoarseGeohash: "dr5regw",
+		CreatedAt:     &time.Time{},
+	}
+	if err := sceneRepo.Insert(testScene); err != nil {
+		t.Fatalf("failed to insert scene: %v", err)
+	}
+
+	startsAt := time.Now().Add(24 * time.Hour)
+	testEvent := &scene.Event{
+		ID:            uuid.New().String(),
+		SceneID:       testScene.ID,
+		Title:         "Test Event",
+		CoarseGeohash: "dr5regw",
+		StartsAt:      startsAt,
+		Status:        "scheduled",
+	}
+	if err := eventRepo.Insert(testEvent); err != nil {
+		t.Fatalf("failed to insert event: %v", err)
+	}
+
+	reqBody := CreateStreamRequest{
+		EventID: ptrString(testEvent.ID),
+	}
+
+	body, err := json.Marshal(reqBody)
+	if err != nil {
+		t.Fatalf("failed to marshal request: %v", err)
+	}
+
+	req := httptest.NewRequest(http.MethodPost, "/streams", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	// Different user trying to create stream
+	ctx := middleware.SetUserDID(req.Context(), "did:plc:different456")
+	req = req.WithContext(ctx)
+	w := httptest.NewRecorder()
+
+	handlers.CreateStream(w, req)
+
+	if w.Code != http.StatusForbidden {
+		t.Errorf("expected status 403, got %d: %s", w.Code, w.Body.String())
+	}
+}
+
+// TestEndStream_Success tests successful stream ending.
+func TestEndStream_Success(t *testing.T) {
+	streamRepo := stream.NewInMemorySessionRepository()
+	sceneRepo := scene.NewInMemorySceneRepository()
+	eventRepo := scene.NewInMemoryEventRepository()
+	auditRepo := audit.NewInMemoryRepository()
+	handlers := NewStreamHandlers(streamRepo, sceneRepo, eventRepo, auditRepo)
+
+	// Create a stream session
+	sceneID := "scene-123"
+	hostDID := "did:plc:host456"
+	sessionID, _, err := streamRepo.CreateStreamSession(&sceneID, nil, hostDID)
+	if err != nil {
+		t.Fatalf("failed to create stream session: %v", err)
+	}
+
+	req := httptest.NewRequest(http.MethodPost, "/streams/"+sessionID+"/end", nil)
+	ctx := middleware.SetUserDID(req.Context(), hostDID)
+	req = req.WithContext(ctx)
+	w := httptest.NewRecorder()
+
+	handlers.EndStream(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("expected status 200, got %d: %s", w.Code, w.Body.String())
+	}
+
+	var response StreamSessionResponse
+	if err := json.NewDecoder(w.Body).Decode(&response); err != nil {
+		t.Fatalf("failed to decode response: %v", err)
+	}
+
+	if response.Status != "ended" {
+		t.Errorf("expected status 'ended', got %s", response.Status)
+	}
+
+	// Verify session was ended in repo
+	session, err := streamRepo.GetByID(sessionID)
+	if err != nil {
+		t.Fatalf("failed to get session: %v", err)
+	}
+	if session.EndedAt == nil {
+		t.Error("expected session to be ended")
+	}
+}
+
+// TestEndStream_Forbidden_NotHost tests permission check for stream host.
+func TestEndStream_Forbidden_NotHost(t *testing.T) {
+	streamRepo := stream.NewInMemorySessionRepository()
+	sceneRepo := scene.NewInMemorySceneRepository()
+	eventRepo := scene.NewInMemoryEventRepository()
+	auditRepo := audit.NewInMemoryRepository()
+	handlers := NewStreamHandlers(streamRepo, sceneRepo, eventRepo, auditRepo)
+
+	// Create a stream session
+	sceneID := "scene-123"
+	hostDID := "did:plc:host456"
+	sessionID, _, err := streamRepo.CreateStreamSession(&sceneID, nil, hostDID)
+	if err != nil {
+		t.Fatalf("failed to create stream session: %v", err)
+	}
+
+	req := httptest.NewRequest(http.MethodPost, "/streams/"+sessionID+"/end", nil)
+	// Different user trying to end stream
+	ctx := middleware.SetUserDID(req.Context(), "did:plc:different789")
+	req = req.WithContext(ctx)
+	w := httptest.NewRecorder()
+
+	handlers.EndStream(w, req)
+
+	if w.Code != http.StatusForbidden {
+		t.Errorf("expected status 403, got %d: %s", w.Code, w.Body.String())
+	}
+
+	// Verify session was NOT ended in repo
+	session, err := streamRepo.GetByID(sessionID)
+	if err != nil {
+		t.Fatalf("failed to get session: %v", err)
+	}
+	if session.EndedAt != nil {
+		t.Error("expected session to still be active")
+	}
+}
+
+// TestEndStream_NotFound tests handling of non-existent stream.
+func TestEndStream_NotFound(t *testing.T) {
+	streamRepo := stream.NewInMemorySessionRepository()
+	sceneRepo := scene.NewInMemorySceneRepository()
+	eventRepo := scene.NewInMemoryEventRepository()
+	auditRepo := audit.NewInMemoryRepository()
+	handlers := NewStreamHandlers(streamRepo, sceneRepo, eventRepo, auditRepo)
+
+	req := httptest.NewRequest(http.MethodPost, "/streams/nonexistent-id/end", nil)
+	ctx := middleware.SetUserDID(req.Context(), "did:plc:test123")
+	req = req.WithContext(ctx)
+	w := httptest.NewRecorder()
+
+	handlers.EndStream(w, req)
+
+	if w.Code != http.StatusNotFound {
+		t.Errorf("expected status 404, got %d: %s", w.Code, w.Body.String())
+	}
+}
+
+// TestEndStream_Idempotent tests that ending an already-ended stream succeeds.
+func TestEndStream_Idempotent(t *testing.T) {
+	streamRepo := stream.NewInMemorySessionRepository()
+	sceneRepo := scene.NewInMemorySceneRepository()
+	eventRepo := scene.NewInMemoryEventRepository()
+	auditRepo := audit.NewInMemoryRepository()
+	handlers := NewStreamHandlers(streamRepo, sceneRepo, eventRepo, auditRepo)
+
+	// Create and end a stream session
+	sceneID := "scene-123"
+	hostDID := "did:plc:host456"
+	sessionID, _, err := streamRepo.CreateStreamSession(&sceneID, nil, hostDID)
+	if err != nil {
+		t.Fatalf("failed to create stream session: %v", err)
+	}
+
+	// End it first time
+	req1 := httptest.NewRequest(http.MethodPost, "/streams/"+sessionID+"/end", nil)
+	ctx1 := middleware.SetUserDID(req1.Context(), hostDID)
+	req1 = req1.WithContext(ctx1)
+	w1 := httptest.NewRecorder()
+	handlers.EndStream(w1, req1)
+
+	if w1.Code != http.StatusOK {
+		t.Errorf("expected status 200 on first end, got %d", w1.Code)
+	}
+
+	// End it again (idempotent)
+	req2 := httptest.NewRequest(http.MethodPost, "/streams/"+sessionID+"/end", nil)
+	ctx2 := middleware.SetUserDID(req2.Context(), hostDID)
+	req2 = req2.WithContext(ctx2)
+	w2 := httptest.NewRecorder()
+	handlers.EndStream(w2, req2)
+
+	if w2.Code != http.StatusOK {
+		t.Errorf("expected status 200 on second end (idempotent), got %d", w2.Code)
+	}
+}

@@ -4,6 +4,7 @@ package stream
 
 import (
 	"errors"
+	"fmt"
 	"sync"
 	"time"
 
@@ -49,6 +50,15 @@ type SessionRepository interface {
 
 	// GetByRecordKey retrieves a session by its AT Protocol record key.
 	GetByRecordKey(did, rkey string) (*Session, error)
+	
+	// CreateStreamSession creates a new stream session with automatic room naming and UUID generation.
+	// One of sceneID or eventID must be provided. Returns the session ID and room name.
+	CreateStreamSession(sceneID *string, eventID *string, hostDID string) (id string, roomName string, err error)
+	
+	// EndStreamSession marks a stream session as ended by setting ended_at timestamp.
+	// Returns ErrStreamNotFound if session doesn't exist.
+	// Idempotent: returns nil if session is already ended.
+	EndStreamSession(id string) error
 	
 	// HasActiveStreamForScene checks if there's an active stream (ended_at IS NULL) for the given scene.
 	HasActiveStreamForScene(sceneID string) (bool, error)
@@ -212,4 +222,71 @@ func (r *InMemorySessionRepository) HasActiveStreamsForScenes(sceneIDs []string)
 	}
 
 	return result, nil
+}
+
+// CreateStreamSession creates a new stream session with automatic room naming and UUID generation.
+// One of sceneID or eventID must be provided. Returns the session ID and room name.
+func (r *InMemorySessionRepository) CreateStreamSession(sceneID *string, eventID *string, hostDID string) (id string, roomName string, err error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	// Validate that hostDID is not empty
+	if hostDID == "" {
+		return "", "", errors.New("hostDID must not be empty")
+	}
+
+	// Validate that at least one of sceneID or eventID is provided
+	if (sceneID == nil || *sceneID == "") && (eventID == nil || *eventID == "") {
+		return "", "", errors.New("either scene_id or event_id must be provided")
+	}
+
+	// Generate room name using naming convention: scene-{sceneId}-{timestamp} or event-{eventId}-{timestamp}
+	now := time.Now()
+	timestamp := now.Unix()
+	
+	if sceneID != nil && *sceneID != "" {
+		roomName = fmt.Sprintf("scene-%s-%d", *sceneID, timestamp)
+	} else {
+		roomName = fmt.Sprintf("event-%s-%d", *eventID, timestamp)
+	}
+
+	// Create new session
+	newID := uuid.New().String()
+	session := &Session{
+		ID:               newID,
+		SceneID:          sceneID,
+		EventID:          eventID,
+		RoomName:         roomName,
+		HostDID:          hostDID,
+		ParticipantCount: 0,
+		StartedAt:        now,
+		EndedAt:          nil, // Active stream
+	}
+
+	r.sessions[newID] = session
+	return newID, roomName, nil
+}
+
+// EndStreamSession marks a stream session as ended by setting ended_at timestamp.
+// Returns ErrStreamNotFound if session doesn't exist.
+// Idempotent: returns nil if session is already ended.
+func (r *InMemorySessionRepository) EndStreamSession(id string) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	session, ok := r.sessions[id]
+	if !ok {
+		return ErrStreamNotFound
+	}
+
+	// Idempotent: if already ended, return success
+	if session.EndedAt != nil {
+		return nil
+	}
+
+	// Set ended_at timestamp
+	now := time.Now()
+	session.EndedAt = &now
+
+	return nil
 }
