@@ -4,6 +4,7 @@
  */
 
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 
 export interface JoinStreamButtonProps {
   isConnected: boolean;
@@ -18,11 +19,13 @@ export const JoinStreamButton: React.FC<JoinStreamButtonProps> = ({
   onJoin,
   disabled = false,
 }) => {
+  const { t } = useTranslation();
+  
   const buttonText = isConnecting
-    ? 'Connecting...'
+    ? t('streaming.joinButton.connecting')
     : isConnected
-    ? 'Connected'
-    : 'Join Stream';
+    ? t('streaming.joinButton.connected')
+    : t('streaming.joinButton.join');
 
   return (
     <button

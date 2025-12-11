@@ -4,8 +4,9 @@
  * This is lazy-loaded due to heavy dependencies
  */
 
-import React from 'react';
+import React, { useMemo } from 'react';
 import { useParams } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { useLiveAudio } from '../hooks/useLiveAudio';
 import {
   JoinStreamButton,
@@ -17,6 +18,7 @@ import { useToasts } from '../stores/toastStore';
 
 export const StreamPage: React.FC = () => {
   const { room } = useParams<{ room: string }>();
+  const { t } = useTranslation();
   const { error: showError } = useToasts();
 
   const {
@@ -32,15 +34,21 @@ export const StreamPage: React.FC = () => {
     setVolume,
   } = useLiveAudio(room || null, {
     onError: (err) => {
-      showError(err.message || 'Failed to connect to stream');
+      showError(err.message || t('streaming.streamPage.error'));
     },
   });
+
+  // Calculate total participant count
+  const participantCount = useMemo(
+    () => participants.length + (localParticipant ? 1 : 0),
+    [participants.length, localParticipant]
+  );
 
   if (!room) {
     return (
       <div style={{ padding: '2rem', textAlign: 'center' }}>
-        <h1>Invalid Room</h1>
-        <p>No room ID provided</p>
+        <h1>{t('streaming.streamPage.invalidRoom')}</h1>
+        <p>{t('streaming.streamPage.noRoomId')}</p>
       </div>
     );
   }
@@ -56,9 +64,11 @@ export const StreamPage: React.FC = () => {
     >
       <div style={{ marginBottom: '2rem' }}>
         <h1 style={{ fontSize: '2rem', fontWeight: 700, marginBottom: '0.5rem' }}>
-          Stream Room
+          {t('streaming.streamPage.streamRoom')}
         </h1>
-        <p style={{ color: '#9ca3af' }}>Room: {room}</p>
+        <p style={{ color: '#9ca3af' }}>
+          {t('streaming.streamPage.room')}: {room}
+        </p>
       </div>
 
       {/* Error Display */}
@@ -73,7 +83,7 @@ export const StreamPage: React.FC = () => {
           }}
           role="alert"
         >
-          <strong>Error:</strong> {error}
+          <strong>{t('streaming.streamPage.error')}:</strong> {error}
         </div>
       )}
 
@@ -113,7 +123,7 @@ export const StreamPage: React.FC = () => {
                 marginBottom: '1rem',
               }}
             >
-              Participants ({participants.length + (localParticipant ? 1 : 0)})
+              {t('streaming.streamPage.participants')} ({participantCount})
             </h2>
             <ParticipantList
               participants={participants}

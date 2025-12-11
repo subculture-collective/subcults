@@ -3,7 +3,8 @@
  * Controls for muting/unmuting, adjusting volume, and leaving the room
  */
 
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 
 export interface AudioControlsProps {
   isMuted: boolean;
@@ -20,13 +21,38 @@ export const AudioControls: React.FC<AudioControlsProps> = ({
   onVolumeChange,
   disabled = false,
 }) => {
+  const { t } = useTranslation();
   const [volume, setVolume] = useState(100);
   const [showVolumeSlider, setShowVolumeSlider] = useState(false);
+  const volumeRef = useRef<HTMLDivElement>(null);
 
   const handleVolumeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const newVolume = parseInt(e.target.value, 10);
     setVolume(newVolume);
     onVolumeChange(newVolume);
+  };
+
+  // Close volume slider on click outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (volumeRef.current && !volumeRef.current.contains(event.target as Node)) {
+        setShowVolumeSlider(false);
+      }
+    };
+
+    if (showVolumeSlider) {
+      document.addEventListener('mousedown', handleClickOutside);
+      return () => {
+        document.removeEventListener('mousedown', handleClickOutside);
+      };
+    }
+  }, [showVolumeSlider]);
+
+  // Handle keyboard navigation for volume slider
+  const handleVolumeKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Escape') {
+      setShowVolumeSlider(false);
+    }
   };
 
   return (
@@ -48,7 +74,7 @@ export const AudioControls: React.FC<AudioControlsProps> = ({
         onClick={onToggleMute}
         disabled={disabled}
         className={`mute-button ${isMuted ? 'muted' : 'unmuted'}`}
-        aria-label={isMuted ? 'Unmute microphone' : 'Mute microphone'}
+        aria-label={isMuted ? t('streaming.audioControls.unmute') : t('streaming.audioControls.mute')}
         style={{
           padding: '0.75rem',
           fontSize: '1.25rem',
@@ -79,6 +105,7 @@ export const AudioControls: React.FC<AudioControlsProps> = ({
 
       {/* Volume Control */}
       <div
+        ref={volumeRef}
         className="volume-control"
         style={{
           position: 'relative',
@@ -91,7 +118,7 @@ export const AudioControls: React.FC<AudioControlsProps> = ({
           onClick={() => setShowVolumeSlider(!showVolumeSlider)}
           disabled={disabled}
           className="volume-button"
-          aria-label="Volume control"
+          aria-label={t('streaming.audioControls.volumeControl')}
           aria-expanded={showVolumeSlider}
           style={{
             padding: '0.5rem',
@@ -116,6 +143,7 @@ export const AudioControls: React.FC<AudioControlsProps> = ({
         {showVolumeSlider && (
           <div
             className="volume-slider-container"
+            onKeyDown={handleVolumeKeyDown}
             style={{
               position: 'absolute',
               left: '0',
@@ -137,7 +165,7 @@ export const AudioControls: React.FC<AudioControlsProps> = ({
                 marginBottom: '0.5rem',
               }}
             >
-              Volume: {volume}%
+              {t('streaming.audioControls.volumeLabel')}: {volume}%
             </label>
             <input
               id="volume-slider"
@@ -169,7 +197,7 @@ export const AudioControls: React.FC<AudioControlsProps> = ({
         onClick={onLeave}
         disabled={disabled}
         className="leave-button"
-        aria-label="Leave room"
+        aria-label={t('streaming.audioControls.leaveRoom')}
         style={{
           padding: '0.75rem 1.5rem',
           fontSize: '0.875rem',
@@ -191,7 +219,7 @@ export const AudioControls: React.FC<AudioControlsProps> = ({
           e.currentTarget.style.backgroundColor = '#dc2626';
         }}
       >
-        Leave
+        {t('streaming.audioControls.leave')}
       </button>
     </div>
   );

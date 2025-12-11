@@ -36,7 +36,7 @@ describe('ParticipantList', () => {
   it('renders empty state when no participants', () => {
     render(<ParticipantList participants={[]} localParticipant={null} />);
 
-    expect(screen.getByText(/no participants in the room/i)).toBeInTheDocument();
+    expect(screen.getByText(/streaming\.participantList\.empty/i)).toBeInTheDocument();
   });
 
   it('renders local participant with "You" label', () => {
@@ -48,7 +48,7 @@ describe('ParticipantList', () => {
     );
 
     expect(screen.getByText(/local user/i)).toBeInTheDocument();
-    expect(screen.getByText(/\(you\)/i)).toBeInTheDocument();
+    expect(screen.getByText(/streaming\.participantList\.you/i)).toBeInTheDocument();
   });
 
   it('renders remote participants', () => {
@@ -71,7 +71,7 @@ describe('ParticipantList', () => {
       />
     );
 
-    expect(screen.getByText(/speaking\.\.\./i)).toBeInTheDocument();
+    expect(screen.getByText(/streaming\.participantList\.speaking/i)).toBeInTheDocument();
   });
 
   it('shows mute indicators', () => {
@@ -98,6 +98,6 @@ describe('ParticipantList', () => {
     const listItems = screen.getAllByRole('listitem');
     // First item should be local participant
     expect(listItems[0]).toHaveTextContent(/local user/i);
-    expect(listItems[0]).toHaveTextContent(/\(you\)/i);
+    expect(listItems[0]).toHaveTextContent(/streaming\.participantList\.you/i);
   });
 });

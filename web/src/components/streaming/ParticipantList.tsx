@@ -4,6 +4,7 @@
  */
 
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import type { Participant } from '../../types/streaming';
 
 export interface ParticipantListProps {
@@ -15,6 +16,7 @@ export const ParticipantList: React.FC<ParticipantListProps> = ({
   participants,
   localParticipant,
 }) => {
+  const { t } = useTranslation();
   const allParticipants = localParticipant
     ? [localParticipant, ...participants]
     : participants;
@@ -30,7 +32,7 @@ export const ParticipantList: React.FC<ParticipantListProps> = ({
           fontStyle: 'italic',
         }}
       >
-        No participants in the room
+        {t('streaming.participantList.empty')}
       </div>
     );
   }
@@ -44,14 +46,33 @@ export const ParticipantList: React.FC<ParticipantListProps> = ({
         display: 'flex',
         flexDirection: 'column',
         gap: '0.5rem',
-        maxHeight: '300px',
+        maxHeight: '400px',
         overflowY: 'auto',
         padding: '0.5rem',
+        // Custom scrollbar styling for dark theme
+        scrollbarWidth: 'thin',
+        scrollbarColor: '#4b5563 #1f2937',
       }}
     >
       {allParticipants.map((participant) => (
         <ParticipantItem key={participant.identity} participant={participant} />
       ))}
+      <style>{`
+        .participant-list::-webkit-scrollbar {
+          width: 8px;
+        }
+        .participant-list::-webkit-scrollbar-track {
+          background: #1f2937;
+          border-radius: 4px;
+        }
+        .participant-list::-webkit-scrollbar-thumb {
+          background: #4b5563;
+          border-radius: 4px;
+        }
+        .participant-list::-webkit-scrollbar-thumb:hover {
+          background: #6b7280;
+        }
+      `}</style>
     </div>
   );
 };
@@ -61,6 +82,8 @@ interface ParticipantItemProps {
 }
 
 const ParticipantItem: React.FC<ParticipantItemProps> = ({ participant }) => {
+  const { t } = useTranslation();
+  
   return (
     <div
       className={`participant-item ${participant.isSpeaking ? 'speaking' : ''}`}
@@ -118,7 +141,7 @@ const ParticipantItem: React.FC<ParticipantItemProps> = ({ participant }) => {
                 fontWeight: 400,
               }}
             >
-              (You)
+              ({t('streaming.participantList.you')})
             </span>
           )}
         </div>
@@ -129,7 +152,7 @@ const ParticipantItem: React.FC<ParticipantItemProps> = ({ participant }) => {
             marginTop: '0.125rem',
           }}
         >
-          {participant.isSpeaking ? 'Speaking...' : ''}
+          {participant.isSpeaking ? t('streaming.participantList.speaking') : ''}
         </div>
       </div>
 

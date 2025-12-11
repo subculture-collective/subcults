@@ -143,30 +143,17 @@ export function useLiveAudio(
 
       // Only schedule if we have time before expiry
       if (timeUntilRefresh > 0) {
-        refreshTimeoutRef.current = setTimeout(async () => {
-          const room = roomRef.current;
-          if (!room || !roomName) return;
-
-          try {
-            // Fetch new token
-            const { expires_at } = await apiClient.getLiveKitToken(
-              roomName,
-              sceneId,
-              eventId
-            );
-
-            // Note: Token refresh in LiveKit 2.x requires reconnection
-            // For now, we'll let the connection expire and require manual rejoin
-            // TODO: Implement seamless reconnection with new token
-            console.log('Token refresh scheduled for:', expires_at);
-
-            // Schedule next refresh
-            scheduleTokenRefresh(expires_at);
-          } catch (error) {
-            console.error('Failed to refresh LiveKit token:', error);
-            // On refresh failure, let the connection drop naturally
-            // The user can manually reconnect if needed
-          }
+        refreshTimeoutRef.current = setTimeout(() => {
+          // Note: Token refresh in LiveKit 2.x requires reconnection
+          // For now, we'll let the connection expire and require manual rejoin
+          // TODO: Implement seamless reconnection with new token
+          console.info('LiveKit token will expire soon; manual rejoin required.');
+          
+          // Set a warning in state to notify user
+          setState((prev) => ({
+            ...prev,
+            error: 'Session will expire soon. Please rejoin if disconnected.',
+          }));
         }, timeUntilRefresh);
       }
     },
@@ -212,17 +199,29 @@ export function useLiveAudio(
 
       // Error handling
       room.on(RoomEvent.Disconnected, (reason?: DisconnectReason) => {
+        // Only set error for unexpected disconnects
+        const isClientInitiated = reason === DisconnectReason.CLIENT_INITIATED;
         const reasonStr = reason ? String(reason) : undefined;
         setState((prev) => ({
           ...prev,
           isConnected: false,
           isConnecting: false,
-          error: reasonStr || null,
+          error: isClientInitiated ? null : (reasonStr || null),
         }));
       });
 
       // Connect to room
-      const wsUrl = import.meta.env.VITE_LIVEKIT_WS_URL || 'wss://subcults.livekit.cloud';
+      const wsUrl = import.meta.env.VITE_LIVEKIT_WS_URL;
+      if (!wsUrl || typeof wsUrl !== 'string' || wsUrl.trim() === '') {
+        setState((prev) => ({
+          ...prev,
+          isConnected: false,
+          isConnecting: false,
+          error: 'LiveKit WebSocket URL is not configured. Please set VITE_LIVEKIT_WS_URL in your environment.',
+        }));
+        return;
+      }
+      
       await room.connect(wsUrl, token);
 
       // Enable local microphone
@@ -306,8 +305,8 @@ export function useLiveAudio(
     const room = roomRef.current;
     if (!room) return;
 
-    const isMuted = room.localParticipant.isMicrophoneEnabled;
-    await room.localParticipant.setMicrophoneEnabled(!isMuted);
+    const isEnabled = room.localParticipant.isMicrophoneEnabled;
+    await room.localParticipant.setMicrophoneEnabled(!isEnabled);
     updateParticipants();
   }, [updateParticipants]);
 
@@ -328,10 +327,14 @@ export function useLiveAudio(
       participant.audioTrackPublications.forEach((publication) => {
         if (publication.audioTrack) {
           // Volume control may not be available in all LiveKit versions
-          // This is a best-effort approach
+          // This is a best-effort approach using type guard
           try {
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            (publication.audioTrack as any).setVolume?.(normalizedVolume);
+            // Type guard: check if setVolume exists and is a function
+            if (
+              typeof (publication.audioTrack as { setVolume?: unknown }).setVolume === 'function'
+            ) {
+              (publication.audioTrack as { setVolume: (volume: number) => void }).setVolume(normalizedVolume);
+            }
           } catch (error) {
             console.warn('Volume control not supported:', error);
           }

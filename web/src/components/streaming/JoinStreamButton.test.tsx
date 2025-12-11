@@ -17,7 +17,7 @@ describe('JoinStreamButton', () => {
       />
     );
 
-    const button = screen.getByRole('button', { name: /join stream/i });
+    const button = screen.getByRole('button', { name: /streaming\.joinButton\.join/i });
     expect(button).toBeInTheDocument();
     expect(button).not.toBeDisabled();
   });
@@ -31,7 +31,7 @@ describe('JoinStreamButton', () => {
       />
     );
 
-    const button = screen.getByRole('button', { name: /connecting/i });
+    const button = screen.getByRole('button', { name: /streaming\.joinButton\.connecting/i });
     expect(button).toBeInTheDocument();
     expect(button).toBeDisabled();
   });
@@ -45,7 +45,7 @@ describe('JoinStreamButton', () => {
       />
     );
 
-    const button = screen.getByRole('button', { name: /connected/i });
+    const button = screen.getByRole('button', { name: /streaming\.joinButton\.connected/i });
     expect(button).toBeInTheDocument();
     expect(button).toBeDisabled();
   });
@@ -62,7 +62,7 @@ describe('JoinStreamButton', () => {
       />
     );
 
-    const button = screen.getByRole('button', { name: /join stream/i });
+    const button = screen.getByRole('button', { name: /streaming\.joinButton\.join/i });
     await user.click(button);
 
     expect(onJoin).toHaveBeenCalledTimes(1);
@@ -78,7 +78,7 @@ describe('JoinStreamButton', () => {
       />
     );
 
-    const button = screen.getByRole('button', { name: /join stream/i });
+    const button = screen.getByRole('button', { name: /streaming\.joinButton\.join/i });
     expect(button).toBeDisabled();
   });
 
@@ -95,7 +95,7 @@ describe('JoinStreamButton', () => {
       />
     );
 
-    const button = screen.getByRole('button', { name: /join stream/i });
+    const button = screen.getByRole('button', { name: /streaming\.joinButton\.join/i });
     await user.click(button);
 
     expect(onJoin).not.toHaveBeenCalled();

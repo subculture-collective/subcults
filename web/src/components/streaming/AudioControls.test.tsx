@@ -19,7 +19,7 @@ describe('AudioControls', () => {
     render(<AudioControls {...defaultProps} />);
 
     const muteButton = screen.getByRole('button', {
-      name: /mute microphone/i,
+      name: /streaming\.audioControls\.mute/i,
     });
     expect(muteButton).toBeInTheDocument();
     expect(muteButton).not.toBeDisabled();
@@ -29,7 +29,7 @@ describe('AudioControls', () => {
     render(<AudioControls {...defaultProps} isMuted={true} />);
 
     const muteButton = screen.getByRole('button', {
-      name: /unmute microphone/i,
+      name: /streaming\.audioControls\.unmute/i,
     });
     expect(muteButton).toBeInTheDocument();
   });
@@ -41,7 +41,7 @@ describe('AudioControls', () => {
     render(<AudioControls {...defaultProps} onToggleMute={onToggleMute} />);
 
     const muteButton = screen.getByRole('button', {
-      name: /mute microphone/i,
+      name: /streaming\.audioControls\.mute/i,
     });
     await user.click(muteButton);
 
@@ -51,7 +51,7 @@ describe('AudioControls', () => {
   it('renders volume control button', () => {
     render(<AudioControls {...defaultProps} />);
 
-    const volumeButton = screen.getByRole('button', { name: /volume control/i });
+    const volumeButton = screen.getByRole('button', { name: /streaming\.audioControls\.volumeControl/i });
     expect(volumeButton).toBeInTheDocument();
   });
 
@@ -60,7 +60,7 @@ describe('AudioControls', () => {
 
     render(<AudioControls {...defaultProps} />);
 
-    const volumeButton = screen.getByRole('button', { name: /volume control/i });
+    const volumeButton = screen.getByRole('button', { name: /streaming\.audioControls\.volumeControl/i });
     await user.click(volumeButton);
 
     const slider = screen.getByRole('slider', { name: /volume slider/i });
@@ -74,7 +74,7 @@ describe('AudioControls', () => {
     render(<AudioControls {...defaultProps} onVolumeChange={onVolumeChange} />);
 
     // Open volume slider
-    const volumeButton = screen.getByRole('button', { name: /volume control/i });
+    const volumeButton = screen.getByRole('button', { name: /streaming\.audioControls\.volumeControl/i });
     await user.click(volumeButton);
 
     // Change volume using fireEvent for React synthetic events
@@ -87,7 +87,7 @@ describe('AudioControls', () => {
   it('renders leave button', () => {
     render(<AudioControls {...defaultProps} />);
 
-    const leaveButton = screen.getByRole('button', { name: /leave room/i });
+    const leaveButton = screen.getByRole('button', { name: /streaming\.audioControls\.leaveRoom/i });
     expect(leaveButton).toBeInTheDocument();
   });
 
@@ -97,7 +97,7 @@ describe('AudioControls', () => {
 
     render(<AudioControls {...defaultProps} onLeave={onLeave} />);
 
-    const leaveButton = screen.getByRole('button', { name: /leave room/i });
+    const leaveButton = screen.getByRole('button', { name: /streaming\.audioControls\.leaveRoom/i });
     await user.click(leaveButton);
 
     expect(onLeave).toHaveBeenCalledTimes(1);
@@ -107,10 +107,10 @@ describe('AudioControls', () => {
     render(<AudioControls {...defaultProps} disabled={true} />);
 
     const muteButton = screen.getByRole('button', {
-      name: /mute microphone/i,
+      name: /streaming\.audioControls\.mute/i,
     });
-    const volumeButton = screen.getByRole('button', { name: /volume control/i });
-    const leaveButton = screen.getByRole('button', { name: /leave room/i });
+    const volumeButton = screen.getByRole('button', { name: /streaming\.audioControls\.volumeControl/i });
+    const leaveButton = screen.getByRole('button', { name: /streaming\.audioControls\.leaveRoom/i });
 
     expect(muteButton).toBeDisabled();
     expect(volumeButton).toBeDisabled();
