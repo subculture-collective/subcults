@@ -13,6 +13,7 @@ import {
   DisconnectReason,
 } from 'livekit-client';
 import { apiClient } from '../lib/api-client';
+import { useParticipantStore } from '../stores/participantStore';
 import type {
   AudioRoomState,
   Participant,
@@ -88,6 +89,9 @@ export function useLiveAudio(
   // Destructure options to avoid dependency on the entire object
   const { sceneId, eventId, onError } = options;
   
+  // Get participant store actions
+  const participantStore = useParticipantStore();
+  
   const [state, setState] = useState<AudioRoomState>({
     roomName: roomName || '',
     isConnected: false,
@@ -109,13 +113,26 @@ export function useLiveAudio(
     const room = roomRef.current;
     if (!room) return;
 
-    const remoteParticipants = Array.from(room.remoteParticipants.values()).map(
-      (p) => convertParticipant(p, false)
-    );
+    // Get stable store reference
+    const store = useParticipantStore.getState();
 
-    const localPart = room.localParticipant
-      ? convertParticipant(room.localParticipant, true)
-      : null;
+    // Update remote participants in store
+    room.remoteParticipants.forEach((participant) => {
+      const converted = convertParticipant(participant, false);
+      store.addParticipant(converted);
+    });
+
+    // Update local participant in store
+    if (room.localParticipant) {
+      const localPart = convertParticipant(room.localParticipant, true);
+      store.addParticipant(localPart);
+      store.setLocalIdentity(localPart.identity);
+    }
+
+    // Sync state with store for component access
+    const remoteParticipants = store.getParticipantsArray()
+      .filter(p => p.identity !== store.localIdentity);
+    const localPart = store.getLocalParticipant();
 
     setState((prev) => ({
       ...prev,
@@ -181,13 +198,54 @@ export function useLiveAudio(
       roomRef.current = room;
 
       // Set up event listeners before connecting
-      room.on(RoomEvent.ParticipantConnected, updateParticipants);
-      room.on(RoomEvent.ParticipantDisconnected, updateParticipants);
+      room.on(RoomEvent.ParticipantConnected, (participant: LKParticipant) => {
+        const store = useParticipantStore.getState();
+        const converted = convertParticipant(participant, false);
+        store.addParticipant(converted);
+        updateParticipants();
+      });
+      
+      room.on(RoomEvent.ParticipantDisconnected, (participant: LKParticipant) => {
+        const store = useParticipantStore.getState();
+        store.removeParticipant(participant.identity);
+        updateParticipants();
+      });
+      
       room.on(RoomEvent.LocalTrackPublished, updateParticipants);
       room.on(RoomEvent.LocalTrackUnpublished, updateParticipants);
-      room.on(RoomEvent.TrackMuted, updateParticipants);
-      room.on(RoomEvent.TrackUnmuted, updateParticipants);
-      room.on(RoomEvent.ActiveSpeakersChanged, updateParticipants);
+      
+      room.on(RoomEvent.TrackMuted, (publication, participant: LKParticipant) => {
+        if (publication.source === Track.Source.Microphone) {
+          const store = useParticipantStore.getState();
+          store.updateParticipantMute(participant.identity, true);
+          updateParticipants();
+        }
+      });
+      
+      room.on(RoomEvent.TrackUnmuted, (publication, participant: LKParticipant) => {
+        if (publication.source === Track.Source.Microphone) {
+          const store = useParticipantStore.getState();
+          store.updateParticipantMute(participant.identity, false);
+          updateParticipants();
+        }
+      });
+      
+      room.on(RoomEvent.ActiveSpeakersChanged, (speakers: LKParticipant[]) => {
+        const store = useParticipantStore.getState();
+        // Get current speaking state
+        const allParticipants = store.getParticipantsArray();
+        const speakerIdentities = new Set(speakers.map(s => s.identity));
+        
+        // Only update participants whose speaking status changed
+        allParticipants.forEach(p => {
+          const shouldBeSpeaking = speakerIdentities.has(p.identity);
+          if (p.isSpeaking !== shouldBeSpeaking) {
+            store.updateParticipantSpeaking(p.identity, shouldBeSpeaking);
+          }
+        });
+        
+        updateParticipants();
+      });
 
       // Connection quality monitoring
       room.on(RoomEvent.ConnectionQualityChanged, (quality: LKConnectionQuality) => {
@@ -286,6 +344,10 @@ export function useLiveAudio(
       roomRef.current.disconnect();
       roomRef.current = null;
     }
+
+    // Clear participant store
+    const store = useParticipantStore.getState();
+    store.clearParticipants();
 
     setState({
       roomName: roomName || '',

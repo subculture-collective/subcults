@@ -36,3 +36,15 @@ export {
   type ToastType,
   type ToastStore,
 } from './toastStore';
+
+// Participant Store
+export {
+  useParticipantStore,
+  useParticipants,
+  useParticipant,
+  useLocalParticipant,
+  normalizeIdentity,
+  type ParticipantMetadata,
+  type CachedParticipant,
+  type ParticipantStore,
+} from './participantStore';
