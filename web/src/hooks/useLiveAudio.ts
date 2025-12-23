@@ -13,7 +13,7 @@ import {
   DisconnectReason,
 } from 'livekit-client';
 import { apiClient } from '../lib/api-client';
-import { useParticipantStore } from '../stores/participantStore';
+import { useParticipantStore, normalizeIdentity } from '../stores/participantStore';
 import type {
   AudioRoomState,
   Participant,
@@ -88,9 +88,6 @@ export function useLiveAudio(
 ): UseLiveAudioResult {
   // Destructure options to avoid dependency on the entire object
   const { sceneId, eventId, onError } = options;
-  
-  // Get participant store actions
-  const participantStore = useParticipantStore();
   
   const [state, setState] = useState<AudioRoomState>({
     roomName: roomName || '',
@@ -234,7 +231,12 @@ export function useLiveAudio(
         const store = useParticipantStore.getState();
         // Get current speaking state
         const allParticipants = store.getParticipantsArray();
-        const speakerIdentities = new Set(speakers.map(s => s.identity));
+        
+        // Normalize LiveKit identities to match store participants
+        // LiveKit may provide 'user:alice' while store has 'alice'
+        const speakerIdentities = new Set(
+          speakers.map(s => normalizeIdentity(s.identity))
+        );
         
         // Only update participants whose speaking status changed
         allParticipants.forEach(p => {

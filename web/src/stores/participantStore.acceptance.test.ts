@@ -4,6 +4,7 @@
  */
 
 import { describe, it, expect } from 'vitest';
+import { normalizeIdentity } from './participantStore';
 
 describe('Acceptance Criteria Validation', () => {
   describe('Performance Requirements', () => {
@@ -39,14 +40,16 @@ describe('Acceptance Criteria Validation', () => {
 
     it('normalizes participant identities', () => {
       // Identity normalization strips prefixes
-      // See normalizeIdentity function in participantStore.ts
       const testCases = [
         { input: 'user:alice', expected: 'alice' },
         { input: 'participant:bob', expected: 'bob' },
         { input: 'charlie', expected: 'charlie' },
       ];
       
-      expect(testCases).toBeDefined();
+      // Actually test the normalization function
+      testCases.forEach(({ input, expected }) => {
+        expect(normalizeIdentity(input)).toBe(expected);
+      });
     });
 
     it('provides required selectors', () => {
@@ -64,12 +67,13 @@ describe('Acceptance Criteria Validation', () => {
   describe('Security & Privacy', () => {
     it('does not leak internal user IDs', () => {
       // normalizeIdentity strips common ID prefixes
-      // Display only shows normalized identity
       const internalId = 'user:internal-uuid-12345';
-      const displayId = 'internal-uuid-12345';
+      const displayId = normalizeIdentity(internalId);
       
       // Internal IDs are normalized before display
+      expect(internalId).toContain('user:');
       expect(displayId).not.toContain('user:');
+      expect(displayId).toBe('internal-uuid-12345');
     });
   });
 });

@@ -126,7 +126,7 @@ const local = participantStore.getLocalParticipant();
 Hook to get all remote participants (excludes local participant).
 
 ```typescript
-import { useParticipants } from '@/stores/participantStore';
+import { useParticipants } from '../stores/participantStore';
 
 function MyComponent() {
   const participants = useParticipants();
@@ -141,7 +141,7 @@ function MyComponent() {
 Hook to get a specific participant by identity.
 
 ```typescript
-import { useParticipant } from '@/stores/participantStore';
+import { useParticipant } from '../stores/participantStore';
 
 function ParticipantDetail({ id }: { id: string }) {
   const participant = useParticipant(id);
@@ -155,7 +155,7 @@ function ParticipantDetail({ id }: { id: string }) {
 Hook to get the local participant.
 
 ```typescript
-import { useLocalParticipant } from '@/stores/participantStore';
+import { useLocalParticipant } from '../stores/participantStore';
 
 function LocalControls() {
   const local = useLocalParticipant();
@@ -176,8 +176,8 @@ The participant store is automatically integrated with the `useLiveAudio` hook. 
 ### Example Integration
 
 ```typescript
-import { useLiveAudio } from '@/hooks/useLiveAudio';
-import { useParticipants, useLocalParticipant } from '@/stores/participantStore';
+import { useLiveAudio } from '../hooks/useLiveAudio';
+import { useParticipants, useLocalParticipant } from '../stores/participantStore';
 
 function StreamRoom() {
   const { connect, disconnect, toggleMute } = useLiveAudio('room-123');
@@ -265,7 +265,7 @@ const [participants, setParticipants] = useState<Participant[]>([]);
 
 **After:**
 ```typescript
-import { useParticipants } from '@/stores/participantStore';
+import { useParticipants } from '../stores/participantStore';
 const participants = useParticipants();
 ```
 

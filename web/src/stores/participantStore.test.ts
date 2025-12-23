@@ -6,7 +6,6 @@ import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest';
 import { act, renderHook } from '@testing-library/react';
 import {
   useParticipantStore,
-  useParticipants,
   useParticipant,
   useLocalParticipant,
   normalizeIdentity,
