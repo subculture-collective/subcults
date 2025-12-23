@@ -17,6 +17,7 @@ export const ParticipantList: React.FC<ParticipantListProps> = ({
   localParticipant,
 }) => {
   const { t } = useTranslation();
+  
   const allParticipants = localParticipant
     ? [localParticipant, ...participants]
     : participants;
