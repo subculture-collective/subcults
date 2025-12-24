@@ -29,6 +29,10 @@ type Session struct {
 	RecordDID  *string `json:"record_did,omitempty"`
 	RecordRKey *string `json:"record_rkey,omitempty"`
 	
+	// Analytics tracking for historical queries
+	JoinCount  int `json:"join_count"`  // Total number of join events
+	LeaveCount int `json:"leave_count"` // Total number of leave events
+	
 	StartedAt time.Time  `json:"started_at"`
 	EndedAt   *time.Time `json:"ended_at,omitempty"`
 }
@@ -67,6 +71,14 @@ type SessionRepository interface {
 	// Returns ErrStreamNotFound if session doesn't exist.
 	// Idempotent: returns nil if session is already ended.
 	EndStreamSession(id string) error
+	
+	// RecordJoin increments the join count for a stream session.
+	// Returns ErrStreamNotFound if session doesn't exist.
+	RecordJoin(id string) error
+	
+	// RecordLeave increments the leave count for a stream session.
+	// Returns ErrStreamNotFound if session doesn't exist.
+	RecordLeave(id string) error
 	
 	// HasActiveStreamForScene checks if there's an active stream (ended_at IS NULL) for the given scene.
 	HasActiveStreamForScene(sceneID string) (bool, error)
@@ -276,6 +288,8 @@ func (r *InMemorySessionRepository) CreateStreamSession(sceneID *string, eventID
 		RoomName:         roomName,
 		HostDID:          hostDID,
 		ParticipantCount: 0,
+		JoinCount:        0,
+		LeaveCount:       0,
 		StartedAt:        now,
 		EndedAt:          nil, // Active stream
 	}
@@ -305,6 +319,36 @@ func (r *InMemorySessionRepository) EndStreamSession(id string) error {
 	now := time.Now()
 	session.EndedAt = &now
 
+	return nil
+}
+
+// RecordJoin increments the join count for a stream session.
+// Returns ErrStreamNotFound if session doesn't exist.
+func (r *InMemorySessionRepository) RecordJoin(id string) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	session, ok := r.sessions[id]
+	if !ok {
+		return ErrStreamNotFound
+	}
+
+	session.JoinCount++
+	return nil
+}
+
+// RecordLeave increments the leave count for a stream session.
+// Returns ErrStreamNotFound if session doesn't exist.
+func (r *InMemorySessionRepository) RecordLeave(id string) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	session, ok := r.sessions[id]
+	if !ok {
+		return ErrStreamNotFound
+	}
+
+	session.LeaveCount++
 	return nil
 }
 

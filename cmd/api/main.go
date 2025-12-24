@@ -13,6 +13,9 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
+
 	"github.com/onnwee/subcults/internal/api"
 	"github.com/onnwee/subcults/internal/audit"
 	"github.com/onnwee/subcults/internal/livekit"
@@ -56,6 +59,15 @@ func main() {
 	rsvpRepo := scene.NewInMemoryRSVPRepository()
 	streamRepo := stream.NewInMemorySessionRepository()
 
+	// Initialize Prometheus metrics
+	promRegistry := prometheus.NewRegistry()
+	streamMetrics := stream.NewMetrics()
+	if err := streamMetrics.Register(promRegistry); err != nil {
+		logger.Error("failed to register stream metrics", "error", err)
+		os.Exit(1)
+	}
+	logger.Info("stream metrics registered")
+
 	// Initialize LiveKit token service
 	// Get credentials from environment variables
 	livekitAPIKey := os.Getenv("LIVEKIT_API_KEY")
@@ -77,7 +89,7 @@ func main() {
 	// Initialize handlers
 	eventHandlers := api.NewEventHandlers(eventRepo, sceneRepo, auditRepo, rsvpRepo, streamRepo)
 	rsvpHandlers := api.NewRSVPHandlers(rsvpRepo, eventRepo)
-	streamHandlers := api.NewStreamHandlers(streamRepo, sceneRepo, eventRepo, auditRepo)
+	streamHandlers := api.NewStreamHandlers(streamRepo, sceneRepo, eventRepo, auditRepo, streamMetrics)
 
 	// Create HTTP server with routes
 	mux := http.NewServeMux()
@@ -163,7 +175,7 @@ func main() {
 	})
 
 	mux.HandleFunc("/streams/", func(w http.ResponseWriter, r *http.Request) {
-		// Expected pattern: /streams/{id}/end
+		// Expected patterns: /streams/{id}/end, /streams/{id}/join, /streams/{id}/leave
 		pathParts := strings.Split(strings.TrimPrefix(r.URL.Path, "/streams/"), "/")
 		
 		// Check if this is an end request: /streams/{id}/end
@@ -172,10 +184,25 @@ func main() {
 			return
 		}
 		
+		// Check if this is a join request: /streams/{id}/join
+		if len(pathParts) == 2 && pathParts[0] != "" && pathParts[1] == "join" && r.Method == http.MethodPost {
+			streamHandlers.JoinStream(w, r)
+			return
+		}
+		
+		// Check if this is a leave request: /streams/{id}/leave
+		if len(pathParts) == 2 && pathParts[0] != "" && pathParts[1] == "leave" && r.Method == http.MethodPost {
+			streamHandlers.LeaveStream(w, r)
+			return
+		}
+		
 		// No other stream endpoints yet, return 404
 		ctx := middleware.SetErrorCode(r.Context(), api.ErrCodeNotFound)
 		api.WriteError(w, ctx, http.StatusNotFound, api.ErrCodeNotFound, "The requested resource was not found")
 	})
+
+	// Metrics endpoint (Prometheus)
+	mux.Handle("/metrics", promhttp.HandlerFor(promRegistry, promhttp.HandlerOpts{}))
 
 	// Health check endpoint
 	mux.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {

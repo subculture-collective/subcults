@@ -600,3 +600,136 @@ if activeStream.RoomName != room2 {
 t.Errorf("Expected room_name '%s', got '%s'", room2, activeStream.RoomName)
 }
 }
+
+func TestSessionRepository_RecordJoin_Success(t *testing.T) {
+repo := NewInMemorySessionRepository()
+sceneID := "scene-123"
+
+// Create a stream session
+id, _, err := repo.CreateStreamSession(&sceneID, nil, "did:plc:host")
+if err != nil {
+t.Fatalf("CreateStreamSession failed: %v", err)
+}
+
+// Get initial join count
+session, err := repo.GetByID(id)
+if err != nil {
+t.Fatalf("GetByID failed: %v", err)
+}
+if session.JoinCount != 0 {
+t.Errorf("Initial join_count = %d, want 0", session.JoinCount)
+}
+
+// Record multiple joins
+for i := 0; i < 5; i++ {
+if err := repo.RecordJoin(id); err != nil {
+t.Fatalf("RecordJoin failed: %v", err)
+}
+}
+
+// Verify join count
+session, err = repo.GetByID(id)
+if err != nil {
+t.Fatalf("GetByID failed: %v", err)
+}
+if session.JoinCount != 5 {
+t.Errorf("join_count = %d, want 5", session.JoinCount)
+}
+}
+
+func TestSessionRepository_RecordJoin_NotFound(t *testing.T) {
+repo := NewInMemorySessionRepository()
+
+err := repo.RecordJoin("nonexistent-id")
+if err != ErrStreamNotFound {
+t.Errorf("Expected ErrStreamNotFound, got %v", err)
+}
+}
+
+func TestSessionRepository_RecordLeave_Success(t *testing.T) {
+repo := NewInMemorySessionRepository()
+sceneID := "scene-123"
+
+// Create a stream session
+id, _, err := repo.CreateStreamSession(&sceneID, nil, "did:plc:host")
+if err != nil {
+t.Fatalf("CreateStreamSession failed: %v", err)
+}
+
+// Get initial leave count
+session, err := repo.GetByID(id)
+if err != nil {
+t.Fatalf("GetByID failed: %v", err)
+}
+if session.LeaveCount != 0 {
+t.Errorf("Initial leave_count = %d, want 0", session.LeaveCount)
+}
+
+// Record multiple leaves
+for i := 0; i < 3; i++ {
+if err := repo.RecordLeave(id); err != nil {
+t.Fatalf("RecordLeave failed: %v", err)
+}
+}
+
+// Verify leave count
+session, err = repo.GetByID(id)
+if err != nil {
+t.Fatalf("GetByID failed: %v", err)
+}
+if session.LeaveCount != 3 {
+t.Errorf("leave_count = %d, want 3", session.LeaveCount)
+}
+}
+
+func TestSessionRepository_RecordLeave_NotFound(t *testing.T) {
+repo := NewInMemorySessionRepository()
+
+err := repo.RecordLeave("nonexistent-id")
+if err != ErrStreamNotFound {
+t.Errorf("Expected ErrStreamNotFound, got %v", err)
+}
+}
+
+func TestSessionRepository_JoinLeave_Combined(t *testing.T) {
+repo := NewInMemorySessionRepository()
+sceneID := "scene-123"
+
+// Create a stream session
+id, _, err := repo.CreateStreamSession(&sceneID, nil, "did:plc:host")
+if err != nil {
+t.Fatalf("CreateStreamSession failed: %v", err)
+}
+
+// Simulate join/leave events
+if err := repo.RecordJoin(id); err != nil {
+t.Fatalf("RecordJoin 1 failed: %v", err)
+}
+if err := repo.RecordJoin(id); err != nil {
+t.Fatalf("RecordJoin 2 failed: %v", err)
+}
+if err := repo.RecordLeave(id); err != nil {
+t.Fatalf("RecordLeave 1 failed: %v", err)
+}
+if err := repo.RecordJoin(id); err != nil {
+t.Fatalf("RecordJoin 3 failed: %v", err)
+}
+if err := repo.RecordLeave(id); err != nil {
+t.Fatalf("RecordLeave 2 failed: %v", err)
+}
+if err := repo.RecordLeave(id); err != nil {
+t.Fatalf("RecordLeave 3 failed: %v", err)
+}
+
+// Verify counts
+session, err := repo.GetByID(id)
+if err != nil {
+t.Fatalf("GetByID failed: %v", err)
+}
+if session.JoinCount != 3 {
+t.Errorf("join_count = %d, want 3", session.JoinCount)
+}
+if session.LeaveCount != 3 {
+t.Errorf("leave_count = %d, want 3", session.LeaveCount)
+}
+}
