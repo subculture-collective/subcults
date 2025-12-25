@@ -27,6 +27,9 @@ const StreamPage = lazy(() =>
 const AdminPage = lazy(() =>
   import('../pages/AdminPage').then((module) => ({ default: module.AdminPage }))
 );
+const StreamingDemo = lazy(() =>
+  import('../StreamingDemo').then((module) => ({ default: module.StreamingDemo }))
+);
 
 /**
  * Router configuration
@@ -58,6 +61,14 @@ const router = createBrowserRouter([
       {
         path: 'account/login',
         element: <LoginPage />,
+      },
+      {
+        path: 'demo/streaming',
+        element: (
+          <Suspense fallback={<LoadingSkeleton />}>
+            <StreamingDemo />
+          </Suspense>
+        ),
       },
 
       // Protected routes (require authentication)

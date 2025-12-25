@@ -69,6 +69,53 @@ Visual indicator showing connection quality based on LiveKit statistics.
 <ConnectionIndicator quality={connectionQuality} />
 ```
 
+### StreamLatencyOverlay
+Debug overlay displaying measured stream join latency with segment breakdown. **Only visible in development builds.**
+
+**Props:**
+- `show?: boolean` - Whether to show the overlay (default: true)
+- `position?: 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right'` - Position on screen (default: 'top-right')
+
+**Features:**
+- Total join latency with color coding (green < 2s, red ≥ 2s)
+- Segment breakdown:
+  - Token fetch: Time to get token from backend
+  - Room connect: Time to establish LiveKit connection
+  - Audio subscription: Time until first audio track is ready
+- Automatically hidden in production builds
+- Console logging in development mode
+
+**Usage:**
+```tsx
+import { StreamLatencyOverlay } from '../components/streaming';
+import { useLatencyStore } from '../stores/latencyStore';
+
+function MyStreamComponent() {
+  const { recordJoinClicked } = useLatencyStore();
+  
+  const handleJoin = async () => {
+    // Record t0 timestamp when user clicks join
+    recordJoinClicked();
+    await connect();
+  };
+  
+  return (
+    <>
+      <button onClick={handleJoin}>Join Stream</button>
+      <StreamLatencyOverlay show={true} position="top-right" />
+    </>
+  );
+}
+```
+
+**Latency Timestamps:**
+- **t0**: User clicks join button (recorded via `recordJoinClicked()`)
+- **t1**: Token received from backend (auto-recorded in `useLiveAudio`)
+- **t2**: Room connected (auto-recorded in `useLiveAudio`)
+- **t3**: First audio track subscribed (auto-recorded in `useLiveAudio`)
+
+**Performance Target:** Total latency < 2000ms
+
 ## Hook: useLiveAudio
 
 Custom hook for managing LiveKit room connections.
@@ -113,15 +160,17 @@ const {
 
 ## Complete Example
 
-See `StreamPage.tsx` for a complete implementation example.
+See `StreamingDemo.tsx` at `/demo/streaming` for a complete implementation example with latency tracking.
 
 ```tsx
 import { useLiveAudio } from '../hooks/useLiveAudio';
+import { useLatencyStore } from '../stores/latencyStore';
 import {
   JoinStreamButton,
   ParticipantList,
   AudioControls,
   ConnectionIndicator,
+  StreamLatencyOverlay,
 } from '../components/streaming';
 
 function StreamRoom({ roomName }: { roomName: string }) {
@@ -136,6 +185,14 @@ function StreamRoom({ roomName }: { roomName: string }) {
     toggleMute,
     setVolume,
   } = useLiveAudio(roomName);
+  
+  const { recordJoinClicked } = useLatencyStore();
+
+  const handleJoin = async () => {
+    // Record t0: join button click
+    recordJoinClicked();
+    await connect();
+  };
 
   return (
     <div>
@@ -143,7 +200,7 @@ function StreamRoom({ roomName }: { roomName: string }) {
         <JoinStreamButton
           isConnected={isConnected}
           isConnecting={isConnecting}
-          onJoin={connect}
+          onJoin={handleJoin}
         />
       )}
 
@@ -162,6 +219,9 @@ function StreamRoom({ roomName }: { roomName: string }) {
           />
         </>
       )}
+      
+      {/* Latency overlay - only visible in dev builds */}
+      <StreamLatencyOverlay show={true} position="top-right" />
     </div>
   );
 }
