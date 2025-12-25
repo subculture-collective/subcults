@@ -14,6 +14,7 @@ import {
 } from 'livekit-client';
 import { apiClient } from '../lib/api-client';
 import { useParticipantStore, normalizeIdentity } from '../stores/participantStore';
+import { useLatencyStore } from '../stores/latencyStore';
 import type {
   AudioRoomState,
   Participant,
@@ -180,15 +181,22 @@ export function useLiveAudio(
   const connect = useCallback(async () => {
     if (!roomName || state.isConnected || state.isConnecting) return;
 
+    // Reset latency tracking for new join attempt
+    const latencyStore = useLatencyStore.getState();
+    latencyStore.resetLatency();
+
     setState((prev) => ({ ...prev, isConnecting: true, error: null }));
 
     try {
-      // Fetch token
+      // Fetch token (t1: token received)
       const { token, expires_at } = await apiClient.getLiveKitToken(
         roomName,
         sceneId,
         eventId
       );
+      
+      // Record token received timestamp
+      latencyStore.recordTokenReceived();
 
       // Create and connect room
       const room = new Room();
@@ -248,6 +256,17 @@ export function useLiveAudio(
         
         updateParticipants();
       });
+      
+      // Track first audio subscription for latency measurement (t3)
+      let firstAudioTracked = false;
+      room.on(RoomEvent.TrackSubscribed, (track, publication, participant: LKParticipant) => {
+        if (!firstAudioTracked && track.kind === 'audio') {
+          const latencyStore = useLatencyStore.getState();
+          latencyStore.recordFirstAudioSubscribed();
+          latencyStore.finalizeLatency();
+          firstAudioTracked = true;
+        }
+      });
 
       // Connection quality monitoring
       room.on(RoomEvent.ConnectionQualityChanged, (quality: LKConnectionQuality) => {
@@ -283,6 +302,9 @@ export function useLiveAudio(
       }
       
       await room.connect(wsUrl, token);
+      
+      // Record room connected timestamp (t2)
+      latencyStore.recordRoomConnected();
 
       // Enable local microphone
       await room.localParticipant.setMicrophoneEnabled(true);

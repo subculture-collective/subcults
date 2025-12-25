@@ -57,3 +57,32 @@ export interface ConnectionStats {
   jitter: number; // milliseconds
   latency: number; // milliseconds
 }
+
+/**
+ * Stream join latency timestamps
+ * Tracks the latency from join button click to first audio packet
+ */
+export interface StreamJoinLatency {
+  /** t0: When user clicks join button (ms timestamp) */
+  joinClicked: number | null;
+  /** t1: When token is received from backend (ms timestamp) */
+  tokenReceived: number | null;
+  /** t2: When room connection is established (ms timestamp) */
+  roomConnected: number | null;
+  /** t3: When first audio track is subscribed (ms timestamp) */
+  firstAudioSubscribed: number | null;
+}
+
+/**
+ * Computed latency segments from join timestamps
+ */
+export interface LatencySegments {
+  /** Time from join click to token received (ms) */
+  tokenFetch: number | null;
+  /** Time from token received to room connected (ms) */
+  roomConnection: number | null;
+  /** Time from room connected to first audio (ms) */
+  audioSubscription: number | null;
+  /** Total time from join click to first audio (ms) */
+  total: number | null;
+}

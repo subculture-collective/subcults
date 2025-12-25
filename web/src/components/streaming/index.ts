@@ -14,3 +14,6 @@ export type { AudioControlsProps } from './AudioControls';
 
 export { ConnectionIndicator } from './ConnectionIndicator';
 export type { ConnectionIndicatorProps } from './ConnectionIndicator';
+
+export { StreamLatencyOverlay } from './StreamLatencyOverlay';
+export type { StreamLatencyOverlayProps } from './StreamLatencyOverlay';
