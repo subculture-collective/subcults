@@ -112,10 +112,17 @@ func (h *PostHandlers) CreatePost(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Sanitize labels
+	// Sanitize and validate labels
 	sanitizedLabels := make([]string, len(req.Labels))
 	for i, label := range req.Labels {
 		sanitizedLabels[i] = html.EscapeString(strings.TrimSpace(label))
+	}
+	
+	// Validate that all labels are allowed
+	if err := post.ValidateLabels(sanitizedLabels); err != nil {
+		ctx := middleware.SetErrorCode(r.Context(), ErrCodeValidation)
+		WriteError(w, ctx, http.StatusBadRequest, ErrCodeValidation, "Invalid moderation label")
+		return
 	}
 
 	// Get author DID from context (would typically come from auth middleware)
@@ -209,6 +216,14 @@ func (h *PostHandlers) UpdatePost(w http.ResponseWriter, r *http.Request) {
 		for i, label := range *req.Labels {
 			sanitizedLabels[i] = html.EscapeString(strings.TrimSpace(label))
 		}
+		
+		// Validate that all labels are allowed
+		if err := post.ValidateLabels(sanitizedLabels); err != nil {
+			ctx := middleware.SetErrorCode(r.Context(), ErrCodeValidation)
+			WriteError(w, ctx, http.StatusBadRequest, ErrCodeValidation, "Invalid moderation label")
+			return
+		}
+		
 		existingPost.Labels = sanitizedLabels
 	}
 

@@ -25,7 +25,7 @@ func TestCreatePost_Success(t *testing.T) {
 	reqBody := CreatePostRequest{
 		SceneID: &sceneID,
 		Text:    "This is a test post",
-		Labels:  []string{"test", "example"},
+		Labels:  []string{}, // Empty labels for basic test
 	}
 
 	body, err := json.Marshal(reqBody)
@@ -53,9 +53,6 @@ func TestCreatePost_Success(t *testing.T) {
 	}
 	if createdPost.SceneID == nil || *createdPost.SceneID != sceneID {
 		t.Errorf("expected scene_id '%s', got %v", sceneID, createdPost.SceneID)
-	}
-	if len(createdPost.Labels) != 2 {
-		t.Errorf("expected 2 labels, got %d", len(createdPost.Labels))
 	}
 	if createdPost.ID == "" {
 		t.Error("expected ID to be set")
@@ -256,7 +253,7 @@ func TestCreatePost_XSSSanitization(t *testing.T) {
 	reqBody := CreatePostRequest{
 		SceneID: &sceneID,
 		Text:    "<script>alert('xss')</script>Hello",
-		Labels:  []string{"<script>bad</script>"},
+		Labels:  []string{}, // Empty labels, we're testing text sanitization
 	}
 
 	body, err := json.Marshal(reqBody)
@@ -353,14 +350,14 @@ func TestUpdatePost_Labels(t *testing.T) {
 		SceneID:   &sceneID,
 		AuthorDID: "did:example:alice",
 		Text:      "Test post",
-		Labels:    []string{"original"},
+		Labels:    []string{post.LabelNSFW}, // Use valid moderation label
 	}
 	if err := repo.Create(originalPost); err != nil {
 		t.Fatalf("failed to create post: %v", err)
 	}
 
-	// Update labels
-	newLabels := []string{"updated", "new"}
+	// Update labels with valid moderation labels
+	newLabels := []string{post.LabelSpam, post.LabelFlagged}
 	reqBody := UpdatePostRequest{
 		Labels: &newLabels,
 	}
@@ -388,8 +385,11 @@ func TestUpdatePost_Labels(t *testing.T) {
 	if len(updatedPost.Labels) != 2 {
 		t.Errorf("expected 2 labels, got %d", len(updatedPost.Labels))
 	}
-	if updatedPost.Labels[0] != "updated" {
-		t.Errorf("expected first label 'updated', got %s", updatedPost.Labels[0])
+	if !updatedPost.HasLabel(post.LabelSpam) {
+		t.Error("expected post to have spam label")
+	}
+	if !updatedPost.HasLabel(post.LabelFlagged) {
+		t.Error("expected post to have flagged label")
 	}
 }
 
@@ -558,4 +558,226 @@ func TestDeletePost_AlreadyDeleted(t *testing.T) {
 	if w.Code != http.StatusNotFound {
 		t.Errorf("expected status 404, got %d", w.Code)
 	}
+}
+
+// TestCreatePost_InvalidLabel tests that invalid labels are rejected.
+func TestCreatePost_InvalidLabel(t *testing.T) {
+repo := post.NewInMemoryPostRepository()
+handlers := NewPostHandlers(repo)
+
+sceneID := "scene123"
+reqBody := CreatePostRequest{
+SceneID: &sceneID,
+Text:    "Test post",
+Labels:  []string{"invalid_label"},
+}
+
+body, err := json.Marshal(reqBody)
+if err != nil {
+t.Fatalf("failed to marshal request: %v", err)
+}
+
+req := httptest.NewRequest(http.MethodPost, "/posts", bytes.NewReader(body))
+req.Header.Set("Content-Type", "application/json")
+w := httptest.NewRecorder()
+
+handlers.CreatePost(w, req)
+
+if w.Code != http.StatusBadRequest {
+t.Errorf("expected status 400, got %d", w.Code)
+}
+
+var errResp ErrorResponse
+if err := json.NewDecoder(w.Body).Decode(&errResp); err != nil {
+t.Fatalf("failed to decode error response: %v", err)
+}
+
+if errResp.Error.Code != ErrCodeValidation {
+t.Errorf("expected error code '%s', got '%s'", ErrCodeValidation, errResp.Error.Code)
+}
+if errResp.Error.Message != "Invalid moderation label" {
+t.Errorf("expected error message 'Invalid moderation label', got '%s'", errResp.Error.Message)
+}
+}
+
+// TestCreatePost_ValidModerationLabels tests that valid moderation labels are accepted.
+func TestCreatePost_ValidModerationLabels(t *testing.T) {
+repo := post.NewInMemoryPostRepository()
+handlers := NewPostHandlers(repo)
+
+sceneID := "scene123"
+
+tests := []struct {
+name   string
+labels []string
+}{
+{
+name:   "hidden label",
+labels: []string{post.LabelHidden},
+},
+{
+name:   "nsfw label",
+labels: []string{post.LabelNSFW},
+},
+{
+name:   "spam label",
+labels: []string{post.LabelSpam},
+},
+{
+name:   "flagged label",
+labels: []string{post.LabelFlagged},
+},
+{
+name:   "multiple valid labels",
+labels: []string{post.LabelNSFW, post.LabelFlagged},
+},
+}
+
+for _, tt := range tests {
+t.Run(tt.name, func(t *testing.T) {
+reqBody := CreatePostRequest{
+SceneID: &sceneID,
+Text:    "Test post",
+Labels:  tt.labels,
+}
+
+body, err := json.Marshal(reqBody)
+if err != nil {
+t.Fatalf("failed to marshal request: %v", err)
+}
+
+req := httptest.NewRequest(http.MethodPost, "/posts", bytes.NewReader(body))
+req.Header.Set("Content-Type", "application/json")
+w := httptest.NewRecorder()
+
+handlers.CreatePost(w, req)
+
+if w.Code != http.StatusCreated {
+t.Errorf("expected status 201, got %d: %s", w.Code, w.Body.String())
+}
+
+var createdPost post.Post
+if err := json.NewDecoder(w.Body).Decode(&createdPost); err != nil {
+t.Fatalf("failed to decode response: %v", err)
+}
+
+if len(createdPost.Labels) != len(tt.labels) {
+t.Errorf("expected %d labels, got %d", len(tt.labels), len(createdPost.Labels))
+}
+})
+}
+}
+
+// TestUpdatePost_InvalidLabel tests that invalid labels are rejected on update.
+func TestUpdatePost_InvalidLabel(t *testing.T) {
+repo := post.NewInMemoryPostRepository()
+handlers := NewPostHandlers(repo)
+
+// Create a post first
+sceneID := "scene123"
+originalPost := &post.Post{
+SceneID:   &sceneID,
+AuthorDID: "did:example:alice",
+Text:      "Test post",
+Labels:    []string{post.LabelNSFW},
+}
+if err := repo.Create(originalPost); err != nil {
+t.Fatalf("failed to create post: %v", err)
+}
+
+// Try to update with invalid label
+newLabels := []string{"invalid_label"}
+reqBody := UpdatePostRequest{
+Labels: &newLabels,
+}
+
+body, err := json.Marshal(reqBody)
+if err != nil {
+t.Fatalf("failed to marshal request: %v", err)
+}
+
+req := httptest.NewRequest(http.MethodPatch, "/posts/"+originalPost.ID, bytes.NewReader(body))
+req.Header.Set("Content-Type", "application/json")
+w := httptest.NewRecorder()
+
+handlers.UpdatePost(w, req)
+
+if w.Code != http.StatusBadRequest {
+t.Errorf("expected status 400, got %d", w.Code)
+}
+
+var errResp ErrorResponse
+if err := json.NewDecoder(w.Body).Decode(&errResp); err != nil {
+t.Fatalf("failed to decode error response: %v", err)
+}
+
+if errResp.Error.Code != ErrCodeValidation {
+t.Errorf("expected error code '%s', got '%s'", ErrCodeValidation, errResp.Error.Code)
+}
+if errResp.Error.Message != "Invalid moderation label" {
+t.Errorf("expected error message 'Invalid moderation label', got '%s'", errResp.Error.Message)
+}
+
+// Verify original labels are unchanged
+retrieved, err := repo.GetByID(originalPost.ID)
+if err != nil {
+t.Fatalf("failed to retrieve post: %v", err)
+}
+if len(retrieved.Labels) != 1 || retrieved.Labels[0] != post.LabelNSFW {
+t.Error("expected original labels to remain unchanged after failed update")
+}
+}
+
+// TestUpdatePost_ValidModerationLabels tests that valid moderation labels work on update.
+func TestUpdatePost_ValidModerationLabels(t *testing.T) {
+repo := post.NewInMemoryPostRepository()
+handlers := NewPostHandlers(repo)
+
+// Create a post first
+sceneID := "scene123"
+originalPost := &post.Post{
+SceneID:   &sceneID,
+AuthorDID: "did:example:alice",
+Text:      "Test post",
+Labels:    []string{},
+}
+if err := repo.Create(originalPost); err != nil {
+t.Fatalf("failed to create post: %v", err)
+}
+
+// Update with valid moderation labels
+newLabels := []string{post.LabelHidden, post.LabelSpam}
+reqBody := UpdatePostRequest{
+Labels: &newLabels,
+}
+
+body, err := json.Marshal(reqBody)
+if err != nil {
+t.Fatalf("failed to marshal request: %v", err)
+}
+
+req := httptest.NewRequest(http.MethodPatch, "/posts/"+originalPost.ID, bytes.NewReader(body))
+req.Header.Set("Content-Type", "application/json")
+w := httptest.NewRecorder()
+
+handlers.UpdatePost(w, req)
+
+if w.Code != http.StatusOK {
+t.Errorf("expected status 200, got %d: %s", w.Code, w.Body.String())
+}
+
+var updatedPost post.Post
+if err := json.NewDecoder(w.Body).Decode(&updatedPost); err != nil {
+t.Fatalf("failed to decode response: %v", err)
+}
+
+if len(updatedPost.Labels) != 2 {
+t.Errorf("expected 2 labels, got %d", len(updatedPost.Labels))
+}
+if !updatedPost.HasLabel(post.LabelHidden) {
+t.Error("expected post to have hidden label")
+}
+if !updatedPost.HasLabel(post.LabelSpam) {
+t.Error("expected post to have spam label")
+}
 }
