@@ -40,26 +40,38 @@ type Config struct {
 
 	// Jetstream (AT Protocol)
 	JetstreamURL string `koanf:"jetstream_url"`
+
+	// R2 (Cloudflare Object Storage)
+	R2BucketName      string `koanf:"r2_bucket_name"`
+	R2AccessKeyID     string `koanf:"r2_access_key_id"`
+	R2SecretAccessKey string `koanf:"r2_secret_access_key"`
+	R2Endpoint        string `koanf:"r2_endpoint"`
+	R2MaxUploadSizeMB int    `koanf:"r2_max_upload_size_mb"` // Default: 15MB
 }
 
 // Configuration validation errors.
 var (
-	ErrMissingDatabaseURL       = errors.New("DATABASE_URL is required")
-	ErrMissingJWTSecret         = errors.New("JWT_SECRET is required")
-	ErrMissingLiveKitURL        = errors.New("LIVEKIT_URL is required")
-	ErrMissingLiveKitAPIKey     = errors.New("LIVEKIT_API_KEY is required")
-	ErrMissingLiveKitAPISecret  = errors.New("LIVEKIT_API_SECRET is required")
-	ErrMissingStripeAPIKey      = errors.New("STRIPE_API_KEY is required")
+	ErrMissingDatabaseURL         = errors.New("DATABASE_URL is required")
+	ErrMissingJWTSecret           = errors.New("JWT_SECRET is required")
+	ErrMissingLiveKitURL          = errors.New("LIVEKIT_URL is required")
+	ErrMissingLiveKitAPIKey       = errors.New("LIVEKIT_API_KEY is required")
+	ErrMissingLiveKitAPISecret    = errors.New("LIVEKIT_API_SECRET is required")
+	ErrMissingStripeAPIKey        = errors.New("STRIPE_API_KEY is required")
 	ErrMissingStripeWebhookSecret = errors.New("STRIPE_WEBHOOK_SECRET is required")
-	ErrMissingMapTilerAPIKey    = errors.New("MAPTILER_API_KEY is required")
-	ErrMissingJetstreamURL      = errors.New("JETSTREAM_URL is required")
-	ErrInvalidPort              = errors.New("PORT must be a valid integer")
+	ErrMissingMapTilerAPIKey      = errors.New("MAPTILER_API_KEY is required")
+	ErrMissingJetstreamURL        = errors.New("JETSTREAM_URL is required")
+	ErrMissingR2BucketName        = errors.New("R2_BUCKET_NAME is required")
+	ErrMissingR2AccessKeyID       = errors.New("R2_ACCESS_KEY_ID is required")
+	ErrMissingR2SecretAccessKey   = errors.New("R2_SECRET_ACCESS_KEY is required")
+	ErrMissingR2Endpoint          = errors.New("R2_ENDPOINT is required")
+	ErrInvalidPort                = errors.New("PORT must be a valid integer")
 )
 
 // Default values for non-secret configuration.
 const (
-	DefaultPort = 8080
-	DefaultEnv  = "development"
+	DefaultPort              = 8080
+	DefaultEnv               = "development"
+	DefaultR2MaxUploadSizeMB = 15
 )
 
 // Load reads configuration from environment variables and an optional config file.
@@ -84,6 +96,12 @@ func Load(configFilePath string) (*Config, []error) {
 		loadErrs = append(loadErrs, portErr)
 	}
 
+	// Parse R2 max upload size from env with default
+	maxUploadSize, uploadSizeErr := getEnvIntOrDefault("R2_MAX_UPLOAD_SIZE_MB", k.Int("r2_max_upload_size_mb"), DefaultR2MaxUploadSizeMB)
+	if uploadSizeErr != nil {
+		loadErrs = append(loadErrs, uploadSizeErr)
+	}
+
 	// Build config struct, with env vars taking precedence over file values
 	cfg := &Config{
 		Port:                port,
@@ -97,6 +115,11 @@ func Load(configFilePath string) (*Config, []error) {
 		StripeWebhookSecret: getEnvOrKoanf("STRIPE_WEBHOOK_SECRET", k, "stripe_webhook_secret"),
 		MapTilerAPIKey:      getEnvOrKoanf("MAPTILER_API_KEY", k, "maptiler_api_key"),
 		JetstreamURL:        getEnvOrKoanf("JETSTREAM_URL", k, "jetstream_url"),
+		R2BucketName:        getEnvOrKoanf("R2_BUCKET_NAME", k, "r2_bucket_name"),
+		R2AccessKeyID:       getEnvOrKoanf("R2_ACCESS_KEY_ID", k, "r2_access_key_id"),
+		R2SecretAccessKey:   getEnvOrKoanf("R2_SECRET_ACCESS_KEY", k, "r2_secret_access_key"),
+		R2Endpoint:          getEnvOrKoanf("R2_ENDPOINT", k, "r2_endpoint"),
+		R2MaxUploadSizeMB:   maxUploadSize,
 	}
 
 	// Validate and collect errors
@@ -207,6 +230,22 @@ func (c *Config) Validate() []error {
 	if c.JetstreamURL == "" {
 		errs = append(errs, ErrMissingJetstreamURL)
 	}
+	
+	// R2 configuration is optional. Only validate fields if any R2 value is set.
+	if c.R2BucketName != "" || c.R2AccessKeyID != "" || c.R2SecretAccessKey != "" || c.R2Endpoint != "" {
+		if c.R2BucketName == "" {
+			errs = append(errs, ErrMissingR2BucketName)
+		}
+		if c.R2AccessKeyID == "" {
+			errs = append(errs, ErrMissingR2AccessKeyID)
+		}
+		if c.R2SecretAccessKey == "" {
+			errs = append(errs, ErrMissingR2SecretAccessKey)
+		}
+		if c.R2Endpoint == "" {
+			errs = append(errs, ErrMissingR2Endpoint)
+		}
+	}
 
 	return errs
 }
@@ -215,17 +254,22 @@ func (c *Config) Validate() []error {
 // All secrets are masked to prevent accidental exposure.
 func (c *Config) LogSummary() map[string]string {
 	return map[string]string{
-		"port":                  fmt.Sprintf("%d", c.Port),
-		"env":                   c.Env,
-		"database_url":          maskDatabaseURL(c.DatabaseURL),
-		"jwt_secret":            maskSecret(c.JWTSecret),
-		"livekit_url":           c.LiveKitURL,
-		"livekit_api_key":       maskSecret(c.LiveKitAPIKey),
-		"livekit_api_secret":    maskSecret(c.LiveKitAPISecret),
-		"stripe_api_key":        maskStripeKey(c.StripeAPIKey),
-		"stripe_webhook_secret": maskSecret(c.StripeWebhookSecret),
-		"maptiler_api_key":      maskSecret(c.MapTilerAPIKey),
-		"jetstream_url":         c.JetstreamURL,
+		"port":                    fmt.Sprintf("%d", c.Port),
+		"env":                     c.Env,
+		"database_url":            maskDatabaseURL(c.DatabaseURL),
+		"jwt_secret":              maskSecret(c.JWTSecret),
+		"livekit_url":             c.LiveKitURL,
+		"livekit_api_key":         maskSecret(c.LiveKitAPIKey),
+		"livekit_api_secret":      maskSecret(c.LiveKitAPISecret),
+		"stripe_api_key":          maskStripeKey(c.StripeAPIKey),
+		"stripe_webhook_secret":   maskSecret(c.StripeWebhookSecret),
+		"maptiler_api_key":        maskSecret(c.MapTilerAPIKey),
+		"jetstream_url":           c.JetstreamURL,
+		"r2_bucket_name":          c.R2BucketName,
+		"r2_access_key_id":        maskSecret(c.R2AccessKeyID),
+		"r2_secret_access_key":    maskSecret(c.R2SecretAccessKey),
+		"r2_endpoint":             c.R2Endpoint,
+		"r2_max_upload_size_mb":   fmt.Sprintf("%d", c.R2MaxUploadSizeMB),
 	}
 }
 

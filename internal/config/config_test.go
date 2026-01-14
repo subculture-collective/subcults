@@ -18,6 +18,11 @@ func clearEnv() {
 	os.Unsetenv("STRIPE_WEBHOOK_SECRET")
 	os.Unsetenv("MAPTILER_API_KEY")
 	os.Unsetenv("JETSTREAM_URL")
+	os.Unsetenv("R2_BUCKET_NAME")
+	os.Unsetenv("R2_ACCESS_KEY_ID")
+	os.Unsetenv("R2_SECRET_ACCESS_KEY")
+	os.Unsetenv("R2_ENDPOINT")
+	os.Unsetenv("R2_MAX_UPLOAD_SIZE_MB")
 	os.Unsetenv("PORT")
 	os.Unsetenv("SUBCULT_PORT")
 	os.Unsetenv("ENV")
@@ -35,7 +40,7 @@ func TestLoad_MissingMandatory(t *testing.T) {
 		{
 			name:         "no environment variables set",
 			envVars:      map[string]string{},
-			wantErrCount: 9, // All mandatory fields missing
+			wantErrCount: 9, // All mandatory fields missing (R2 is optional)
 		},
 		{
 			name: "only DATABASE_URL set",
@@ -122,6 +127,10 @@ func TestLoad_ValidEnv(t *testing.T) {
 	os.Setenv("STRIPE_WEBHOOK_SECRET", "whsec_123456789")
 	os.Setenv("MAPTILER_API_KEY", "maptiler_key_123")
 	os.Setenv("JETSTREAM_URL", "wss://jetstream.example.com")
+	os.Setenv("R2_BUCKET_NAME", "test-bucket")
+	os.Setenv("R2_ACCESS_KEY_ID", "test-key")
+	os.Setenv("R2_SECRET_ACCESS_KEY", "test-secret")
+	os.Setenv("R2_ENDPOINT", "https://test.r2.cloudflarestorage.com")
 	os.Setenv("PORT", "3000")
 	os.Setenv("ENV", "production")
 
@@ -159,6 +168,10 @@ func TestLoad_Defaults(t *testing.T) {
 	os.Setenv("STRIPE_WEBHOOK_SECRET", "whsec_123")
 	os.Setenv("MAPTILER_API_KEY", "maptiler_key")
 	os.Setenv("JETSTREAM_URL", "wss://jetstream.example.com")
+	os.Setenv("R2_BUCKET_NAME", "test-bucket")
+	os.Setenv("R2_ACCESS_KEY_ID", "test-key")
+	os.Setenv("R2_SECRET_ACCESS_KEY", "test-secret")
+	os.Setenv("R2_ENDPOINT", "https://test.r2.cloudflarestorage.com")
 
 	cfg, errs := Load("")
 
@@ -366,34 +379,53 @@ func TestConfig_Validate(t *testing.T) {
 		{
 			name:     "empty config has all errors",
 			config:   Config{},
-			wantErrs: 9,
+			wantErrs: 9, // 9 required fields (R2 is optional)
 		},
 		{
 			name: "fully valid config",
 			config: Config{
-				DatabaseURL:        "postgres://localhost/test",
-				JWTSecret:          "secret",
-				LiveKitURL:         "wss://livekit.example.com",
-				LiveKitAPIKey:      "key",
-				LiveKitAPISecret:   "secret",
-				StripeAPIKey:       "sk_test_123",
+				DatabaseURL:         "postgres://localhost/test",
+				JWTSecret:           "secret",
+				LiveKitURL:          "wss://livekit.example.com",
+				LiveKitAPIKey:       "key",
+				LiveKitAPISecret:    "secret",
+				StripeAPIKey:        "sk_test_123",
 				StripeWebhookSecret: "whsec_123",
-				MapTilerAPIKey:     "key",
-				JetstreamURL:       "wss://jetstream.example.com",
+				MapTilerAPIKey:      "key",
+				JetstreamURL:        "wss://jetstream.example.com",
+			},
+			wantErrs: 0,
+		},
+		{
+			name: "fully valid config with R2",
+			config: Config{
+				DatabaseURL:         "postgres://localhost/test",
+				JWTSecret:           "secret",
+				LiveKitURL:          "wss://livekit.example.com",
+				LiveKitAPIKey:       "key",
+				LiveKitAPISecret:    "secret",
+				StripeAPIKey:        "sk_test_123",
+				StripeWebhookSecret: "whsec_123",
+				MapTilerAPIKey:      "key",
+				JetstreamURL:        "wss://jetstream.example.com",
+				R2BucketName:        "test-bucket",
+				R2AccessKeyID:       "test-key",
+				R2SecretAccessKey:   "test-secret",
+				R2Endpoint:          "https://test.r2.cloudflarestorage.com",
 			},
 			wantErrs: 0,
 		},
 		{
 			name: "missing only LiveKitURL",
 			config: Config{
-				DatabaseURL:        "postgres://localhost/test",
-				JWTSecret:          "secret",
-				LiveKitAPIKey:      "key",
-				LiveKitAPISecret:   "secret",
-				StripeAPIKey:       "sk_test_123",
+				DatabaseURL:         "postgres://localhost/test",
+				JWTSecret:           "secret",
+				LiveKitAPIKey:       "key",
+				LiveKitAPISecret:    "secret",
+				StripeAPIKey:        "sk_test_123",
 				StripeWebhookSecret: "whsec_123",
-				MapTilerAPIKey:     "key",
-				JetstreamURL:       "wss://jetstream.example.com",
+				MapTilerAPIKey:      "key",
+				JetstreamURL:        "wss://jetstream.example.com",
 			},
 			wantErrs:    1,
 			checkForErr: ErrMissingLiveKitURL,
@@ -439,6 +471,10 @@ stripe_api_key: sk_test_file_key
 stripe_webhook_secret: whsec_file_secret
 maptiler_api_key: file_maptiler_key
 jetstream_url: wss://file-jetstream.example.com
+r2_bucket_name: file-bucket
+r2_access_key_id: file-key
+r2_secret_access_key: file-secret
+r2_endpoint: https://file.r2.cloudflarestorage.com
 `
 	tmpFile, err := os.CreateTemp("", "config-*.yaml")
 	if err != nil {
@@ -486,6 +522,10 @@ stripe_api_key: sk_test_file_key
 stripe_webhook_secret: whsec_file_secret
 maptiler_api_key: file_maptiler_key
 jetstream_url: wss://file-jetstream.example.com
+r2_bucket_name: file-bucket
+r2_access_key_id: file-key
+r2_secret_access_key: file-secret
+r2_endpoint: https://file.r2.cloudflarestorage.com
 `
 	tmpFile, err := os.CreateTemp("", "config-*.yaml")
 	if err != nil {
@@ -538,6 +578,10 @@ func TestLoad_InvalidPort(t *testing.T) {
 	os.Setenv("STRIPE_WEBHOOK_SECRET", "whsec_123")
 	os.Setenv("MAPTILER_API_KEY", "maptiler_key")
 	os.Setenv("JETSTREAM_URL", "wss://jetstream.example.com")
+	os.Setenv("R2_BUCKET_NAME", "test-bucket")
+	os.Setenv("R2_ACCESS_KEY_ID", "test-key")
+	os.Setenv("R2_SECRET_ACCESS_KEY", "test-secret")
+	os.Setenv("R2_ENDPOINT", "https://test.r2.cloudflarestorage.com")
 
 	tests := []struct {
 		name     string
@@ -682,6 +726,10 @@ envVars: map[string]string{
 "STRIPE_WEBHOOK_SECRET": "whsec_123",
 "MAPTILER_API_KEY":      "maptiler_key",
 "JETSTREAM_URL":         "wss://jetstream.example.com",
+"R2_BUCKET_NAME": "test-bucket",
+"R2_ACCESS_KEY_ID": "test-key",
+"R2_SECRET_ACCESS_KEY": "test-secret",
+"R2_ENDPOINT": "https://test.r2.cloudflarestorage.com",
 },
 wantPort: 9000,
 wantEnv:  "production",
@@ -700,6 +748,10 @@ envVars: map[string]string{
 "STRIPE_WEBHOOK_SECRET": "whsec_123",
 "MAPTILER_API_KEY":      "maptiler_key",
 "JETSTREAM_URL":         "wss://jetstream.example.com",
+"R2_BUCKET_NAME": "test-bucket",
+"R2_ACCESS_KEY_ID": "test-key",
+"R2_SECRET_ACCESS_KEY": "test-secret",
+"R2_ENDPOINT": "https://test.r2.cloudflarestorage.com",
 },
 wantPort: 3000,
 wantEnv:  "staging",
@@ -717,6 +769,10 @@ envVars: map[string]string{
 "STRIPE_WEBHOOK_SECRET": "whsec_123",
 "MAPTILER_API_KEY":      "maptiler_key",
 "JETSTREAM_URL":         "wss://jetstream.example.com",
+"R2_BUCKET_NAME": "test-bucket",
+"R2_ACCESS_KEY_ID": "test-key",
+"R2_SECRET_ACCESS_KEY": "test-secret",
+"R2_ENDPOINT": "https://test.r2.cloudflarestorage.com",
 },
 wantPort: DefaultPort,
 wantEnv:  "testing",
@@ -733,6 +789,10 @@ envVars: map[string]string{
 "STRIPE_WEBHOOK_SECRET": "whsec_123",
 "MAPTILER_API_KEY":      "maptiler_key",
 "JETSTREAM_URL":         "wss://jetstream.example.com",
+"R2_BUCKET_NAME": "test-bucket",
+"R2_ACCESS_KEY_ID": "test-key",
+"R2_SECRET_ACCESS_KEY": "test-secret",
+"R2_ENDPOINT": "https://test.r2.cloudflarestorage.com",
 },
 wantPort: DefaultPort,
 wantEnv:  DefaultEnv,
@@ -778,6 +838,10 @@ os.Setenv("STRIPE_API_KEY", "sk_test_123")
 os.Setenv("STRIPE_WEBHOOK_SECRET", "whsec_123")
 os.Setenv("MAPTILER_API_KEY", "maptiler_key")
 os.Setenv("JETSTREAM_URL", "wss://jetstream.example.com")
+os.Setenv("R2_BUCKET_NAME", "test-bucket")
+os.Setenv("R2_ACCESS_KEY_ID", "test-key")
+os.Setenv("R2_SECRET_ACCESS_KEY", "test-secret")
+os.Setenv("R2_ENDPOINT", "https://test.r2.cloudflarestorage.com")
 
 tests := []struct {
 name    string

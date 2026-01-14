@@ -53,6 +53,9 @@ const (
 	
 	// ErrCodeMissingTarget indicates post must have at least one of scene_id or event_id.
 	ErrCodeMissingTarget = "missing_target"
+	
+	// ErrCodeUnsupportedType indicates an unsupported content type for upload.
+	ErrCodeUnsupportedType = "unsupported_type"
 )
 
 // ErrorResponse represents the standard error response format.
