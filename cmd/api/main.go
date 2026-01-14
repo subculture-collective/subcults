@@ -23,6 +23,7 @@ import (
 	"github.com/onnwee/subcults/internal/post"
 	"github.com/onnwee/subcults/internal/scene"
 	"github.com/onnwee/subcults/internal/stream"
+	"github.com/onnwee/subcults/internal/upload"
 )
 
 func main() {
@@ -86,6 +87,33 @@ func main() {
 		logger.Info("LiveKit token service initialized")
 	} else {
 		logger.Warn("LiveKit credentials not configured, token endpoint will not be available")
+	}
+
+	// Initialize Upload service for R2 signed URLs
+	// Get R2 credentials from environment variables
+	r2BucketName := os.Getenv("R2_BUCKET_NAME")
+	r2AccessKeyID := os.Getenv("R2_ACCESS_KEY_ID")
+	r2SecretAccessKey := os.Getenv("R2_SECRET_ACCESS_KEY")
+	r2Endpoint := os.Getenv("R2_ENDPOINT")
+	
+	var uploadHandlers *api.UploadHandlers
+	if r2BucketName != "" && r2AccessKeyID != "" && r2SecretAccessKey != "" && r2Endpoint != "" {
+		uploadService, err := upload.NewService(upload.ServiceConfig{
+			BucketName:      r2BucketName,
+			AccessKeyID:     r2AccessKeyID,
+			SecretAccessKey: r2SecretAccessKey,
+			Endpoint:        r2Endpoint,
+			MaxSizeMB:       15, // Default 15MB, can be made configurable via R2_MAX_UPLOAD_SIZE_MB
+			URLExpiryMinutes: 5, // 5 minutes expiry
+		})
+		if err != nil {
+			logger.Error("failed to initialize upload service", "error", err)
+			os.Exit(1)
+		}
+		uploadHandlers = api.NewUploadHandlers(uploadService)
+		logger.Info("upload service initialized", "bucket", r2BucketName)
+	} else {
+		logger.Warn("R2 credentials not configured, upload endpoint will not be available")
 	}
 
 	// Initialize handlers
@@ -243,6 +271,18 @@ func main() {
 			api.WriteError(w, ctx, http.StatusMethodNotAllowed, api.ErrCodeBadRequest, "Method not allowed")
 		}
 	})
+
+	// Upload routes (if configured)
+	if uploadHandlers != nil {
+		mux.HandleFunc("/uploads/sign", func(w http.ResponseWriter, r *http.Request) {
+			if r.Method != http.MethodPost {
+				ctx := middleware.SetErrorCode(r.Context(), api.ErrCodeBadRequest)
+				api.WriteError(w, ctx, http.StatusMethodNotAllowed, api.ErrCodeBadRequest, "Method not allowed")
+				return
+			}
+			uploadHandlers.SignUpload(w, r)
+		})
+	}
 
 	// Health check endpoint
 	mux.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
