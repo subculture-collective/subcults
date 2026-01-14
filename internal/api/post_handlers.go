@@ -7,7 +7,9 @@ import (
 	"html"
 	"log/slog"
 	"net/http"
+	"strconv"
 	"strings"
+	"time"
 
 	"github.com/onnwee/subcults/internal/middleware"
 	"github.com/onnwee/subcults/internal/post"
@@ -274,4 +276,162 @@ func (h *PostHandlers) DeletePost(w http.ResponseWriter, r *http.Request) {
 
 	// Return success with no content
 	w.WriteHeader(http.StatusNoContent)
+}
+
+// FeedResponse represents the JSON response for feed endpoints.
+type FeedResponse struct {
+	Posts      []*post.Post      `json:"posts"`
+	NextCursor *post.FeedCursor  `json:"next_cursor,omitempty"`
+}
+
+// parseCursor parses cursor from query parameter.
+// Returns nil if cursor is not provided or invalid.
+func parseCursor(cursorStr string) *post.FeedCursor {
+	if cursorStr == "" {
+		return nil
+	}
+
+	// Cursor format: "created_at_unix_nano:id"
+	// Example: "1234567890123456789:uuid-here"
+	parts := strings.Split(cursorStr, ":")
+	if len(parts) != 2 {
+		return nil
+	}
+
+	// Parse timestamp (Unix nanoseconds)
+	timestamp, err := strconv.ParseInt(parts[0], 10, 64)
+	if err != nil {
+		return nil
+	}
+
+	return &post.FeedCursor{
+		CreatedAt: time.Unix(0, timestamp),
+		ID:        parts[1],
+	}
+}
+
+// encodeCursor encodes a cursor to a string for the next_cursor field.
+// Returns nil if cursor is nil.
+func encodeCursor(cursor *post.FeedCursor) *string {
+	if cursor == nil {
+		return nil
+	}
+
+	// Encode as "created_at_unix_nano:id"
+	encoded := fmt.Sprintf("%d:%s", cursor.CreatedAt.UnixNano(), cursor.ID)
+	return &encoded
+}
+
+// GetSceneFeed handles GET /scenes/{id}/feed - retrieves posts for a scene with pagination.
+func (h *PostHandlers) GetSceneFeed(w http.ResponseWriter, r *http.Request) {
+	// Extract scene ID from URL path
+	pathParts := strings.Split(strings.TrimPrefix(r.URL.Path, "/scenes/"), "/")
+	if len(pathParts) < 2 || pathParts[0] == "" {
+		ctx := middleware.SetErrorCode(r.Context(), ErrCodeBadRequest)
+		WriteError(w, ctx, http.StatusBadRequest, ErrCodeBadRequest, "Scene ID is required")
+		return
+	}
+	sceneID := pathParts[0]
+
+	// Parse query parameters
+	limitStr := r.URL.Query().Get("limit")
+	cursorStr := r.URL.Query().Get("cursor")
+
+	// Default limit is 20, max is 100
+	limit := 20
+	if limitStr != "" {
+		parsedLimit, err := strconv.Atoi(limitStr)
+		if err != nil || parsedLimit < 1 {
+			ctx := middleware.SetErrorCode(r.Context(), ErrCodeValidation)
+			WriteError(w, ctx, http.StatusBadRequest, ErrCodeValidation, "Invalid limit parameter")
+			return
+		}
+		if parsedLimit > 100 {
+			parsedLimit = 100
+		}
+		limit = parsedLimit
+	}
+
+	// Parse cursor
+	cursor := parseCursor(cursorStr)
+
+	// Fetch posts from repository
+	posts, nextCursor, err := h.repo.ListByScene(sceneID, limit, cursor)
+	if err != nil {
+		slog.ErrorContext(r.Context(), "failed to list scene posts", "error", err, "scene_id", sceneID)
+		ctx := middleware.SetErrorCode(r.Context(), ErrCodeInternal)
+		WriteError(w, ctx, http.StatusInternalServerError, ErrCodeInternal, "Failed to retrieve posts")
+		return
+	}
+
+	// Build response
+	response := FeedResponse{
+		Posts:      posts,
+		NextCursor: nextCursor,
+	}
+
+	// Return feed
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	if err := json.NewEncoder(w).Encode(response); err != nil {
+		slog.ErrorContext(r.Context(), "failed to encode response", "error", err)
+		return
+	}
+}
+
+// GetEventFeed handles GET /events/{id}/feed - retrieves posts for an event with pagination.
+func (h *PostHandlers) GetEventFeed(w http.ResponseWriter, r *http.Request) {
+	// Extract event ID from URL path
+	pathParts := strings.Split(strings.TrimPrefix(r.URL.Path, "/events/"), "/")
+	if len(pathParts) < 2 || pathParts[0] == "" {
+		ctx := middleware.SetErrorCode(r.Context(), ErrCodeBadRequest)
+		WriteError(w, ctx, http.StatusBadRequest, ErrCodeBadRequest, "Event ID is required")
+		return
+	}
+	eventID := pathParts[0]
+
+	// Parse query parameters
+	limitStr := r.URL.Query().Get("limit")
+	cursorStr := r.URL.Query().Get("cursor")
+
+	// Default limit is 20, max is 100
+	limit := 20
+	if limitStr != "" {
+		parsedLimit, err := strconv.Atoi(limitStr)
+		if err != nil || parsedLimit < 1 {
+			ctx := middleware.SetErrorCode(r.Context(), ErrCodeValidation)
+			WriteError(w, ctx, http.StatusBadRequest, ErrCodeValidation, "Invalid limit parameter")
+			return
+		}
+		if parsedLimit > 100 {
+			parsedLimit = 100
+		}
+		limit = parsedLimit
+	}
+
+	// Parse cursor
+	cursor := parseCursor(cursorStr)
+
+	// Fetch posts from repository
+	posts, nextCursor, err := h.repo.ListByEvent(eventID, limit, cursor)
+	if err != nil {
+		slog.ErrorContext(r.Context(), "failed to list event posts", "error", err, "event_id", eventID)
+		ctx := middleware.SetErrorCode(r.Context(), ErrCodeInternal)
+		WriteError(w, ctx, http.StatusInternalServerError, ErrCodeInternal, "Failed to retrieve posts")
+		return
+	}
+
+	// Build response
+	response := FeedResponse{
+		Posts:      posts,
+		NextCursor: nextCursor,
+	}
+
+	// Return feed
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	if err := json.NewEncoder(w).Encode(response); err != nil {
+		slog.ErrorContext(r.Context(), "failed to encode response", "error", err)
+		return
+	}
 }
