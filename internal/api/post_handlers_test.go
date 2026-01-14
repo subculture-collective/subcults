@@ -1,0 +1,561 @@
+package api
+
+import (
+	"bytes"
+	"encoding/json"
+	"net/http"
+	"net/http/httptest"
+	"strings"
+	"testing"
+
+	"github.com/onnwee/subcults/internal/post"
+)
+
+// Helper function to create a string pointer
+func strPtr(s string) *string {
+	return &s
+}
+
+// TestCreatePost_Success tests successful post creation.
+func TestCreatePost_Success(t *testing.T) {
+	repo := post.NewInMemoryPostRepository()
+	handlers := NewPostHandlers(repo)
+
+	sceneID := "scene123"
+	reqBody := CreatePostRequest{
+		SceneID: &sceneID,
+		Text:    "This is a test post",
+		Labels:  []string{"test", "example"},
+	}
+
+	body, err := json.Marshal(reqBody)
+	if err != nil {
+		t.Fatalf("failed to marshal request: %v", err)
+	}
+
+	req := httptest.NewRequest(http.MethodPost, "/posts", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+
+	handlers.CreatePost(w, req)
+
+	if w.Code != http.StatusCreated {
+		t.Errorf("expected status 201, got %d: %s", w.Code, w.Body.String())
+	}
+
+	var createdPost post.Post
+	if err := json.NewDecoder(w.Body).Decode(&createdPost); err != nil {
+		t.Fatalf("failed to decode response: %v", err)
+	}
+
+	if createdPost.Text != "This is a test post" {
+		t.Errorf("expected text 'This is a test post', got %s", createdPost.Text)
+	}
+	if createdPost.SceneID == nil || *createdPost.SceneID != sceneID {
+		t.Errorf("expected scene_id '%s', got %v", sceneID, createdPost.SceneID)
+	}
+	if len(createdPost.Labels) != 2 {
+		t.Errorf("expected 2 labels, got %d", len(createdPost.Labels))
+	}
+	if createdPost.ID == "" {
+		t.Error("expected ID to be set")
+	}
+}
+
+// TestCreatePost_WithEventID tests creating a post with event_id.
+func TestCreatePost_WithEventID(t *testing.T) {
+	repo := post.NewInMemoryPostRepository()
+	handlers := NewPostHandlers(repo)
+
+	eventID := "event123"
+	reqBody := CreatePostRequest{
+		EventID: &eventID,
+		Text:    "Event announcement",
+	}
+
+	body, err := json.Marshal(reqBody)
+	if err != nil {
+		t.Fatalf("failed to marshal request: %v", err)
+	}
+
+	req := httptest.NewRequest(http.MethodPost, "/posts", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+
+	handlers.CreatePost(w, req)
+
+	if w.Code != http.StatusCreated {
+		t.Errorf("expected status 201, got %d: %s", w.Code, w.Body.String())
+	}
+
+	var createdPost post.Post
+	if err := json.NewDecoder(w.Body).Decode(&createdPost); err != nil {
+		t.Fatalf("failed to decode response: %v", err)
+	}
+
+	if createdPost.EventID == nil || *createdPost.EventID != eventID {
+		t.Errorf("expected event_id '%s', got %v", eventID, createdPost.EventID)
+	}
+}
+
+// TestCreatePost_MissingTarget tests that missing both sceneId and eventId returns 400.
+func TestCreatePost_MissingTarget(t *testing.T) {
+	repo := post.NewInMemoryPostRepository()
+	handlers := NewPostHandlers(repo)
+
+	reqBody := CreatePostRequest{
+		Text: "This post has no target",
+	}
+
+	body, err := json.Marshal(reqBody)
+	if err != nil {
+		t.Fatalf("failed to marshal request: %v", err)
+	}
+
+	req := httptest.NewRequest(http.MethodPost, "/posts", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+
+	handlers.CreatePost(w, req)
+
+	if w.Code != http.StatusBadRequest {
+		t.Errorf("expected status 400, got %d", w.Code)
+	}
+
+	var errResp ErrorResponse
+	if err := json.NewDecoder(w.Body).Decode(&errResp); err != nil {
+		t.Fatalf("failed to decode error response: %v", err)
+	}
+
+	if errResp.Error.Code != ErrCodeMissingTarget {
+		t.Errorf("expected error code '%s', got '%s'", ErrCodeMissingTarget, errResp.Error.Code)
+	}
+}
+
+// TestCreatePost_EmptyText tests that empty text returns validation error.
+func TestCreatePost_EmptyText(t *testing.T) {
+	repo := post.NewInMemoryPostRepository()
+	handlers := NewPostHandlers(repo)
+
+	sceneID := "scene123"
+	reqBody := CreatePostRequest{
+		SceneID: &sceneID,
+		Text:    "   ",
+	}
+
+	body, err := json.Marshal(reqBody)
+	if err != nil {
+		t.Fatalf("failed to marshal request: %v", err)
+	}
+
+	req := httptest.NewRequest(http.MethodPost, "/posts", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+
+	handlers.CreatePost(w, req)
+
+	if w.Code != http.StatusBadRequest {
+		t.Errorf("expected status 400, got %d", w.Code)
+	}
+
+	var errResp ErrorResponse
+	if err := json.NewDecoder(w.Body).Decode(&errResp); err != nil {
+		t.Fatalf("failed to decode error response: %v", err)
+	}
+
+	if errResp.Error.Code != ErrCodeValidation {
+		t.Errorf("expected error code '%s', got '%s'", ErrCodeValidation, errResp.Error.Code)
+	}
+}
+
+// TestCreatePost_TextTooLong tests that text exceeding 5000 chars returns validation error.
+func TestCreatePost_TextTooLong(t *testing.T) {
+	repo := post.NewInMemoryPostRepository()
+	handlers := NewPostHandlers(repo)
+
+	sceneID := "scene123"
+	longText := strings.Repeat("a", 5001)
+	reqBody := CreatePostRequest{
+		SceneID: &sceneID,
+		Text:    longText,
+	}
+
+	body, err := json.Marshal(reqBody)
+	if err != nil {
+		t.Fatalf("failed to marshal request: %v", err)
+	}
+
+	req := httptest.NewRequest(http.MethodPost, "/posts", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+
+	handlers.CreatePost(w, req)
+
+	if w.Code != http.StatusBadRequest {
+		t.Errorf("expected status 400, got %d", w.Code)
+	}
+
+	var errResp ErrorResponse
+	if err := json.NewDecoder(w.Body).Decode(&errResp); err != nil {
+		t.Fatalf("failed to decode error response: %v", err)
+	}
+
+	if errResp.Error.Code != ErrCodeValidation {
+		t.Errorf("expected error code '%s', got '%s'", ErrCodeValidation, errResp.Error.Code)
+	}
+}
+
+// TestCreatePost_TooManyAttachments tests that more than 6 attachments returns validation error.
+func TestCreatePost_TooManyAttachments(t *testing.T) {
+	repo := post.NewInMemoryPostRepository()
+	handlers := NewPostHandlers(repo)
+
+	sceneID := "scene123"
+	attachments := make([]post.Attachment, 7)
+	for i := range attachments {
+		attachments[i] = post.Attachment{URL: "https://example.com/image.jpg", Type: "image"}
+	}
+
+	reqBody := CreatePostRequest{
+		SceneID:     &sceneID,
+		Text:        "Post with too many attachments",
+		Attachments: attachments,
+	}
+
+	body, err := json.Marshal(reqBody)
+	if err != nil {
+		t.Fatalf("failed to marshal request: %v", err)
+	}
+
+	req := httptest.NewRequest(http.MethodPost, "/posts", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+
+	handlers.CreatePost(w, req)
+
+	if w.Code != http.StatusBadRequest {
+		t.Errorf("expected status 400, got %d", w.Code)
+	}
+
+	var errResp ErrorResponse
+	if err := json.NewDecoder(w.Body).Decode(&errResp); err != nil {
+		t.Fatalf("failed to decode error response: %v", err)
+	}
+
+	if errResp.Error.Code != ErrCodeValidation {
+		t.Errorf("expected error code '%s', got '%s'", ErrCodeValidation, errResp.Error.Code)
+	}
+}
+
+// TestCreatePost_XSSSanitization tests that HTML is escaped to prevent XSS.
+func TestCreatePost_XSSSanitization(t *testing.T) {
+	repo := post.NewInMemoryPostRepository()
+	handlers := NewPostHandlers(repo)
+
+	sceneID := "scene123"
+	reqBody := CreatePostRequest{
+		SceneID: &sceneID,
+		Text:    "<script>alert('xss')</script>Hello",
+		Labels:  []string{"<script>bad</script>"},
+	}
+
+	body, err := json.Marshal(reqBody)
+	if err != nil {
+		t.Fatalf("failed to marshal request: %v", err)
+	}
+
+	req := httptest.NewRequest(http.MethodPost, "/posts", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+
+	handlers.CreatePost(w, req)
+
+	if w.Code != http.StatusCreated {
+		t.Errorf("expected status 201, got %d", w.Code)
+	}
+
+	var createdPost post.Post
+	if err := json.NewDecoder(w.Body).Decode(&createdPost); err != nil {
+		t.Fatalf("failed to decode response: %v", err)
+	}
+
+	// Check that HTML was escaped
+	if strings.Contains(createdPost.Text, "<script>") {
+		t.Error("expected HTML to be escaped in text")
+	}
+	if !strings.Contains(createdPost.Text, "&lt;script&gt;") {
+		t.Error("expected HTML entities in sanitized text")
+	}
+	if len(createdPost.Labels) > 0 && strings.Contains(createdPost.Labels[0], "<script>") {
+		t.Error("expected HTML to be escaped in labels")
+	}
+}
+
+// TestUpdatePost_Success tests successful post update.
+func TestUpdatePost_Success(t *testing.T) {
+	repo := post.NewInMemoryPostRepository()
+	handlers := NewPostHandlers(repo)
+
+	// Create a post first
+	sceneID := "scene123"
+	originalPost := &post.Post{
+		SceneID:   &sceneID,
+		AuthorDID: "did:example:alice",
+		Text:      "Original text",
+		Labels:    []string{"original"},
+	}
+	if err := repo.Create(originalPost); err != nil {
+		t.Fatalf("failed to create post: %v", err)
+	}
+
+	// Update the post
+	newText := "Updated text"
+	reqBody := UpdatePostRequest{
+		Text: &newText,
+	}
+
+	body, err := json.Marshal(reqBody)
+	if err != nil {
+		t.Fatalf("failed to marshal request: %v", err)
+	}
+
+	req := httptest.NewRequest(http.MethodPatch, "/posts/"+originalPost.ID, bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+
+	handlers.UpdatePost(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("expected status 200, got %d: %s", w.Code, w.Body.String())
+	}
+
+	var updatedPost post.Post
+	if err := json.NewDecoder(w.Body).Decode(&updatedPost); err != nil {
+		t.Fatalf("failed to decode response: %v", err)
+	}
+
+	if updatedPost.Text != "Updated text" {
+		t.Errorf("expected text 'Updated text', got %s", updatedPost.Text)
+	}
+	if updatedPost.ID != originalPost.ID {
+		t.Error("expected ID to remain the same")
+	}
+}
+
+// TestUpdatePost_Labels tests updating labels.
+func TestUpdatePost_Labels(t *testing.T) {
+	repo := post.NewInMemoryPostRepository()
+	handlers := NewPostHandlers(repo)
+
+	// Create a post first
+	sceneID := "scene123"
+	originalPost := &post.Post{
+		SceneID:   &sceneID,
+		AuthorDID: "did:example:alice",
+		Text:      "Test post",
+		Labels:    []string{"original"},
+	}
+	if err := repo.Create(originalPost); err != nil {
+		t.Fatalf("failed to create post: %v", err)
+	}
+
+	// Update labels
+	newLabels := []string{"updated", "new"}
+	reqBody := UpdatePostRequest{
+		Labels: &newLabels,
+	}
+
+	body, err := json.Marshal(reqBody)
+	if err != nil {
+		t.Fatalf("failed to marshal request: %v", err)
+	}
+
+	req := httptest.NewRequest(http.MethodPatch, "/posts/"+originalPost.ID, bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+
+	handlers.UpdatePost(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("expected status 200, got %d: %s", w.Code, w.Body.String())
+	}
+
+	var updatedPost post.Post
+	if err := json.NewDecoder(w.Body).Decode(&updatedPost); err != nil {
+		t.Fatalf("failed to decode response: %v", err)
+	}
+
+	if len(updatedPost.Labels) != 2 {
+		t.Errorf("expected 2 labels, got %d", len(updatedPost.Labels))
+	}
+	if updatedPost.Labels[0] != "updated" {
+		t.Errorf("expected first label 'updated', got %s", updatedPost.Labels[0])
+	}
+}
+
+// TestUpdatePost_NotFound tests updating a non-existent post.
+func TestUpdatePost_NotFound(t *testing.T) {
+	repo := post.NewInMemoryPostRepository()
+	handlers := NewPostHandlers(repo)
+
+	newText := "Updated text"
+	reqBody := UpdatePostRequest{
+		Text: &newText,
+	}
+
+	body, err := json.Marshal(reqBody)
+	if err != nil {
+		t.Fatalf("failed to marshal request: %v", err)
+	}
+
+	req := httptest.NewRequest(http.MethodPatch, "/posts/nonexistent", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+
+	handlers.UpdatePost(w, req)
+
+	if w.Code != http.StatusNotFound {
+		t.Errorf("expected status 404, got %d", w.Code)
+	}
+
+	var errResp ErrorResponse
+	if err := json.NewDecoder(w.Body).Decode(&errResp); err != nil {
+		t.Fatalf("failed to decode error response: %v", err)
+	}
+
+	if errResp.Error.Code != ErrCodeNotFound {
+		t.Errorf("expected error code '%s', got '%s'", ErrCodeNotFound, errResp.Error.Code)
+	}
+}
+
+// TestDeletePost_Success tests successful post deletion.
+func TestDeletePost_Success(t *testing.T) {
+	repo := post.NewInMemoryPostRepository()
+	handlers := NewPostHandlers(repo)
+
+	// Create a post first
+	sceneID := "scene123"
+	originalPost := &post.Post{
+		SceneID:   &sceneID,
+		AuthorDID: "did:example:alice",
+		Text:      "Test post",
+	}
+	if err := repo.Create(originalPost); err != nil {
+		t.Fatalf("failed to create post: %v", err)
+	}
+
+	// Delete the post
+	req := httptest.NewRequest(http.MethodDelete, "/posts/"+originalPost.ID, nil)
+	w := httptest.NewRecorder()
+
+	handlers.DeletePost(w, req)
+
+	if w.Code != http.StatusNoContent {
+		t.Errorf("expected status 204, got %d", w.Code)
+	}
+
+	// Verify post is not retrievable (soft deleted)
+	_, err := repo.GetByID(originalPost.ID)
+	if err != post.ErrPostNotFound {
+		t.Error("expected post to be soft deleted (not retrievable)")
+	}
+}
+
+// TestDeletePost_SoftDeletedExclusion tests that soft-deleted post returns 404 on fetch.
+func TestDeletePost_SoftDeletedExclusion(t *testing.T) {
+	repo := post.NewInMemoryPostRepository()
+	handlers := NewPostHandlers(repo)
+
+	// Create a post first
+	sceneID := "scene123"
+	originalPost := &post.Post{
+		SceneID:   &sceneID,
+		AuthorDID: "did:example:alice",
+		Text:      "Test post",
+	}
+	if err := repo.Create(originalPost); err != nil {
+		t.Fatalf("failed to create post: %v", err)
+	}
+
+	// Delete the post
+	req := httptest.NewRequest(http.MethodDelete, "/posts/"+originalPost.ID, nil)
+	w := httptest.NewRecorder()
+	handlers.DeletePost(w, req)
+
+	if w.Code != http.StatusNoContent {
+		t.Errorf("expected status 204, got %d", w.Code)
+	}
+
+	// Try to fetch the deleted post - should return 404
+	// We verify via repository directly since GetPost handler is not in scope
+	_, err := repo.GetByID(originalPost.ID)
+	if err != post.ErrPostNotFound {
+		t.Error("expected GetByID to return ErrPostNotFound for soft-deleted post")
+	}
+
+	// Also try to update the deleted post - should fail
+	newText := "Updated"
+	reqBody := UpdatePostRequest{Text: &newText}
+	body, _ := json.Marshal(reqBody)
+	req3 := httptest.NewRequest(http.MethodPatch, "/posts/"+originalPost.ID, bytes.NewReader(body))
+	w3 := httptest.NewRecorder()
+	handlers.UpdatePost(w3, req3)
+
+	if w3.Code != http.StatusNotFound {
+		t.Errorf("expected status 404 when updating deleted post, got %d", w3.Code)
+	}
+}
+
+// TestDeletePost_NotFound tests deleting a non-existent post.
+func TestDeletePost_NotFound(t *testing.T) {
+	repo := post.NewInMemoryPostRepository()
+	handlers := NewPostHandlers(repo)
+
+	req := httptest.NewRequest(http.MethodDelete, "/posts/nonexistent", nil)
+	w := httptest.NewRecorder()
+
+	handlers.DeletePost(w, req)
+
+	if w.Code != http.StatusNotFound {
+		t.Errorf("expected status 404, got %d", w.Code)
+	}
+
+	var errResp ErrorResponse
+	if err := json.NewDecoder(w.Body).Decode(&errResp); err != nil {
+		t.Fatalf("failed to decode error response: %v", err)
+	}
+
+	if errResp.Error.Code != ErrCodeNotFound {
+		t.Errorf("expected error code '%s', got '%s'", ErrCodeNotFound, errResp.Error.Code)
+	}
+}
+
+// TestDeletePost_AlreadyDeleted tests deleting an already deleted post.
+func TestDeletePost_AlreadyDeleted(t *testing.T) {
+	repo := post.NewInMemoryPostRepository()
+	handlers := NewPostHandlers(repo)
+
+	// Create and delete a post
+	sceneID := "scene123"
+	originalPost := &post.Post{
+		SceneID:   &sceneID,
+		AuthorDID: "did:example:alice",
+		Text:      "Test post",
+	}
+	if err := repo.Create(originalPost); err != nil {
+		t.Fatalf("failed to create post: %v", err)
+	}
+	if err := repo.Delete(originalPost.ID); err != nil {
+		t.Fatalf("failed to delete post: %v", err)
+	}
+
+	// Try to delete again
+	req := httptest.NewRequest(http.MethodDelete, "/posts/"+originalPost.ID, nil)
+	w := httptest.NewRecorder()
+
+	handlers.DeletePost(w, req)
+
+	if w.Code != http.StatusNotFound {
+		t.Errorf("expected status 404, got %d", w.Code)
+	}
+}

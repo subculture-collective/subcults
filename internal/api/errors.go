@@ -50,6 +50,9 @@ const (
 	
 	// ErrCodeInvalidTimeRange indicates event start time is not before end time.
 	ErrCodeInvalidTimeRange = "invalid_time_range"
+	
+	// ErrCodeMissingTarget indicates post must have at least one of scene_id or event_id.
+	ErrCodeMissingTarget = "missing_target"
 )
 
 // ErrorResponse represents the standard error response format.
