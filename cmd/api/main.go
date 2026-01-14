@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strconv"
 	"strings"
 	"syscall"
 	"time"
@@ -95,15 +96,21 @@ func main() {
 	r2AccessKeyID := os.Getenv("R2_ACCESS_KEY_ID")
 	r2SecretAccessKey := os.Getenv("R2_SECRET_ACCESS_KEY")
 	r2Endpoint := os.Getenv("R2_ENDPOINT")
+	r2MaxSizeMB := 15 // Default 15MB
+	if maxSizeStr := os.Getenv("R2_MAX_UPLOAD_SIZE_MB"); maxSizeStr != "" {
+		if parsed, err := strconv.Atoi(maxSizeStr); err == nil && parsed > 0 {
+			r2MaxSizeMB = parsed
+		}
+	}
 	
 	var uploadHandlers *api.UploadHandlers
 	if r2BucketName != "" && r2AccessKeyID != "" && r2SecretAccessKey != "" && r2Endpoint != "" {
 		uploadService, err := upload.NewService(upload.ServiceConfig{
-			BucketName:      r2BucketName,
-			AccessKeyID:     r2AccessKeyID,
-			SecretAccessKey: r2SecretAccessKey,
-			Endpoint:        r2Endpoint,
-			MaxSizeMB:       15, // Default 15MB, can be made configurable via R2_MAX_UPLOAD_SIZE_MB
+			BucketName:       r2BucketName,
+			AccessKeyID:      r2AccessKeyID,
+			SecretAccessKey:  r2SecretAccessKey,
+			Endpoint:         r2Endpoint,
+			MaxSizeMB:        r2MaxSizeMB,
 			URLExpiryMinutes: 5, // 5 minutes expiry
 		})
 		if err != nil {
@@ -111,7 +118,7 @@ func main() {
 			os.Exit(1)
 		}
 		uploadHandlers = api.NewUploadHandlers(uploadService)
-		logger.Info("upload service initialized", "bucket", r2BucketName)
+		logger.Info("upload service initialized", "bucket", r2BucketName, "max_size_mb", r2MaxSizeMB)
 	} else {
 		logger.Warn("R2 credentials not configured, upload endpoint will not be available")
 	}
