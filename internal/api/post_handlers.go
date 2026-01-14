@@ -20,11 +20,11 @@ const (
 
 // CreatePostRequest represents the request body for creating a post.
 type CreatePostRequest struct {
-	SceneID     *string            `json:"scene_id,omitempty"`
-	EventID     *string            `json:"event_id,omitempty"`
-	Text        string             `json:"text"`
-	Attachments []post.Attachment  `json:"attachments,omitempty"`
-	Labels      []string           `json:"labels,omitempty"`
+	SceneID     *string           `json:"scene_id,omitempty"`
+	EventID     *string           `json:"event_id,omitempty"`
+	Text        string            `json:"text"`
+	Attachments []post.Attachment `json:"attachments,omitempty"`
+	Labels      []string          `json:"labels,omitempty"`
 }
 
 // UpdatePostRequest represents the request body for updating a post.
@@ -51,7 +51,7 @@ func NewPostHandlers(repo post.PostRepository) *PostHandlers {
 func validatePostText(text string) string {
 	// Trim whitespace first
 	trimmed := strings.TrimSpace(text)
-	
+
 	if trimmed == "" {
 		return "post text is required"
 	}

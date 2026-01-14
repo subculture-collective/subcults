@@ -24,18 +24,18 @@ type Attachment struct {
 
 // Post represents a content post within scenes/events.
 type Post struct {
-	ID          string        `json:"id"`
-	SceneID     *string       `json:"scene_id,omitempty"`
-	EventID     *string       `json:"event_id,omitempty"`
-	AuthorDID   string        `json:"author_did"`
-	Text        string        `json:"text"`
-	Attachments []Attachment  `json:"attachments,omitempty"`
-	Labels      []string      `json:"labels,omitempty"`
-	
+	ID          string       `json:"id"`
+	SceneID     *string      `json:"scene_id,omitempty"`
+	EventID     *string      `json:"event_id,omitempty"`
+	AuthorDID   string       `json:"author_did"`
+	Text        string       `json:"text"`
+	Attachments []Attachment `json:"attachments,omitempty"`
+	Labels      []string     `json:"labels,omitempty"`
+
 	// AT Protocol record tracking
 	RecordDID  *string `json:"record_did,omitempty"`
 	RecordRKey *string `json:"record_rkey,omitempty"`
-	
+
 	CreatedAt time.Time  `json:"created_at"`
 	UpdatedAt time.Time  `json:"updated_at"`
 	DeletedAt *time.Time `json:"deleted_at,omitempty"`
@@ -73,8 +73,8 @@ type PostRepository interface {
 // Thread-safe via RWMutex.
 type InMemoryPostRepository struct {
 	mu    sync.RWMutex
-	posts map[string]*Post                    // UUID -> Post
-	keys  map[string]string                   // "did:rkey" -> UUID
+	posts map[string]*Post  // UUID -> Post
+	keys  map[string]string // "did:rkey" -> UUID
 }
 
 // NewInMemoryPostRepository creates a new in-memory post repository.
@@ -105,7 +105,7 @@ func (r *InMemoryPostRepository) Upsert(post *Post) (*UpsertResult, error) {
 	if post.RecordDID != nil && post.RecordRKey != nil {
 		key := makeKey(*post.RecordDID, *post.RecordRKey)
 		existingID, exists := r.keys[key]
-		
+
 		if exists {
 			// Update existing post
 			existing := r.posts[existingID]
@@ -125,7 +125,7 @@ func (r *InMemoryPostRepository) Upsert(post *Post) (*UpsertResult, error) {
 			}
 			post.CreatedAt = now
 			post.UpdatedAt = now
-			
+
 			postCopy := *post
 			r.posts[post.ID] = &postCopy
 			r.keys[key] = post.ID
@@ -138,7 +138,7 @@ func (r *InMemoryPostRepository) Upsert(post *Post) (*UpsertResult, error) {
 		post.ID = newID
 		post.CreatedAt = now
 		post.UpdatedAt = now
-		
+
 		postCopy := *post
 		r.posts[newID] = &postCopy
 		inserted = true
@@ -160,16 +160,16 @@ func (r *InMemoryPostRepository) Create(post *Post) error {
 	post.ID = uuid.New().String()
 	post.CreatedAt = now
 	post.UpdatedAt = now
-	
+
 	postCopy := *post
 	r.posts[post.ID] = &postCopy
-	
+
 	// If record key is provided, track it
 	if post.RecordDID != nil && post.RecordRKey != nil {
 		key := makeKey(*post.RecordDID, *post.RecordRKey)
 		r.keys[key] = post.ID
 	}
-	
+
 	return nil
 }
 
@@ -182,7 +182,7 @@ func (r *InMemoryPostRepository) Update(post *Post) error {
 	if !ok {
 		return ErrPostNotFound
 	}
-	
+
 	// Don't allow updating deleted posts
 	if existing.DeletedAt != nil {
 		return ErrPostDeleted
@@ -193,7 +193,7 @@ func (r *InMemoryPostRepository) Update(post *Post) error {
 	existing.Attachments = post.Attachments
 	existing.Labels = post.Labels
 	existing.UpdatedAt = time.Now()
-	
+
 	return nil
 }
 
@@ -206,7 +206,7 @@ func (r *InMemoryPostRepository) Delete(id string) error {
 	if !ok {
 		return ErrPostNotFound
 	}
-	
+
 	// Already deleted
 	if post.DeletedAt != nil {
 		return ErrPostDeleted
@@ -214,7 +214,7 @@ func (r *InMemoryPostRepository) Delete(id string) error {
 
 	now := time.Now()
 	post.DeletedAt = &now
-	
+
 	return nil
 }
 
@@ -227,7 +227,7 @@ func (r *InMemoryPostRepository) GetByID(id string) (*Post, error) {
 	if !ok {
 		return nil, ErrPostNotFound
 	}
-	
+
 	// Exclude soft-deleted posts
 	if post.DeletedAt != nil {
 		return nil, ErrPostNotFound
