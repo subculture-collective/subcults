@@ -1,3 +1,59 @@
+// Package api provides comprehensive test coverage for event validation.
+//
+// # Event Validation Test Matrix
+//
+// This file implements a comprehensive test matrix covering all event creation/update
+// validation scenarios to prevent subtle scheduling or privacy regressions and ensure
+// consistent error codes.
+//
+// ## Test Coverage
+//
+// ### Title Validation
+// - TestCreateEvent_TitleValidation: Tests title length constraints (min 3, max 80 chars)
+// - TestCreateEvent_TitleHTMLSanitization: Tests HTML injection prevention
+// - TestUpdateEvent_TitleValidation: Tests title validation on updates
+//
+// ### Time Window Validation
+// - TestCreateEvent_InvalidTimeWindow: Tests start_at >= end_at rejection
+// - TestUpdateEvent_CannotUpdatePastEvent: Tests past event time update prevention
+// - TestUpdateEvent_TimeWindowValidation: Tests time window validation on updates
+//
+// ### Location & Privacy
+// - TestCreateEvent_MissingCoarseGeohash: Tests coarse_geohash requirement
+// - TestCreateEvent_PrivacyEnforcement: Tests precise_point clearing without consent
+// - TestGetEvent_PrivacyEnforcement: Tests privacy enforcement on retrieval
+// - TestUpdateEvent_EmptyCoarseGeohash: Tests rejection of empty geohash in updates
+//
+// ### Authorization
+// - TestCreateEvent_UnauthorizedCreate: Tests non-owner scene linkage rejection
+// - TestUpdateEvent_Unauthorized: Tests non-owner update rejection
+// - TestCancelEvent_Unauthorized: Tests non-owner cancellation rejection
+//
+// ### Request Validation
+// - TestCreateEvent_MissingSceneID: Tests scene_id requirement
+// - TestCreateEvent_InvalidJSON: Tests malformed JSON rejection
+// - TestUpdateEvent_InvalidJSON: Tests malformed JSON in updates
+//
+// ### Success Paths
+// - TestCreateEvent_Success: Baseline successful creation test
+// - TestUpdateEvent_Success: Baseline successful update test
+// - TestCancelEvent_Success: Baseline successful cancellation test
+// - TestGetEvent_Success: Baseline successful retrieval test
+//
+// ### Error Code Consistency
+// All tests verify that error responses include:
+// - Correct HTTP status code
+// - Consistent error code from errors.go constants
+// - Structured JSON error format: {"error": {"code": "...", "message": "..."}}
+//
+// ## Error Code Mapping
+// - validation_error: Input validation failures (400)
+// - forbidden: Authorization failures (403)
+// - invalid_time_range: Time window validation (400)
+// - not_found: Resource not found (404)
+// - bad_request: Malformed requests (400)
+// - auth_failed: Authentication required (401)
+//
 package api
 
 import (
@@ -15,6 +71,28 @@ import (
 	"github.com/onnwee/subcults/internal/scene"
 	"github.com/onnwee/subcults/internal/stream"
 )
+
+// assertErrorResponse is a test helper that verifies error response structure and codes.
+func assertErrorResponse(t *testing.T, w *httptest.ResponseRecorder, wantStatus int, wantCode string) {
+	t.Helper()
+	
+	if w.Code != wantStatus {
+		t.Errorf("expected status %d, got %d: %s", wantStatus, w.Code, w.Body.String())
+	}
+
+	var errResp ErrorResponse
+	if err := json.NewDecoder(w.Body).Decode(&errResp); err != nil {
+		t.Fatalf("failed to decode error response: %v", err)
+	}
+
+	if errResp.Error.Code != wantCode {
+		t.Errorf("expected error code '%s', got '%s'", wantCode, errResp.Error.Code)
+	}
+
+	if errResp.Error.Message == "" {
+		t.Error("expected non-empty error message")
+	}
+}
 
 // TestCreateEvent_Success tests successful event creation.
 func TestCreateEvent_Success(t *testing.T) {
@@ -1218,6 +1296,449 @@ func TestCancelEvent_IdempotentNoAuditDuplicate(t *testing.T) {
 
 	if len(logs) != 1 {
 		t.Errorf("expected exactly 1 audit log entry (no duplicate), got %d", len(logs))
+	}
+}
+
+// TestCreateEvent_MissingSceneID tests that scene_id is required.
+func TestCreateEvent_MissingSceneID(t *testing.T) {
+	eventRepo := scene.NewInMemoryEventRepository()
+	sceneRepo := scene.NewInMemorySceneRepository()
+	auditRepo := audit.NewInMemoryRepository()
+	rsvpRepo := scene.NewInMemoryRSVPRepository()
+	streamRepo := stream.NewInMemorySessionRepository()
+	handlers := NewEventHandlers(eventRepo, sceneRepo, auditRepo, rsvpRepo, streamRepo)
+
+	reqBody := CreateEventRequest{
+		SceneID:       "", // Empty scene_id
+		Title:         "Test Event",
+		CoarseGeohash: "dr5regw",
+		StartsAt:      time.Now().Add(24 * time.Hour),
+	}
+
+	body, err := json.Marshal(reqBody)
+	if err != nil {
+		t.Fatalf("failed to marshal request: %v", err)
+	}
+
+	req := httptest.NewRequest(http.MethodPost, "/events", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	ctx := middleware.SetUserDID(req.Context(), "did:plc:test123")
+	req = req.WithContext(ctx)
+	w := httptest.NewRecorder()
+
+	handlers.CreateEvent(w, req)
+
+	assertErrorResponse(t, w, http.StatusBadRequest, ErrCodeValidation)
+}
+
+// TestCreateEvent_InvalidJSON tests rejection of malformed JSON.
+func TestCreateEvent_InvalidJSON(t *testing.T) {
+	eventRepo := scene.NewInMemoryEventRepository()
+	sceneRepo := scene.NewInMemorySceneRepository()
+	auditRepo := audit.NewInMemoryRepository()
+	rsvpRepo := scene.NewInMemoryRSVPRepository()
+	streamRepo := stream.NewInMemorySessionRepository()
+	handlers := NewEventHandlers(eventRepo, sceneRepo, auditRepo, rsvpRepo, streamRepo)
+
+	// Malformed JSON
+	malformedJSON := []byte(`{"title": "Test Event", "scene_id": "123", invalid json}`)
+
+	req := httptest.NewRequest(http.MethodPost, "/events", bytes.NewReader(malformedJSON))
+	req.Header.Set("Content-Type", "application/json")
+	ctx := middleware.SetUserDID(req.Context(), "did:plc:test123")
+	req = req.WithContext(ctx)
+	w := httptest.NewRecorder()
+
+	handlers.CreateEvent(w, req)
+
+	assertErrorResponse(t, w, http.StatusBadRequest, ErrCodeBadRequest)
+}
+
+// TestCreateEvent_TitleHTMLSanitization tests that HTML in title is sanitized.
+func TestCreateEvent_TitleHTMLSanitization(t *testing.T) {
+	eventRepo := scene.NewInMemoryEventRepository()
+	sceneRepo := scene.NewInMemorySceneRepository()
+	auditRepo := audit.NewInMemoryRepository()
+	rsvpRepo := scene.NewInMemoryRSVPRepository()
+	streamRepo := stream.NewInMemorySessionRepository()
+	handlers := NewEventHandlers(eventRepo, sceneRepo, auditRepo, rsvpRepo, streamRepo)
+
+	// Create a scene first
+	testScene := &scene.Scene{
+		ID:            uuid.New().String(),
+		Name:          "Test Scene",
+		OwnerDID:      "did:plc:test123",
+		CoarseGeohash: "dr5regw",
+		CreatedAt:     &time.Time{},
+	}
+	if err := sceneRepo.Insert(testScene); err != nil {
+		t.Fatalf("failed to insert scene: %v", err)
+	}
+
+	reqBody := CreateEventRequest{
+		SceneID:       testScene.ID,
+		Title:         "<script>alert('xss')</script>Event",
+		CoarseGeohash: "dr5regw",
+		StartsAt:      time.Now().Add(24 * time.Hour),
+	}
+
+	body, err := json.Marshal(reqBody)
+	if err != nil {
+		t.Fatalf("failed to marshal request: %v", err)
+	}
+
+	req := httptest.NewRequest(http.MethodPost, "/events", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	ctx := middleware.SetUserDID(req.Context(), "did:plc:test123")
+	req = req.WithContext(ctx)
+	w := httptest.NewRecorder()
+
+	handlers.CreateEvent(w, req)
+
+	if w.Code != http.StatusCreated {
+		t.Errorf("expected status 201, got %d: %s", w.Code, w.Body.String())
+	}
+
+	var createdEvent scene.Event
+	if err := json.NewDecoder(w.Body).Decode(&createdEvent); err != nil {
+		t.Fatalf("failed to decode response: %v", err)
+	}
+
+	// Verify HTML is escaped
+	if strings.Contains(createdEvent.Title, "<script>") {
+		t.Error("expected HTML to be sanitized in title")
+	}
+	if !strings.Contains(createdEvent.Title, "&lt;script&gt;") {
+		t.Error("expected HTML to be escaped in title")
+	}
+}
+
+// TestCreateEvent_TitleSpecialCharacters tests handling of special characters in title.
+func TestCreateEvent_TitleSpecialCharacters(t *testing.T) {
+	eventRepo := scene.NewInMemoryEventRepository()
+	sceneRepo := scene.NewInMemorySceneRepository()
+	auditRepo := audit.NewInMemoryRepository()
+	rsvpRepo := scene.NewInMemoryRSVPRepository()
+	streamRepo := stream.NewInMemorySessionRepository()
+	handlers := NewEventHandlers(eventRepo, sceneRepo, auditRepo, rsvpRepo, streamRepo)
+
+	// Create a scene first
+	testScene := &scene.Scene{
+		ID:            uuid.New().String(),
+		Name:          "Test Scene",
+		OwnerDID:      "did:plc:test123",
+		CoarseGeohash: "dr5regw",
+		CreatedAt:     &time.Time{},
+	}
+	if err := sceneRepo.Insert(testScene); err != nil {
+		t.Fatalf("failed to insert scene: %v", err)
+	}
+
+	tests := []struct {
+		name  string
+		title string
+		valid bool
+	}{
+		{
+			name:  "unicode characters",
+			title: "Test Event 🎵🎶",
+			valid: true,
+		},
+		{
+			name:  "ampersand",
+			title: "Rock & Roll Night",
+			valid: true,
+		},
+		{
+			name:  "quotes",
+			title: `"The Best" Party`,
+			valid: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			reqBody := CreateEventRequest{
+				SceneID:       testScene.ID,
+				Title:         tt.title,
+				CoarseGeohash: "dr5regw",
+				StartsAt:      time.Now().Add(24 * time.Hour),
+			}
+
+			body, err := json.Marshal(reqBody)
+			if err != nil {
+				t.Fatalf("failed to marshal request: %v", err)
+			}
+
+			req := httptest.NewRequest(http.MethodPost, "/events", bytes.NewReader(body))
+			req.Header.Set("Content-Type", "application/json")
+			ctx := middleware.SetUserDID(req.Context(), "did:plc:test123")
+			req = req.WithContext(ctx)
+			w := httptest.NewRecorder()
+
+			handlers.CreateEvent(w, req)
+
+			if tt.valid {
+				if w.Code != http.StatusCreated {
+					t.Errorf("expected status 201, got %d: %s", w.Code, w.Body.String())
+				}
+			} else {
+				if w.Code != http.StatusBadRequest {
+					t.Errorf("expected status 400, got %d: %s", w.Code, w.Body.String())
+				}
+			}
+		})
+	}
+}
+
+// TestUpdateEvent_InvalidJSON tests rejection of malformed JSON in update.
+func TestUpdateEvent_InvalidJSON(t *testing.T) {
+	eventRepo := scene.NewInMemoryEventRepository()
+	sceneRepo := scene.NewInMemorySceneRepository()
+	auditRepo := audit.NewInMemoryRepository()
+	rsvpRepo := scene.NewInMemoryRSVPRepository()
+	streamRepo := stream.NewInMemorySessionRepository()
+	handlers := NewEventHandlers(eventRepo, sceneRepo, auditRepo, rsvpRepo, streamRepo)
+
+	// Create a scene first
+	testScene := &scene.Scene{
+		ID:            uuid.New().String(),
+		Name:          "Test Scene",
+		OwnerDID:      "did:plc:test123",
+		CoarseGeohash: "dr5regw",
+	}
+	if err := sceneRepo.Insert(testScene); err != nil {
+		t.Fatalf("failed to insert scene: %v", err)
+	}
+
+	// Create an event
+	now := time.Now()
+	testEvent := &scene.Event{
+		ID:            uuid.New().String(),
+		SceneID:       testScene.ID,
+		Title:         "Original Title",
+		CoarseGeohash: "dr5regw",
+		StartsAt:      now.Add(24 * time.Hour),
+		CreatedAt:     &now,
+		UpdatedAt:     &now,
+	}
+	if err := eventRepo.Insert(testEvent); err != nil {
+		t.Fatalf("failed to insert event: %v", err)
+	}
+
+	// Malformed JSON
+	malformedJSON := []byte(`{"title": "Updated", invalid json}`)
+
+	req := httptest.NewRequest(http.MethodPatch, "/events/"+testEvent.ID, bytes.NewReader(malformedJSON))
+	req.Header.Set("Content-Type", "application/json")
+	ctx := middleware.SetUserDID(req.Context(), "did:plc:test123")
+	req = req.WithContext(ctx)
+	w := httptest.NewRecorder()
+
+	handlers.UpdateEvent(w, req)
+
+	assertErrorResponse(t, w, http.StatusBadRequest, ErrCodeBadRequest)
+}
+
+// TestUpdateEvent_EmptyCoarseGeohash tests that empty coarse_geohash is rejected in updates.
+func TestUpdateEvent_EmptyCoarseGeohash(t *testing.T) {
+	eventRepo := scene.NewInMemoryEventRepository()
+	sceneRepo := scene.NewInMemorySceneRepository()
+	auditRepo := audit.NewInMemoryRepository()
+	rsvpRepo := scene.NewInMemoryRSVPRepository()
+	streamRepo := stream.NewInMemorySessionRepository()
+	handlers := NewEventHandlers(eventRepo, sceneRepo, auditRepo, rsvpRepo, streamRepo)
+
+	// Create a scene first
+	testScene := &scene.Scene{
+		ID:            uuid.New().String(),
+		Name:          "Test Scene",
+		OwnerDID:      "did:plc:test123",
+		CoarseGeohash: "dr5regw",
+	}
+	if err := sceneRepo.Insert(testScene); err != nil {
+		t.Fatalf("failed to insert scene: %v", err)
+	}
+
+	// Create an event
+	now := time.Now()
+	testEvent := &scene.Event{
+		ID:            uuid.New().String(),
+		SceneID:       testScene.ID,
+		Title:         "Test Event",
+		CoarseGeohash: "dr5regw",
+		StartsAt:      now.Add(24 * time.Hour),
+		CreatedAt:     &now,
+		UpdatedAt:     &now,
+	}
+	if err := eventRepo.Insert(testEvent); err != nil {
+		t.Fatalf("failed to insert event: %v", err)
+	}
+
+	// Try to update with empty coarse_geohash
+	emptyGeohash := ""
+	reqBody := UpdateEventRequest{
+		CoarseGeohash: &emptyGeohash,
+	}
+
+	body, err := json.Marshal(reqBody)
+	if err != nil {
+		t.Fatalf("failed to marshal request: %v", err)
+	}
+
+	req := httptest.NewRequest(http.MethodPatch, "/events/"+testEvent.ID, bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	ctx := middleware.SetUserDID(req.Context(), "did:plc:test123")
+	req = req.WithContext(ctx)
+	w := httptest.NewRecorder()
+
+	handlers.UpdateEvent(w, req)
+
+	assertErrorResponse(t, w, http.StatusBadRequest, ErrCodeValidation)
+}
+
+// TestUpdateEvent_TitleValidation tests title validation on update.
+func TestUpdateEvent_TitleValidation(t *testing.T) {
+	tests := []struct {
+		name     string
+		title    string
+		wantCode int
+		wantErr  string
+	}{
+		{
+			name:     "too short",
+			title:    "ab",
+			wantCode: http.StatusBadRequest,
+			wantErr:  ErrCodeValidation,
+		},
+		{
+			name:     "too long",
+			title:    strings.Repeat("a", 81),
+			wantCode: http.StatusBadRequest,
+			wantErr:  ErrCodeValidation,
+		},
+		{
+			name:     "valid",
+			title:    "Updated Event Title",
+			wantCode: http.StatusOK,
+			wantErr:  "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			eventRepo := scene.NewInMemoryEventRepository()
+			sceneRepo := scene.NewInMemorySceneRepository()
+			auditRepo := audit.NewInMemoryRepository()
+			rsvpRepo := scene.NewInMemoryRSVPRepository()
+			streamRepo := stream.NewInMemorySessionRepository()
+			handlers := NewEventHandlers(eventRepo, sceneRepo, auditRepo, rsvpRepo, streamRepo)
+
+			// Create a scene first
+			testScene := &scene.Scene{
+				ID:            uuid.New().String(),
+				Name:          "Test Scene",
+				OwnerDID:      "did:plc:test123",
+				CoarseGeohash: "dr5regw",
+			}
+			if err := sceneRepo.Insert(testScene); err != nil {
+				t.Fatalf("failed to insert scene: %v", err)
+			}
+
+			// Create an event
+			now := time.Now()
+			testEvent := &scene.Event{
+				ID:            uuid.New().String(),
+				SceneID:       testScene.ID,
+				Title:         "Original Title",
+				CoarseGeohash: "dr5regw",
+				StartsAt:      now.Add(24 * time.Hour),
+				CreatedAt:     &now,
+				UpdatedAt:     &now,
+			}
+			if err := eventRepo.Insert(testEvent); err != nil {
+				t.Fatalf("failed to insert event: %v", err)
+			}
+
+			reqBody := UpdateEventRequest{
+				Title: &tt.title,
+			}
+
+			body, err := json.Marshal(reqBody)
+			if err != nil {
+				t.Fatalf("failed to marshal request: %v", err)
+			}
+
+			req := httptest.NewRequest(http.MethodPatch, "/events/"+testEvent.ID, bytes.NewReader(body))
+			req.Header.Set("Content-Type", "application/json")
+			ctx := middleware.SetUserDID(req.Context(), "did:plc:test123")
+			req = req.WithContext(ctx)
+			w := httptest.NewRecorder()
+
+			handlers.UpdateEvent(w, req)
+
+			if tt.wantErr != "" {
+				assertErrorResponse(t, w, tt.wantCode, tt.wantErr)
+			} else {
+				if w.Code != tt.wantCode {
+					t.Errorf("expected status %d, got %d: %s", tt.wantCode, w.Code, w.Body.String())
+				}
+			}
+		})
+	}
+}
+
+// TestEventValidation_ErrorStructure validates that all error responses follow the standard structure.
+func TestEventValidation_ErrorStructure(t *testing.T) {
+	eventRepo := scene.NewInMemoryEventRepository()
+	sceneRepo := scene.NewInMemorySceneRepository()
+	auditRepo := audit.NewInMemoryRepository()
+	rsvpRepo := scene.NewInMemoryRSVPRepository()
+	streamRepo := stream.NewInMemorySessionRepository()
+	handlers := NewEventHandlers(eventRepo, sceneRepo, auditRepo, rsvpRepo, streamRepo)
+
+	// Test with missing title (should trigger validation error)
+	reqBody := CreateEventRequest{
+		SceneID:       uuid.New().String(),
+		Title:         "ab", // Too short
+		CoarseGeohash: "dr5regw",
+		StartsAt:      time.Now().Add(24 * time.Hour),
+	}
+
+	body, err := json.Marshal(reqBody)
+	if err != nil {
+		t.Fatalf("failed to marshal request: %v", err)
+	}
+
+	req := httptest.NewRequest(http.MethodPost, "/events", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	ctx := middleware.SetUserDID(req.Context(), "did:plc:test123")
+	req = req.WithContext(ctx)
+	w := httptest.NewRecorder()
+
+	handlers.CreateEvent(w, req)
+
+	// Verify response structure
+	if w.Header().Get("Content-Type") != "application/json; charset=utf-8" {
+		t.Errorf("expected Content-Type 'application/json; charset=utf-8', got '%s'", w.Header().Get("Content-Type"))
+	}
+
+	var errResp ErrorResponse
+	if err := json.NewDecoder(w.Body).Decode(&errResp); err != nil {
+		t.Fatalf("failed to decode error response: %v", err)
+	}
+
+	// Verify structure fields exist
+	if errResp.Error.Code == "" {
+		t.Error("expected error code to be non-empty")
+	}
+	if errResp.Error.Message == "" {
+		t.Error("expected error message to be non-empty")
+	}
+
+	// Verify code matches expected validation error
+	if errResp.Error.Code != ErrCodeValidation {
+		t.Errorf("expected error code '%s', got '%s'", ErrCodeValidation, errResp.Error.Code)
 	}
 }
 
