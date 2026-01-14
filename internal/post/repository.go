@@ -207,9 +207,9 @@ func (r *InMemoryPostRepository) Delete(id string) error {
 		return ErrPostNotFound
 	}
 
-	// Already deleted
+	// Already deleted - treat as not found for idempotency
 	if post.DeletedAt != nil {
-		return ErrPostDeleted
+		return ErrPostNotFound
 	}
 
 	now := time.Now()

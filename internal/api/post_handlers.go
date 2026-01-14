@@ -3,6 +3,7 @@ package api
 
 import (
 	"encoding/json"
+	"fmt"
 	"html"
 	"log/slog"
 	"net/http"
@@ -66,6 +67,16 @@ func validatePostText(text string) string {
 // Should be called after validation passes.
 func sanitizePostText(text string) string {
 	return html.EscapeString(strings.TrimSpace(text))
+}
+
+// extractPostID extracts the post ID from the URL path.
+// Returns the post ID and an error if the ID is missing or invalid.
+func extractPostID(r *http.Request) (string, error) {
+	pathParts := strings.Split(strings.TrimPrefix(r.URL.Path, "/posts/"), "/")
+	if len(pathParts) == 0 || pathParts[0] == "" {
+		return "", fmt.Errorf("post ID is required")
+	}
+	return pathParts[0], nil
 }
 
 // CreatePost handles POST /posts - creates a new post.
@@ -144,13 +155,12 @@ func (h *PostHandlers) CreatePost(w http.ResponseWriter, r *http.Request) {
 // UpdatePost handles PATCH /posts/{id} - updates an existing post.
 func (h *PostHandlers) UpdatePost(w http.ResponseWriter, r *http.Request) {
 	// Extract post ID from URL path
-	pathParts := strings.Split(strings.TrimPrefix(r.URL.Path, "/posts/"), "/")
-	if len(pathParts) == 0 || pathParts[0] == "" {
+	postID, err := extractPostID(r)
+	if err != nil {
 		ctx := middleware.SetErrorCode(r.Context(), ErrCodeBadRequest)
 		WriteError(w, ctx, http.StatusBadRequest, ErrCodeBadRequest, "Post ID is required")
 		return
 	}
-	postID := pathParts[0]
 
 	// Parse request body
 	var req UpdatePostRequest
@@ -215,19 +225,10 @@ func (h *PostHandlers) UpdatePost(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Retrieve updated post
-	updated, err := h.repo.GetByID(postID)
-	if err != nil {
-		slog.ErrorContext(r.Context(), "failed to retrieve updated post", "error", err, "post_id", postID)
-		ctx := middleware.SetErrorCode(r.Context(), ErrCodeInternal)
-		WriteError(w, ctx, http.StatusInternalServerError, ErrCodeInternal, "Failed to retrieve updated post")
-		return
-	}
-
-	// Return updated post
+	// Return updated post (existingPost has been modified in-place)
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
-	if err := json.NewEncoder(w).Encode(updated); err != nil {
+	if err := json.NewEncoder(w).Encode(existingPost); err != nil {
 		slog.ErrorContext(r.Context(), "failed to encode response", "error", err)
 		return
 	}
@@ -236,22 +237,16 @@ func (h *PostHandlers) UpdatePost(w http.ResponseWriter, r *http.Request) {
 // DeletePost handles DELETE /posts/{id} - soft-deletes a post.
 func (h *PostHandlers) DeletePost(w http.ResponseWriter, r *http.Request) {
 	// Extract post ID from URL path
-	pathParts := strings.Split(strings.TrimPrefix(r.URL.Path, "/posts/"), "/")
-	if len(pathParts) == 0 || pathParts[0] == "" {
+	postID, err := extractPostID(r)
+	if err != nil {
 		ctx := middleware.SetErrorCode(r.Context(), ErrCodeBadRequest)
 		WriteError(w, ctx, http.StatusBadRequest, ErrCodeBadRequest, "Post ID is required")
 		return
 	}
-	postID := pathParts[0]
 
 	// Soft delete the post
 	if err := h.repo.Delete(postID); err != nil {
 		if err == post.ErrPostNotFound {
-			ctx := middleware.SetErrorCode(r.Context(), ErrCodeNotFound)
-			WriteError(w, ctx, http.StatusNotFound, ErrCodeNotFound, "Post not found")
-			return
-		}
-		if err == post.ErrPostDeleted {
 			ctx := middleware.SetErrorCode(r.Context(), ErrCodeNotFound)
 			WriteError(w, ctx, http.StatusNotFound, ErrCodeNotFound, "Post not found")
 			return
