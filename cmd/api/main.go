@@ -20,6 +20,7 @@ import (
 	"github.com/onnwee/subcults/internal/audit"
 	"github.com/onnwee/subcults/internal/livekit"
 	"github.com/onnwee/subcults/internal/middleware"
+	"github.com/onnwee/subcults/internal/post"
 	"github.com/onnwee/subcults/internal/scene"
 	"github.com/onnwee/subcults/internal/stream"
 )
@@ -58,6 +59,7 @@ func main() {
 	auditRepo := audit.NewInMemoryRepository()
 	rsvpRepo := scene.NewInMemoryRSVPRepository()
 	streamRepo := stream.NewInMemorySessionRepository()
+	postRepo := post.NewInMemoryPostRepository()
 
 	// Initialize Prometheus metrics
 	promRegistry := prometheus.NewRegistry()
@@ -90,6 +92,7 @@ func main() {
 	eventHandlers := api.NewEventHandlers(eventRepo, sceneRepo, auditRepo, rsvpRepo, streamRepo)
 	rsvpHandlers := api.NewRSVPHandlers(rsvpRepo, eventRepo)
 	streamHandlers := api.NewStreamHandlers(streamRepo, sceneRepo, eventRepo, auditRepo, streamMetrics)
+	postHandlers := api.NewPostHandlers(postRepo)
 
 	// Create HTTP server with routes
 	mux := http.NewServeMux()
@@ -217,6 +220,29 @@ func main() {
 		promhttp.HandlerFor(promRegistry, promhttp.HandlerOpts{}).ServeHTTP(w, r)
 	})
 	mux.Handle("/metrics", metricsHandler)
+
+	// Post routes
+	mux.HandleFunc("/posts", func(w http.ResponseWriter, r *http.Request) {
+		switch r.Method {
+		case http.MethodPost:
+			postHandlers.CreatePost(w, r)
+		default:
+			ctx := middleware.SetErrorCode(r.Context(), api.ErrCodeBadRequest)
+			api.WriteError(w, ctx, http.StatusMethodNotAllowed, api.ErrCodeBadRequest, "Method not allowed")
+		}
+	})
+
+	mux.HandleFunc("/posts/", func(w http.ResponseWriter, r *http.Request) {
+		switch r.Method {
+		case http.MethodPatch:
+			postHandlers.UpdatePost(w, r)
+		case http.MethodDelete:
+			postHandlers.DeletePost(w, r)
+		default:
+			ctx := middleware.SetErrorCode(r.Context(), api.ErrCodeBadRequest)
+			api.WriteError(w, ctx, http.StatusMethodNotAllowed, api.ErrCodeBadRequest, "Method not allowed")
+		}
+	})
 
 	// Health check endpoint
 	mux.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
