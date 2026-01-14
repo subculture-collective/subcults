@@ -6,7 +6,9 @@ Generates a pre-signed URL for direct upload to Cloudflare R2 storage. This endp
 
 ### Authentication
 
-No authentication required (will be added based on product requirements).
+**Required.** Clients must provide a valid access token in the `Authorization: Bearer <token>` header. The signed upload URL is scoped to the authenticated user and subject to standard rate limiting and authorization checks.
+
+> **Note:** In the current implementation, authentication will be enforced once the authentication middleware is integrated into the endpoint handler.
 
 ### Request
 
@@ -251,11 +253,13 @@ The upload service is configured via environment variables:
 
 | Variable | Description | Default | Required |
 |----------|-------------|---------|----------|
-| `R2_BUCKET_NAME` | R2 bucket name | - | Yes |
-| `R2_ACCESS_KEY_ID` | R2 access key ID | - | Yes |
-| `R2_SECRET_ACCESS_KEY` | R2 secret access key | - | Yes |
-| `R2_ENDPOINT` | R2 S3-compatible endpoint URL | - | Yes |
+| `R2_BUCKET_NAME` | R2 bucket name | - | No* |
+| `R2_ACCESS_KEY_ID` | R2 access key ID | - | No* |
+| `R2_SECRET_ACCESS_KEY` | R2 secret access key | - | No* |
+| `R2_ENDPOINT` | R2 S3-compatible endpoint URL | - | No* |
 | `R2_MAX_UPLOAD_SIZE_MB` | Maximum upload size in MB | 15 | No |
+
+\* If any of the R2 credential variables (bucket name, access key ID, secret access key, or endpoint) are not configured, the API will log a warning and the `/uploads/sign` endpoint will not be available. All other API functionality continues to operate normally.
 
 ### Performance Characteristics
 

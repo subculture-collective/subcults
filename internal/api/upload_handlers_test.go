@@ -2,96 +2,13 @@ package api
 
 import (
 	"bytes"
-	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"testing"
-	"time"
 
 	"github.com/onnwee/subcults/internal/upload"
 )
-
-// mockUploadService is a mock implementation of upload.Service for testing.
-type mockUploadService struct {
-	generateSignedURLFunc func(ctx context.Context, req upload.SignedURLRequest) (*upload.SignedURLResponse, error)
-}
-
-func (m *mockUploadService) GenerateSignedURL(ctx context.Context, req upload.SignedURLRequest) (*upload.SignedURLResponse, error) {
-	if m.generateSignedURLFunc != nil {
-		return m.generateSignedURLFunc(ctx, req)
-	}
-	return nil, nil
-}
-
-func (m *mockUploadService) ValidateFileSize(sizeBytes int64) error {
-	// Simple mock validation
-	if sizeBytes > 15*1024*1024 {
-		return upload.ErrFileTooLarge
-	}
-	if sizeBytes <= 0 {
-		return upload.ErrFileTooLarge
-	}
-	return nil
-}
-
-// TestSignUpload_Success tests successful signed URL generation.
-func TestSignUpload_Success(t *testing.T) {
-	mockService := &mockUploadService{
-		generateSignedURLFunc: func(ctx context.Context, req upload.SignedURLRequest) (*upload.SignedURLResponse, error) {
-			return &upload.SignedURLResponse{
-				URL:       "https://example.r2.cloudflarestorage.com/bucket/posts/temp/uuid.jpg?signature=xyz",
-				Key:       "posts/temp/uuid.jpg",
-				ExpiresAt: time.Date(2024, 1, 1, 0, 5, 0, 0, time.UTC),
-			}, nil
-		},
-	}
-
-	// Cast to *upload.Service (this is a type assertion that works because our handler expects the interface behavior)
-	handlers := &UploadHandlers{uploadService: (*upload.Service)(nil)}
-	// Override with our mock
-	handlers.uploadService = (*upload.Service)(nil) // We'll use a different approach
-
-	// Instead, let's test with a real service but mock the validation
-	reqBody := SignUploadRequest{
-		ContentType: "image/jpeg",
-		SizeBytes:   1024 * 1024, // 1MB
-		PostID:      nil,
-	}
-
-	body, err := json.Marshal(reqBody)
-	if err != nil {
-		t.Fatalf("failed to marshal request: %v", err)
-	}
-
-	req := httptest.NewRequest(http.MethodPost, "/uploads/sign", bytes.NewReader(body))
-	req.Header.Set("Content-Type", "application/json")
-	w := httptest.NewRecorder()
-
-	// Create a handler with the mock service
-	// Note: We need to adapt our approach since we can't easily mock the service
-	// For now, we'll test the validation paths which don't require actual S3 calls
-	
-	// Test validation of missing content type
-	reqBody2 := SignUploadRequest{
-		ContentType: "",
-		SizeBytes:   1024,
-	}
-	body2, _ := json.Marshal(reqBody2)
-	req2 := httptest.NewRequest(http.MethodPost, "/uploads/sign", bytes.NewReader(body2))
-	req2.Header.Set("Content-Type", "application/json")
-	w2 := httptest.NewRecorder()
-
-	// We need a service instance, but for testing we'll use a minimal config
-	// This test will be limited without mocking infrastructure
-	_ = mockService
-	_ = handlers
-	_ = w
-	_ = w2
-
-	// For this initial implementation, we'll focus on testing the validation logic
-	// Full integration tests would require mocking the S3 client
-}
 
 // TestSignUpload_InvalidJSON tests handling of malformed JSON.
 func TestSignUpload_InvalidJSON(t *testing.T) {

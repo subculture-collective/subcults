@@ -5,7 +5,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"path/filepath"
 	"strings"
 	"time"
 
@@ -216,17 +215,4 @@ func (s *Service) GenerateSignedURL(ctx context.Context, req SignedURLRequest) (
 		Key:       key,
 		ExpiresAt: expiresAt,
 	}, nil
-}
-
-// GetObjectURL returns the public URL for an object (without signing).
-// This can be used to retrieve the uploaded file after it's been uploaded.
-func (s *Service) GetObjectURL(key string) string {
-	// Extract base URL from endpoint
-	baseURL := ""
-	if s.s3Client.Options().BaseEndpoint != nil {
-		baseURL = strings.TrimSuffix(*s.s3Client.Options().BaseEndpoint, "/")
-	}
-	
-	// R2 object URLs follow the pattern: {endpoint}/{bucket}/{key}
-	return fmt.Sprintf("%s/%s/%s", baseURL, s.bucketName, filepath.ToSlash(key))
 }

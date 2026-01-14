@@ -230,17 +230,21 @@ func (c *Config) Validate() []error {
 	if c.JetstreamURL == "" {
 		errs = append(errs, ErrMissingJetstreamURL)
 	}
-	if c.R2BucketName == "" {
-		errs = append(errs, ErrMissingR2BucketName)
-	}
-	if c.R2AccessKeyID == "" {
-		errs = append(errs, ErrMissingR2AccessKeyID)
-	}
-	if c.R2SecretAccessKey == "" {
-		errs = append(errs, ErrMissingR2SecretAccessKey)
-	}
-	if c.R2Endpoint == "" {
-		errs = append(errs, ErrMissingR2Endpoint)
+	
+	// R2 configuration is optional. Only validate fields if any R2 value is set.
+	if c.R2BucketName != "" || c.R2AccessKeyID != "" || c.R2SecretAccessKey != "" || c.R2Endpoint != "" {
+		if c.R2BucketName == "" {
+			errs = append(errs, ErrMissingR2BucketName)
+		}
+		if c.R2AccessKeyID == "" {
+			errs = append(errs, ErrMissingR2AccessKeyID)
+		}
+		if c.R2SecretAccessKey == "" {
+			errs = append(errs, ErrMissingR2SecretAccessKey)
+		}
+		if c.R2Endpoint == "" {
+			errs = append(errs, ErrMissingR2Endpoint)
+		}
 	}
 
 	return errs

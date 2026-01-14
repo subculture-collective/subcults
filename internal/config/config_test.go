@@ -40,14 +40,14 @@ func TestLoad_MissingMandatory(t *testing.T) {
 		{
 			name:         "no environment variables set",
 			envVars:      map[string]string{},
-			wantErrCount: 13, // All mandatory fields missing (9 original + 4 R2)
+			wantErrCount: 9, // All mandatory fields missing (R2 is optional)
 		},
 		{
 			name: "only DATABASE_URL set",
 			envVars: map[string]string{
 				"DATABASE_URL": "postgres://localhost/test",
 			},
-			wantErrCount: 12,
+			wantErrCount: 8,
 			checkSpecificErr: ErrMissingJWTSecret,
 		},
 		{
@@ -61,10 +61,6 @@ func TestLoad_MissingMandatory(t *testing.T) {
 				"STRIPE_WEBHOOK_SECRET": "whsec_123",
 				"MAPTILER_API_KEY":      "maptiler_key",
 				"JETSTREAM_URL":         "wss://jetstream.example.com",
-				"R2_BUCKET_NAME":        "test-bucket",
-				"R2_ACCESS_KEY_ID":      "test-key",
-				"R2_SECRET_ACCESS_KEY":  "test-secret",
-				"R2_ENDPOINT":           "https://test.r2.cloudflarestorage.com",
 			},
 			wantErrCount:     1,
 			checkSpecificErr: ErrMissingJWTSecret,
@@ -80,10 +76,6 @@ func TestLoad_MissingMandatory(t *testing.T) {
 				"STRIPE_WEBHOOK_SECRET": "whsec_123",
 				"MAPTILER_API_KEY":      "maptiler_key",
 				"JETSTREAM_URL":         "wss://jetstream.example.com",
-				"R2_BUCKET_NAME":        "test-bucket",
-				"R2_ACCESS_KEY_ID":      "test-key",
-				"R2_SECRET_ACCESS_KEY":  "test-secret",
-				"R2_ENDPOINT":           "https://test.r2.cloudflarestorage.com",
 			},
 			wantErrCount:     1,
 			checkSpecificErr: ErrMissingStripeAPIKey,
@@ -387,10 +379,25 @@ func TestConfig_Validate(t *testing.T) {
 		{
 			name:     "empty config has all errors",
 			config:   Config{},
-			wantErrs: 13, // 9 original + 4 R2
+			wantErrs: 9, // 9 required fields (R2 is optional)
 		},
 		{
 			name: "fully valid config",
+			config: Config{
+				DatabaseURL:         "postgres://localhost/test",
+				JWTSecret:           "secret",
+				LiveKitURL:          "wss://livekit.example.com",
+				LiveKitAPIKey:       "key",
+				LiveKitAPISecret:    "secret",
+				StripeAPIKey:        "sk_test_123",
+				StripeWebhookSecret: "whsec_123",
+				MapTilerAPIKey:      "key",
+				JetstreamURL:        "wss://jetstream.example.com",
+			},
+			wantErrs: 0,
+		},
+		{
+			name: "fully valid config with R2",
 			config: Config{
 				DatabaseURL:         "postgres://localhost/test",
 				JWTSecret:           "secret",
@@ -419,10 +426,6 @@ func TestConfig_Validate(t *testing.T) {
 				StripeWebhookSecret: "whsec_123",
 				MapTilerAPIKey:      "key",
 				JetstreamURL:        "wss://jetstream.example.com",
-				R2BucketName:        "test-bucket",
-				R2AccessKeyID:       "test-key",
-				R2SecretAccessKey:   "test-secret",
-				R2Endpoint:          "https://test.r2.cloudflarestorage.com",
 			},
 			wantErrs:    1,
 			checkForErr: ErrMissingLiveKitURL,

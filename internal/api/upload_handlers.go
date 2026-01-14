@@ -10,11 +10,6 @@ import (
 	"github.com/onnwee/subcults/internal/upload"
 )
 
-// Error code for unsupported content type
-const (
-	ErrCodeUnsupportedType = "unsupported_type"
-)
-
 // SignUploadRequest represents the request body for POST /uploads/sign.
 type SignUploadRequest struct {
 	ContentType string  `json:"contentType"`
