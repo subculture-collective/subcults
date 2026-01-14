@@ -116,7 +116,7 @@ The `FilterPostsForUser` helper function applies moderation rules based on user 
 func FilterPostsForUser(
     posts []*Post,
     prefs *UserPreferences,
-    authorDID string,
+    viewerDID string,
     includeModerated bool
 ) []*Post
 ```
@@ -124,7 +124,7 @@ func FilterPostsForUser(
 **Parameters**:
 - `posts`: List of posts to filter
 - `prefs`: User preferences (includes `ShowNSFW` flag)
-- `authorDID`: DID of the viewing user (empty for anonymous)
+- `viewerDID`: DID of the viewing user (empty for anonymous)
 - `includeModerated`: Whether to include spam/flagged content (false for search, true for feeds)
 
 ### User Preferences
@@ -279,7 +279,7 @@ try {
 
 ## References
 
-- **Issue**: [#17 - Task: Moderation Label Application & Filtering](https://github.com/subculture-collective/subcults/issues/17)
+- **Issue**: [#90 - Task: Moderation Label Application & Filtering](https://github.com/subculture-collective/subcults/issues/90)
 - **Implementation**: `internal/post/moderation.go`
 - **Tests**: `internal/post/moderation_test.go`
 - **API Integration**: `internal/api/post_handlers.go`

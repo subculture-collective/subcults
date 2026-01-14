@@ -67,8 +67,8 @@ type UserPreferences struct {
 // - Posts with 'nsfw' label are excluded unless user has ShowNSFW=true
 // - Posts with 'spam' or 'flagged' labels are excluded from search contexts
 //   (context parameter controls this; use includeModerated=false for search)
-// - Post owner always sees their own posts regardless of labels (requires authorDID)
-func FilterPostsForUser(posts []*Post, prefs *UserPreferences, authorDID string, includeModerated bool) []*Post {
+// - Post owner always sees their own posts regardless of labels (requires viewerDID)
+func FilterPostsForUser(posts []*Post, prefs *UserPreferences, viewerDID string, includeModerated bool) []*Post {
 	// Return empty slice for nil or empty input
 	if len(posts) == 0 {
 		return []*Post{}
@@ -81,7 +81,7 @@ func FilterPostsForUser(posts []*Post, prefs *UserPreferences, authorDID string,
 
 	filtered := make([]*Post, 0, len(posts))
 	for _, post := range posts {
-		if shouldIncludePost(post, prefs, authorDID, includeModerated) {
+		if shouldIncludePost(post, prefs, viewerDID, includeModerated) {
 			filtered = append(filtered, post)
 		}
 	}
@@ -90,13 +90,13 @@ func FilterPostsForUser(posts []*Post, prefs *UserPreferences, authorDID string,
 }
 
 // shouldIncludePost determines if a single post should be visible based on filtering rules.
-func shouldIncludePost(post *Post, prefs *UserPreferences, authorDID string, includeModerated bool) bool {
+func shouldIncludePost(post *Post, prefs *UserPreferences, viewerDID string, includeModerated bool) bool {
 	if post == nil {
 		return false
 	}
 
 	// Owner always sees their own posts
-	isOwner := authorDID != "" && post.AuthorDID == authorDID
+	isOwner := viewerDID != "" && post.AuthorDID == viewerDID
 
 	// Check each label for filtering rules
 	for _, label := range post.Labels {
