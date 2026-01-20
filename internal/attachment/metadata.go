@@ -24,15 +24,22 @@ var (
 	ErrUnsupportedFormat = errors.New("unsupported file format")
 )
 
+// S3Client interface abstracts S3 operations for testability
+type S3Client interface {
+	HeadObject(ctx context.Context, params *s3.HeadObjectInput, optFns ...func(*s3.Options)) (*s3.HeadObjectOutput, error)
+	GetObject(ctx context.Context, params *s3.GetObjectInput, optFns ...func(*s3.Options)) (*s3.GetObjectOutput, error)
+	PutObject(ctx context.Context, params *s3.PutObjectInput, optFns ...func(*s3.Options)) (*s3.PutObjectOutput, error)
+}
+
 // MetadataService handles attachment metadata extraction and enrichment.
 type MetadataService struct {
-	s3Client   *s3.Client
+	s3Client   S3Client
 	bucketName string
 }
 
 // MetadataServiceConfig holds configuration for the metadata service.
 type MetadataServiceConfig struct {
-	S3Client   *s3.Client
+	S3Client   S3Client
 	BucketName string
 }
 
@@ -144,9 +151,13 @@ func (s *MetadataService) processImage(ctx context.Context, key string, attachme
 	attachment.Width = &width
 	attachment.Height = &height
 
-	// Strip EXIF metadata for privacy
-	// ProcessBytes re-encodes the image, removing all EXIF data including GPS coordinates
-	sanitizedBytes, err := image.ProcessBytes(imageBytes)
+	// Strip EXIF metadata for privacy while preserving original format
+	// This prevents converting PNG to JPEG (which would lose transparency)
+	// and avoids unnecessary format changes that could degrade quality
+	config := image.DefaultConfig()
+	config.OutputFormat = determineOutputFormat(attachment.Type, metadata.Type)
+	
+	sanitizedBytes, err := image.ProcessWithConfig(bytes.NewReader(imageBytes), config)
 	if err != nil {
 		return fmt.Errorf("failed to strip EXIF: %w", err)
 	}
@@ -169,6 +180,34 @@ func (s *MetadataService) processImage(ctx context.Context, key string, attachme
 	attachment.SizeBytes = int64(len(sanitizedBytes))
 
 	return nil
+}
+
+// determineOutputFormat determines the appropriate output format for image processing.
+// Preserves original format to avoid lossy conversions (e.g., PNG -> JPEG losing transparency).
+// Falls back to detected format from bimg metadata if content type is unavailable.
+func determineOutputFormat(contentType, bimgType string) string {
+	// Try to determine from content type first
+	switch contentType {
+	case "image/jpeg", "image/jpg":
+		return "jpeg"
+	case "image/png":
+		return "png"
+	case "image/webp":
+		return "webp"
+	}
+	
+	// Fall back to bimg detected type
+	switch bimgType {
+	case "jpeg":
+		return "jpeg"
+	case "png":
+		return "png"
+	case "webp":
+		return "webp"
+	}
+	
+	// Default to jpeg if we can't determine
+	return "jpeg"
 }
 
 // isImageType checks if the content type is an image.
