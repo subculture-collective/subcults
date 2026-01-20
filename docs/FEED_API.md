@@ -147,6 +147,52 @@ Example: `1705315800000000000:550e8400-e29b-41d4-a716-446655440000`
 
 **Note**: The API returns `next_cursor.created_at` as an ISO 8601 timestamp string (e.g., `"2024-01-15T10:30:00Z"`), but the cursor query parameter expects Unix nanoseconds. Use `new Date(created_at).getTime() * 1000000` to convert.
 
+##### Cursor Structure and Invariants
+
+**Cursor Composition**: Each cursor consists of two components:
+1. **`created_at`** (timestamp): ISO 8601 timestamp of the last post returned on the current page
+2. **`id`** (UUID string): Unique identifier of the last post returned on the current page
+
+**Ordering Guarantee**: Posts are ordered by:
+1. `created_at DESC` (newest first)
+2. `id ASC` (lexicographic, for tie-breaking when timestamps are identical)
+
+This composite ordering ensures stable, deterministic pagination even when multiple posts have the same creation timestamp.
+
+**Pagination Invariants**:
+
+1. **No Duplicates**: A post will never appear on multiple pages within the same pagination session (using the same sequence of cursors).
+
+2. **Cursor Stability Under Mutations**:
+   - **Deletions**: If a post is deleted after a cursor is captured, pagination continues without duplicates or unintended skips. The deleted post simply doesn't appear in subsequent pages.
+   - **Label Changes (Hiding)**: If a post is hidden (via label change) after a cursor is captured, it's excluded from subsequent pages without affecting pagination integrity.
+   - **Insertions**: New posts inserted with timestamps that would place them *before* the cursor in the `created_at DESC` feed (i.e., with `created_at > cursor.created_at`) will **not** appear in ongoing pagination. They only appear when refreshing from the beginning (no cursor). This prevents "page tearing" where new content disrupts the user's scroll position.
+
+3. **Timestamp Boundaries**: The cursor marks a position in the chronologically-sorted feed. Subsequent pages return only posts with:
+   - `created_at < cursor.created_at` (older posts), OR
+   - `created_at == cursor.created_at AND id > cursor.id` (same timestamp but lexicographically greater ID)
+
+4. **Idempotency**: Calling the same endpoint with the same cursor multiple times returns the same results (assuming no posts were deleted/hidden between calls).
+
+5. **Session Independence**: Cursors from different pagination sessions can be used interchangeably as long as they reference valid posts. However, refreshing from the beginning (no cursor) may show different results if new posts were added.
+
+**Expected Behaviors**:
+
+- **New posts earlier in the feed order**: If a post is created after the cursor is captured but has a `created_at` timestamp greater than the cursor's timestamp (placing it earlier in the DESC-ordered feed), it will **not** appear in ongoing pagination. Users must refresh (start from the beginning with no cursor) to see it. This is intentional to prevent disrupting infinite scroll UX.
+
+- **Consistent ordering**: The same set of posts (excluding deleted/hidden ones) will always appear in the same order, regardless of when pagination occurs.
+
+- **Hidden posts stay hidden**: Posts with the `hidden` label are excluded from all feed responses, even if they were visible when the cursor was created.
+
+**Testing**: Cursor integrity is validated through comprehensive test suites covering:
+- Post deletion during pagination
+- Post hiding during pagination  
+- New post insertion during pagination
+- Multiple concurrent mutations
+- Event feed pagination (same semantics as scene feeds)
+
+See `internal/post/feed_test.go` for detailed test scenarios.
+
 ---
 
 ### Event Feed
