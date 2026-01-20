@@ -4,6 +4,7 @@ package post
 
 import (
 	"errors"
+	"sort"
 	"sync"
 	"time"
 
@@ -47,6 +48,13 @@ type UpsertResult struct {
 	ID       string // The UUID of the upserted record
 }
 
+// FeedCursor represents a cursor for paginating through a feed.
+// Uses (created_at, id) for stable pagination with tie-breaking.
+type FeedCursor struct {
+	CreatedAt time.Time `json:"created_at"`
+	ID        string    `json:"id"`
+}
+
 // PostRepository defines the interface for post data operations.
 type PostRepository interface {
 	// Upsert inserts a new post or updates existing one based on (record_did, record_rkey).
@@ -67,6 +75,20 @@ type PostRepository interface {
 
 	// GetByRecordKey retrieves a post by its AT Protocol record key.
 	GetByRecordKey(did, rkey string) (*Post, error)
+
+	// ListByScene retrieves posts for a scene with cursor-based pagination.
+	// Returns posts ordered by created_at DESC, id ASC (tie-breaker).
+	// Excludes soft-deleted posts and posts with 'hidden' label.
+	// If cursor is nil, starts from the most recent post.
+	// Returns posts, next cursor (nil if no more), and error.
+	ListByScene(sceneID string, limit int, cursor *FeedCursor) ([]*Post, *FeedCursor, error)
+
+	// ListByEvent retrieves posts for an event with cursor-based pagination.
+	// Returns posts ordered by created_at DESC, id ASC (tie-breaker).
+	// Excludes soft-deleted posts and posts with 'hidden' label.
+	// If cursor is nil, starts from the most recent post.
+	// Returns posts, next cursor (nil if no more), and error.
+	ListByEvent(eventID string, limit int, cursor *FeedCursor) ([]*Post, *FeedCursor, error)
 }
 
 // InMemoryPostRepository is an in-memory implementation of PostRepository.
@@ -251,4 +273,156 @@ func (r *InMemoryPostRepository) GetByRecordKey(did, rkey string) (*Post, error)
 	post := r.posts[id]
 	postCopy := *post
 	return &postCopy, nil
+}
+
+// ListByScene retrieves posts for a scene with cursor-based pagination.
+func (r *InMemoryPostRepository) ListByScene(sceneID string, limit int, cursor *FeedCursor) ([]*Post, *FeedCursor, error) {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+
+	// Collect all non-deleted posts for this scene
+	var candidates []*Post
+	for _, post := range r.posts {
+		// Skip deleted posts
+		if post.DeletedAt != nil {
+			continue
+		}
+		
+		// Skip posts not in this scene
+		if post.SceneID == nil || *post.SceneID != sceneID {
+			continue
+		}
+		
+		// Skip hidden posts
+		if post.HasLabel(LabelHidden) {
+			continue
+		}
+		
+		// Apply cursor filter if provided
+		if cursor != nil {
+			// Skip posts that are newer or equal (in terms of created_at) but have higher/equal ID
+			if post.CreatedAt.After(cursor.CreatedAt) {
+				continue
+			}
+			if post.CreatedAt.Equal(cursor.CreatedAt) && post.ID >= cursor.ID {
+				continue
+			}
+		}
+		
+		candidates = append(candidates, post)
+	}
+
+	// Sort by created_at DESC, then by ID ASC for tie-breaking
+	// This ensures stable pagination
+	sortPostsByCreatedDesc(candidates)
+
+	// Apply limit and determine next cursor
+	var results []*Post
+	var nextCursor *FeedCursor
+	
+	if len(candidates) > limit {
+		results = candidates[:limit]
+		// Next cursor points to the last returned post
+		lastPost := results[len(results)-1]
+		nextCursor = &FeedCursor{
+			CreatedAt: lastPost.CreatedAt,
+			ID:        lastPost.ID,
+		}
+	} else {
+		results = candidates
+		// No more posts, cursor is nil
+	}
+
+	// Return deep copies to prevent external mutation
+	copies := make([]*Post, len(results))
+	for i, p := range results {
+		postCopy := *p
+		copies[i] = &postCopy
+	}
+
+	return copies, nextCursor, nil
+}
+
+// ListByEvent retrieves posts for an event with cursor-based pagination.
+func (r *InMemoryPostRepository) ListByEvent(eventID string, limit int, cursor *FeedCursor) ([]*Post, *FeedCursor, error) {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+
+	// Collect all non-deleted posts for this event
+	var candidates []*Post
+	for _, post := range r.posts {
+		// Skip deleted posts
+		if post.DeletedAt != nil {
+			continue
+		}
+		
+		// Skip posts not in this event
+		if post.EventID == nil || *post.EventID != eventID {
+			continue
+		}
+		
+		// Skip hidden posts
+		if post.HasLabel(LabelHidden) {
+			continue
+		}
+		
+		// Apply cursor filter if provided
+		if cursor != nil {
+			// Skip posts that are newer or equal (in terms of created_at) but have higher/equal ID
+			if post.CreatedAt.After(cursor.CreatedAt) {
+				continue
+			}
+			if post.CreatedAt.Equal(cursor.CreatedAt) && post.ID >= cursor.ID {
+				continue
+			}
+		}
+		
+		candidates = append(candidates, post)
+	}
+
+	// Sort by created_at DESC, then by ID ASC for tie-breaking
+	sortPostsByCreatedDesc(candidates)
+
+	// Apply limit and determine next cursor
+	var results []*Post
+	var nextCursor *FeedCursor
+	
+	if len(candidates) > limit {
+		results = candidates[:limit]
+		// Next cursor points to the last returned post
+		lastPost := results[len(results)-1]
+		nextCursor = &FeedCursor{
+			CreatedAt: lastPost.CreatedAt,
+			ID:        lastPost.ID,
+		}
+	} else {
+		results = candidates
+		// No more posts, cursor is nil
+	}
+
+	// Return deep copies to prevent external mutation
+	copies := make([]*Post, len(results))
+	for i, p := range results {
+		postCopy := *p
+		copies[i] = &postCopy
+	}
+
+	return copies, nextCursor, nil
+}
+
+// sortPostsByCreatedDesc sorts posts by created_at DESC, then by ID ASC for tie-breaking.
+// This provides stable ordering for cursor-based pagination.
+// Uses sort.Slice with O(n log n) introsort for efficient sorting of large result sets.
+func sortPostsByCreatedDesc(posts []*Post) {
+	sort.Slice(posts, func(i, j int) bool {
+		// Sort by created_at DESC (newer first)
+		if posts[i].CreatedAt.After(posts[j].CreatedAt) {
+			return true
+		}
+		if posts[i].CreatedAt.Before(posts[j].CreatedAt) {
+			return false
+		}
+		// Tie-break by ID ASC (lexicographic order) when timestamps are equal
+		return posts[i].ID < posts[j].ID
+	})
 }

@@ -7,10 +7,14 @@ import (
 	"html"
 	"log/slog"
 	"net/http"
+	"strconv"
 	"strings"
+	"time"
 
+	"github.com/onnwee/subcults/internal/membership"
 	"github.com/onnwee/subcults/internal/middleware"
 	"github.com/onnwee/subcults/internal/post"
+	"github.com/onnwee/subcults/internal/scene"
 )
 
 // Post text validation constraints
@@ -37,13 +41,17 @@ type UpdatePostRequest struct {
 
 // PostHandlers holds dependencies for post HTTP handlers.
 type PostHandlers struct {
-	repo post.PostRepository
+	repo           post.PostRepository
+	sceneRepo      scene.SceneRepository
+	membershipRepo membership.MembershipRepository
 }
 
 // NewPostHandlers creates a new PostHandlers instance.
-func NewPostHandlers(repo post.PostRepository) *PostHandlers {
+func NewPostHandlers(repo post.PostRepository, sceneRepo scene.SceneRepository, membershipRepo membership.MembershipRepository) *PostHandlers {
 	return &PostHandlers{
-		repo: repo,
+		repo:           repo,
+		sceneRepo:      sceneRepo,
+		membershipRepo: membershipRepo,
 	}
 }
 
@@ -274,4 +282,234 @@ func (h *PostHandlers) DeletePost(w http.ResponseWriter, r *http.Request) {
 
 	// Return success with no content
 	w.WriteHeader(http.StatusNoContent)
+}
+
+// FeedResponse represents the JSON response for feed endpoints.
+type FeedResponse struct {
+	Posts      []*post.Post      `json:"posts"`
+	NextCursor *post.FeedCursor  `json:"next_cursor,omitempty"`
+}
+
+// parseCursor parses cursor from query parameter.
+// Returns nil if cursor is not provided or invalid.
+func parseCursor(cursorStr string) *post.FeedCursor {
+	if cursorStr == "" {
+		return nil
+	}
+
+	// Cursor format: "created_at_unix_nano:id"
+	// Example: "1234567890123456789:uuid-here"
+	parts := strings.Split(cursorStr, ":")
+	if len(parts) != 2 {
+		return nil
+	}
+
+	// Parse timestamp (Unix nanoseconds)
+	timestamp, err := strconv.ParseInt(parts[0], 10, 64)
+	if err != nil {
+		return nil
+	}
+
+	return &post.FeedCursor{
+		CreatedAt: time.Unix(0, timestamp),
+		ID:        parts[1],
+	}
+}
+
+// canAccessScene checks if a user can access a scene based on visibility rules.
+// Returns true if access is allowed, false otherwise.
+func (h *PostHandlers) canAccessScene(s *scene.Scene, requesterDID string) (bool, error) {
+	// Owner always has access
+	if s.IsOwner(requesterDID) {
+		return true, nil
+	}
+
+	// Check visibility rules
+	switch s.Visibility {
+	case scene.VisibilityPublic:
+		// Public scenes are accessible to everyone
+		return true, nil
+
+	case scene.VisibilityMembersOnly:
+		// Members-only scenes require active membership
+		if requesterDID == "" {
+			return false, nil
+		}
+		
+		// Check if requester is an active member
+		m, err := h.membershipRepo.GetBySceneAndUser(s.ID, requesterDID)
+		if err != nil {
+			// Not a member or error retrieving membership
+			if err == membership.ErrMembershipNotFound {
+				return false, nil
+			}
+			return false, err
+		}
+		
+		// Only active members can access
+		return m.Status == "active", nil
+
+	case scene.VisibilityHidden:
+		// Hidden scenes only accessible to owner (already checked above)
+		return false, nil
+
+	default:
+		// Unknown visibility mode - deny access for safety
+		slog.Warn("unknown visibility mode", "visibility", s.Visibility, "scene_id", s.ID)
+		return false, nil
+	}
+}
+
+// GetSceneFeed handles GET /scenes/{id}/feed - retrieves posts for a scene with pagination.
+func (h *PostHandlers) GetSceneFeed(w http.ResponseWriter, r *http.Request) {
+	// Extract scene ID from URL path
+	pathParts := strings.Split(strings.TrimPrefix(r.URL.Path, "/scenes/"), "/")
+	if len(pathParts) < 2 || pathParts[0] == "" {
+		ctx := middleware.SetErrorCode(r.Context(), ErrCodeBadRequest)
+		WriteError(w, ctx, http.StatusBadRequest, ErrCodeBadRequest, "Scene ID is required")
+		return
+	}
+	sceneID := pathParts[0]
+
+	// Get the scene to check visibility
+	foundScene, err := h.sceneRepo.GetByID(sceneID)
+	if err != nil {
+		// Use uniform error message - same as "not found" to prevent enumeration
+		if err == scene.ErrSceneNotFound || err == scene.ErrSceneDeleted {
+			slog.DebugContext(r.Context(), "scene not found or deleted", "scene_id", sceneID)
+			ctx := middleware.SetErrorCode(r.Context(), ErrCodeNotFound)
+			WriteError(w, ctx, http.StatusNotFound, ErrCodeNotFound, "Scene not found")
+			return
+		}
+		slog.ErrorContext(r.Context(), "failed to retrieve scene", "error", err, "scene_id", sceneID)
+		ctx := middleware.SetErrorCode(r.Context(), ErrCodeInternal)
+		WriteError(w, ctx, http.StatusInternalServerError, ErrCodeInternal, "Failed to retrieve scene")
+		return
+	}
+
+	// Get requester DID (empty if not authenticated)
+	requesterDID := middleware.GetUserDID(r.Context())
+
+	// Check visibility permissions
+	canAccess, err := h.canAccessScene(foundScene, requesterDID)
+	if err != nil {
+		slog.ErrorContext(r.Context(), "failed to check scene access", "error", err, "scene_id", sceneID)
+		ctx := middleware.SetErrorCode(r.Context(), ErrCodeInternal)
+		WriteError(w, ctx, http.StatusInternalServerError, ErrCodeInternal, "Failed to check access permissions")
+		return
+	}
+
+	if !canAccess {
+		// Use uniform error message - same as "not found" to prevent enumeration
+		slog.DebugContext(r.Context(), "scene access denied", 
+			"scene_id", sceneID, 
+			"visibility", foundScene.Visibility,
+			"requester_did", requesterDID,
+			"is_owner", foundScene.IsOwner(requesterDID))
+		ctx := middleware.SetErrorCode(r.Context(), ErrCodeNotFound)
+		WriteError(w, ctx, http.StatusNotFound, ErrCodeNotFound, "Scene not found")
+		return
+	}
+
+	// Parse query parameters
+	limitStr := r.URL.Query().Get("limit")
+	cursorStr := r.URL.Query().Get("cursor")
+
+	// Default limit is 20, max is 100
+	limit := 20
+	if limitStr != "" {
+		parsedLimit, err := strconv.Atoi(limitStr)
+		if err != nil || parsedLimit < 1 {
+			ctx := middleware.SetErrorCode(r.Context(), ErrCodeValidation)
+			WriteError(w, ctx, http.StatusBadRequest, ErrCodeValidation, "Invalid limit parameter")
+			return
+		}
+		if parsedLimit > 100 {
+			parsedLimit = 100
+		}
+		limit = parsedLimit
+	}
+
+	// Parse cursor
+	cursor := parseCursor(cursorStr)
+
+	// Fetch posts from repository
+	posts, nextCursor, err := h.repo.ListByScene(sceneID, limit, cursor)
+	if err != nil {
+		slog.ErrorContext(r.Context(), "failed to list scene posts", "error", err, "scene_id", sceneID)
+		ctx := middleware.SetErrorCode(r.Context(), ErrCodeInternal)
+		WriteError(w, ctx, http.StatusInternalServerError, ErrCodeInternal, "Failed to retrieve posts")
+		return
+	}
+
+	// Build response
+	response := FeedResponse{
+		Posts:      posts,
+		NextCursor: nextCursor,
+	}
+
+	// Return feed
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	if err := json.NewEncoder(w).Encode(response); err != nil {
+		slog.ErrorContext(r.Context(), "failed to encode response", "error", err)
+		return
+	}
+}
+
+// GetEventFeed handles GET /events/{id}/feed - retrieves posts for an event with pagination.
+func (h *PostHandlers) GetEventFeed(w http.ResponseWriter, r *http.Request) {
+	// Extract event ID from URL path
+	pathParts := strings.Split(strings.TrimPrefix(r.URL.Path, "/events/"), "/")
+	if len(pathParts) < 2 || pathParts[0] == "" {
+		ctx := middleware.SetErrorCode(r.Context(), ErrCodeBadRequest)
+		WriteError(w, ctx, http.StatusBadRequest, ErrCodeBadRequest, "Event ID is required")
+		return
+	}
+	eventID := pathParts[0]
+
+	// Parse query parameters
+	limitStr := r.URL.Query().Get("limit")
+	cursorStr := r.URL.Query().Get("cursor")
+
+	// Default limit is 20, max is 100
+	limit := 20
+	if limitStr != "" {
+		parsedLimit, err := strconv.Atoi(limitStr)
+		if err != nil || parsedLimit < 1 {
+			ctx := middleware.SetErrorCode(r.Context(), ErrCodeValidation)
+			WriteError(w, ctx, http.StatusBadRequest, ErrCodeValidation, "Invalid limit parameter")
+			return
+		}
+		if parsedLimit > 100 {
+			parsedLimit = 100
+		}
+		limit = parsedLimit
+	}
+
+	// Parse cursor
+	cursor := parseCursor(cursorStr)
+
+	// Fetch posts from repository
+	posts, nextCursor, err := h.repo.ListByEvent(eventID, limit, cursor)
+	if err != nil {
+		slog.ErrorContext(r.Context(), "failed to list event posts", "error", err, "event_id", eventID)
+		ctx := middleware.SetErrorCode(r.Context(), ErrCodeInternal)
+		WriteError(w, ctx, http.StatusInternalServerError, ErrCodeInternal, "Failed to retrieve posts")
+		return
+	}
+
+	// Build response
+	response := FeedResponse{
+		Posts:      posts,
+		NextCursor: nextCursor,
+	}
+
+	// Return feed
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	if err := json.NewEncoder(w).Encode(response); err != nil {
+		slog.ErrorContext(r.Context(), "failed to encode response", "error", err)
+		return
+	}
 }

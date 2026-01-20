@@ -20,6 +20,7 @@ import (
 	"github.com/onnwee/subcults/internal/api"
 	"github.com/onnwee/subcults/internal/audit"
 	"github.com/onnwee/subcults/internal/livekit"
+	"github.com/onnwee/subcults/internal/membership"
 	"github.com/onnwee/subcults/internal/middleware"
 	"github.com/onnwee/subcults/internal/post"
 	"github.com/onnwee/subcults/internal/scene"
@@ -62,6 +63,7 @@ func main() {
 	rsvpRepo := scene.NewInMemoryRSVPRepository()
 	streamRepo := stream.NewInMemorySessionRepository()
 	postRepo := post.NewInMemoryPostRepository()
+	membershipRepo := membership.NewInMemoryMembershipRepository()
 
 	// Initialize Prometheus metrics
 	promRegistry := prometheus.NewRegistry()
@@ -127,7 +129,7 @@ func main() {
 	eventHandlers := api.NewEventHandlers(eventRepo, sceneRepo, auditRepo, rsvpRepo, streamRepo)
 	rsvpHandlers := api.NewRSVPHandlers(rsvpRepo, eventRepo)
 	streamHandlers := api.NewStreamHandlers(streamRepo, sceneRepo, eventRepo, auditRepo, streamMetrics)
-	postHandlers := api.NewPostHandlers(postRepo)
+	postHandlers := api.NewPostHandlers(postRepo, sceneRepo, membershipRepo)
 
 	// Create HTTP server with routes
 	mux := http.NewServeMux()
@@ -145,8 +147,14 @@ func main() {
 
 	mux.HandleFunc("/events/", func(w http.ResponseWriter, r *http.Request) {
 		// Parse path to check for special endpoints
-		// Expected patterns: /events/{id}, /events/{id}/cancel, /events/{id}/rsvp
+		// Expected patterns: /events/{id}, /events/{id}/cancel, /events/{id}/rsvp, /events/{id}/feed
 		pathParts := strings.Split(strings.TrimPrefix(r.URL.Path, "/events/"), "/")
+		
+		// Check if this is a feed request: /events/{id}/feed
+		if len(pathParts) == 2 && pathParts[0] != "" && pathParts[1] == "feed" && r.Method == http.MethodGet {
+			postHandlers.GetEventFeed(w, r)
+			return
+		}
 		
 		// Check if this is a cancel request: /events/{id}/cancel
 		if len(pathParts) == 2 && pathParts[0] != "" && pathParts[1] == "cancel" && r.Method == http.MethodPost {
@@ -177,6 +185,23 @@ func main() {
 			ctx := middleware.SetErrorCode(r.Context(), api.ErrCodeBadRequest)
 			api.WriteError(w, ctx, http.StatusMethodNotAllowed, api.ErrCodeBadRequest, "Method not allowed")
 		}
+	})
+
+	// Scene feed route
+	mux.HandleFunc("/scenes/", func(w http.ResponseWriter, r *http.Request) {
+		// Parse path to check for feed endpoint
+		// Expected pattern: /scenes/{id}/feed
+		pathParts := strings.Split(strings.TrimPrefix(r.URL.Path, "/scenes/"), "/")
+		
+		// Check if this is a feed request: /scenes/{id}/feed
+		if len(pathParts) == 2 && pathParts[0] != "" && pathParts[1] == "feed" && r.Method == http.MethodGet {
+			postHandlers.GetSceneFeed(w, r)
+			return
+		}
+		
+		// No other scene endpoints yet, return 404
+		ctx := middleware.SetErrorCode(r.Context(), api.ErrCodeNotFound)
+		api.WriteError(w, ctx, http.StatusNotFound, api.ErrCodeNotFound, "The requested resource was not found")
 	})
 
 	// Search endpoints

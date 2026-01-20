@@ -8,7 +8,9 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/onnwee/subcults/internal/membership"
 	"github.com/onnwee/subcults/internal/post"
+	"github.com/onnwee/subcults/internal/scene"
 )
 
 // Helper function to create a string pointer
@@ -16,10 +18,17 @@ func strPtr(s string) *string {
 	return &s
 }
 
+// newTestPostHandlers creates a PostHandlers instance for testing with mock repositories.
+func newTestPostHandlers() *PostHandlers {
+	postRepo := post.NewInMemoryPostRepository()
+	sceneRepo := scene.NewInMemorySceneRepository()
+	membershipRepo := membership.NewInMemoryMembershipRepository()
+	return NewPostHandlers(postRepo, sceneRepo, membershipRepo)
+}
+
 // TestCreatePost_Success tests successful post creation.
 func TestCreatePost_Success(t *testing.T) {
-	repo := post.NewInMemoryPostRepository()
-	handlers := NewPostHandlers(repo)
+	handlers := newTestPostHandlers()
 
 	sceneID := "scene123"
 	reqBody := CreatePostRequest{
@@ -61,8 +70,7 @@ func TestCreatePost_Success(t *testing.T) {
 
 // TestCreatePost_WithEventID tests creating a post with event_id.
 func TestCreatePost_WithEventID(t *testing.T) {
-	repo := post.NewInMemoryPostRepository()
-	handlers := NewPostHandlers(repo)
+	handlers := newTestPostHandlers()
 
 	eventID := "event123"
 	reqBody := CreatePostRequest{
@@ -97,8 +105,7 @@ func TestCreatePost_WithEventID(t *testing.T) {
 
 // TestCreatePost_MissingTarget tests that missing both sceneId and eventId returns 400.
 func TestCreatePost_MissingTarget(t *testing.T) {
-	repo := post.NewInMemoryPostRepository()
-	handlers := NewPostHandlers(repo)
+	handlers := newTestPostHandlers()
 
 	reqBody := CreatePostRequest{
 		Text: "This post has no target",
@@ -131,8 +138,7 @@ func TestCreatePost_MissingTarget(t *testing.T) {
 
 // TestCreatePost_EmptyText tests that empty text returns validation error.
 func TestCreatePost_EmptyText(t *testing.T) {
-	repo := post.NewInMemoryPostRepository()
-	handlers := NewPostHandlers(repo)
+	handlers := newTestPostHandlers()
 
 	sceneID := "scene123"
 	reqBody := CreatePostRequest{
@@ -167,8 +173,7 @@ func TestCreatePost_EmptyText(t *testing.T) {
 
 // TestCreatePost_TextTooLong tests that text exceeding 5000 chars returns validation error.
 func TestCreatePost_TextTooLong(t *testing.T) {
-	repo := post.NewInMemoryPostRepository()
-	handlers := NewPostHandlers(repo)
+	handlers := newTestPostHandlers()
 
 	sceneID := "scene123"
 	longText := strings.Repeat("a", 5001)
@@ -204,8 +209,7 @@ func TestCreatePost_TextTooLong(t *testing.T) {
 
 // TestCreatePost_TooManyAttachments tests that more than 6 attachments returns validation error.
 func TestCreatePost_TooManyAttachments(t *testing.T) {
-	repo := post.NewInMemoryPostRepository()
-	handlers := NewPostHandlers(repo)
+	handlers := newTestPostHandlers()
 
 	sceneID := "scene123"
 	attachments := make([]post.Attachment, 7)
@@ -246,8 +250,7 @@ func TestCreatePost_TooManyAttachments(t *testing.T) {
 
 // TestCreatePost_XSSSanitization tests that HTML is escaped to prevent XSS.
 func TestCreatePost_XSSSanitization(t *testing.T) {
-	repo := post.NewInMemoryPostRepository()
-	handlers := NewPostHandlers(repo)
+	handlers := newTestPostHandlers()
 
 	sceneID := "scene123"
 	reqBody := CreatePostRequest{
@@ -290,8 +293,7 @@ func TestCreatePost_XSSSanitization(t *testing.T) {
 
 // TestUpdatePost_Success tests successful post update.
 func TestUpdatePost_Success(t *testing.T) {
-	repo := post.NewInMemoryPostRepository()
-	handlers := NewPostHandlers(repo)
+	handlers := newTestPostHandlers()
 
 	// Create a post first
 	sceneID := "scene123"
@@ -301,7 +303,7 @@ func TestUpdatePost_Success(t *testing.T) {
 		Text:      "Original text",
 		Labels:    []string{"original"},
 	}
-	if err := repo.Create(originalPost); err != nil {
+	if err := handlers.repo.Create(originalPost); err != nil {
 		t.Fatalf("failed to create post: %v", err)
 	}
 
@@ -341,8 +343,7 @@ func TestUpdatePost_Success(t *testing.T) {
 
 // TestUpdatePost_Labels tests updating labels.
 func TestUpdatePost_Labels(t *testing.T) {
-	repo := post.NewInMemoryPostRepository()
-	handlers := NewPostHandlers(repo)
+	handlers := newTestPostHandlers()
 
 	// Create a post first
 	sceneID := "scene123"
@@ -352,7 +353,7 @@ func TestUpdatePost_Labels(t *testing.T) {
 		Text:      "Test post",
 		Labels:    []string{post.LabelNSFW}, // Use valid moderation label
 	}
-	if err := repo.Create(originalPost); err != nil {
+	if err := handlers.repo.Create(originalPost); err != nil {
 		t.Fatalf("failed to create post: %v", err)
 	}
 
@@ -395,8 +396,7 @@ func TestUpdatePost_Labels(t *testing.T) {
 
 // TestUpdatePost_NotFound tests updating a non-existent post.
 func TestUpdatePost_NotFound(t *testing.T) {
-	repo := post.NewInMemoryPostRepository()
-	handlers := NewPostHandlers(repo)
+	handlers := newTestPostHandlers()
 
 	newText := "Updated text"
 	reqBody := UpdatePostRequest{
@@ -430,8 +430,7 @@ func TestUpdatePost_NotFound(t *testing.T) {
 
 // TestDeletePost_Success tests successful post deletion.
 func TestDeletePost_Success(t *testing.T) {
-	repo := post.NewInMemoryPostRepository()
-	handlers := NewPostHandlers(repo)
+	handlers := newTestPostHandlers()
 
 	// Create a post first
 	sceneID := "scene123"
@@ -440,7 +439,7 @@ func TestDeletePost_Success(t *testing.T) {
 		AuthorDID: "did:example:alice",
 		Text:      "Test post",
 	}
-	if err := repo.Create(originalPost); err != nil {
+	if err := handlers.repo.Create(originalPost); err != nil {
 		t.Fatalf("failed to create post: %v", err)
 	}
 
@@ -455,7 +454,7 @@ func TestDeletePost_Success(t *testing.T) {
 	}
 
 	// Verify post is not retrievable (soft deleted)
-	_, err := repo.GetByID(originalPost.ID)
+	_, err := handlers.repo.GetByID(originalPost.ID)
 	if err != post.ErrPostNotFound {
 		t.Error("expected post to be soft deleted (not retrievable)")
 	}
@@ -463,8 +462,7 @@ func TestDeletePost_Success(t *testing.T) {
 
 // TestDeletePost_SoftDeletedExclusion tests that soft-deleted post returns 404 on fetch.
 func TestDeletePost_SoftDeletedExclusion(t *testing.T) {
-	repo := post.NewInMemoryPostRepository()
-	handlers := NewPostHandlers(repo)
+	handlers := newTestPostHandlers()
 
 	// Create a post first
 	sceneID := "scene123"
@@ -473,7 +471,7 @@ func TestDeletePost_SoftDeletedExclusion(t *testing.T) {
 		AuthorDID: "did:example:alice",
 		Text:      "Test post",
 	}
-	if err := repo.Create(originalPost); err != nil {
+	if err := handlers.repo.Create(originalPost); err != nil {
 		t.Fatalf("failed to create post: %v", err)
 	}
 
@@ -488,7 +486,7 @@ func TestDeletePost_SoftDeletedExclusion(t *testing.T) {
 
 	// Try to fetch the deleted post - should return 404
 	// We verify via repository directly since GetPost handler is not in scope
-	_, err := repo.GetByID(originalPost.ID)
+	_, err := handlers.repo.GetByID(originalPost.ID)
 	if err != post.ErrPostNotFound {
 		t.Error("expected GetByID to return ErrPostNotFound for soft-deleted post")
 	}
@@ -508,8 +506,7 @@ func TestDeletePost_SoftDeletedExclusion(t *testing.T) {
 
 // TestDeletePost_NotFound tests deleting a non-existent post.
 func TestDeletePost_NotFound(t *testing.T) {
-	repo := post.NewInMemoryPostRepository()
-	handlers := NewPostHandlers(repo)
+	handlers := newTestPostHandlers()
 
 	req := httptest.NewRequest(http.MethodDelete, "/posts/nonexistent", nil)
 	w := httptest.NewRecorder()
@@ -532,8 +529,7 @@ func TestDeletePost_NotFound(t *testing.T) {
 
 // TestDeletePost_AlreadyDeleted tests deleting an already deleted post.
 func TestDeletePost_AlreadyDeleted(t *testing.T) {
-	repo := post.NewInMemoryPostRepository()
-	handlers := NewPostHandlers(repo)
+	handlers := newTestPostHandlers()
 
 	// Create and delete a post
 	sceneID := "scene123"
@@ -542,10 +538,10 @@ func TestDeletePost_AlreadyDeleted(t *testing.T) {
 		AuthorDID: "did:example:alice",
 		Text:      "Test post",
 	}
-	if err := repo.Create(originalPost); err != nil {
+	if err := handlers.repo.Create(originalPost); err != nil {
 		t.Fatalf("failed to create post: %v", err)
 	}
-	if err := repo.Delete(originalPost.ID); err != nil {
+	if err := handlers.repo.Delete(originalPost.ID); err != nil {
 		t.Fatalf("failed to delete post: %v", err)
 	}
 
@@ -562,8 +558,7 @@ func TestDeletePost_AlreadyDeleted(t *testing.T) {
 
 // TestCreatePost_InvalidLabel tests that invalid labels are rejected.
 func TestCreatePost_InvalidLabel(t *testing.T) {
-	repo := post.NewInMemoryPostRepository()
-	handlers := NewPostHandlers(repo)
+	handlers := newTestPostHandlers()
 
 	sceneID := "scene123"
 	reqBody := CreatePostRequest{
@@ -602,8 +597,7 @@ func TestCreatePost_InvalidLabel(t *testing.T) {
 
 // TestCreatePost_ValidModerationLabels tests that valid moderation labels are accepted.
 func TestCreatePost_ValidModerationLabels(t *testing.T) {
-	repo := post.NewInMemoryPostRepository()
-	handlers := NewPostHandlers(repo)
+	handlers := newTestPostHandlers()
 
 	sceneID := "scene123"
 
@@ -670,8 +664,7 @@ func TestCreatePost_ValidModerationLabels(t *testing.T) {
 
 // TestUpdatePost_InvalidLabel tests that invalid labels are rejected on update.
 func TestUpdatePost_InvalidLabel(t *testing.T) {
-	repo := post.NewInMemoryPostRepository()
-	handlers := NewPostHandlers(repo)
+	handlers := newTestPostHandlers()
 
 	// Create a post first
 	sceneID := "scene123"
@@ -681,7 +674,7 @@ func TestUpdatePost_InvalidLabel(t *testing.T) {
 		Text:      "Test post",
 		Labels:    []string{post.LabelNSFW},
 	}
-	if err := repo.Create(originalPost); err != nil {
+	if err := handlers.repo.Create(originalPost); err != nil {
 		t.Fatalf("failed to create post: %v", err)
 	}
 
@@ -719,7 +712,7 @@ func TestUpdatePost_InvalidLabel(t *testing.T) {
 	}
 
 	// Verify original labels are unchanged
-	retrieved, err := repo.GetByID(originalPost.ID)
+	retrieved, err := handlers.repo.GetByID(originalPost.ID)
 	if err != nil {
 		t.Fatalf("failed to retrieve post: %v", err)
 	}
@@ -730,8 +723,7 @@ func TestUpdatePost_InvalidLabel(t *testing.T) {
 
 // TestUpdatePost_ValidModerationLabels tests that valid moderation labels work on update.
 func TestUpdatePost_ValidModerationLabels(t *testing.T) {
-	repo := post.NewInMemoryPostRepository()
-	handlers := NewPostHandlers(repo)
+	handlers := newTestPostHandlers()
 
 	// Create a post first
 	sceneID := "scene123"
@@ -741,7 +733,7 @@ func TestUpdatePost_ValidModerationLabels(t *testing.T) {
 		Text:      "Test post",
 		Labels:    []string{},
 	}
-	if err := repo.Create(originalPost); err != nil {
+	if err := handlers.repo.Create(originalPost); err != nil {
 		t.Fatalf("failed to create post: %v", err)
 	}
 
