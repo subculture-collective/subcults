@@ -4,6 +4,7 @@ package post
 
 import (
 	"errors"
+	"sort"
 	"sync"
 	"time"
 
@@ -411,20 +412,17 @@ func (r *InMemoryPostRepository) ListByEvent(eventID string, limit int, cursor *
 
 // sortPostsByCreatedDesc sorts posts by created_at DESC, then by ID ASC for tie-breaking.
 // This provides stable ordering for cursor-based pagination.
+// Uses sort.Slice with O(n log n) introsort for efficient sorting of large result sets.
 func sortPostsByCreatedDesc(posts []*Post) {
-	// Simple insertion sort is fine for small lists; for production use sort.Slice
-	// Using sort.Slice for simplicity and correctness
-	for i := 0; i < len(posts); i++ {
-		for j := i + 1; j < len(posts); j++ {
-			// Sort by created_at DESC (newer first)
-			if posts[i].CreatedAt.Before(posts[j].CreatedAt) {
-				posts[i], posts[j] = posts[j], posts[i]
-			} else if posts[i].CreatedAt.Equal(posts[j].CreatedAt) {
-				// Tie-break by ID ASC (lexicographic order)
-				if posts[i].ID > posts[j].ID {
-					posts[i], posts[j] = posts[j], posts[i]
-				}
-			}
+	sort.Slice(posts, func(i, j int) bool {
+		// Sort by created_at DESC (newer first)
+		if posts[i].CreatedAt.After(posts[j].CreatedAt) {
+			return true
 		}
-	}
+		if posts[i].CreatedAt.Before(posts[j].CreatedAt) {
+			return false
+		}
+		// Tie-break by ID ASC (lexicographic order) when timestamps are equal
+		return posts[i].ID < posts[j].ID
+	})
 }

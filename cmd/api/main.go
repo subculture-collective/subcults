@@ -20,6 +20,7 @@ import (
 	"github.com/onnwee/subcults/internal/api"
 	"github.com/onnwee/subcults/internal/audit"
 	"github.com/onnwee/subcults/internal/livekit"
+	"github.com/onnwee/subcults/internal/membership"
 	"github.com/onnwee/subcults/internal/middleware"
 	"github.com/onnwee/subcults/internal/post"
 	"github.com/onnwee/subcults/internal/scene"
@@ -62,6 +63,7 @@ func main() {
 	rsvpRepo := scene.NewInMemoryRSVPRepository()
 	streamRepo := stream.NewInMemorySessionRepository()
 	postRepo := post.NewInMemoryPostRepository()
+	membershipRepo := membership.NewInMemoryMembershipRepository()
 
 	// Initialize Prometheus metrics
 	promRegistry := prometheus.NewRegistry()
@@ -127,7 +129,7 @@ func main() {
 	eventHandlers := api.NewEventHandlers(eventRepo, sceneRepo, auditRepo, rsvpRepo, streamRepo)
 	rsvpHandlers := api.NewRSVPHandlers(rsvpRepo, eventRepo)
 	streamHandlers := api.NewStreamHandlers(streamRepo, sceneRepo, eventRepo, auditRepo, streamMetrics)
-	postHandlers := api.NewPostHandlers(postRepo)
+	postHandlers := api.NewPostHandlers(postRepo, sceneRepo, membershipRepo)
 
 	// Create HTTP server with routes
 	mux := http.NewServeMux()

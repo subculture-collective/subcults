@@ -11,8 +11,10 @@ import (
 	"strings"
 	"time"
 
+	"github.com/onnwee/subcults/internal/membership"
 	"github.com/onnwee/subcults/internal/middleware"
 	"github.com/onnwee/subcults/internal/post"
+	"github.com/onnwee/subcults/internal/scene"
 )
 
 // Post text validation constraints
@@ -39,13 +41,17 @@ type UpdatePostRequest struct {
 
 // PostHandlers holds dependencies for post HTTP handlers.
 type PostHandlers struct {
-	repo post.PostRepository
+	repo           post.PostRepository
+	sceneRepo      scene.SceneRepository
+	membershipRepo membership.MembershipRepository
 }
 
 // NewPostHandlers creates a new PostHandlers instance.
-func NewPostHandlers(repo post.PostRepository) *PostHandlers {
+func NewPostHandlers(repo post.PostRepository, sceneRepo scene.SceneRepository, membershipRepo membership.MembershipRepository) *PostHandlers {
 	return &PostHandlers{
-		repo: repo,
+		repo:           repo,
+		sceneRepo:      sceneRepo,
+		membershipRepo: membershipRepo,
 	}
 }
 
@@ -310,16 +316,48 @@ func parseCursor(cursorStr string) *post.FeedCursor {
 	}
 }
 
-// encodeCursor encodes a cursor to a string for the next_cursor field.
-// Returns nil if cursor is nil.
-func encodeCursor(cursor *post.FeedCursor) *string {
-	if cursor == nil {
-		return nil
+// canAccessScene checks if a user can access a scene based on visibility rules.
+// Returns true if access is allowed, false otherwise.
+func (h *PostHandlers) canAccessScene(s *scene.Scene, requesterDID string) (bool, error) {
+	// Owner always has access
+	if s.IsOwner(requesterDID) {
+		return true, nil
 	}
 
-	// Encode as "created_at_unix_nano:id"
-	encoded := fmt.Sprintf("%d:%s", cursor.CreatedAt.UnixNano(), cursor.ID)
-	return &encoded
+	// Check visibility rules
+	switch s.Visibility {
+	case scene.VisibilityPublic:
+		// Public scenes are accessible to everyone
+		return true, nil
+
+	case scene.VisibilityMembersOnly:
+		// Members-only scenes require active membership
+		if requesterDID == "" {
+			return false, nil
+		}
+		
+		// Check if requester is an active member
+		m, err := h.membershipRepo.GetBySceneAndUser(s.ID, requesterDID)
+		if err != nil {
+			// Not a member or error retrieving membership
+			if err == membership.ErrMembershipNotFound {
+				return false, nil
+			}
+			return false, err
+		}
+		
+		// Only active members can access
+		return m.Status == "active", nil
+
+	case scene.VisibilityHidden:
+		// Hidden scenes only accessible to owner (already checked above)
+		return false, nil
+
+	default:
+		// Unknown visibility mode - deny access for safety
+		slog.Warn("unknown visibility mode", "visibility", s.Visibility, "scene_id", s.ID)
+		return false, nil
+	}
 }
 
 // GetSceneFeed handles GET /scenes/{id}/feed - retrieves posts for a scene with pagination.
@@ -332,6 +370,46 @@ func (h *PostHandlers) GetSceneFeed(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	sceneID := pathParts[0]
+
+	// Get the scene to check visibility
+	foundScene, err := h.sceneRepo.GetByID(sceneID)
+	if err != nil {
+		// Use uniform error message - same as "not found" to prevent enumeration
+		if err == scene.ErrSceneNotFound || err == scene.ErrSceneDeleted {
+			slog.DebugContext(r.Context(), "scene not found or deleted", "scene_id", sceneID)
+			ctx := middleware.SetErrorCode(r.Context(), ErrCodeNotFound)
+			WriteError(w, ctx, http.StatusNotFound, ErrCodeNotFound, "Scene not found")
+			return
+		}
+		slog.ErrorContext(r.Context(), "failed to retrieve scene", "error", err, "scene_id", sceneID)
+		ctx := middleware.SetErrorCode(r.Context(), ErrCodeInternal)
+		WriteError(w, ctx, http.StatusInternalServerError, ErrCodeInternal, "Failed to retrieve scene")
+		return
+	}
+
+	// Get requester DID (empty if not authenticated)
+	requesterDID := middleware.GetUserDID(r.Context())
+
+	// Check visibility permissions
+	canAccess, err := h.canAccessScene(foundScene, requesterDID)
+	if err != nil {
+		slog.ErrorContext(r.Context(), "failed to check scene access", "error", err, "scene_id", sceneID)
+		ctx := middleware.SetErrorCode(r.Context(), ErrCodeInternal)
+		WriteError(w, ctx, http.StatusInternalServerError, ErrCodeInternal, "Failed to check access permissions")
+		return
+	}
+
+	if !canAccess {
+		// Use uniform error message - same as "not found" to prevent enumeration
+		slog.DebugContext(r.Context(), "scene access denied", 
+			"scene_id", sceneID, 
+			"visibility", foundScene.Visibility,
+			"requester_did", requesterDID,
+			"is_owner", foundScene.IsOwner(requesterDID))
+		ctx := middleware.SetErrorCode(r.Context(), ErrCodeNotFound)
+		WriteError(w, ctx, http.StatusNotFound, ErrCodeNotFound, "Scene not found")
+		return
+	}
 
 	// Parse query parameters
 	limitStr := r.URL.Query().Get("limit")

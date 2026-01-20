@@ -133,8 +133,10 @@ const data1 = await page1.json();
 
 // Second page (if next_cursor exists)
 if (data1.next_cursor) {
-  const cursorStr = `${data1.next_cursor.created_at}:${data1.next_cursor.id}`;
-  const page2 = await fetch(`/scenes/scene-123/feed?limit=20&cursor=${cursorStr}`);
+  // Convert ISO 8601 timestamp to Unix nanoseconds for cursor encoding
+  const timestampNano = new Date(data1.next_cursor.created_at).getTime() * 1000000;
+  const cursorStr = `${timestampNano}:${data1.next_cursor.id}`;
+  const page2 = await fetch(`/scenes/scene-123/feed?limit=20&cursor=${encodeURIComponent(cursorStr)}`);
   const data2 = await page2.json();
 }
 ```
@@ -142,6 +144,8 @@ if (data1.next_cursor) {
 **Cursor Format**: `{unix_timestamp_nano}:{post_id}`
 
 Example: `1705315800000000000:550e8400-e29b-41d4-a716-446655440000`
+
+**Note**: The API returns `next_cursor.created_at` as an ISO 8601 timestamp string (e.g., `"2024-01-15T10:30:00Z"`), but the cursor query parameter expects Unix nanoseconds. Use `new Date(created_at).getTime() * 1000000` to convert.
 
 ---
 
@@ -191,8 +195,10 @@ async function loadSceneFeed(sceneId: string, limit = 20) {
 }
 
 // Fetch next page using cursor
-async function loadNextPage(sceneId: string, cursor: FeedCursor) {
-  const cursorStr = `${cursor.created_at}:${cursor.id}`;
+async function loadNextPage(sceneId: string, cursor: { created_at: string; id: string }) {
+  // Convert ISO 8601 timestamp to Unix nanoseconds
+  const timestampNano = new Date(cursor.created_at).getTime() * 1000000;
+  const cursorStr = `${timestampNano}:${cursor.id}`;
   return await apiClient.get<FeedResponse>(
     `/scenes/${sceneId}/feed?limit=20&cursor=${encodeURIComponent(cursorStr)}`
   );
@@ -201,7 +207,7 @@ async function loadNextPage(sceneId: string, cursor: FeedCursor) {
 // Load all posts (careful with large feeds!)
 async function loadAllPosts(sceneId: string): Promise<Post[]> {
   const allPosts: Post[] = [];
-  let cursor: FeedCursor | null = null;
+  let cursor: { created_at: string; id: string } | null = null;
 
   while (true) {
     const response = cursor 
