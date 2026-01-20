@@ -50,6 +50,10 @@ type PostHandlers struct {
 
 // NewPostHandlers creates a new PostHandlers instance.
 // metadataService is optional and can be nil if attachment enrichment is not configured.
+// 
+// Note: This constructor was updated to include metadataService as a new parameter.
+// All existing callers have been updated. The service is optional (can be nil) to
+// maintain graceful degradation when R2 is not configured.
 func NewPostHandlers(repo post.PostRepository, sceneRepo scene.SceneRepository, membershipRepo membership.MembershipRepository, metadataService *attachment.MetadataService) *PostHandlers {
 	return &PostHandlers{
 		repo:            repo,

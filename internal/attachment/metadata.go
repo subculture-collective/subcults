@@ -101,7 +101,17 @@ func (s *MetadataService) EnrichAttachment(ctx context.Context, key string) (*po
 	return attachment, nil
 }
 
-// processImage fetches the image, strips EXIF, extracts dimensions, and optionally re-uploads.
+// processImage fetches the image, strips EXIF, extracts dimensions, and re-uploads sanitized version.
+// 
+// This method performs the following steps:
+// 1. Downloads image from R2
+// 2. Extracts dimensions from original image (preserves actual upload dimensions)
+// 3. Strips EXIF metadata (GPS, camera info, timestamps) for privacy
+// 4. Re-uploads sanitized image, replacing the original
+// 5. Updates attachment with dimensions and sanitized file size
+//
+// Note: The returned SizeBytes reflects the sanitized image size, which may differ from
+// the original due to EXIF removal and re-encoding. This is typically smaller.
 func (s *MetadataService) processImage(ctx context.Context, key string, attachment *post.Attachment) error {
 	// Fetch the image from R2
 	getOutput, err := s.s3Client.GetObject(ctx, &s3.GetObjectInput{
@@ -119,29 +129,30 @@ func (s *MetadataService) processImage(ctx context.Context, key string, attachme
 		return fmt.Errorf("failed to read image: %w", err)
 	}
 
-	// Extract dimensions BEFORE processing (to get original dimensions)
-	// We use bimg to read metadata before stripping EXIF
+	// Extract dimensions from original image before processing
+	// This ensures we return the actual uploaded dimensions, not processed dimensions
+	// bimg reads metadata without re-encoding, so this is fast
 	img := bimg.NewImage(imageBytes)
 	metadata, err := img.Metadata()
 	if err != nil {
 		return fmt.Errorf("failed to read image metadata: %w", err)
 	}
 
-	// Store dimensions
+	// Store original dimensions
 	width := metadata.Size.Width
 	height := metadata.Size.Height
 	attachment.Width = &width
 	attachment.Height = &height
 
 	// Strip EXIF metadata for privacy
-	// This processes the image and removes all EXIF data including GPS coordinates
+	// ProcessBytes re-encodes the image, removing all EXIF data including GPS coordinates
 	sanitizedBytes, err := image.ProcessBytes(imageBytes)
 	if err != nil {
 		return fmt.Errorf("failed to strip EXIF: %w", err)
 	}
 
-	// Re-upload the sanitized image back to R2
-	// This ensures no EXIF data is persisted
+	// Re-upload the sanitized image back to R2, replacing the original
+	// This ensures no EXIF data is persisted in storage
 	_, err = s.s3Client.PutObject(ctx, &s3.PutObjectInput{
 		Bucket:        aws.String(s.bucketName),
 		Key:           aws.String(key),
@@ -153,7 +164,8 @@ func (s *MetadataService) processImage(ctx context.Context, key string, attachme
 		return fmt.Errorf("failed to re-upload sanitized image: %w", err)
 	}
 
-	// Update size to reflect sanitized image size
+	// Update size to reflect sanitized image size (post-EXIF-stripping)
+	// This is typically smaller than the original due to metadata removal
 	attachment.SizeBytes = int64(len(sanitizedBytes))
 
 	return nil
