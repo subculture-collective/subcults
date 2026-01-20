@@ -18,6 +18,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 
 	"github.com/onnwee/subcults/internal/api"
+	"github.com/onnwee/subcults/internal/attachment"
 	"github.com/onnwee/subcults/internal/audit"
 	"github.com/onnwee/subcults/internal/livekit"
 	"github.com/onnwee/subcults/internal/membership"
@@ -106,8 +107,10 @@ func main() {
 	}
 	
 	var uploadHandlers *api.UploadHandlers
+	var uploadService *upload.Service
 	if r2BucketName != "" && r2AccessKeyID != "" && r2SecretAccessKey != "" && r2Endpoint != "" {
-		uploadService, err := upload.NewService(upload.ServiceConfig{
+		var err error
+		uploadService, err = upload.NewService(upload.ServiceConfig{
 			BucketName:       r2BucketName,
 			AccessKeyID:      r2AccessKeyID,
 			SecretAccessKey:  r2SecretAccessKey,
@@ -125,11 +128,26 @@ func main() {
 		logger.Warn("R2 credentials not configured, upload endpoint will not be available")
 	}
 
+	// Initialize attachment metadata service (if upload service is configured)
+	var metadataService *attachment.MetadataService
+	if uploadService != nil {
+		var err error
+		metadataService, err = attachment.NewMetadataService(attachment.MetadataServiceConfig{
+			S3Client:   uploadService.GetS3Client(),
+			BucketName: uploadService.GetBucketName(),
+		})
+		if err != nil {
+			logger.Error("failed to initialize metadata service", "error", err)
+			os.Exit(1)
+		}
+		logger.Info("attachment metadata service initialized")
+	}
+
 	// Initialize handlers
 	eventHandlers := api.NewEventHandlers(eventRepo, sceneRepo, auditRepo, rsvpRepo, streamRepo)
 	rsvpHandlers := api.NewRSVPHandlers(rsvpRepo, eventRepo)
 	streamHandlers := api.NewStreamHandlers(streamRepo, sceneRepo, eventRepo, auditRepo, streamMetrics)
-	postHandlers := api.NewPostHandlers(postRepo, sceneRepo, membershipRepo)
+	postHandlers := api.NewPostHandlers(postRepo, sceneRepo, membershipRepo, metadataService)
 
 	// Create HTTP server with routes
 	mux := http.NewServeMux()

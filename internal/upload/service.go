@@ -216,3 +216,14 @@ func (s *Service) GenerateSignedURL(ctx context.Context, req SignedURLRequest) (
 		ExpiresAt: expiresAt,
 	}, nil
 }
+
+// GetS3Client returns the S3 client used by the service.
+// This can be used by other services that need to interact with R2.
+func (s *Service) GetS3Client() *s3.Client {
+return s.s3Client
+}
+
+// GetBucketName returns the bucket name used by the service.
+func (s *Service) GetBucketName() string {
+return s.bucketName
+}

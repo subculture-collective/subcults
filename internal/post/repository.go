@@ -17,10 +17,23 @@ var (
 	ErrPostDeleted  = errors.New("post has been deleted")
 )
 
-// Attachment represents a media attachment on a post.
+// Attachment represents a media attachment on a post with sanitized metadata.
+// Supports both legacy URL-based attachments and new key-based attachments with metadata.
 type Attachment struct {
-	URL  string `json:"url"`
-	Type string `json:"type,omitempty"`
+	// Legacy field for backward compatibility
+	URL string `json:"url,omitempty"`
+	
+	// New fields for enriched attachments
+	Key       string `json:"key,omitempty"`        // R2 object key (e.g., "posts/uuid/file.jpg")
+	Type      string `json:"type,omitempty"`       // MIME type (e.g., "image/jpeg")
+	SizeBytes int64  `json:"size_bytes,omitempty"` // File size in bytes
+	
+	// Image-specific metadata (populated for image/* types)
+	Width  *int `json:"width,omitempty"`  // Image width in pixels
+	Height *int `json:"height,omitempty"` // Image height in pixels
+	
+	// Audio-specific metadata (populated for audio/* types)
+	DurationSeconds *float64 `json:"duration_seconds,omitempty"` // Audio duration in seconds
 }
 
 // Post represents a content post within scenes/events.
