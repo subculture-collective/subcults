@@ -23,7 +23,7 @@ func newTestPostHandlers() *PostHandlers {
 	postRepo := post.NewInMemoryPostRepository()
 	sceneRepo := scene.NewInMemorySceneRepository()
 	membershipRepo := membership.NewInMemoryMembershipRepository()
-	return NewPostHandlers(postRepo, sceneRepo, membershipRepo)
+	return NewPostHandlers(postRepo, sceneRepo, membershipRepo, nil) // nil metadata service for basic tests
 }
 
 // TestCreatePost_Success tests successful post creation.

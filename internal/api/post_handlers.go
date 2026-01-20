@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/onnwee/subcults/internal/attachment"
 	"github.com/onnwee/subcults/internal/membership"
 	"github.com/onnwee/subcults/internal/middleware"
 	"github.com/onnwee/subcults/internal/post"
@@ -44,14 +45,17 @@ type PostHandlers struct {
 	repo           post.PostRepository
 	sceneRepo      scene.SceneRepository
 	membershipRepo membership.MembershipRepository
+	metadataService *attachment.MetadataService // Optional: for enriching attachment metadata
 }
 
 // NewPostHandlers creates a new PostHandlers instance.
-func NewPostHandlers(repo post.PostRepository, sceneRepo scene.SceneRepository, membershipRepo membership.MembershipRepository) *PostHandlers {
+// metadataService is optional and can be nil if attachment enrichment is not configured.
+func NewPostHandlers(repo post.PostRepository, sceneRepo scene.SceneRepository, membershipRepo membership.MembershipRepository, metadataService *attachment.MetadataService) *PostHandlers {
 	return &PostHandlers{
-		repo:           repo,
-		sceneRepo:      sceneRepo,
-		membershipRepo: membershipRepo,
+		repo:            repo,
+		sceneRepo:       sceneRepo,
+		membershipRepo:  membershipRepo,
+		metadataService: metadataService,
 	}
 }
 
@@ -141,13 +145,44 @@ func (h *PostHandlers) CreatePost(w http.ResponseWriter, r *http.Request) {
 		authorDID = "did:example:anonymous"
 	}
 
+	// Enrich attachments with metadata if service is configured
+	// This fetches metadata from R2 and strips EXIF data for images
+	enrichedAttachments := make([]post.Attachment, 0, len(req.Attachments))
+	if h.metadataService != nil {
+		for _, att := range req.Attachments {
+			// Skip empty keys or attachments that already have all metadata
+			if att.Key == "" {
+				// Legacy URL-based attachment without key, keep as-is
+				enrichedAttachments = append(enrichedAttachments, att)
+				continue
+			}
+
+			// Enrich the attachment with metadata from R2
+			enriched, err := h.metadataService.EnrichAttachment(r.Context(), att.Key)
+			if err != nil {
+				// Log the error but don't fail the request
+				// Use the attachment as provided by the client
+				slog.WarnContext(r.Context(), "failed to enrich attachment",
+					"key", att.Key,
+					"error", err)
+				enrichedAttachments = append(enrichedAttachments, att)
+				continue
+			}
+
+			enrichedAttachments = append(enrichedAttachments, *enriched)
+		}
+	} else {
+		// No metadata service configured, use attachments as-is
+		enrichedAttachments = req.Attachments
+	}
+
 	// Create post
 	newPost := &post.Post{
 		SceneID:     req.SceneID,
 		EventID:     req.EventID,
 		AuthorDID:   authorDID,
 		Text:        req.Text,
-		Attachments: req.Attachments,
+		Attachments: enrichedAttachments,
 		Labels:      sanitizedLabels,
 	}
 
