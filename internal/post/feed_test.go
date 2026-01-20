@@ -927,3 +927,130 @@ func TestCursorIntegrity_EventFeedDeletedPost(t *testing.T) {
 		}
 	}
 }
+
+// TestCursorIntegrity_IdenticalTimestampsPagination tests cursor pagination with posts
+// that have identical timestamps, validating the ID-based tie-breaking logic works
+// correctly across page boundaries.
+func TestCursorIntegrity_IdenticalTimestampsPagination(t *testing.T) {
+	repo := NewInMemoryPostRepository()
+	sceneID := "scene123"
+
+	// Create 12 posts, all with the same timestamp
+	now := time.Now()
+	var postIDs []string
+	for i := 0; i < 12; i++ {
+		post := &Post{
+			SceneID:   &sceneID,
+			AuthorDID: "did:example:user1",
+			Text:      "Post " + string(rune('A'+i)),
+		}
+		if err := repo.Create(post); err != nil {
+			t.Fatalf("failed to create post: %v", err)
+		}
+		// Set all posts to the same timestamp
+		repo.mu.Lock()
+		repo.posts[post.ID].CreatedAt = now
+		repo.mu.Unlock()
+		
+		postIDs = append(postIDs, post.ID)
+	}
+
+	// Get first page (limit 5)
+	page1, cursor1, err := repo.ListByScene(sceneID, 5, nil)
+	if err != nil {
+		t.Fatalf("ListByScene page 1 failed: %v", err)
+	}
+
+	if len(page1) != 5 {
+		t.Fatalf("expected 5 posts on page 1, got %d", len(page1))
+	}
+
+	// Verify all posts on page 1 have the same timestamp
+	for i := 1; i < len(page1); i++ {
+		if !page1[i].CreatedAt.Equal(page1[0].CreatedAt) {
+			t.Errorf("posts on page 1 don't have same timestamp: %v vs %v", page1[i].CreatedAt, page1[0].CreatedAt)
+		}
+	}
+
+	// Verify IDs on page 1 are in ascending order (lexicographic)
+	for i := 1; i < len(page1); i++ {
+		if page1[i-1].ID >= page1[i].ID {
+			t.Errorf("IDs on page 1 not in ascending order: %s >= %s", page1[i-1].ID, page1[i].ID)
+		}
+	}
+
+	// Get second page using cursor1
+	page2, cursor2, err := repo.ListByScene(sceneID, 5, cursor1)
+	if err != nil {
+		t.Fatalf("ListByScene page 2 failed: %v", err)
+	}
+
+	if len(page2) != 5 {
+		t.Errorf("expected 5 posts on page 2, got %d", len(page2))
+	}
+
+	// Verify all posts on page 2 have the same timestamp
+	for i := 1; i < len(page2); i++ {
+		if !page2[i].CreatedAt.Equal(page2[0].CreatedAt) {
+			t.Errorf("posts on page 2 don't have same timestamp: %v vs %v", page2[i].CreatedAt, page2[0].CreatedAt)
+		}
+	}
+
+	// Verify IDs on page 2 are in ascending order
+	for i := 1; i < len(page2); i++ {
+		if page2[i-1].ID >= page2[i].ID {
+			t.Errorf("IDs on page 2 not in ascending order: %s >= %s", page2[i-1].ID, page2[i].ID)
+		}
+	}
+
+	// Verify no duplicates between page 1 and page 2
+	page1IDs := make(map[string]bool)
+	for _, p := range page1 {
+		page1IDs[p.ID] = true
+	}
+	for _, p := range page2 {
+		if page1IDs[p.ID] {
+			t.Errorf("duplicate post %s found in both page1 and page2", p.ID)
+		}
+	}
+
+	// Verify IDs across pages are properly ordered (last ID of page1 < first ID of page2)
+	lastPage1ID := page1[len(page1)-1].ID
+	firstPage2ID := page2[0].ID
+	if lastPage1ID >= firstPage2ID {
+		t.Errorf("pagination boundary violated: last page1 ID (%s) >= first page2 ID (%s)", lastPage1ID, firstPage2ID)
+	}
+
+	// Get third page
+	page3, cursor3, err := repo.ListByScene(sceneID, 5, cursor2)
+	if err != nil {
+		t.Fatalf("ListByScene page 3 failed: %v", err)
+	}
+
+	// Should get remaining 2 posts
+	if len(page3) != 2 {
+		t.Errorf("expected 2 posts on page 3, got %d", len(page3))
+	}
+
+	if cursor3 != nil {
+		t.Error("expected nil cursor on last page")
+	}
+
+	// Verify IDs on page 3 are in ascending order
+	if len(page3) == 2 && page3[0].ID >= page3[1].ID {
+		t.Errorf("IDs on page 3 not in ascending order: %s >= %s", page3[0].ID, page3[1].ID)
+	}
+
+	// Verify total unique posts = 12
+	allPosts := append(append(page1, page2...), page3...)
+	uniqueIDs := make(map[string]bool)
+	for _, p := range allPosts {
+		if uniqueIDs[p.ID] {
+			t.Errorf("duplicate post ID found: %s", p.ID)
+		}
+		uniqueIDs[p.ID] = true
+	}
+	if len(uniqueIDs) != 12 {
+		t.Errorf("expected 12 unique posts, got %d", len(uniqueIDs))
+	}
+}

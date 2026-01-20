@@ -166,11 +166,11 @@ This composite ordering ensures stable, deterministic pagination even when multi
 2. **Cursor Stability Under Mutations**:
    - **Deletions**: If a post is deleted after a cursor is captured, pagination continues without duplicates or unintended skips. The deleted post simply doesn't appear in subsequent pages.
    - **Label Changes (Hiding)**: If a post is hidden (via label change) after a cursor is captured, it's excluded from subsequent pages without affecting pagination integrity.
-   - **Insertions**: New posts inserted with timestamps *newer* than the current cursor position will **not** appear in ongoing pagination. They only appear when refreshing from the beginning (no cursor). This prevents "page tearing" where new content disrupts the user's scroll position.
+   - **Insertions**: New posts inserted with timestamps that would place them *before* the cursor in the `created_at DESC` feed (i.e., with `created_at > cursor.created_at`) will **not** appear in ongoing pagination. They only appear when refreshing from the beginning (no cursor). This prevents "page tearing" where new content disrupts the user's scroll position.
 
 3. **Timestamp Boundaries**: The cursor marks a position in the chronologically-sorted feed. Subsequent pages return only posts with:
    - `created_at < cursor.created_at` (older posts), OR
-   - `created_at == cursor.created_at AND id > cursor.id` (same timestamp but later in lexicographic order)
+   - `created_at == cursor.created_at AND id > cursor.id` (same timestamp but lexicographically greater ID)
 
 4. **Idempotency**: Calling the same endpoint with the same cursor multiple times returns the same results (assuming no posts were deleted/hidden between calls).
 
@@ -178,7 +178,7 @@ This composite ordering ensures stable, deterministic pagination even when multi
 
 **Expected Behaviors**:
 
-- **New posts with older timestamps**: If a post is created "now" but has a `created_at` timestamp that would place it chronologically before the cursor position, it will **not** appear in ongoing pagination. Users must refresh (start from the beginning with no cursor) to see it. This is intentional to prevent disrupting infinite scroll UX.
+- **New posts earlier in the feed order**: If a post is created after the cursor is captured but has a `created_at` timestamp greater than the cursor's timestamp (placing it earlier in the DESC-ordered feed), it will **not** appear in ongoing pagination. Users must refresh (start from the beginning with no cursor) to see it. This is intentional to prevent disrupting infinite scroll UX.
 
 - **Consistent ordering**: The same set of posts (excluding deleted/hidden ones) will always appear in the same order, regardless of when pagination occurs.
 

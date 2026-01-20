@@ -313,11 +313,11 @@ func (r *InMemoryPostRepository) ListByScene(sceneID string, limit int, cursor *
 		
 		// Apply cursor filter if provided
 		if cursor != nil {
-			// Skip posts that are newer or equal (in terms of created_at) but have higher/equal ID
+			// Skip posts that are newer or at/before the cursor position
 			if post.CreatedAt.After(cursor.CreatedAt) {
 				continue
 			}
-			if post.CreatedAt.Equal(cursor.CreatedAt) && post.ID >= cursor.ID {
+			if post.CreatedAt.Equal(cursor.CreatedAt) && post.ID <= cursor.ID {
 				continue
 			}
 		}
@@ -381,11 +381,11 @@ func (r *InMemoryPostRepository) ListByEvent(eventID string, limit int, cursor *
 		
 		// Apply cursor filter if provided
 		if cursor != nil {
-			// Skip posts that are newer or equal (in terms of created_at) but have higher/equal ID
+			// Skip posts that are newer or at/before the cursor position
 			if post.CreatedAt.After(cursor.CreatedAt) {
 				continue
 			}
-			if post.CreatedAt.Equal(cursor.CreatedAt) && post.ID >= cursor.ID {
+			if post.CreatedAt.Equal(cursor.CreatedAt) && post.ID <= cursor.ID {
 				continue
 			}
 		}
