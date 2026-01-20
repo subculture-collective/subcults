@@ -773,3 +773,187 @@ func TestUpdatePost_ValidModerationLabels(t *testing.T) {
 		t.Error("expected post to have spam label")
 	}
 }
+
+// TestCreatePost_WithAttachments tests creating a post with attachments.
+func TestCreatePost_WithAttachments(t *testing.T) {
+handlers := newTestPostHandlers()
+
+sceneID := "scene123"
+width := 1920
+height := 1080
+sizeBytes := int64(1024000)
+
+reqBody := CreatePostRequest{
+SceneID: &sceneID,
+Text:    "Post with image attachment",
+Attachments: []post.Attachment{
+{
+Key:       "posts/test/image1.jpg",
+Type:      "image/jpeg",
+SizeBytes: sizeBytes,
+Width:     &width,
+Height:    &height,
+},
+},
+}
+
+body, err := json.Marshal(reqBody)
+if err != nil {
+t.Fatalf("failed to marshal request: %v", err)
+}
+
+req := httptest.NewRequest(http.MethodPost, "/posts", bytes.NewReader(body))
+req.Header.Set("Content-Type", "application/json")
+w := httptest.NewRecorder()
+
+handlers.CreatePost(w, req)
+
+if w.Code != http.StatusCreated {
+t.Errorf("expected status 201, got %d: %s", w.Code, w.Body.String())
+}
+
+var createdPost post.Post
+if err := json.NewDecoder(w.Body).Decode(&createdPost); err != nil {
+t.Fatalf("failed to decode response: %v", err)
+}
+
+// Verify attachment metadata
+if len(createdPost.Attachments) != 1 {
+t.Fatalf("expected 1 attachment, got %d", len(createdPost.Attachments))
+}
+
+att := createdPost.Attachments[0]
+if att.Key != "posts/test/image1.jpg" {
+t.Errorf("expected key 'posts/test/image1.jpg', got %s", att.Key)
+}
+if att.Type != "image/jpeg" {
+t.Errorf("expected type 'image/jpeg', got %s", att.Type)
+}
+if att.SizeBytes != sizeBytes {
+t.Errorf("expected size %d, got %d", sizeBytes, att.SizeBytes)
+}
+if att.Width == nil || *att.Width != width {
+t.Errorf("expected width %d, got %v", width, att.Width)
+}
+if att.Height == nil || *att.Height != height {
+t.Errorf("expected height %d, got %v", height, att.Height)
+}
+}
+
+// TestCreatePost_WithMultipleAttachments tests creating a post with multiple attachments.
+func TestCreatePost_WithMultipleAttachments(t *testing.T) {
+handlers := newTestPostHandlers()
+
+sceneID := "scene123"
+width1 := 1920
+height1 := 1080
+width2 := 800
+height2 := 600
+
+reqBody := CreatePostRequest{
+SceneID: &sceneID,
+Text:    "Post with multiple attachments",
+Attachments: []post.Attachment{
+{
+Key:       "posts/test/image1.jpg",
+Type:      "image/jpeg",
+SizeBytes: 1024000,
+Width:     &width1,
+Height:    &height1,
+},
+{
+Key:       "posts/test/image2.png",
+Type:      "image/png",
+SizeBytes: 512000,
+Width:     &width2,
+Height:    &height2,
+},
+},
+}
+
+body, err := json.Marshal(reqBody)
+if err != nil {
+t.Fatalf("failed to marshal request: %v", err)
+}
+
+req := httptest.NewRequest(http.MethodPost, "/posts", bytes.NewReader(body))
+req.Header.Set("Content-Type", "application/json")
+w := httptest.NewRecorder()
+
+handlers.CreatePost(w, req)
+
+if w.Code != http.StatusCreated {
+t.Errorf("expected status 201, got %d: %s", w.Code, w.Body.String())
+}
+
+var createdPost post.Post
+if err := json.NewDecoder(w.Body).Decode(&createdPost); err != nil {
+t.Fatalf("failed to decode response: %v", err)
+}
+
+// Verify both attachments
+if len(createdPost.Attachments) != 2 {
+t.Fatalf("expected 2 attachments, got %d", len(createdPost.Attachments))
+}
+}
+
+// TestCreatePost_WithAudioAttachment tests creating a post with audio attachment (no dimensions).
+func TestCreatePost_WithAudioAttachment(t *testing.T) {
+handlers := newTestPostHandlers()
+
+sceneID := "scene123"
+duration := 180.5
+
+reqBody := CreatePostRequest{
+SceneID: &sceneID,
+Text:    "Post with audio attachment",
+Attachments: []post.Attachment{
+{
+Key:             "posts/test/audio.mp3",
+Type:            "audio/mpeg",
+SizeBytes:       5000000,
+DurationSeconds: &duration,
+},
+},
+}
+
+body, err := json.Marshal(reqBody)
+if err != nil {
+t.Fatalf("failed to marshal request: %v", err)
+}
+
+req := httptest.NewRequest(http.MethodPost, "/posts", bytes.NewReader(body))
+req.Header.Set("Content-Type", "application/json")
+w := httptest.NewRecorder()
+
+handlers.CreatePost(w, req)
+
+if w.Code != http.StatusCreated {
+t.Errorf("expected status 201, got %d: %s", w.Code, w.Body.String())
+}
+
+var createdPost post.Post
+if err := json.NewDecoder(w.Body).Decode(&createdPost); err != nil {
+t.Fatalf("failed to decode response: %v", err)
+}
+
+// Verify audio attachment (should not have width/height)
+if len(createdPost.Attachments) != 1 {
+t.Fatalf("expected 1 attachment, got %d", len(createdPost.Attachments))
+}
+
+att := createdPost.Attachments[0]
+if att.Type != "audio/mpeg" {
+t.Errorf("expected type 'audio/mpeg', got %s", att.Type)
+}
+if att.Width != nil {
+t.Errorf("audio attachment should not have width, got %v", att.Width)
+}
+if att.Height != nil {
+t.Errorf("audio attachment should not have height, got %v", att.Height)
+}
+if att.DurationSeconds == nil || *att.DurationSeconds != duration {
+t.Errorf("expected duration %f, got %v", duration, att.DurationSeconds)
+}
+}
+
