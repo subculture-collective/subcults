@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
@@ -261,10 +262,7 @@ func TestCreateAlliance_ReasonTooLong(t *testing.T) {
 	createTestScene(t, handlers.sceneRepo, "scene-to", "did:plc:other")
 
 	// Create reason longer than 256 characters
-	longReason := string(make([]byte, MaxReasonLength+1))
-	for i := range longReason {
-		longReason = "a" + longReason[1:]
-	}
+	longReason := strings.Repeat("a", MaxReasonLength+1)
 
 	reqBody := CreateAllianceRequest{
 		FromSceneID: "scene-from",

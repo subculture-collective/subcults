@@ -172,6 +172,7 @@ func (r *InMemoryAllianceRepository) GetByID(id string) (*Alliance, error) {
 }
 
 // GetByRecordKey retrieves an alliance by its AT Protocol record key.
+// Returns ErrAllianceDeleted if alliance exists but is soft-deleted.
 func (r *InMemoryAllianceRepository) GetByRecordKey(did, rkey string) (*Alliance, error) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
@@ -183,6 +184,10 @@ func (r *InMemoryAllianceRepository) GetByRecordKey(did, rkey string) (*Alliance
 	}
 
 	alliance := r.alliances[id]
+	if alliance.DeletedAt != nil {
+		return nil, ErrAllianceDeleted
+	}
+	
 	allianceCopy := *alliance
 	return &allianceCopy, nil
 }
