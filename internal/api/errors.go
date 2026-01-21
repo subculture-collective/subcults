@@ -65,6 +65,9 @@ const (
 	
 	// ErrCodeSelfAlliance indicates attempt to create alliance where from_scene_id == to_scene_id.
 	ErrCodeSelfAlliance = "self_alliance"
+	
+	// ErrCodeSceneNotFound indicates the scene was not found.
+	ErrCodeSceneNotFound = "scene_not_found"
 )
 
 // ErrorResponse represents the standard error response format.
