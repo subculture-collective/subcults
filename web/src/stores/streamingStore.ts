@@ -8,8 +8,6 @@ import {
   Room,
   RoomEvent,
   ConnectionQuality as LKConnectionQuality,
-  Participant as LKParticipant,
-  Track,
   DisconnectReason,
 } from 'livekit-client';
 import { apiClient } from '../lib/api-client';

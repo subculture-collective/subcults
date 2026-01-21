@@ -37,7 +37,6 @@ export const StreamPage: React.FC = () => {
   const localParticipant = useParticipantStore((state) => state.getLocalParticipant());
   
   // Audio controls from global store
-  const volume = useStreamingStore((state) => state.volume);
   const isMuted = useStreamingStore((state) => state.isMuted);
   const setVolume = useStreamingStore((state) => state.setVolume);
   const toggleMute = useStreamingStore((state) => state.toggleMute);
