@@ -4,10 +4,15 @@
  * This is lazy-loaded due to heavy dependencies
  */
 
-import React, { useMemo } from 'react';
+import React, { useMemo, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { useLiveAudio } from '../hooks/useLiveAudio';
+import {
+  useStreamingStore,
+  useStreamingConnection,
+  useStreamingActions,
+} from '../stores/streamingStore';
+import { useParticipantStore } from '../stores/participantStore';
 import {
   JoinStreamButton,
   ParticipantList,
@@ -20,29 +25,42 @@ export const StreamPage: React.FC = () => {
   const { room } = useParams<{ room: string }>();
   const { t } = useTranslation();
   const { error: showError } = useToasts();
+  
+  // Global streaming state
+  const { isConnected, isConnecting, error, connectionQuality } = useStreamingConnection();
+  const { connect, disconnect } = useStreamingActions();
+  
+  // Participant state
+  const participants = useParticipantStore((state) => 
+    state.getParticipantsArray().filter(p => p.identity !== state.localIdentity)
+  );
+  const localParticipant = useParticipantStore((state) => state.getLocalParticipant());
+  
+  // Audio controls from global store
+  const volume = useStreamingStore((state) => state.volume);
+  const isMuted = useStreamingStore((state) => state.isMuted);
+  const setVolume = useStreamingStore((state) => state.setVolume);
+  const toggleMute = useStreamingStore((state) => state.toggleMute);
 
-  const {
-    isConnected,
-    isConnecting,
-    participants,
-    localParticipant,
-    connectionQuality,
-    error,
-    connect,
-    disconnect,
-    toggleMute,
-    setVolume,
-  } = useLiveAudio(room || null, {
-    onError: (err) => {
-      showError(err.message || t('streaming.streamPage.error'));
-    },
-  });
+  // Show error toasts
+  useEffect(() => {
+    if (error) {
+      showError(error);
+    }
+  }, [error, showError]);
 
   // Calculate total participant count
   const participantCount = useMemo(
     () => participants.length + (localParticipant ? 1 : 0),
     [participants.length, localParticipant]
   );
+  
+  // Handle connection
+  const handleConnect = async () => {
+    if (room) {
+      await connect(room);
+    }
+  };
 
   if (!room) {
     return (
@@ -93,7 +111,7 @@ export const StreamPage: React.FC = () => {
           <JoinStreamButton
             isConnected={isConnected}
             isConnecting={isConnecting}
-            onJoin={connect}
+            onJoin={handleConnect}
           />
         </div>
       )}
@@ -108,7 +126,7 @@ export const StreamPage: React.FC = () => {
 
           {/* Audio Controls */}
           <AudioControls
-            isMuted={localParticipant?.isMuted ?? true}
+            isMuted={isMuted}
             onToggleMute={toggleMute}
             onLeave={disconnect}
             onVolumeChange={setVolume}
