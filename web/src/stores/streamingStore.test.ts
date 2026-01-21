@@ -7,6 +7,9 @@ import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest';
 import { useStreamingStore } from './streamingStore';
 import { mockRoom } from '../test/mocks/livekit-client';
 
+// Mock LiveKit client so that Room is replaced with our test mock
+vi.mock('livekit-client', () => import('../test/mocks/livekit-client'));
+
 // Mock API client
 vi.mock('../lib/api-client', () => ({
   apiClient: {
@@ -53,7 +56,7 @@ describe('StreamingStore', () => {
       error: null,
       connectionQuality: 'unknown',
       volume: 100,
-      isMuted: false,
+      isLocalMuted: false,
       reconnectAttempts: 0,
       isReconnecting: false,
     });
@@ -317,15 +320,12 @@ describe('StreamingStore', () => {
         new Error('Network error')
       );
       
-      const scheduleReconnectSpy = vi.spyOn(
-        useStreamingStore.getState(),
-        'scheduleReconnect'
-      );
-      
       const store = useStreamingStore.getState();
       await store.connect('test-room');
-      
-      expect(scheduleReconnectSpy).toHaveBeenCalled();
+
+      const newState = useStreamingStore.getState();
+      expect(newState.isReconnecting).toBe(true);
+      expect(newState.reconnectAttempts).toBeGreaterThan(0);
     });
 
     it('should handle missing WebSocket URL', async () => {

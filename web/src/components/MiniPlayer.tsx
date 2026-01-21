@@ -20,7 +20,7 @@ import {
 export const MiniPlayer: React.FC = memo(() => {
   const { t } = useTranslation();
   const { isConnected, roomName, connectionQuality } = useStreamingConnection();
-  const { volume, isMuted, setVolume, toggleMute } = useStreamingAudio();
+  const { volume, isLocalMuted, setVolume, toggleMute } = useStreamingAudio();
   const { disconnect } = useStreamingActions();
   
   const [showVolumeSlider, setShowVolumeSlider] = useState(false);
@@ -50,10 +50,14 @@ export const MiniPlayer: React.FC = memo(() => {
 
   // Handle keyboard shortcuts
   const handleKeyDown = (e: React.KeyboardEvent) => {
+    // Always prevent default spacebar behavior (page scroll) when used as a shortcut
+    if (e.key === ' ' || e.key === 'Spacebar') {
+      e.preventDefault();
+    }
+
     if (e.key === 'Escape' && showVolumeSlider) {
       setShowVolumeSlider(false);
     } else if (e.key === ' ' || e.key === 'Spacebar') {
-      e.preventDefault();
       toggleMute();
     }
   };
@@ -143,14 +147,14 @@ export const MiniPlayer: React.FC = memo(() => {
       <button
         onClick={toggleMute}
         className="mini-player-mute-btn"
-        aria-label={isMuted ? t('streaming.miniPlayer.unmute') : t('streaming.miniPlayer.mute')}
+        aria-label={isLocalMuted ? t('streaming.miniPlayer.unmute') : t('streaming.miniPlayer.mute')}
         style={{
           padding: '0.5rem',
           fontSize: '1.125rem',
           borderRadius: '50%',
           border: 'none',
           cursor: 'pointer',
-          backgroundColor: isMuted ? '#ef4444' : '#10b981',
+          backgroundColor: isLocalMuted ? '#ef4444' : '#10b981',
           color: 'white',
           width: '2.5rem',
           height: '2.5rem',
@@ -161,7 +165,7 @@ export const MiniPlayer: React.FC = memo(() => {
           flexShrink: 0,
         }}
       >
-        {isMuted ? '🔇' : '🎤'}
+        {isLocalMuted ? '🔇' : '🎤'}
       </button>
 
       {/* Volume Control */}

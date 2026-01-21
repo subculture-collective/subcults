@@ -26,7 +26,7 @@ describe('MiniPlayer', () => {
       error: null,
       connectionQuality: 'unknown',
       volume: 100,
-      isMuted: false,
+      isLocalMuted: false,
       reconnectAttempts: 0,
       isReconnecting: false,
     });
@@ -108,7 +108,7 @@ describe('MiniPlayer', () => {
 
     it('should show muted state', () => {
       useStreamingStore.setState({
-        isMuted: true,
+        isLocalMuted: true,
       });
       
       render(<MiniPlayer />);

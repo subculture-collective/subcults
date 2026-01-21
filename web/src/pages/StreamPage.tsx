@@ -37,7 +37,7 @@ export const StreamPage: React.FC = () => {
   const localParticipant = useParticipantStore((state) => state.getLocalParticipant());
   
   // Audio controls from global store
-  const isMuted = useStreamingStore((state) => state.isMuted);
+  const isLocalMuted = useStreamingStore((state) => state.isLocalMuted);
   const setVolume = useStreamingStore((state) => state.setVolume);
   const toggleMute = useStreamingStore((state) => state.toggleMute);
 
@@ -125,7 +125,7 @@ export const StreamPage: React.FC = () => {
 
           {/* Audio Controls */}
           <AudioControls
-            isMuted={isMuted}
+            isMuted={isLocalMuted}
             onToggleMute={toggleMute}
             onLeave={disconnect}
             onVolumeChange={setVolume}

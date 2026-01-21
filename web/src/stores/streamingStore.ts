@@ -9,9 +9,13 @@ import {
   RoomEvent,
   ConnectionQuality as LKConnectionQuality,
   DisconnectReason,
+  Participant as LKParticipant,
+  Track,
 } from 'livekit-client';
 import { apiClient } from '../lib/api-client';
-import type { ConnectionQuality } from '../types/streaming';
+import { useParticipantStore, normalizeIdentity } from '../stores/participantStore';
+import { useLatencyStore } from '../stores/latencyStore';
+import type { ConnectionQuality, Participant } from '../types/streaming';
 
 /**
  * Reconnection configuration
@@ -40,7 +44,7 @@ interface StreamingState {
   
   // Audio state
   volume: number;
-  isMuted: boolean;
+  isLocalMuted: boolean; // Local microphone mute state (whether others can hear you)
   
   // Reconnection state
   reconnectAttempts: number;
@@ -122,6 +126,114 @@ function mapConnectionQuality(lkQuality: LKConnectionQuality): ConnectionQuality
 }
 
 /**
+ * Convert LiveKit participant to our Participant type
+ */
+function convertParticipant(
+  participant: LKParticipant,
+  isLocal: boolean
+): Participant {
+  const audioTrack = participant.getTrackPublication(Track.Source.Microphone);
+  
+  return {
+    identity: participant.identity,
+    name: participant.name || participant.identity,
+    isLocal,
+    isMuted: audioTrack?.isMuted ?? true,
+    isSpeaking: participant.isSpeaking,
+  };
+}
+
+/**
+ * Update participants list from room
+ */
+function updateParticipants(room: Room) {
+  const store = useParticipantStore.getState();
+
+  // Update remote participants in store
+  room.remoteParticipants.forEach((participant) => {
+    const converted = convertParticipant(participant, false);
+    store.addParticipant(converted);
+  });
+
+  // Update local participant in store
+  if (room.localParticipant) {
+    const localPart = convertParticipant(room.localParticipant, true);
+    store.addParticipant(localPart);
+    store.setLocalIdentity(localPart.identity);
+  }
+}
+
+/**
+ * Track rooms that already have volume event handlers attached
+ * to avoid registering duplicate listeners.
+ */
+const roomsWithVolumeHandlers = new WeakSet<Room>();
+
+/**
+ * Apply volume to all audio tracks for a given participant.
+ */
+function applyVolumeToParticipant(
+  participant: LKParticipant,
+  normalizedVolume: number
+) {
+  participant.audioTrackPublications.forEach((publication) => {
+    if (publication.audioTrack) {
+      try {
+        // Type guard for setVolume method
+        if (
+          typeof (publication.audioTrack as { setVolume?: unknown }).setVolume === 'function'
+        ) {
+          (publication.audioTrack as { setVolume: (volume: number) => void }).setVolume(normalizedVolume);
+        }
+      } catch (error) {
+        console.warn('Volume control not supported:', error);
+      }
+    }
+  });
+}
+
+/**
+ * Apply volume to all remote audio tracks in a room
+ * and ensure newly-joined participants also get the correct volume.
+ */
+function applyVolumeToRoom(room: Room, volume: number): void {
+  const normalizedVolume = volume / 100;
+
+  // Register event listeners once per room so that
+  // participants who join later also receive the preferred volume.
+  if (!roomsWithVolumeHandlers.has(room)) {
+    roomsWithVolumeHandlers.add(room);
+
+    room.on(RoomEvent.ParticipantConnected, (participant: LKParticipant) => {
+      const state = useStreamingStore.getState();
+      const effectiveVolume = state.volume / 100;
+      applyVolumeToParticipant(participant, effectiveVolume);
+    });
+
+    room.on(RoomEvent.TrackSubscribed, (_track, publication, participant: LKParticipant) => {
+      if (publication.audioTrack) {
+        const state = useStreamingStore.getState();
+        const effectiveVolume = state.volume / 100;
+        try {
+          if (
+            typeof (publication.audioTrack as { setVolume?: unknown }).setVolume === 'function'
+          ) {
+            (publication.audioTrack as { setVolume: (volume: number) => void }).setVolume(effectiveVolume);
+          }
+        } catch (error) {
+          console.warn('Volume control not supported:', error);
+        }
+      }
+    });
+  }
+
+  // Initial application for all current remote participants
+  room.remoteParticipants.forEach((participant) => {
+    applyVolumeToParticipant(participant, normalizedVolume);
+  });
+}
+
+/**
  * Streaming store with global connection management
  */
 export const useStreamingStore = create<StreamingStore>((set, get) => ({
@@ -133,17 +245,17 @@ export const useStreamingStore = create<StreamingStore>((set, get) => ({
   error: null,
   connectionQuality: 'unknown',
   volume: getInitialVolume(),
-  isMuted: false,
+  isLocalMuted: false,
   reconnectAttempts: 0,
   isReconnecting: false,
 
   /**
    * Initialize the store (call on app startup)
+   * Note: Volume is already initialized from getInitialVolume() above
    */
   initialize: () => {
-    // Load persisted volume
-    const volume = getInitialVolume();
-    set({ volume });
+    // Currently no additional initialization needed
+    // Volume is already loaded during store creation
   },
 
   /**
@@ -162,6 +274,14 @@ export const useStreamingStore = create<StreamingStore>((set, get) => ({
       state.disconnect();
     }
     
+    // Reset latency tracking for new join attempt
+    const latencyStore = useLatencyStore.getState();
+    latencyStore.resetLatency();
+    useLatencyStore.setState((prev) => ({
+      ...prev,
+      lastLatency: null,
+    }));
+    
     set({ 
       isConnecting: true, 
       error: null,
@@ -172,21 +292,25 @@ export const useStreamingStore = create<StreamingStore>((set, get) => ({
     });
 
     try {
-      // Fetch token
+      // Fetch token (t1: token received)
       const { token } = await apiClient.getLiveKitToken(
         roomName,
         sceneId,
         eventId
       );
 
+      // Record token received timestamp
+      latencyStore.recordTokenReceived();
+
       // Create room
       const room = new Room();
       
-      // Set up event listeners
+      // Set up connection quality monitoring
       room.on(RoomEvent.ConnectionQualityChanged, (quality: LKConnectionQuality) => {
         get().setConnectionQuality(mapConnectionQuality(quality));
       });
 
+      // Set up disconnect handler
       room.on(RoomEvent.Disconnected, (reason?: DisconnectReason) => {
         const state = get();
         const isClientInitiated = reason === DisconnectReason.CLIENT_INITIATED;
@@ -210,6 +334,76 @@ export const useStreamingStore = create<StreamingStore>((set, get) => ({
         }
       });
 
+      // Set up participant tracking event listeners
+      room.on(RoomEvent.ParticipantConnected, (participant: LKParticipant) => {
+        const participantStore = useParticipantStore.getState();
+        const converted = convertParticipant(participant, false);
+        participantStore.addParticipant(converted);
+        updateParticipants(room);
+      });
+      
+      room.on(RoomEvent.ParticipantDisconnected, (participant: LKParticipant) => {
+        const participantStore = useParticipantStore.getState();
+        participantStore.removeParticipant(participant.identity);
+        updateParticipants(room);
+      });
+      
+      room.on(RoomEvent.LocalTrackPublished, () => {
+        updateParticipants(room);
+      });
+      
+      room.on(RoomEvent.LocalTrackUnpublished, () => {
+        updateParticipants(room);
+      });
+      
+      room.on(RoomEvent.TrackMuted, (publication, participant: LKParticipant) => {
+        if (publication.source === Track.Source.Microphone) {
+          const participantStore = useParticipantStore.getState();
+          participantStore.updateParticipantMute(participant.identity, true);
+          updateParticipants(room);
+        }
+      });
+      
+      room.on(RoomEvent.TrackUnmuted, (publication, participant: LKParticipant) => {
+        if (publication.source === Track.Source.Microphone) {
+          const participantStore = useParticipantStore.getState();
+          participantStore.updateParticipantMute(participant.identity, false);
+          updateParticipants(room);
+        }
+      });
+      
+      room.on(RoomEvent.ActiveSpeakersChanged, (speakers: LKParticipant[]) => {
+        const participantStore = useParticipantStore.getState();
+        // Get current speaking state
+        const allParticipants = participantStore.getParticipantsArray();
+        
+        // Normalize LiveKit identities to match store participants
+        const speakerIdentities = new Set(
+          speakers.map(s => normalizeIdentity(s.identity))
+        );
+        
+        // Only update participants whose speaking status changed
+        allParticipants.forEach(p => {
+          const shouldBeSpeaking = speakerIdentities.has(p.identity);
+          if (p.isSpeaking !== shouldBeSpeaking) {
+            participantStore.updateParticipantSpeaking(p.identity, shouldBeSpeaking);
+          }
+        });
+        
+        updateParticipants(room);
+      });
+      
+      // Track first audio subscription for latency measurement (t3)
+      let firstAudioTracked = false;
+      room.on(RoomEvent.TrackSubscribed, (track) => {
+        if (!firstAudioTracked && track.kind === 'audio') {
+          const latencyStore = useLatencyStore.getState();
+          latencyStore.recordFirstAudioSubscribed();
+          latencyStore.finalizeLatency();
+          firstAudioTracked = true;
+        }
+      });
+
       // Connect to room
       const wsUrl = import.meta.env.VITE_LIVEKIT_WS_URL;
       if (!wsUrl || typeof wsUrl !== 'string' || wsUrl.trim() === '') {
@@ -218,8 +412,14 @@ export const useStreamingStore = create<StreamingStore>((set, get) => ({
       
       await room.connect(wsUrl, token);
 
+      // Record room connected timestamp (t2)
+      latencyStore.recordRoomConnected();
+
       // Enable local microphone
       await room.localParticipant.setMicrophoneEnabled(true);
+
+      // Update participants
+      updateParticipants(room);
 
       // Apply current volume setting to room
       const { volume } = get();
@@ -259,6 +459,10 @@ export const useStreamingStore = create<StreamingStore>((set, get) => ({
       room.removeAllListeners();
       room.disconnect();
     }
+
+    // Clear participant store
+    const participantStore = useParticipantStore.getState();
+    participantStore.clearParticipants();
 
     set({
       room: null,
@@ -301,10 +505,23 @@ export const useStreamingStore = create<StreamingStore>((set, get) => ({
     const { room } = get();
     if (!room) return;
 
-    const isEnabled = room.localParticipant.isMicrophoneEnabled;
-    await room.localParticipant.setMicrophoneEnabled(!isEnabled);
-    
-    set({ isMuted: !isEnabled });
+    const targetEnabled = !room.localParticipant.isMicrophoneEnabled;
+
+    try {
+      await room.localParticipant.setMicrophoneEnabled(targetEnabled);
+
+      // Re-read the room and microphone state after the operation completes
+      const latestRoom = get().room;
+      if (!latestRoom) {
+        return;
+      }
+
+      const isEnabled = latestRoom.localParticipant.isMicrophoneEnabled;
+      set({ isLocalMuted: !isEnabled });
+    } catch (error) {
+      console.error('Failed to toggle microphone mute', error);
+      set({ error: 'Unable to toggle microphone' });
+    }
   },
 
   /**
@@ -367,30 +584,6 @@ export const useStreamingStore = create<StreamingStore>((set, get) => ({
 }));
 
 /**
- * Apply volume to all remote audio tracks in a room
- */
-function applyVolumeToRoom(room: Room, volume: number): void {
-  const normalizedVolume = volume / 100;
-
-  room.remoteParticipants.forEach((participant) => {
-    participant.audioTrackPublications.forEach((publication) => {
-      if (publication.audioTrack) {
-        try {
-          // Type guard for setVolume method
-          if (
-            typeof (publication.audioTrack as { setVolume?: unknown }).setVolume === 'function'
-          ) {
-            (publication.audioTrack as { setVolume: (volume: number) => void }).setVolume(normalizedVolume);
-          }
-        } catch (error) {
-          console.warn('Volume control not supported:', error);
-        }
-      }
-    });
-  });
-}
-
-/**
  * Hook for streaming connection state (optimized selectors)
  */
 export function useStreamingConnection() {
@@ -409,7 +602,7 @@ export function useStreamingConnection() {
 export function useStreamingAudio() {
   return useStreamingStore((state) => ({
     volume: state.volume,
-    isMuted: state.isMuted,
+    isLocalMuted: state.isLocalMuted,
     setVolume: state.setVolume,
     toggleMute: state.toggleMute,
   }));
