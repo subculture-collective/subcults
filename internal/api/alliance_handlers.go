@@ -64,7 +64,7 @@ func validateReason(reason string) string {
 	if trimmed == "" {
 		return "reason cannot be empty or whitespace only"
 	}
-	if len(reason) > MaxReasonLength {
+	if len(trimmed) > MaxReasonLength {
 		return "reason must not exceed 256 characters"
 	}
 	return ""

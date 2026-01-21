@@ -231,7 +231,7 @@ func (r *InMemoryAllianceRepository) Update(alliance *Alliance) error {
 		return ErrAllianceDeleted
 	}
 
-	// Create an updated copy to keep in-memory storage consistent with Insert's deep-copy semantics
+	// Create an updated copy to maintain consistent deep-copy behavior for stored data
 	updated := *existing
 	updated.Weight = alliance.Weight
 	updated.Reason = alliance.Reason
