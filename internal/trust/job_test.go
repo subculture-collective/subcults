@@ -64,13 +64,13 @@ func TestRecomputeJob_RecomputesOnlyDirtyScenes(t *testing.T) {
 	dataSource.AddMembership(Membership{
 		SceneID:     "scene-1",
 		UserDID:     "did:user1",
-		Role:        "member",
+		Role:        "owner",
 		TrustWeight: 0.8,
 	})
 	dataSource.AddMembership(Membership{
 		SceneID:     "scene-2",
 		UserDID:     "did:user2",
-		Role:        "admin",
+		Role:        "owner",
 		TrustWeight: 1.0,
 	})
 
@@ -98,7 +98,7 @@ func TestRecomputeJob_RecomputesOnlyDirtyScenes(t *testing.T) {
 	if score1 == nil {
 		t.Fatal("expected score for scene-1")
 	}
-	expectedScore1 := 0.8 // 0.8 * 1.0 (member multiplier) * 1.0 (no alliances)
+	expectedScore1 := 0.8 // 0.8 * 1.0 (owner multiplier) * 1.0 (no alliances)
 	if score1.Score != expectedScore1 {
 		t.Errorf("scene-1 score = %v, want %v", score1.Score, expectedScore1)
 	}
@@ -163,9 +163,9 @@ func TestRecomputeJob_RecomputesWithAlliances(t *testing.T) {
 	}
 
 	// Expected: avg_alliance = (0.6 + 0.8) / 2 = 0.7
-	//           avg_membership = 0.8 * 1.5 (curator) = 1.2
-	//           score = 0.7 * 1.2 = 0.84
-	expectedScore := 0.7 * 1.2
+	//           avg_membership = 0.8 * 0.8 (curator) = 0.64
+	//           score = 0.7 * 0.64 = 0.448
+	expectedScore := 0.7 * 0.64
 	if math.Abs(score.Score-expectedScore) > 1e-9 {
 		t.Errorf("score = %v, want %v", score.Score, expectedScore)
 	}
@@ -214,8 +214,8 @@ func TestRecomputeJob_PeriodicExecution(t *testing.T) {
 	if score == nil {
 		t.Fatal("expected score to be computed after periodic tick")
 	}
-	if score.Score != 0.5 {
-		t.Errorf("score = %v, want 0.5", score.Score)
+	if score.Score != 0.25 {
+		t.Errorf("score = %v, want 0.25", score.Score)
 	}
 
 	// Scene should no longer be dirty

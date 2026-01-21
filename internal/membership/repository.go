@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/onnwee/subcults/internal/trust"
 )
 
 // Common errors for membership operations.
@@ -31,6 +32,47 @@ type Membership struct {
 	Since     time.Time `json:"since"`
 	CreatedAt time.Time `json:"created_at"`
 	UpdatedAt time.Time `json:"updated_at"`
+}
+
+// EffectiveWeight returns the effective trust weight for this membership.
+// It computes: base TrustWeight * role multiplier.
+func (m *Membership) EffectiveWeight() float64 {
+	return m.TrustWeight * getRoleMultiplier(m.Role)
+}
+
+// getRoleMultiplier gets the multiplier for a role, using default if not found.
+func getRoleMultiplier(role string) float64 {
+	if multiplier, ok := trust.RoleMultiplier[role]; ok {
+		return multiplier
+	}
+	return trust.DefaultRoleMultiplier
+}
+
+// ValidateRole validates the membership role.
+// Returns an error if the role is invalid.
+func (m *Membership) ValidateRole() error {
+	if !trust.ValidRole(m.Role) {
+		return trust.ErrInvalidRole
+	}
+	return nil
+}
+
+// ValidateTrustWeight validates the membership trust weight.
+// Returns an error if the weight is out of bounds (0.0-1.0).
+func (m *Membership) ValidateTrustWeight() error {
+	return trust.ValidateTrustWeight(m.TrustWeight)
+}
+
+// Validate validates all membership fields that have constraints.
+// Returns the first validation error encountered.
+func (m *Membership) Validate() error {
+	if err := m.ValidateRole(); err != nil {
+		return err
+	}
+	if err := m.ValidateTrustWeight(); err != nil {
+		return err
+	}
+	return nil
 }
 
 // UpsertResult tracks statistics for upsert operations.
@@ -57,6 +99,10 @@ type MembershipRepository interface {
 	// UpdateStatus updates the status and optional since timestamp of a membership.
 	// If since is nil, the timestamp is not updated.
 	UpdateStatus(id, status string, since *time.Time) error
+
+	// UpdateRole updates the role of a membership.
+	// This affects the effective trust weight via the role multiplier.
+	UpdateRole(id, role string) error
 
 	// ListByScene retrieves all memberships for a scene, optionally filtered by status.
 	// If status is empty, returns all memberships regardless of status.
@@ -93,6 +139,11 @@ func makeKey(did, rkey string) string {
 
 // Upsert inserts a new membership or updates existing one based on (record_did, record_rkey).
 func (r *InMemoryMembershipRepository) Upsert(membership *Membership) (*UpsertResult, error) {
+	// Validate membership before upserting
+	if err := membership.Validate(); err != nil {
+		return nil, err
+	}
+
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
@@ -214,6 +265,28 @@ func (r *InMemoryMembershipRepository) UpdateStatus(id, status string, since *ti
 	if since != nil {
 		membership.Since = *since
 	}
+	membership.UpdatedAt = time.Now()
+
+	return nil
+}
+
+// UpdateRole updates the role of a membership.
+// Validates the role before updating.
+func (r *InMemoryMembershipRepository) UpdateRole(id, role string) error {
+	// Validate role before updating
+	if !trust.ValidRole(role) {
+		return trust.ErrInvalidRole
+	}
+
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	membership, ok := r.memberships[id]
+	if !ok {
+		return ErrMembershipNotFound
+	}
+
+	membership.Role = role
 	membership.UpdatedAt = time.Now()
 
 	return nil

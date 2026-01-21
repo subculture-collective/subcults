@@ -31,9 +31,9 @@ func TestComputeTrustScore(t *testing.T) {
 				{SceneID: "s1", UserDID: "did:user1", Role: "member", TrustWeight: 0.8},
 			},
 			alliances: []Alliance{},
-			// avg_alliance = 1.0 (default), avg_membership = 0.8 * 1.0 = 0.8
-			// score = 1.0 * 0.8 = 0.8
-			want: 0.8,
+			// avg_alliance = 1.0 (default), avg_membership = 0.8 * 0.5 = 0.4
+			// score = 1.0 * 0.4 = 0.4
+			want: 0.4,
 		},
 		{
 			name: "single member with curator role",
@@ -41,31 +41,41 @@ func TestComputeTrustScore(t *testing.T) {
 				{SceneID: "s1", UserDID: "did:user1", Role: "curator", TrustWeight: 0.8},
 			},
 			alliances: []Alliance{},
-			// avg_alliance = 1.0, avg_membership = 0.8 * 1.5 = 1.2
-			// score = 1.0 * 1.2 = 1.2
-			want: 1.2,
+			// avg_alliance = 1.0, avg_membership = 0.8 * 0.8 = 0.64
+			// score = 1.0 * 0.64 = 0.64
+			want: 0.64,
 		},
 		{
-			name: "single member with admin role",
+			name: "single member with owner role",
 			memberships: []Membership{
-				{SceneID: "s1", UserDID: "did:user1", Role: "admin", TrustWeight: 0.5},
+				{SceneID: "s1", UserDID: "did:user1", Role: "owner", TrustWeight: 0.5},
 			},
 			alliances: []Alliance{},
-			// avg_alliance = 1.0, avg_membership = 0.5 * 2.0 = 1.0
-			// score = 1.0 * 1.0 = 1.0
-			want: 1.0,
+			// avg_alliance = 1.0, avg_membership = 0.5 * 1.0 = 0.5
+			// score = 1.0 * 0.5 = 0.5
+			want: 0.5,
+		},
+		{
+			name: "single member with guest role",
+			memberships: []Membership{
+				{SceneID: "s1", UserDID: "did:user1", Role: "guest", TrustWeight: 1.0},
+			},
+			alliances: []Alliance{},
+			// avg_alliance = 1.0, avg_membership = 1.0 * 0.3 = 0.3
+			// score = 1.0 * 0.3 = 0.3
+			want: 0.3,
 		},
 		{
 			name: "multiple members different roles",
 			memberships: []Membership{
-				{SceneID: "s1", UserDID: "did:user1", Role: "member", TrustWeight: 0.6},  // 0.6 * 1.0 = 0.6
-				{SceneID: "s1", UserDID: "did:user2", Role: "curator", TrustWeight: 0.8}, // 0.8 * 1.5 = 1.2
-				{SceneID: "s1", UserDID: "did:user3", Role: "admin", TrustWeight: 1.0},   // 1.0 * 2.0 = 2.0
+				{SceneID: "s1", UserDID: "did:user1", Role: "member", TrustWeight: 0.6},  // 0.6 * 0.5 = 0.3
+				{SceneID: "s1", UserDID: "did:user2", Role: "curator", TrustWeight: 0.8}, // 0.8 * 0.8 = 0.64
+				{SceneID: "s1", UserDID: "did:user3", Role: "owner", TrustWeight: 1.0},   // 1.0 * 1.0 = 1.0
 			},
 			alliances: []Alliance{},
-			// avg_membership = (0.6 + 1.2 + 2.0) / 3 = 3.8 / 3 = 1.2666...
-			// score = 1.0 * 1.2666... = 1.2666...
-			want: 3.8 / 3.0,
+			// avg_membership = (0.3 + 0.64 + 1.0) / 3 = 1.94 / 3 = 0.6466...
+			// score = 1.0 * 0.6466... = 0.6466...
+			want: 1.94 / 3.0,
 		},
 		{
 			name: "single member single alliance",
@@ -75,9 +85,9 @@ func TestComputeTrustScore(t *testing.T) {
 			alliances: []Alliance{
 				{FromSceneID: "s1", ToSceneID: "s2", Weight: 0.5},
 			},
-			// avg_alliance = 0.5, avg_membership = 1.0 * 1.0 = 1.0
-			// score = 0.5 * 1.0 = 0.5
-			want: 0.5,
+			// avg_alliance = 0.5, avg_membership = 1.0 * 0.5 = 0.5
+			// score = 0.5 * 0.5 = 0.25
+			want: 0.25,
 		},
 		{
 			name: "multiple alliances",
@@ -90,26 +100,26 @@ func TestComputeTrustScore(t *testing.T) {
 				{FromSceneID: "s1", ToSceneID: "s4", Weight: 0.8},
 			},
 			// avg_alliance = (0.4 + 0.6 + 0.8) / 3 = 0.6
-			// avg_membership = 1.0
-			// score = 0.6 * 1.0 = 0.6
-			want: 0.6,
+			// avg_membership = 1.0 * 0.5 = 0.5
+			// score = 0.6 * 0.5 = 0.3
+			want: 0.3,
 		},
 		{
 			name: "complex scenario",
 			memberships: []Membership{
-				{SceneID: "s1", UserDID: "did:user1", Role: "admin", TrustWeight: 0.9},   // 0.9 * 2.0 = 1.8
-				{SceneID: "s1", UserDID: "did:user2", Role: "curator", TrustWeight: 0.7}, // 0.7 * 1.5 = 1.05
-				{SceneID: "s1", UserDID: "did:user3", Role: "member", TrustWeight: 0.5},  // 0.5 * 1.0 = 0.5
-				{SceneID: "s1", UserDID: "did:user4", Role: "member", TrustWeight: 0.8},  // 0.8 * 1.0 = 0.8
+				{SceneID: "s1", UserDID: "did:user1", Role: "owner", TrustWeight: 0.9},   // 0.9 * 1.0 = 0.9
+				{SceneID: "s1", UserDID: "did:user2", Role: "curator", TrustWeight: 0.7}, // 0.7 * 0.8 = 0.56
+				{SceneID: "s1", UserDID: "did:user3", Role: "member", TrustWeight: 0.5},  // 0.5 * 0.5 = 0.25
+				{SceneID: "s1", UserDID: "did:user4", Role: "guest", TrustWeight: 0.8},   // 0.8 * 0.3 = 0.24
 			},
 			alliances: []Alliance{
 				{FromSceneID: "s1", ToSceneID: "s2", Weight: 0.9},
 				{FromSceneID: "s1", ToSceneID: "s3", Weight: 0.7},
 			},
 			// avg_alliance = (0.9 + 0.7) / 2 = 0.8
-			// avg_membership = (1.8 + 1.05 + 0.5 + 0.8) / 4 = 4.15 / 4 = 1.0375
-			// score = 0.8 * 1.0375 = 0.83
-			want: 0.8 * (4.15 / 4.0),
+			// avg_membership = (0.9 + 0.56 + 0.25 + 0.24) / 4 = 1.95 / 4 = 0.4875
+			// score = 0.8 * 0.4875 = 0.39
+			want: 0.8 * (1.95 / 4.0),
 		},
 		{
 			name: "unknown role uses default multiplier",
@@ -117,9 +127,9 @@ func TestComputeTrustScore(t *testing.T) {
 				{SceneID: "s1", UserDID: "did:user1", Role: "unknown_role", TrustWeight: 0.5},
 			},
 			alliances: []Alliance{},
-			// avg_membership = 0.5 * 1.0 (default) = 0.5
-			// score = 1.0 * 0.5 = 0.5
-			want: 0.5,
+			// avg_membership = 0.5 * 0.5 (default) = 0.25
+			// score = 1.0 * 0.25 = 0.25
+			want: 0.25,
 		},
 		{
 			name: "zero trust weight member",
@@ -157,9 +167,10 @@ func TestRoleMultipliers(t *testing.T) {
 		role string
 		want float64
 	}{
-		{role: "member", want: 1.0},
-		{role: "curator", want: 1.5},
-		{role: "admin", want: 2.0},
+		{role: "owner", want: 1.0},
+		{role: "curator", want: 0.8},
+		{role: "member", want: 0.5},
+		{role: "guest", want: 0.3},
 	}
 
 	for _, tt := range tests {
@@ -285,5 +296,190 @@ func TestDirtyTracker_Concurrency(t *testing.T) {
 	scenes := tracker.GetDirtyScenes()
 	if count != len(scenes) {
 		t.Errorf("DirtyCount() = %d, but GetDirtyScenes() len = %d", count, len(scenes))
+	}
+}
+
+func TestValidRole(t *testing.T) {
+	tests := []struct {
+		role string
+		want bool
+	}{
+		{role: "owner", want: true},
+		{role: "curator", want: true},
+		{role: "member", want: true},
+		{role: "guest", want: true},
+		{role: "admin", want: false},
+		{role: "moderator", want: false},
+		{role: "", want: false},
+		{role: "OWNER", want: false}, // case-sensitive
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.role, func(t *testing.T) {
+			got := ValidRole(tt.role)
+			if got != tt.want {
+				t.Errorf("ValidRole(%q) = %v, want %v", tt.role, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestValidateTrustWeight(t *testing.T) {
+	tests := []struct {
+		name    string
+		weight  float64
+		wantErr bool
+	}{
+		{name: "zero is valid", weight: 0.0, wantErr: false},
+		{name: "one is valid", weight: 1.0, wantErr: false},
+		{name: "middle value is valid", weight: 0.5, wantErr: false},
+		{name: "negative is invalid", weight: -0.1, wantErr: true},
+		{name: "above one is invalid", weight: 1.1, wantErr: true},
+		{name: "large negative is invalid", weight: -100.0, wantErr: true},
+		{name: "large positive is invalid", weight: 100.0, wantErr: true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := ValidateTrustWeight(tt.weight)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("ValidateTrustWeight(%v) error = %v, wantErr %v", tt.weight, err, tt.wantErr)
+			}
+			if tt.wantErr && err != ErrInvalidTrustWeight {
+				t.Errorf("ValidateTrustWeight(%v) error = %v, want %v", tt.weight, err, ErrInvalidTrustWeight)
+			}
+		})
+	}
+}
+
+func TestMembership_EffectiveWeight(t *testing.T) {
+	tests := []struct {
+		name        string
+		membership  Membership
+		want        float64
+	}{
+		{
+			name: "owner with full trust",
+			membership: Membership{
+				Role:        "owner",
+				TrustWeight: 1.0,
+			},
+			want: 1.0, // 1.0 * 1.0
+		},
+		{
+			name: "curator with 0.8 trust",
+			membership: Membership{
+				Role:        "curator",
+				TrustWeight: 0.8,
+			},
+			want: 0.64, // 0.8 * 0.8
+		},
+		{
+			name: "member with 0.5 trust",
+			membership: Membership{
+				Role:        "member",
+				TrustWeight: 0.5,
+			},
+			want: 0.25, // 0.5 * 0.5
+		},
+		{
+			name: "guest with full trust",
+			membership: Membership{
+				Role:        "guest",
+				TrustWeight: 1.0,
+			},
+			want: 0.3, // 1.0 * 0.3
+		},
+		{
+			name: "unknown role uses default multiplier",
+			membership: Membership{
+				Role:        "unknown",
+				TrustWeight: 1.0,
+			},
+			want: 0.5, // 1.0 * 0.5 (default)
+		},
+		{
+			name: "zero trust weight",
+			membership: Membership{
+				Role:        "owner",
+				TrustWeight: 0.0,
+			},
+			want: 0.0,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := tt.membership.EffectiveWeight()
+			if math.Abs(got-tt.want) > 1e-9 {
+				t.Errorf("Membership.EffectiveWeight() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestMembership_Validate(t *testing.T) {
+	tests := []struct {
+		name       string
+		membership Membership
+		wantErr    error
+	}{
+		{
+			name: "valid owner membership",
+			membership: Membership{
+				Role:        "owner",
+				TrustWeight: 1.0,
+			},
+			wantErr: nil,
+		},
+		{
+			name: "valid guest membership",
+			membership: Membership{
+				Role:        "guest",
+				TrustWeight: 0.3,
+			},
+			wantErr: nil,
+		},
+		{
+			name: "invalid role",
+			membership: Membership{
+				Role:        "admin",
+				TrustWeight: 0.5,
+			},
+			wantErr: ErrInvalidRole,
+		},
+		{
+			name: "invalid trust weight too high",
+			membership: Membership{
+				Role:        "owner",
+				TrustWeight: 1.5,
+			},
+			wantErr: ErrInvalidTrustWeight,
+		},
+		{
+			name: "invalid trust weight negative",
+			membership: Membership{
+				Role:        "member",
+				TrustWeight: -0.5,
+			},
+			wantErr: ErrInvalidTrustWeight,
+		},
+		{
+			name: "both invalid, returns role error first",
+			membership: Membership{
+				Role:        "invalid",
+				TrustWeight: 2.0,
+			},
+			wantErr: ErrInvalidRole,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := tt.membership.Validate()
+			if err != tt.wantErr {
+				t.Errorf("Membership.Validate() error = %v, want %v", err, tt.wantErr)
+			}
+		})
 	}
 }

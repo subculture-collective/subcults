@@ -3,27 +3,86 @@
 package trust
 
 import (
+	"errors"
 	"sync"
 	"time"
 )
 
 // RoleMultiplier defines the trust weight multiplier for different membership roles.
-// Higher roles contribute more to the scene's overall trust score.
+// Multipliers affect how much each member's trust weight contributes to scene trust score.
+// - owner: Scene owner (highest authority)
+// - curator: Content curator (elevated privileges)
+// - member: Regular member (baseline)
+// - guest: Limited access member (lowest weight)
 var RoleMultiplier = map[string]float64{
-	"member":  1.0,
-	"curator": 1.5,
-	"admin":   2.0,
+	"owner":   1.0,
+	"curator": 0.8,
+	"member":  0.5,
+	"guest":   0.3,
 }
 
 // DefaultRoleMultiplier is used when a role is not found in the RoleMultiplier map.
-const DefaultRoleMultiplier = 1.0
+const DefaultRoleMultiplier = 0.5
+
+// Valid role constants
+const (
+	RoleOwner   = "owner"
+	RoleCurator = "curator"
+	RoleMember  = "member"
+	RoleGuest   = "guest"
+)
+
+// Validation errors
+var (
+	ErrInvalidRole        = errors.New("invalid role: must be owner, curator, member, or guest")
+	ErrInvalidTrustWeight = errors.New("invalid trust weight: must be between 0.0 and 1.0")
+)
+
+// ValidRole checks if a role string is valid.
+// Returns true if the role is one of: owner, curator, member, guest.
+func ValidRole(role string) bool {
+	_, exists := RoleMultiplier[role]
+	return exists
+}
+
+// ValidateTrustWeight checks if a trust weight is within valid bounds (0.0-1.0).
+// Returns ErrInvalidTrustWeight if the weight is out of bounds.
+func ValidateTrustWeight(weight float64) error {
+	if weight < 0.0 || weight > 1.0 {
+		return ErrInvalidTrustWeight
+	}
+	return nil
+}
 
 // Membership represents a user's membership in a scene with their role.
 type Membership struct {
-	SceneID   string  `json:"scene_id"`
-	UserDID   string  `json:"user_did"`
-	Role      string  `json:"role"`
+	SceneID     string  `json:"scene_id"`
+	UserDID     string  `json:"user_did"`
+	Role        string  `json:"role"`
 	TrustWeight float64 `json:"trust_weight"` // Base trust weight (0.0-1.0)
+}
+
+// EffectiveWeight returns the effective trust weight for this membership.
+// It is computed as base TrustWeight multiplied by the role multiplier.
+// This value is used in trust score calculations.
+func (m *Membership) EffectiveWeight() float64 {
+	multiplier, ok := RoleMultiplier[m.Role]
+	if !ok {
+		multiplier = DefaultRoleMultiplier
+	}
+	return m.TrustWeight * multiplier
+}
+
+// Validate checks if the membership has valid role and trust weight.
+// Returns an error if either field is invalid.
+func (m *Membership) Validate() error {
+	if !ValidRole(m.Role) {
+		return ErrInvalidRole
+	}
+	if err := ValidateTrustWeight(m.TrustWeight); err != nil {
+		return err
+	}
+	return nil
 }
 
 // Alliance represents a trust relationship between two scenes.
@@ -41,8 +100,9 @@ type SceneTrustScore struct {
 }
 
 // ComputeTrustScore calculates the trust score for a scene using the formula:
-// score = avg(alliance weights) * avg(membership trust weights * role multipliers)
+// score = avg(alliance weights) * avg(effective membership weights)
 //
+// Effective weight = base trust_weight * role multiplier
 // If there are no alliances, alliance average defaults to 1.0.
 // If there are no memberships, the score is 0.0.
 func ComputeTrustScore(memberships []Membership, alliances []Alliance) float64 {
@@ -60,14 +120,10 @@ func ComputeTrustScore(memberships []Membership, alliances []Alliance) float64 {
 		allianceAvg = allianceSum / float64(len(alliances))
 	}
 
-	// Calculate average membership trust weight (with role multipliers)
+	// Calculate average effective membership weight
 	var membershipSum float64
 	for _, m := range memberships {
-		multiplier, ok := RoleMultiplier[m.Role]
-		if !ok {
-			multiplier = DefaultRoleMultiplier
-		}
-		membershipSum += m.TrustWeight * multiplier
+		membershipSum += m.EffectiveWeight()
 	}
 	membershipAvg := membershipSum / float64(len(memberships))
 
