@@ -56,6 +56,15 @@ const (
 	
 	// ErrCodeUnsupportedType indicates an unsupported content type for upload.
 	ErrCodeUnsupportedType = "unsupported_type"
+	
+	// ErrCodeInvalidWeight indicates alliance weight must be between 0.0 and 1.0.
+	ErrCodeInvalidWeight = "invalid_weight"
+	
+	// ErrCodeAllianceDeleted indicates the alliance has been deleted.
+	ErrCodeAllianceDeleted = "alliance_deleted"
+	
+	// ErrCodeSelfAlliance indicates attempt to create alliance where from_scene_id == to_scene_id.
+	ErrCodeSelfAlliance = "self_alliance"
 )
 
 // ErrorResponse represents the standard error response format.

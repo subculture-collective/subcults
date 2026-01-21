@@ -13,6 +13,7 @@ import (
 // Common errors for alliance operations.
 var (
 	ErrAllianceNotFound = errors.New("alliance not found")
+	ErrAllianceDeleted  = errors.New("alliance deleted")
 )
 
 // Alliance represents a trust relationship between two scenes.
@@ -28,9 +29,10 @@ type Alliance struct {
 	RecordDID  *string `json:"record_did,omitempty"`
 	RecordRKey *string `json:"record_rkey,omitempty"`
 	
-	Since     time.Time `json:"since"`
-	CreatedAt time.Time `json:"created_at"`
-	UpdatedAt time.Time `json:"updated_at"`
+	Since     time.Time  `json:"since"`
+	CreatedAt time.Time  `json:"created_at"`
+	UpdatedAt time.Time  `json:"updated_at"`
+	DeletedAt *time.Time `json:"deleted_at,omitempty"`
 }
 
 // UpsertResult tracks statistics for upsert operations.
@@ -46,10 +48,21 @@ type AllianceRepository interface {
 	Upsert(alliance *Alliance) (*UpsertResult, error)
 
 	// GetByID retrieves an alliance by its UUID.
+	// Returns ErrAllianceDeleted if alliance exists but is soft-deleted.
 	GetByID(id string) (*Alliance, error)
 
 	// GetByRecordKey retrieves an alliance by its AT Protocol record key.
 	GetByRecordKey(did, rkey string) (*Alliance, error)
+	
+	// Insert creates a new alliance with the given data.
+	Insert(alliance *Alliance) error
+	
+	// Update modifies an existing alliance.
+	Update(alliance *Alliance) error
+	
+	// Delete soft-deletes an alliance by setting deleted_at.
+	// Returns ErrAllianceDeleted if alliance is already deleted.
+	Delete(id string) error
 }
 
 // InMemoryAllianceRepository is an in-memory implementation of AllianceRepository.
@@ -140,6 +153,7 @@ func (r *InMemoryAllianceRepository) Upsert(alliance *Alliance) (*UpsertResult, 
 }
 
 // GetByID retrieves an alliance by its UUID.
+// Returns ErrAllianceDeleted if alliance exists but is soft-deleted.
 func (r *InMemoryAllianceRepository) GetByID(id string) (*Alliance, error) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
@@ -147,6 +161,10 @@ func (r *InMemoryAllianceRepository) GetByID(id string) (*Alliance, error) {
 	alliance, ok := r.alliances[id]
 	if !ok {
 		return nil, ErrAllianceNotFound
+	}
+	
+	if alliance.DeletedAt != nil {
+		return nil, ErrAllianceDeleted
 	}
 
 	allianceCopy := *alliance
@@ -167,4 +185,73 @@ func (r *InMemoryAllianceRepository) GetByRecordKey(did, rkey string) (*Alliance
 	alliance := r.alliances[id]
 	allianceCopy := *alliance
 	return &allianceCopy, nil
+}
+
+// Insert creates a new alliance with the given data.
+func (r *InMemoryAllianceRepository) Insert(alliance *Alliance) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	
+	// Generate UUID if not set
+	if alliance.ID == "" {
+		alliance.ID = uuid.New().String()
+	}
+	
+	// Set timestamps
+	now := time.Now()
+	alliance.CreatedAt = now
+	alliance.UpdatedAt = now
+	if alliance.Since.IsZero() {
+		alliance.Since = now
+	}
+	
+	// Store deep copy
+	allianceCopy := *alliance
+	r.alliances[alliance.ID] = &allianceCopy
+	
+	return nil
+}
+
+// Update modifies an existing alliance.
+func (r *InMemoryAllianceRepository) Update(alliance *Alliance) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	
+	existing, ok := r.alliances[alliance.ID]
+	if !ok {
+		return ErrAllianceNotFound
+	}
+	
+	if existing.DeletedAt != nil {
+		return ErrAllianceDeleted
+	}
+	
+	// Update mutable fields
+	existing.Weight = alliance.Weight
+	existing.Reason = alliance.Reason
+	existing.Status = alliance.Status
+	existing.UpdatedAt = time.Now()
+	
+	return nil
+}
+
+// Delete soft-deletes an alliance by setting deleted_at.
+// Returns ErrAllianceDeleted if alliance is already deleted.
+func (r *InMemoryAllianceRepository) Delete(id string) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	
+	alliance, ok := r.alliances[id]
+	if !ok {
+		return ErrAllianceNotFound
+	}
+	
+	if alliance.DeletedAt != nil {
+		return ErrAllianceDeleted
+	}
+	
+	now := time.Now()
+	alliance.DeletedAt = &now
+	
+	return nil
 }
