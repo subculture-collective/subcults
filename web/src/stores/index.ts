@@ -48,3 +48,12 @@ export {
   type CachedParticipant,
   type ParticipantStore,
 } from './participantStore';
+
+// Streaming Store
+export {
+  useStreamingStore,
+  useStreamingConnection,
+  useStreamingAudio,
+  useStreamingActions,
+  type StreamingStore,
+} from './streamingStore';

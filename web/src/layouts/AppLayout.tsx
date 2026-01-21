@@ -6,6 +6,7 @@
 import React, { useState } from 'react';
 import { Outlet, Link, useNavigate } from 'react-router-dom';
 import { useAuth, authStore } from '../stores/authStore';
+import { MiniPlayer } from '../components/MiniPlayer';
 
 // Display constants
 const DID_DISPLAY_LENGTH = 20; // Characters to show before truncation
@@ -305,6 +306,9 @@ export const AppLayout: React.FC = () => {
       >
         <Outlet />
       </main>
+
+      {/* Mini Player (persistent across routes) */}
+      <MiniPlayer />
 
       {/* Bottom mobile navigation (optional) */}
       <nav
