@@ -159,6 +159,15 @@ func (r *InMemoryMembershipRepository) Upsert(membership *Membership) (*UpsertRe
 		if exists {
 			// Update existing membership
 			existing := r.memberships[existingID]
+			
+			// Validate the update fields individually to provide better error context
+			if !trust.ValidRole(membership.Role) {
+				return nil, trust.ErrInvalidRole
+			}
+			if err := trust.ValidateTrustWeight(membership.TrustWeight); err != nil {
+				return nil, err
+			}
+			
 			existing.SceneID = membership.SceneID
 			existing.UserDID = membership.UserDID
 			existing.Role = membership.Role
