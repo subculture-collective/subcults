@@ -26,6 +26,7 @@ import (
 	"github.com/onnwee/subcults/internal/post"
 	"github.com/onnwee/subcults/internal/scene"
 	"github.com/onnwee/subcults/internal/stream"
+	"github.com/onnwee/subcults/internal/trust"
 	"github.com/onnwee/subcults/internal/upload"
 )
 
@@ -65,6 +66,11 @@ func main() {
 	streamRepo := stream.NewInMemorySessionRepository()
 	postRepo := post.NewInMemoryPostRepository()
 	membershipRepo := membership.NewInMemoryMembershipRepository()
+	
+	// Initialize trust score components
+	trustDataSource := trust.NewInMemoryDataSource()
+	trustScoreStore := trust.NewInMemoryScoreStore()
+	trustDirtyTracker := trust.NewDirtyTracker()
 
 	// Initialize Prometheus metrics
 	promRegistry := prometheus.NewRegistry()
@@ -148,6 +154,7 @@ func main() {
 	rsvpHandlers := api.NewRSVPHandlers(rsvpRepo, eventRepo)
 	streamHandlers := api.NewStreamHandlers(streamRepo, sceneRepo, eventRepo, auditRepo, streamMetrics)
 	postHandlers := api.NewPostHandlers(postRepo, sceneRepo, membershipRepo, metadataService)
+	trustHandlers := api.NewTrustHandlers(sceneRepo, trustDataSource, trustScoreStore, trustDirtyTracker)
 
 	// Create HTTP server with routes
 	mux := http.NewServeMux()
@@ -333,6 +340,16 @@ func main() {
 			uploadHandlers.SignUpload(w, r)
 		})
 	}
+	
+	// Trust score routes
+	mux.HandleFunc("/trust/", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet {
+			ctx := middleware.SetErrorCode(r.Context(), api.ErrCodeBadRequest)
+			api.WriteError(w, ctx, http.StatusMethodNotAllowed, api.ErrCodeBadRequest, "Method not allowed")
+			return
+		}
+		trustHandlers.GetTrustScore(w, r)
+	})
 
 	// Health check endpoint
 	mux.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
