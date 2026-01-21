@@ -57,9 +57,13 @@ func validateAllianceWeight(weight float64) string {
 	return ""
 }
 
-// validateReason validates alliance reason length.
+// validateReason validates alliance reason length and content.
 // Returns error message if validation fails, empty string if valid.
 func validateReason(reason string) string {
+	trimmed := strings.TrimSpace(reason)
+	if trimmed == "" {
+		return "reason cannot be empty or whitespace only"
+	}
 	if len(reason) > MaxReasonLength {
 		return "reason must not exceed 256 characters"
 	}
@@ -98,6 +102,13 @@ func (h *AllianceHandlers) CreateAlliance(w http.ResponseWriter, r *http.Request
 			WriteError(w, ctx, http.StatusBadRequest, ErrCodeValidation, errMsg)
 			return
 		}
+	}
+
+	// Validate scene IDs are not empty
+	if strings.TrimSpace(req.FromSceneID) == "" || strings.TrimSpace(req.ToSceneID) == "" {
+		ctx := middleware.SetErrorCode(r.Context(), ErrCodeValidation)
+		WriteError(w, ctx, http.StatusBadRequest, ErrCodeValidation, "from_scene_id and to_scene_id are required")
+		return
 	}
 
 	// Validate distinct scene IDs
@@ -308,10 +319,7 @@ func (h *AllianceHandlers) UpdateAlliance(w http.ResponseWriter, r *http.Request
 		existingAlliance.Reason = &sanitized
 	}
 
-	// Update timestamp
-	existingAlliance.UpdatedAt = time.Now()
-
-	// Update in repository
+	// Update in repository (repository will set UpdatedAt)
 	if err := h.allianceRepo.Update(existingAlliance); err != nil {
 		slog.ErrorContext(r.Context(), "failed to update alliance", "error", err, "alliance_id", allianceID)
 		ctx := middleware.SetErrorCode(r.Context(), ErrCodeInternal)

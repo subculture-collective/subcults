@@ -7,13 +7,10 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/onnwee/subcults/internal/alliance"
-	"github.com/onnwee/subcults/internal/membership"
 	"github.com/onnwee/subcults/internal/middleware"
 	"github.com/onnwee/subcults/internal/scene"
-	"github.com/onnwee/subcults/internal/stream"
 )
 
 // newTestAllianceHandlers creates handlers with in-memory repositories for testing.
@@ -589,6 +586,133 @@ func TestCreateAlliance_Unauthenticated(t *testing.T) {
 
 	if errResp.Error.Code != ErrCodeAuthFailed {
 		t.Errorf("expected error code '%s', got '%s'", ErrCodeAuthFailed, errResp.Error.Code)
+	}
+}
+
+// TestUpdateAlliance_InvalidWeight tests alliance update with invalid weight.
+func TestUpdateAlliance_InvalidWeight(t *testing.T) {
+	tests := []struct {
+		name   string
+		weight float64
+	}{
+		{"negative weight", -0.5},
+		{"weight above 1.0", 1.5},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			handlers := newTestAllianceHandlers()
+
+			ownerDID := "did:plc:owner123"
+			createTestScene(t, handlers.sceneRepo, "scene-from", ownerDID)
+			createTestScene(t, handlers.sceneRepo, "scene-to", "did:plc:other")
+
+			testAlliance := &alliance.Alliance{
+				ID:          "test-alliance-id",
+				FromSceneID: "scene-from",
+				ToSceneID:   "scene-to",
+				Weight:      0.5,
+				Status:      "active",
+			}
+			if err := handlers.allianceRepo.Insert(testAlliance); err != nil {
+				t.Fatalf("failed to create test alliance: %v", err)
+			}
+
+			reqBody := UpdateAllianceRequest{
+				Weight: &tt.weight,
+			}
+			body, _ := json.Marshal(reqBody)
+
+			req := httptest.NewRequest(http.MethodPatch, "/alliances/test-alliance-id", bytes.NewReader(body))
+			ctx := middleware.SetUserDID(req.Context(), ownerDID)
+			req = req.WithContext(ctx)
+
+			w := httptest.NewRecorder()
+			handlers.UpdateAlliance(w, req)
+
+			if w.Code != http.StatusBadRequest {
+				t.Errorf("expected status 400, got %d", w.Code)
+			}
+
+			var errResp ErrorResponse
+			if err := json.NewDecoder(w.Body).Decode(&errResp); err != nil {
+				t.Fatalf("failed to decode error response: %v", err)
+			}
+
+			if errResp.Error.Code != ErrCodeInvalidWeight {
+				t.Errorf("expected error code '%s', got '%s'", ErrCodeInvalidWeight, errResp.Error.Code)
+			}
+		})
+	}
+}
+
+// TestUpdateAlliance_ReasonTooLong tests alliance update with reason exceeding max length.
+func TestUpdateAlliance_ReasonTooLong(t *testing.T) {
+	handlers := newTestAllianceHandlers()
+
+	ownerDID := "did:plc:owner123"
+	createTestScene(t, handlers.sceneRepo, "scene-from", ownerDID)
+	createTestScene(t, handlers.sceneRepo, "scene-to", "did:plc:other")
+
+	testAlliance := &alliance.Alliance{
+		ID:          "test-alliance-id",
+		FromSceneID: "scene-from",
+		ToSceneID:   "scene-to",
+		Weight:      0.5,
+		Status:      "active",
+	}
+	if err := handlers.allianceRepo.Insert(testAlliance); err != nil {
+		t.Fatalf("failed to create test alliance: %v", err)
+	}
+
+	// Create reason longer than 256 characters
+	longReason := strings.Repeat("a", MaxReasonLength+1)
+
+	reqBody := UpdateAllianceRequest{
+		Reason: &longReason,
+	}
+	body, _ := json.Marshal(reqBody)
+
+	req := httptest.NewRequest(http.MethodPatch, "/alliances/test-alliance-id", bytes.NewReader(body))
+	ctx := middleware.SetUserDID(req.Context(), ownerDID)
+	req = req.WithContext(ctx)
+
+	w := httptest.NewRecorder()
+	handlers.UpdateAlliance(w, req)
+
+	if w.Code != http.StatusBadRequest {
+		t.Errorf("expected status 400, got %d", w.Code)
+	}
+
+	var errResp ErrorResponse
+	if err := json.NewDecoder(w.Body).Decode(&errResp); err != nil {
+		t.Fatalf("failed to decode error response: %v", err)
+	}
+
+	if errResp.Error.Code != ErrCodeValidation {
+		t.Errorf("expected error code '%s', got '%s'", ErrCodeValidation, errResp.Error.Code)
+	}
+}
+
+// TestGetAlliance_NotFound tests retrieving a non-existent alliance.
+func TestGetAlliance_NotFound(t *testing.T) {
+	handlers := newTestAllianceHandlers()
+
+	req := httptest.NewRequest(http.MethodGet, "/alliances/nonexistent-id", nil)
+	w := httptest.NewRecorder()
+	handlers.GetAlliance(w, req)
+
+	if w.Code != http.StatusNotFound {
+		t.Errorf("expected status 404, got %d", w.Code)
+	}
+
+	var errResp ErrorResponse
+	if err := json.NewDecoder(w.Body).Decode(&errResp); err != nil {
+		t.Fatalf("failed to decode error response: %v", err)
+	}
+
+	if errResp.Error.Code != ErrCodeNotFound {
+		t.Errorf("expected error code '%s', got '%s'", ErrCodeNotFound, errResp.Error.Code)
 	}
 }
 

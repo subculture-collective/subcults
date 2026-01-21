@@ -18,17 +18,17 @@ var (
 
 // Alliance represents a trust relationship between two scenes.
 type Alliance struct {
-	ID          string   `json:"id"`
-	FromSceneID string   `json:"from_scene_id"`
-	ToSceneID   string   `json:"to_scene_id"`
-	Weight      float64  `json:"weight"`
-	Status      string   `json:"status"`
-	Reason      *string  `json:"reason,omitempty"`
-	
+	ID          string  `json:"id"`
+	FromSceneID string  `json:"from_scene_id"`
+	ToSceneID   string  `json:"to_scene_id"`
+	Weight      float64 `json:"weight"`
+	Status      string  `json:"status"`
+	Reason      *string `json:"reason,omitempty"`
+
 	// AT Protocol record tracking
 	RecordDID  *string `json:"record_did,omitempty"`
 	RecordRKey *string `json:"record_rkey,omitempty"`
-	
+
 	Since     time.Time  `json:"since"`
 	CreatedAt time.Time  `json:"created_at"`
 	UpdatedAt time.Time  `json:"updated_at"`
@@ -53,13 +53,13 @@ type AllianceRepository interface {
 
 	// GetByRecordKey retrieves an alliance by its AT Protocol record key.
 	GetByRecordKey(did, rkey string) (*Alliance, error)
-	
+
 	// Insert creates a new alliance with the given data.
 	Insert(alliance *Alliance) error
-	
+
 	// Update modifies an existing alliance.
 	Update(alliance *Alliance) error
-	
+
 	// Delete soft-deletes an alliance by setting deleted_at.
 	// Returns ErrAllianceDeleted if alliance is already deleted.
 	Delete(id string) error
@@ -101,7 +101,7 @@ func (r *InMemoryAllianceRepository) Upsert(alliance *Alliance) (*UpsertResult, 
 	if alliance.RecordDID != nil && alliance.RecordRKey != nil {
 		key := makeKey(*alliance.RecordDID, *alliance.RecordRKey)
 		existingID, exists := r.keys[key]
-		
+
 		if exists {
 			// Update existing alliance
 			existing := r.alliances[existingID]
@@ -123,7 +123,7 @@ func (r *InMemoryAllianceRepository) Upsert(alliance *Alliance) (*UpsertResult, 
 			}
 			alliance.CreatedAt = now
 			alliance.UpdatedAt = now
-			
+
 			allianceCopy := *alliance
 			r.alliances[alliance.ID] = &allianceCopy
 			r.keys[key] = alliance.ID
@@ -139,7 +139,7 @@ func (r *InMemoryAllianceRepository) Upsert(alliance *Alliance) (*UpsertResult, 
 		}
 		alliance.CreatedAt = now
 		alliance.UpdatedAt = now
-		
+
 		allianceCopy := *alliance
 		r.alliances[newID] = &allianceCopy
 		inserted = true
@@ -162,7 +162,7 @@ func (r *InMemoryAllianceRepository) GetByID(id string) (*Alliance, error) {
 	if !ok {
 		return nil, ErrAllianceNotFound
 	}
-	
+
 	if alliance.DeletedAt != nil {
 		return nil, ErrAllianceDeleted
 	}
@@ -187,7 +187,7 @@ func (r *InMemoryAllianceRepository) GetByRecordKey(did, rkey string) (*Alliance
 	if alliance.DeletedAt != nil {
 		return nil, ErrAllianceDeleted
 	}
-	
+
 	allianceCopy := *alliance
 	return &allianceCopy, nil
 }
@@ -196,12 +196,12 @@ func (r *InMemoryAllianceRepository) GetByRecordKey(did, rkey string) (*Alliance
 func (r *InMemoryAllianceRepository) Insert(alliance *Alliance) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	
+
 	// Generate UUID if not set
 	if alliance.ID == "" {
 		alliance.ID = uuid.New().String()
 	}
-	
+
 	// Set timestamps
 	now := time.Now()
 	alliance.CreatedAt = now
@@ -209,11 +209,11 @@ func (r *InMemoryAllianceRepository) Insert(alliance *Alliance) error {
 	if alliance.Since.IsZero() {
 		alliance.Since = now
 	}
-	
+
 	// Store deep copy
 	allianceCopy := *alliance
 	r.alliances[alliance.ID] = &allianceCopy
-	
+
 	return nil
 }
 
@@ -221,22 +221,25 @@ func (r *InMemoryAllianceRepository) Insert(alliance *Alliance) error {
 func (r *InMemoryAllianceRepository) Update(alliance *Alliance) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	
+
 	existing, ok := r.alliances[alliance.ID]
 	if !ok {
 		return ErrAllianceNotFound
 	}
-	
+
 	if existing.DeletedAt != nil {
 		return ErrAllianceDeleted
 	}
-	
-	// Update mutable fields
-	existing.Weight = alliance.Weight
-	existing.Reason = alliance.Reason
-	existing.Status = alliance.Status
-	existing.UpdatedAt = time.Now()
-	
+
+	// Create an updated copy to keep in-memory storage consistent with Insert's deep-copy semantics
+	updated := *existing
+	updated.Weight = alliance.Weight
+	updated.Reason = alliance.Reason
+	updated.Status = alliance.Status
+	updated.UpdatedAt = time.Now()
+
+	r.alliances[alliance.ID] = &updated
+
 	return nil
 }
 
@@ -245,18 +248,18 @@ func (r *InMemoryAllianceRepository) Update(alliance *Alliance) error {
 func (r *InMemoryAllianceRepository) Delete(id string) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	
+
 	alliance, ok := r.alliances[id]
 	if !ok {
 		return ErrAllianceNotFound
 	}
-	
+
 	if alliance.DeletedAt != nil {
 		return ErrAllianceDeleted
 	}
-	
+
 	now := time.Now()
 	alliance.DeletedAt = &now
-	
+
 	return nil
 }
