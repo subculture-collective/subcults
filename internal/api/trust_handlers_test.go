@@ -55,10 +55,10 @@ func TestGetTrustScore_Success(t *testing.T) {
 		Weight:      0.7,
 	})
 
-	// Store a trust score
+	// Store a trust score (computed from memberships/alliances using the model formula)
 	scoreStore.SaveScore(trust.SceneTrustScore{
 		SceneID:    "scene-123",
-		Score:      0.686, // Computed value based on memberships/alliances
+		Score:      0.77, // 0.7 (alliance) * ((0.8*2.0 + 0.6*1.0)/2) = 0.7 * 1.1 = 0.77
 		ComputedAt: time.Now(),
 	})
 
@@ -104,7 +104,7 @@ func TestGetTrustScore_Success(t *testing.T) {
 		}
 	}
 
-	if response.Stale != false {
+	if response.Stale {
 		t.Errorf("expected stale to be false, got %t", response.Stale)
 	}
 
@@ -201,7 +201,7 @@ func TestGetTrustScore_StaleFlag(t *testing.T) {
 		t.Fatalf("failed to decode response: %v", err)
 	}
 
-	if response.Stale != true {
+	if !response.Stale {
 		t.Errorf("expected stale to be true, got %t", response.Stale)
 	}
 }
@@ -255,7 +255,7 @@ func TestGetTrustScore_NoStoredScore(t *testing.T) {
 		t.Fatalf("failed to decode response: %v", err)
 	}
 
-	// Should compute score on the fly: 1.0 (no alliances) * 0.5 (membership avg * role mult 1.0) = 0.5
+	// Should compute score on the fly: 1.0 (no alliances) * avg(0.5 * 1.0 role mult) = 0.5
 	if response.TrustScore != 0.5 {
 		t.Errorf("expected trust_score 0.5, got %f", response.TrustScore)
 	}
@@ -312,12 +312,9 @@ func TestGetTrustScore_NoMemberships(t *testing.T) {
 		t.Errorf("expected trust_score 0.0, got %f", response.TrustScore)
 	}
 
-	if response.Breakdown == nil {
-		t.Error("expected breakdown to be present")
-	} else {
-		if response.Breakdown.AverageMembershipTrustWeight != 0.0 {
-			t.Errorf("expected average_membership_trust_weight 0.0, got %f", response.Breakdown.AverageMembershipTrustWeight)
-		}
+	// Breakdown should be nil when no memberships to avoid misleading defaults
+	if response.Breakdown != nil {
+		t.Error("expected breakdown to be nil when no memberships")
 	}
 }
 

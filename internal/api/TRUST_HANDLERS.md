@@ -37,10 +37,10 @@ Returns the trust score and detailed breakdown for a specific scene.
 **Fields:**
 - `scene_id`: UUID of the scene
 - `trust_score`: Numeric trust score between 0.0 and 1.0
-- `breakdown`: Detailed breakdown of trust score components
+- `breakdown`: Detailed breakdown of trust score components. These values are informational summaries and do **not** represent the exact internal computation steps for `trust_score`. The breakdown field is omitted when there are no memberships.
   - `average_alliance_weight`: Average weight of alliances (defaults to 1.0 if no alliances)
-  - `average_membership_trust_weight`: Average trust weight of memberships
-  - `role_multiplier_aggregate`: Average role multiplier across all members
+  - `average_membership_trust_weight`: Informational average of raw membership trust weights across all memberships. The final `trust_score` instead uses each membership's trust weight together with its role multiplier.
+  - `role_multiplier_aggregate`: Informational average role multiplier across all members. The effective contribution to `trust_score` is based on per-membership products `membership_trust_weight * role_multiplier`, which are then averaged internally.
 - `stale`: Boolean indicating if the score needs recomputation (dirty flag)
 - `last_updated`: ISO 8601 timestamp of when the score was last computed (omitted if no stored score)
 

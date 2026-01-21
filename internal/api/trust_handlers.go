@@ -136,13 +136,12 @@ func (h *TrustHandlers) GetTrustScore(w http.ResponseWriter, r *http.Request) {
 }
 
 // computeTrustBreakdown calculates the detailed breakdown of trust score components.
+// These values are informational summaries and do not represent the exact internal computation steps.
 func computeTrustBreakdown(memberships []trust.Membership, alliances []trust.Alliance) *TrustScoreBreakdown {
 	if len(memberships) == 0 {
-		return &TrustScoreBreakdown{
-			AverageAllianceWeight:        1.0,
-			AverageMembershipTrustWeight: 0.0,
-			RoleMultiplierAggregate:      0.0,
-		}
+		// No memberships means the trust score is 0.0; omit breakdown to avoid
+		// misleading defaults that don't reflect the computation formula.
+		return nil
 	}
 
 	// Calculate average alliance weight
@@ -155,7 +154,9 @@ func computeTrustBreakdown(memberships []trust.Membership, alliances []trust.All
 		allianceAvg = allianceSum / float64(len(alliances))
 	}
 
-	// Calculate average membership trust weight and role multiplier aggregate
+	// Calculate informational averages for breakdown
+	// Note: The actual trust score formula applies role multipliers to each membership's
+	// trust weight BEFORE averaging: avg(trust_weight * role_multiplier)
 	var membershipSum float64
 	var roleMultSum float64
 	for _, m := range memberships {
