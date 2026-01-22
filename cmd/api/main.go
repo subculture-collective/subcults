@@ -75,7 +75,7 @@ func main() {
 
 	// Initialize trust ranking feature flag
 	trust.SetRankingEnabled(cfg.RankTrustEnabled)
-	logger.Info("trust ranking initialized", "component", "trust", "enabled", cfg.RankTrustEnabled)
+	logger.Info("trust ranking enabled", "component", "trust", "state", cfg.RankTrustEnabled)
 
 	// Initialize repositories
 	eventRepo := scene.NewInMemoryEventRepository()
