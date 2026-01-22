@@ -1020,3 +1020,111 @@ func TestLoad_RankTrustEnabled(t *testing.T) {
 		})
 	}
 }
+
+func TestLoad_RankTrustEnabled_YAMLOverride(t *testing.T) {
+	clearEnv()
+	defer clearEnv()
+
+	// Create a temporary YAML config file with rank_trust_enabled set to true
+	yamlContent := `port: 3000
+env: staging
+database_url: postgres://localhost/filedb
+jwt_secret: file_jwt_secret_value_32_chars!
+livekit_url: wss://file-livekit.example.com
+livekit_api_key: file_livekit_key
+livekit_api_secret: file_livekit_secret
+stripe_api_key: sk_test_file_key
+stripe_webhook_secret: whsec_file_secret
+maptiler_api_key: file_maptiler_key
+jetstream_url: wss://file-jetstream.example.com
+r2_bucket_name: file-bucket
+r2_access_key_id: file-key
+r2_secret_access_key: file-secret
+r2_endpoint: https://file.r2.cloudflarestorage.com
+rank_trust_enabled: true
+`
+	tmpFile, err := os.CreateTemp("", "config-*.yaml")
+	if err != nil {
+		t.Fatalf("Failed to create temp file: %v", err)
+	}
+	defer os.Remove(tmpFile.Name())
+
+	if _, err := tmpFile.WriteString(yamlContent); err != nil {
+		t.Fatalf("Failed to write to temp file: %v", err)
+	}
+	if err := tmpFile.Close(); err != nil {
+		t.Fatalf("Failed to close temp file: %v", err)
+	}
+
+	cfg, errs := Load(tmpFile.Name())
+
+	if len(errs) != 0 {
+		t.Errorf("Load() returned errors: %v", errs)
+	}
+
+	// Should read true from YAML file
+	if !cfg.RankTrustEnabled {
+		t.Error("cfg.RankTrustEnabled = false, want true from YAML file")
+	}
+
+	// Now test that env var overrides YAML file
+	os.Setenv("RANK_TRUST_ENABLED", "false")
+
+	cfg2, errs2 := Load(tmpFile.Name())
+
+	if len(errs2) != 0 {
+		t.Errorf("Load() returned errors: %v", errs2)
+	}
+
+	// Env var should override YAML file
+	if cfg2.RankTrustEnabled {
+		t.Error("cfg.RankTrustEnabled = true, want false (env should override YAML)")
+	}
+}
+
+func TestLoad_RankTrustEnabled_YAMLFalseValue(t *testing.T) {
+	clearEnv()
+	defer clearEnv()
+
+	// Create a temporary YAML config file with rank_trust_enabled explicitly set to false
+	yamlContent := `port: 3000
+env: staging
+database_url: postgres://localhost/filedb
+jwt_secret: file_jwt_secret_value_32_chars!
+livekit_url: wss://file-livekit.example.com
+livekit_api_key: file_livekit_key
+livekit_api_secret: file_livekit_secret
+stripe_api_key: sk_test_file_key
+stripe_webhook_secret: whsec_file_secret
+maptiler_api_key: file_maptiler_key
+jetstream_url: wss://file-jetstream.example.com
+r2_bucket_name: file-bucket
+r2_access_key_id: file-key
+r2_secret_access_key: file-secret
+r2_endpoint: https://file.r2.cloudflarestorage.com
+rank_trust_enabled: false
+`
+	tmpFile, err := os.CreateTemp("", "config-*.yaml")
+	if err != nil {
+		t.Fatalf("Failed to create temp file: %v", err)
+	}
+	defer os.Remove(tmpFile.Name())
+
+	if _, err := tmpFile.WriteString(yamlContent); err != nil {
+		t.Fatalf("Failed to write to temp file: %v", err)
+	}
+	if err := tmpFile.Close(); err != nil {
+		t.Fatalf("Failed to close temp file: %v", err)
+	}
+
+	cfg, errs := Load(tmpFile.Name())
+
+	if len(errs) != 0 {
+		t.Errorf("Load() returned errors: %v", errs)
+	}
+
+	// Should respect explicit false from YAML file (not use default)
+	if cfg.RankTrustEnabled {
+		t.Error("cfg.RankTrustEnabled = true, want false from YAML file")
+	}
+}

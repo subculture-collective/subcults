@@ -20,7 +20,6 @@ import (
 	"github.com/onnwee/subcults/internal/api"
 	"github.com/onnwee/subcults/internal/attachment"
 	"github.com/onnwee/subcults/internal/audit"
-	"github.com/onnwee/subcults/internal/config"
 	"github.com/onnwee/subcults/internal/livekit"
 	"github.com/onnwee/subcults/internal/membership"
 	"github.com/onnwee/subcults/internal/middleware"
@@ -59,23 +58,23 @@ func main() {
 	logger := middleware.NewLogger(env)
 	slog.SetDefault(logger)
 
-	// Load configuration from environment
-	cfg, cfgErrs := config.Load("")
-	if len(cfgErrs) > 0 {
-		// Log all configuration errors
-		for _, err := range cfgErrs {
-			logger.Error("configuration error", "error", err)
+	// Parse trust ranking feature flag from environment
+	// Accepts: true/false, 1/0, yes/no, on/off (case-insensitive)
+	// Default: false (safe rollout)
+	rankTrustEnabled := false
+	if val := os.Getenv("RANK_TRUST_ENABLED"); val != "" {
+		valLower := strings.ToLower(val)
+		switch valLower {
+		case "true", "1", "yes", "on":
+			rankTrustEnabled = true
+		case "false", "0", "no", "off":
+			rankTrustEnabled = false
 		}
-		logger.Error("failed to load configuration", "error_count", len(cfgErrs))
-		os.Exit(1)
 	}
 
-	// Log configuration summary (with secrets masked)
-	logger.Info("configuration loaded", "config", cfg.LogSummary())
-
 	// Initialize trust ranking feature flag
-	trust.SetRankingEnabled(cfg.RankTrustEnabled)
-	logger.Info("trust ranking enabled", "component", "trust", "state", cfg.RankTrustEnabled)
+	trust.SetRankingEnabled(rankTrustEnabled)
+	logger.Info("trust ranking enabled", "component", "trust", "state", rankTrustEnabled)
 
 	// Initialize repositories
 	eventRepo := scene.NewInMemoryEventRepository()

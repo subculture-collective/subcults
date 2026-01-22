@@ -107,7 +107,20 @@ func Load(configFilePath string) (*Config, []error) {
 	}
 
 	// Parse trust ranking feature flag from env with default
-	rankTrustEnabled := getEnvBoolOrDefault("RANK_TRUST_ENABLED", k.Bool("rank_trust_enabled"), DefaultRankTrustEnabled)
+	rankTrustEnabled := DefaultRankTrustEnabled
+	if k.Exists("rank_trust_enabled") {
+		rankTrustEnabled = k.Bool("rank_trust_enabled")
+	}
+	if val := os.Getenv("RANK_TRUST_ENABLED"); val != "" {
+		// Env var takes precedence over file config
+		valLower := strings.ToLower(val)
+		switch valLower {
+		case "true", "1", "yes", "on":
+			rankTrustEnabled = true
+		case "false", "0", "no", "off":
+			rankTrustEnabled = false
+		}
+	}
 
 	// Build config struct, with env vars taking precedence over file values
 	cfg := &Config{
@@ -204,25 +217,6 @@ func getEnvIntOrDefaultMulti(envKeys []string, koanfVal int, defaultVal int) (in
 		return koanfVal, nil
 	}
 	return defaultVal, nil
-}
-
-// getEnvBoolOrDefault returns the environment variable as bool if set, otherwise the koanf value, or default.
-// Accepts: true/false, 1/0, yes/no, on/off (case-insensitive).
-func getEnvBoolOrDefault(envKey string, koanfVal bool, defaultVal bool) bool {
-	if val := os.Getenv(envKey); val != "" {
-		// Parse common boolean representations
-		valLower := strings.ToLower(val)
-		switch valLower {
-		case "true", "1", "yes", "on":
-			return true
-		case "false", "0", "no", "off":
-			return false
-		}
-	}
-	if koanfVal {
-		return koanfVal
-	}
-	return defaultVal
 }
 
 // Validate checks that all required configuration values are present.
