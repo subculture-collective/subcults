@@ -28,6 +28,7 @@ func clearEnv() {
 	os.Unsetenv("ENV")
 	os.Unsetenv("GO_ENV")
 	os.Unsetenv("SUBCULT_ENV")
+	os.Unsetenv("RANK_TRUST_ENABLED")
 }
 
 func TestLoad_MissingMandatory(t *testing.T) {
@@ -880,6 +881,141 @@ t.Errorf("Load() with SUBCULT_PORT=%q should return port error, got errors: %v",
 }
 if !tt.wantErr && hasPortErr {
 t.Errorf("Load() with SUBCULT_PORT=%q should not return port error, got errors: %v", tt.portVal, errs)
+}
+})
+}
+}
+
+func TestLoad_RankTrustEnabled(t *testing.T) {
+tests := []struct {
+name     string
+envValue string
+want     bool
+}{
+{
+name:     "true (lowercase)",
+envValue: "true",
+want:     true,
+},
+{
+name:     "True (mixed case)",
+envValue: "True",
+want:     true,
+},
+{
+name:     "TRUE (uppercase)",
+envValue: "TRUE",
+want:     true,
+},
+{
+name:     "1",
+envValue: "1",
+want:     true,
+},
+{
+name:     "yes",
+envValue: "yes",
+want:     true,
+},
+{
+name:     "YES",
+envValue: "YES",
+want:     true,
+},
+{
+name:     "on",
+envValue: "on",
+want:     true,
+},
+{
+name:     "ON",
+envValue: "ON",
+want:     true,
+},
+{
+name:     "false (lowercase)",
+envValue: "false",
+want:     false,
+},
+{
+name:     "False (mixed case)",
+envValue: "False",
+want:     false,
+},
+{
+name:     "FALSE (uppercase)",
+envValue: "FALSE",
+want:     false,
+},
+{
+name:     "0",
+envValue: "0",
+want:     false,
+},
+{
+name:     "no",
+envValue: "no",
+want:     false,
+},
+{
+name:     "NO",
+envValue: "NO",
+want:     false,
+},
+{
+name:     "off",
+envValue: "off",
+want:     false,
+},
+{
+name:     "OFF",
+envValue: "OFF",
+want:     false,
+},
+{
+name:     "invalid value defaults to false",
+envValue: "invalid",
+want:     false,
+},
+{
+name:     "empty string defaults to false",
+envValue: "",
+want:     false,
+},
+}
+
+for _, tt := range tests {
+t.Run(tt.name, func(t *testing.T) {
+clearEnv()
+defer clearEnv()
+
+// Set all required env vars
+os.Setenv("DATABASE_URL", "postgres://localhost/test")
+os.Setenv("JWT_SECRET", "supersecret32characterlongvalue!")
+os.Setenv("LIVEKIT_URL", "wss://livekit.example.com")
+os.Setenv("LIVEKIT_API_KEY", "api_key")
+os.Setenv("LIVEKIT_API_SECRET", "api_secret")
+os.Setenv("STRIPE_API_KEY", "sk_test_123")
+os.Setenv("STRIPE_WEBHOOK_SECRET", "whsec_123")
+os.Setenv("MAPTILER_API_KEY", "maptiler_key")
+os.Setenv("JETSTREAM_URL", "wss://jetstream.example.com")
+os.Setenv("R2_BUCKET_NAME", "test-bucket")
+os.Setenv("R2_ACCESS_KEY_ID", "test-key")
+os.Setenv("R2_SECRET_ACCESS_KEY", "test-secret")
+os.Setenv("R2_ENDPOINT", "https://test.r2.cloudflarestorage.com")
+
+if tt.envValue != "" {
+os.Setenv("RANK_TRUST_ENABLED", tt.envValue)
+}
+
+cfg, errs := Load("")
+
+if len(errs) != 0 {
+t.Errorf("Load() returned errors: %v", errs)
+}
+
+if cfg.RankTrustEnabled != tt.want {
+t.Errorf("cfg.RankTrustEnabled = %t, want %t", cfg.RankTrustEnabled, tt.want)
 }
 })
 }

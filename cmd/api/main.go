@@ -20,6 +20,7 @@ import (
 	"github.com/onnwee/subcults/internal/api"
 	"github.com/onnwee/subcults/internal/attachment"
 	"github.com/onnwee/subcults/internal/audit"
+	"github.com/onnwee/subcults/internal/config"
 	"github.com/onnwee/subcults/internal/livekit"
 	"github.com/onnwee/subcults/internal/membership"
 	"github.com/onnwee/subcults/internal/middleware"
@@ -57,6 +58,24 @@ func main() {
 	}
 	logger := middleware.NewLogger(env)
 	slog.SetDefault(logger)
+
+	// Load configuration from environment
+	cfg, cfgErrs := config.Load("")
+	if len(cfgErrs) > 0 {
+		// Log all configuration errors
+		for _, err := range cfgErrs {
+			logger.Error("configuration error", "error", err)
+		}
+		logger.Error("failed to load configuration", "error_count", len(cfgErrs))
+		os.Exit(1)
+	}
+
+	// Log configuration summary (with secrets masked)
+	logger.Info("configuration loaded", "config", cfg.LogSummary())
+
+	// Initialize trust ranking feature flag
+	trust.SetRankingEnabled(cfg.RankTrustEnabled)
+	logger.Info("trust ranking initialized", "component", "trust", "enabled", cfg.RankTrustEnabled)
 
 	// Initialize repositories
 	eventRepo := scene.NewInMemoryEventRepository()

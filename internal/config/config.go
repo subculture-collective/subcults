@@ -47,6 +47,9 @@ type Config struct {
 	R2SecretAccessKey string `koanf:"r2_secret_access_key"`
 	R2Endpoint        string `koanf:"r2_endpoint"`
 	R2MaxUploadSizeMB int    `koanf:"r2_max_upload_size_mb"` // Default: 15MB
+
+	// Feature Flags
+	RankTrustEnabled bool `koanf:"rank_trust_enabled"` // Enable trust-weighted ranking in search/feed
 }
 
 // Configuration validation errors.
@@ -72,6 +75,7 @@ const (
 	DefaultPort              = 8080
 	DefaultEnv               = "development"
 	DefaultR2MaxUploadSizeMB = 15
+	DefaultRankTrustEnabled  = false
 )
 
 // Load reads configuration from environment variables and an optional config file.
@@ -102,6 +106,9 @@ func Load(configFilePath string) (*Config, []error) {
 		loadErrs = append(loadErrs, uploadSizeErr)
 	}
 
+	// Parse trust ranking feature flag from env with default
+	rankTrustEnabled := getEnvBoolOrDefault("RANK_TRUST_ENABLED", k.Bool("rank_trust_enabled"), DefaultRankTrustEnabled)
+
 	// Build config struct, with env vars taking precedence over file values
 	cfg := &Config{
 		Port:                port,
@@ -120,6 +127,7 @@ func Load(configFilePath string) (*Config, []error) {
 		R2SecretAccessKey:   getEnvOrKoanf("R2_SECRET_ACCESS_KEY", k, "r2_secret_access_key"),
 		R2Endpoint:          getEnvOrKoanf("R2_ENDPOINT", k, "r2_endpoint"),
 		R2MaxUploadSizeMB:   maxUploadSize,
+		RankTrustEnabled:    rankTrustEnabled,
 	}
 
 	// Validate and collect errors
@@ -198,6 +206,25 @@ func getEnvIntOrDefaultMulti(envKeys []string, koanfVal int, defaultVal int) (in
 	return defaultVal, nil
 }
 
+// getEnvBoolOrDefault returns the environment variable as bool if set, otherwise the koanf value, or default.
+// Accepts: true/false, 1/0, yes/no, on/off (case-insensitive).
+func getEnvBoolOrDefault(envKey string, koanfVal bool, defaultVal bool) bool {
+	if val := os.Getenv(envKey); val != "" {
+		// Parse common boolean representations
+		valLower := strings.ToLower(val)
+		switch valLower {
+		case "true", "1", "yes", "on":
+			return true
+		case "false", "0", "no", "off":
+			return false
+		}
+	}
+	if koanfVal {
+		return koanfVal
+	}
+	return defaultVal
+}
+
 // Validate checks that all required configuration values are present.
 // Returns a slice of validation errors (empty if valid).
 func (c *Config) Validate() []error {
@@ -270,6 +297,7 @@ func (c *Config) LogSummary() map[string]string {
 		"r2_secret_access_key":    maskSecret(c.R2SecretAccessKey),
 		"r2_endpoint":             c.R2Endpoint,
 		"r2_max_upload_size_mb":   fmt.Sprintf("%d", c.R2MaxUploadSizeMB),
+		"rank_trust_enabled":      fmt.Sprintf("%t", c.RankTrustEnabled),
 	}
 }
 
