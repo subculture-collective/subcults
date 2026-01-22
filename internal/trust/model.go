@@ -94,9 +94,9 @@ type Alliance struct {
 
 // SceneTrustScore represents the computed trust score for a scene.
 type SceneTrustScore struct {
-	SceneID     string    `json:"scene_id"`
-	Score       float64   `json:"score"`
-	ComputedAt  time.Time `json:"computed_at"`
+	SceneID    string    `json:"scene_id"`
+	Score      float64   `json:"score"`
+	ComputedAt time.Time `json:"computed_at"`
 }
 
 // ComputeTrustScore calculates the trust score for a scene using the formula:

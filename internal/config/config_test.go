@@ -28,6 +28,7 @@ func clearEnv() {
 	os.Unsetenv("ENV")
 	os.Unsetenv("GO_ENV")
 	os.Unsetenv("SUBCULT_ENV")
+	os.Unsetenv("RANK_TRUST_ENABLED")
 }
 
 func TestLoad_MissingMandatory(t *testing.T) {
@@ -47,7 +48,7 @@ func TestLoad_MissingMandatory(t *testing.T) {
 			envVars: map[string]string{
 				"DATABASE_URL": "postgres://localhost/test",
 			},
-			wantErrCount: 8,
+			wantErrCount:     8,
 			checkSpecificErr: ErrMissingJWTSecret,
 		},
 		{
@@ -323,17 +324,17 @@ func TestMaskDatabaseURL(t *testing.T) {
 
 func TestConfig_LogSummary(t *testing.T) {
 	cfg := &Config{
-		Port:               8080,
-		Env:                "production",
-		DatabaseURL:        "postgres://user:pass@localhost/subcults",
-		JWTSecret:          "supersecret32characterlongvalue!",
-		LiveKitURL:         "wss://livekit.example.com",
-		LiveKitAPIKey:      "api_key_123456",
-		LiveKitAPISecret:   "api_secret_789",
-		StripeAPIKey:       "sk_live_abcdefghijk",
+		Port:                8080,
+		Env:                 "production",
+		DatabaseURL:         "postgres://user:pass@localhost/subcults",
+		JWTSecret:           "supersecret32characterlongvalue!",
+		LiveKitURL:          "wss://livekit.example.com",
+		LiveKitAPIKey:       "api_key_123456",
+		LiveKitAPISecret:    "api_secret_789",
+		StripeAPIKey:        "sk_live_abcdefghijk",
 		StripeWebhookSecret: "whsec_123456789",
-		MapTilerAPIKey:     "maptiler_key_abc",
-		JetstreamURL:       "wss://jetstream.example.com",
+		MapTilerAPIKey:      "maptiler_key_abc",
+		JetstreamURL:        "wss://jetstream.example.com",
 	}
 
 	summary := cfg.LogSummary()
@@ -371,9 +372,9 @@ func TestConfig_LogSummary(t *testing.T) {
 
 func TestConfig_Validate(t *testing.T) {
 	tests := []struct {
-		name       string
-		config     Config
-		wantErrs   int
+		name        string
+		config      Config
+		wantErrs    int
 		checkForErr error
 	}{
 		{
@@ -584,9 +585,9 @@ func TestLoad_InvalidPort(t *testing.T) {
 	os.Setenv("R2_ENDPOINT", "https://test.r2.cloudflarestorage.com")
 
 	tests := []struct {
-		name     string
-		portVal  string
-		wantErr  bool
+		name    string
+		portVal string
+		wantErr bool
 	}{
 		{
 			name:    "non-numeric port",
@@ -703,184 +704,427 @@ database_url: [unclosed bracket
 }
 
 func TestLoad_SubcultEnvAliases(t *testing.T) {
-tests := []struct {
-name     string
-envVars  map[string]string
-wantPort int
-wantEnv  string
-}{
-{
-name: "SUBCULT_PORT and SUBCULT_ENV take precedence",
-envVars: map[string]string{
-"SUBCULT_PORT":          "9000",
-"PORT":                  "8080",
-"SUBCULT_ENV":           "production",
-"ENV":                   "development",
-"GO_ENV":                "staging",
-"DATABASE_URL":          "postgres://localhost/test",
-"JWT_SECRET":            "supersecret32characterlongvalue!",
-"LIVEKIT_URL":           "wss://livekit.example.com",
-"LIVEKIT_API_KEY":       "api_key",
-"LIVEKIT_API_SECRET":    "api_secret",
-"STRIPE_API_KEY":        "sk_test_123",
-"STRIPE_WEBHOOK_SECRET": "whsec_123",
-"MAPTILER_API_KEY":      "maptiler_key",
-"JETSTREAM_URL":         "wss://jetstream.example.com",
-"R2_BUCKET_NAME": "test-bucket",
-"R2_ACCESS_KEY_ID": "test-key",
-"R2_SECRET_ACCESS_KEY": "test-secret",
-"R2_ENDPOINT": "https://test.r2.cloudflarestorage.com",
-},
-wantPort: 9000,
-wantEnv:  "production",
-},
-{
-name: "PORT fallback when SUBCULT_PORT not set",
-envVars: map[string]string{
-"PORT":                  "3000",
-"ENV":                   "staging",
-"DATABASE_URL":          "postgres://localhost/test",
-"JWT_SECRET":            "supersecret32characterlongvalue!",
-"LIVEKIT_URL":           "wss://livekit.example.com",
-"LIVEKIT_API_KEY":       "api_key",
-"LIVEKIT_API_SECRET":    "api_secret",
-"STRIPE_API_KEY":        "sk_test_123",
-"STRIPE_WEBHOOK_SECRET": "whsec_123",
-"MAPTILER_API_KEY":      "maptiler_key",
-"JETSTREAM_URL":         "wss://jetstream.example.com",
-"R2_BUCKET_NAME": "test-bucket",
-"R2_ACCESS_KEY_ID": "test-key",
-"R2_SECRET_ACCESS_KEY": "test-secret",
-"R2_ENDPOINT": "https://test.r2.cloudflarestorage.com",
-},
-wantPort: 3000,
-wantEnv:  "staging",
-},
-{
-name: "GO_ENV fallback when SUBCULT_ENV and ENV not set",
-envVars: map[string]string{
-"GO_ENV":                "testing",
-"DATABASE_URL":          "postgres://localhost/test",
-"JWT_SECRET":            "supersecret32characterlongvalue!",
-"LIVEKIT_URL":           "wss://livekit.example.com",
-"LIVEKIT_API_KEY":       "api_key",
-"LIVEKIT_API_SECRET":    "api_secret",
-"STRIPE_API_KEY":        "sk_test_123",
-"STRIPE_WEBHOOK_SECRET": "whsec_123",
-"MAPTILER_API_KEY":      "maptiler_key",
-"JETSTREAM_URL":         "wss://jetstream.example.com",
-"R2_BUCKET_NAME": "test-bucket",
-"R2_ACCESS_KEY_ID": "test-key",
-"R2_SECRET_ACCESS_KEY": "test-secret",
-"R2_ENDPOINT": "https://test.r2.cloudflarestorage.com",
-},
-wantPort: DefaultPort,
-wantEnv:  "testing",
-},
-{
-name: "defaults when no env vars set for port and env",
-envVars: map[string]string{
-"DATABASE_URL":          "postgres://localhost/test",
-"JWT_SECRET":            "supersecret32characterlongvalue!",
-"LIVEKIT_URL":           "wss://livekit.example.com",
-"LIVEKIT_API_KEY":       "api_key",
-"LIVEKIT_API_SECRET":    "api_secret",
-"STRIPE_API_KEY":        "sk_test_123",
-"STRIPE_WEBHOOK_SECRET": "whsec_123",
-"MAPTILER_API_KEY":      "maptiler_key",
-"JETSTREAM_URL":         "wss://jetstream.example.com",
-"R2_BUCKET_NAME": "test-bucket",
-"R2_ACCESS_KEY_ID": "test-key",
-"R2_SECRET_ACCESS_KEY": "test-secret",
-"R2_ENDPOINT": "https://test.r2.cloudflarestorage.com",
-},
-wantPort: DefaultPort,
-wantEnv:  DefaultEnv,
-},
-}
+	tests := []struct {
+		name     string
+		envVars  map[string]string
+		wantPort int
+		wantEnv  string
+	}{
+		{
+			name: "SUBCULT_PORT and SUBCULT_ENV take precedence",
+			envVars: map[string]string{
+				"SUBCULT_PORT":          "9000",
+				"PORT":                  "8080",
+				"SUBCULT_ENV":           "production",
+				"ENV":                   "development",
+				"GO_ENV":                "staging",
+				"DATABASE_URL":          "postgres://localhost/test",
+				"JWT_SECRET":            "supersecret32characterlongvalue!",
+				"LIVEKIT_URL":           "wss://livekit.example.com",
+				"LIVEKIT_API_KEY":       "api_key",
+				"LIVEKIT_API_SECRET":    "api_secret",
+				"STRIPE_API_KEY":        "sk_test_123",
+				"STRIPE_WEBHOOK_SECRET": "whsec_123",
+				"MAPTILER_API_KEY":      "maptiler_key",
+				"JETSTREAM_URL":         "wss://jetstream.example.com",
+				"R2_BUCKET_NAME":        "test-bucket",
+				"R2_ACCESS_KEY_ID":      "test-key",
+				"R2_SECRET_ACCESS_KEY":  "test-secret",
+				"R2_ENDPOINT":           "https://test.r2.cloudflarestorage.com",
+			},
+			wantPort: 9000,
+			wantEnv:  "production",
+		},
+		{
+			name: "PORT fallback when SUBCULT_PORT not set",
+			envVars: map[string]string{
+				"PORT":                  "3000",
+				"ENV":                   "staging",
+				"DATABASE_URL":          "postgres://localhost/test",
+				"JWT_SECRET":            "supersecret32characterlongvalue!",
+				"LIVEKIT_URL":           "wss://livekit.example.com",
+				"LIVEKIT_API_KEY":       "api_key",
+				"LIVEKIT_API_SECRET":    "api_secret",
+				"STRIPE_API_KEY":        "sk_test_123",
+				"STRIPE_WEBHOOK_SECRET": "whsec_123",
+				"MAPTILER_API_KEY":      "maptiler_key",
+				"JETSTREAM_URL":         "wss://jetstream.example.com",
+				"R2_BUCKET_NAME":        "test-bucket",
+				"R2_ACCESS_KEY_ID":      "test-key",
+				"R2_SECRET_ACCESS_KEY":  "test-secret",
+				"R2_ENDPOINT":           "https://test.r2.cloudflarestorage.com",
+			},
+			wantPort: 3000,
+			wantEnv:  "staging",
+		},
+		{
+			name: "GO_ENV fallback when SUBCULT_ENV and ENV not set",
+			envVars: map[string]string{
+				"GO_ENV":                "testing",
+				"DATABASE_URL":          "postgres://localhost/test",
+				"JWT_SECRET":            "supersecret32characterlongvalue!",
+				"LIVEKIT_URL":           "wss://livekit.example.com",
+				"LIVEKIT_API_KEY":       "api_key",
+				"LIVEKIT_API_SECRET":    "api_secret",
+				"STRIPE_API_KEY":        "sk_test_123",
+				"STRIPE_WEBHOOK_SECRET": "whsec_123",
+				"MAPTILER_API_KEY":      "maptiler_key",
+				"JETSTREAM_URL":         "wss://jetstream.example.com",
+				"R2_BUCKET_NAME":        "test-bucket",
+				"R2_ACCESS_KEY_ID":      "test-key",
+				"R2_SECRET_ACCESS_KEY":  "test-secret",
+				"R2_ENDPOINT":           "https://test.r2.cloudflarestorage.com",
+			},
+			wantPort: DefaultPort,
+			wantEnv:  "testing",
+		},
+		{
+			name: "defaults when no env vars set for port and env",
+			envVars: map[string]string{
+				"DATABASE_URL":          "postgres://localhost/test",
+				"JWT_SECRET":            "supersecret32characterlongvalue!",
+				"LIVEKIT_URL":           "wss://livekit.example.com",
+				"LIVEKIT_API_KEY":       "api_key",
+				"LIVEKIT_API_SECRET":    "api_secret",
+				"STRIPE_API_KEY":        "sk_test_123",
+				"STRIPE_WEBHOOK_SECRET": "whsec_123",
+				"MAPTILER_API_KEY":      "maptiler_key",
+				"JETSTREAM_URL":         "wss://jetstream.example.com",
+				"R2_BUCKET_NAME":        "test-bucket",
+				"R2_ACCESS_KEY_ID":      "test-key",
+				"R2_SECRET_ACCESS_KEY":  "test-secret",
+				"R2_ENDPOINT":           "https://test.r2.cloudflarestorage.com",
+			},
+			wantPort: DefaultPort,
+			wantEnv:  DefaultEnv,
+		},
+	}
 
-for _, tt := range tests {
-t.Run(tt.name, func(t *testing.T) {
-clearEnv()
-defer clearEnv()
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			clearEnv()
+			defer clearEnv()
 
-for k, v := range tt.envVars {
-os.Setenv(k, v)
-}
+			for k, v := range tt.envVars {
+				os.Setenv(k, v)
+			}
 
-cfg, errs := Load("")
+			cfg, errs := Load("")
 
-if len(errs) != 0 {
-t.Errorf("Load() returned errors: %v", errs)
-}
+			if len(errs) != 0 {
+				t.Errorf("Load() returned errors: %v", errs)
+			}
 
-if cfg.Port != tt.wantPort {
-t.Errorf("cfg.Port = %d, want %d", cfg.Port, tt.wantPort)
-}
-if cfg.Env != tt.wantEnv {
-t.Errorf("cfg.Env = %s, want %s", cfg.Env, tt.wantEnv)
-}
-})
-}
+			if cfg.Port != tt.wantPort {
+				t.Errorf("cfg.Port = %d, want %d", cfg.Port, tt.wantPort)
+			}
+			if cfg.Env != tt.wantEnv {
+				t.Errorf("cfg.Env = %s, want %s", cfg.Env, tt.wantEnv)
+			}
+		})
+	}
 }
 
 func TestLoad_InvalidSubcultPort(t *testing.T) {
-clearEnv()
-defer clearEnv()
+	clearEnv()
+	defer clearEnv()
 
-// Set all required env vars
-os.Setenv("DATABASE_URL", "postgres://localhost/test")
-os.Setenv("JWT_SECRET", "supersecret32characterlongvalue!")
-os.Setenv("LIVEKIT_URL", "wss://livekit.example.com")
-os.Setenv("LIVEKIT_API_KEY", "api_key")
-os.Setenv("LIVEKIT_API_SECRET", "api_secret")
-os.Setenv("STRIPE_API_KEY", "sk_test_123")
-os.Setenv("STRIPE_WEBHOOK_SECRET", "whsec_123")
-os.Setenv("MAPTILER_API_KEY", "maptiler_key")
-os.Setenv("JETSTREAM_URL", "wss://jetstream.example.com")
-os.Setenv("R2_BUCKET_NAME", "test-bucket")
-os.Setenv("R2_ACCESS_KEY_ID", "test-key")
-os.Setenv("R2_SECRET_ACCESS_KEY", "test-secret")
-os.Setenv("R2_ENDPOINT", "https://test.r2.cloudflarestorage.com")
+	// Set all required env vars
+	os.Setenv("DATABASE_URL", "postgres://localhost/test")
+	os.Setenv("JWT_SECRET", "supersecret32characterlongvalue!")
+	os.Setenv("LIVEKIT_URL", "wss://livekit.example.com")
+	os.Setenv("LIVEKIT_API_KEY", "api_key")
+	os.Setenv("LIVEKIT_API_SECRET", "api_secret")
+	os.Setenv("STRIPE_API_KEY", "sk_test_123")
+	os.Setenv("STRIPE_WEBHOOK_SECRET", "whsec_123")
+	os.Setenv("MAPTILER_API_KEY", "maptiler_key")
+	os.Setenv("JETSTREAM_URL", "wss://jetstream.example.com")
+	os.Setenv("R2_BUCKET_NAME", "test-bucket")
+	os.Setenv("R2_ACCESS_KEY_ID", "test-key")
+	os.Setenv("R2_SECRET_ACCESS_KEY", "test-secret")
+	os.Setenv("R2_ENDPOINT", "https://test.r2.cloudflarestorage.com")
 
-tests := []struct {
-name    string
-portVal string
-wantErr bool
-}{
-{
-name:    "invalid SUBCULT_PORT",
-portVal: "not-a-number",
-wantErr: true,
-},
-{
-name:    "valid SUBCULT_PORT",
-portVal: "9090",
-wantErr: false,
-},
+	tests := []struct {
+		name    string
+		portVal string
+		wantErr bool
+	}{
+		{
+			name:    "invalid SUBCULT_PORT",
+			portVal: "not-a-number",
+			wantErr: true,
+		},
+		{
+			name:    "valid SUBCULT_PORT",
+			portVal: "9090",
+			wantErr: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			os.Setenv("SUBCULT_PORT", tt.portVal)
+			defer os.Unsetenv("SUBCULT_PORT")
+
+			_, errs := Load("")
+
+			hasPortErr := false
+			for _, err := range errs {
+				if errors.Is(err, ErrInvalidPort) {
+					hasPortErr = true
+					break
+				}
+			}
+
+			if tt.wantErr && !hasPortErr {
+				t.Errorf("Load() with SUBCULT_PORT=%q should return port error, got errors: %v", tt.portVal, errs)
+			}
+			if !tt.wantErr && hasPortErr {
+				t.Errorf("Load() with SUBCULT_PORT=%q should not return port error, got errors: %v", tt.portVal, errs)
+			}
+		})
+	}
 }
 
-for _, tt := range tests {
-t.Run(tt.name, func(t *testing.T) {
-os.Setenv("SUBCULT_PORT", tt.portVal)
-defer os.Unsetenv("SUBCULT_PORT")
+func TestLoad_RankTrustEnabled(t *testing.T) {
+	tests := []struct {
+		name     string
+		envValue string
+		want     bool
+	}{
+		{
+			name:     "true (lowercase)",
+			envValue: "true",
+			want:     true,
+		},
+		{
+			name:     "True (mixed case)",
+			envValue: "True",
+			want:     true,
+		},
+		{
+			name:     "TRUE (uppercase)",
+			envValue: "TRUE",
+			want:     true,
+		},
+		{
+			name:     "1",
+			envValue: "1",
+			want:     true,
+		},
+		{
+			name:     "yes",
+			envValue: "yes",
+			want:     true,
+		},
+		{
+			name:     "YES",
+			envValue: "YES",
+			want:     true,
+		},
+		{
+			name:     "on",
+			envValue: "on",
+			want:     true,
+		},
+		{
+			name:     "ON",
+			envValue: "ON",
+			want:     true,
+		},
+		{
+			name:     "false (lowercase)",
+			envValue: "false",
+			want:     false,
+		},
+		{
+			name:     "False (mixed case)",
+			envValue: "False",
+			want:     false,
+		},
+		{
+			name:     "FALSE (uppercase)",
+			envValue: "FALSE",
+			want:     false,
+		},
+		{
+			name:     "0",
+			envValue: "0",
+			want:     false,
+		},
+		{
+			name:     "no",
+			envValue: "no",
+			want:     false,
+		},
+		{
+			name:     "NO",
+			envValue: "NO",
+			want:     false,
+		},
+		{
+			name:     "off",
+			envValue: "off",
+			want:     false,
+		},
+		{
+			name:     "OFF",
+			envValue: "OFF",
+			want:     false,
+		},
+		{
+			name:     "invalid value defaults to false",
+			envValue: "invalid",
+			want:     false,
+		},
+		{
+			name:     "empty string defaults to false",
+			envValue: "",
+			want:     false,
+		},
+	}
 
-_, errs := Load("")
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			clearEnv()
+			defer clearEnv()
 
-hasPortErr := false
-for _, err := range errs {
-if errors.Is(err, ErrInvalidPort) {
-hasPortErr = true
-break
-}
+			// Set all required env vars
+			os.Setenv("DATABASE_URL", "postgres://localhost/test")
+			os.Setenv("JWT_SECRET", "supersecret32characterlongvalue!")
+			os.Setenv("LIVEKIT_URL", "wss://livekit.example.com")
+			os.Setenv("LIVEKIT_API_KEY", "api_key")
+			os.Setenv("LIVEKIT_API_SECRET", "api_secret")
+			os.Setenv("STRIPE_API_KEY", "sk_test_123")
+			os.Setenv("STRIPE_WEBHOOK_SECRET", "whsec_123")
+			os.Setenv("MAPTILER_API_KEY", "maptiler_key")
+			os.Setenv("JETSTREAM_URL", "wss://jetstream.example.com")
+			os.Setenv("R2_BUCKET_NAME", "test-bucket")
+			os.Setenv("R2_ACCESS_KEY_ID", "test-key")
+			os.Setenv("R2_SECRET_ACCESS_KEY", "test-secret")
+			os.Setenv("R2_ENDPOINT", "https://test.r2.cloudflarestorage.com")
+
+			if tt.envValue != "" {
+				os.Setenv("RANK_TRUST_ENABLED", tt.envValue)
+			}
+
+			cfg, errs := Load("")
+
+			if len(errs) != 0 {
+				t.Errorf("Load() returned errors: %v", errs)
+			}
+
+			if cfg.RankTrustEnabled != tt.want {
+				t.Errorf("cfg.RankTrustEnabled = %t, want %t", cfg.RankTrustEnabled, tt.want)
+			}
+		})
+	}
 }
 
-if tt.wantErr && !hasPortErr {
-t.Errorf("Load() with SUBCULT_PORT=%q should return port error, got errors: %v", tt.portVal, errs)
+func TestLoad_RankTrustEnabled_YAMLOverride(t *testing.T) {
+	clearEnv()
+	defer clearEnv()
+
+	// Create a temporary YAML config file with rank_trust_enabled set to true
+	yamlContent := `port: 3000
+env: staging
+database_url: postgres://localhost/filedb
+jwt_secret: file_jwt_secret_value_32_chars!
+livekit_url: wss://file-livekit.example.com
+livekit_api_key: file_livekit_key
+livekit_api_secret: file_livekit_secret
+stripe_api_key: sk_test_file_key
+stripe_webhook_secret: whsec_file_secret
+maptiler_api_key: file_maptiler_key
+jetstream_url: wss://file-jetstream.example.com
+r2_bucket_name: file-bucket
+r2_access_key_id: file-key
+r2_secret_access_key: file-secret
+r2_endpoint: https://file.r2.cloudflarestorage.com
+rank_trust_enabled: true
+`
+	tmpFile, err := os.CreateTemp("", "config-*.yaml")
+	if err != nil {
+		t.Fatalf("Failed to create temp file: %v", err)
+	}
+	defer os.Remove(tmpFile.Name())
+
+	if _, err := tmpFile.WriteString(yamlContent); err != nil {
+		t.Fatalf("Failed to write to temp file: %v", err)
+	}
+	if err := tmpFile.Close(); err != nil {
+		t.Fatalf("Failed to close temp file: %v", err)
+	}
+
+	cfg, errs := Load(tmpFile.Name())
+
+	if len(errs) != 0 {
+		t.Errorf("Load() returned errors: %v", errs)
+	}
+
+	// Should read true from YAML file
+	if !cfg.RankTrustEnabled {
+		t.Error("cfg.RankTrustEnabled = false, want true from YAML file")
+	}
+
+	// Now test that env var overrides YAML file
+	os.Setenv("RANK_TRUST_ENABLED", "false")
+
+	cfg2, errs2 := Load(tmpFile.Name())
+
+	if len(errs2) != 0 {
+		t.Errorf("Load() returned errors: %v", errs2)
+	}
+
+	// Env var should override YAML file
+	if cfg2.RankTrustEnabled {
+		t.Error("cfg.RankTrustEnabled = true, want false (env should override YAML)")
+	}
 }
-if !tt.wantErr && hasPortErr {
-t.Errorf("Load() with SUBCULT_PORT=%q should not return port error, got errors: %v", tt.portVal, errs)
-}
-})
-}
+
+func TestLoad_RankTrustEnabled_YAMLFalseValue(t *testing.T) {
+	clearEnv()
+	defer clearEnv()
+
+	// Create a temporary YAML config file with rank_trust_enabled explicitly set to false
+	yamlContent := `port: 3000
+env: staging
+database_url: postgres://localhost/filedb
+jwt_secret: file_jwt_secret_value_32_chars!
+livekit_url: wss://file-livekit.example.com
+livekit_api_key: file_livekit_key
+livekit_api_secret: file_livekit_secret
+stripe_api_key: sk_test_file_key
+stripe_webhook_secret: whsec_file_secret
+maptiler_api_key: file_maptiler_key
+jetstream_url: wss://file-jetstream.example.com
+r2_bucket_name: file-bucket
+r2_access_key_id: file-key
+r2_secret_access_key: file-secret
+r2_endpoint: https://file.r2.cloudflarestorage.com
+rank_trust_enabled: false
+`
+	tmpFile, err := os.CreateTemp("", "config-*.yaml")
+	if err != nil {
+		t.Fatalf("Failed to create temp file: %v", err)
+	}
+	defer os.Remove(tmpFile.Name())
+
+	if _, err := tmpFile.WriteString(yamlContent); err != nil {
+		t.Fatalf("Failed to write to temp file: %v", err)
+	}
+	if err := tmpFile.Close(); err != nil {
+		t.Fatalf("Failed to close temp file: %v", err)
+	}
+
+	cfg, errs := Load(tmpFile.Name())
+
+	if len(errs) != 0 {
+		t.Errorf("Load() returned errors: %v", errs)
+	}
+
+	// Should respect explicit false from YAML file (not use default)
+	if cfg.RankTrustEnabled {
+		t.Error("cfg.RankTrustEnabled = true, want false from YAML file")
+	}
 }

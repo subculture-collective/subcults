@@ -32,7 +32,7 @@ type Config struct {
 	LiveKitAPISecret string `koanf:"livekit_api_secret"`
 
 	// Stripe
-	StripeAPIKey       string `koanf:"stripe_api_key"`
+	StripeAPIKey        string `koanf:"stripe_api_key"`
 	StripeWebhookSecret string `koanf:"stripe_webhook_secret"`
 
 	// MapTiler
@@ -47,6 +47,9 @@ type Config struct {
 	R2SecretAccessKey string `koanf:"r2_secret_access_key"`
 	R2Endpoint        string `koanf:"r2_endpoint"`
 	R2MaxUploadSizeMB int    `koanf:"r2_max_upload_size_mb"` // Default: 15MB
+
+	// Feature Flags
+	RankTrustEnabled bool `koanf:"rank_trust_enabled"` // Enable trust-weighted ranking in search/feed
 }
 
 // Configuration validation errors.
@@ -72,6 +75,7 @@ const (
 	DefaultPort              = 8080
 	DefaultEnv               = "development"
 	DefaultR2MaxUploadSizeMB = 15
+	DefaultRankTrustEnabled  = false
 )
 
 // Load reads configuration from environment variables and an optional config file.
@@ -102,6 +106,22 @@ func Load(configFilePath string) (*Config, []error) {
 		loadErrs = append(loadErrs, uploadSizeErr)
 	}
 
+	// Parse trust ranking feature flag from env with default
+	rankTrustEnabled := DefaultRankTrustEnabled
+	if k.Exists("rank_trust_enabled") {
+		rankTrustEnabled = k.Bool("rank_trust_enabled")
+	}
+	if val := os.Getenv("RANK_TRUST_ENABLED"); val != "" {
+		// Env var takes precedence over file config
+		valLower := strings.ToLower(val)
+		switch valLower {
+		case "true", "1", "yes", "on":
+			rankTrustEnabled = true
+		case "false", "0", "no", "off":
+			rankTrustEnabled = false
+		}
+	}
+
 	// Build config struct, with env vars taking precedence over file values
 	cfg := &Config{
 		Port:                port,
@@ -120,6 +140,7 @@ func Load(configFilePath string) (*Config, []error) {
 		R2SecretAccessKey:   getEnvOrKoanf("R2_SECRET_ACCESS_KEY", k, "r2_secret_access_key"),
 		R2Endpoint:          getEnvOrKoanf("R2_ENDPOINT", k, "r2_endpoint"),
 		R2MaxUploadSizeMB:   maxUploadSize,
+		RankTrustEnabled:    rankTrustEnabled,
 	}
 
 	// Validate and collect errors
@@ -230,7 +251,7 @@ func (c *Config) Validate() []error {
 	if c.JetstreamURL == "" {
 		errs = append(errs, ErrMissingJetstreamURL)
 	}
-	
+
 	// R2 configuration is optional. Only validate fields if any R2 value is set.
 	if c.R2BucketName != "" || c.R2AccessKeyID != "" || c.R2SecretAccessKey != "" || c.R2Endpoint != "" {
 		if c.R2BucketName == "" {
@@ -254,22 +275,23 @@ func (c *Config) Validate() []error {
 // All secrets are masked to prevent accidental exposure.
 func (c *Config) LogSummary() map[string]string {
 	return map[string]string{
-		"port":                    fmt.Sprintf("%d", c.Port),
-		"env":                     c.Env,
-		"database_url":            maskDatabaseURL(c.DatabaseURL),
-		"jwt_secret":              maskSecret(c.JWTSecret),
-		"livekit_url":             c.LiveKitURL,
-		"livekit_api_key":         maskSecret(c.LiveKitAPIKey),
-		"livekit_api_secret":      maskSecret(c.LiveKitAPISecret),
-		"stripe_api_key":          maskStripeKey(c.StripeAPIKey),
-		"stripe_webhook_secret":   maskSecret(c.StripeWebhookSecret),
-		"maptiler_api_key":        maskSecret(c.MapTilerAPIKey),
-		"jetstream_url":           c.JetstreamURL,
-		"r2_bucket_name":          c.R2BucketName,
-		"r2_access_key_id":        maskSecret(c.R2AccessKeyID),
-		"r2_secret_access_key":    maskSecret(c.R2SecretAccessKey),
-		"r2_endpoint":             c.R2Endpoint,
-		"r2_max_upload_size_mb":   fmt.Sprintf("%d", c.R2MaxUploadSizeMB),
+		"port":                  fmt.Sprintf("%d", c.Port),
+		"env":                   c.Env,
+		"database_url":          maskDatabaseURL(c.DatabaseURL),
+		"jwt_secret":            maskSecret(c.JWTSecret),
+		"livekit_url":           c.LiveKitURL,
+		"livekit_api_key":       maskSecret(c.LiveKitAPIKey),
+		"livekit_api_secret":    maskSecret(c.LiveKitAPISecret),
+		"stripe_api_key":        maskStripeKey(c.StripeAPIKey),
+		"stripe_webhook_secret": maskSecret(c.StripeWebhookSecret),
+		"maptiler_api_key":      maskSecret(c.MapTilerAPIKey),
+		"jetstream_url":         c.JetstreamURL,
+		"r2_bucket_name":        c.R2BucketName,
+		"r2_access_key_id":      maskSecret(c.R2AccessKeyID),
+		"r2_secret_access_key":  maskSecret(c.R2SecretAccessKey),
+		"r2_endpoint":           c.R2Endpoint,
+		"r2_max_upload_size_mb": fmt.Sprintf("%d", c.R2MaxUploadSizeMB),
+		"rank_trust_enabled":    fmt.Sprintf("%t", c.RankTrustEnabled),
 	}
 }
 
