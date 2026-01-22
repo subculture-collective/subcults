@@ -85,7 +85,7 @@ func main() {
 	streamRepo := stream.NewInMemorySessionRepository()
 	postRepo := post.NewInMemoryPostRepository()
 	membershipRepo := membership.NewInMemoryMembershipRepository()
-	
+
 	// Initialize trust score components
 	trustDataSource := trust.NewInMemoryDataSource()
 	trustScoreStore := trust.NewInMemoryScoreStore()
@@ -104,7 +104,7 @@ func main() {
 	// Get credentials from environment variables
 	livekitAPIKey := os.Getenv("LIVEKIT_API_KEY")
 	livekitAPISecret := os.Getenv("LIVEKIT_API_SECRET")
-	
+
 	var livekitHandlers *api.LiveKitHandlers
 	if livekitAPIKey != "" && livekitAPISecret != "" {
 		tokenService, err := livekit.NewTokenService(livekitAPIKey, livekitAPISecret)
@@ -130,7 +130,7 @@ func main() {
 			r2MaxSizeMB = parsed
 		}
 	}
-	
+
 	var uploadHandlers *api.UploadHandlers
 	var uploadService *upload.Service
 	if r2BucketName != "" && r2AccessKeyID != "" && r2SecretAccessKey != "" && r2Endpoint != "" {
@@ -193,19 +193,19 @@ func main() {
 		// Parse path to check for special endpoints
 		// Expected patterns: /events/{id}, /events/{id}/cancel, /events/{id}/rsvp, /events/{id}/feed
 		pathParts := strings.Split(strings.TrimPrefix(r.URL.Path, "/events/"), "/")
-		
+
 		// Check if this is a feed request: /events/{id}/feed
 		if len(pathParts) == 2 && pathParts[0] != "" && pathParts[1] == "feed" && r.Method == http.MethodGet {
 			postHandlers.GetEventFeed(w, r)
 			return
 		}
-		
+
 		// Check if this is a cancel request: /events/{id}/cancel
 		if len(pathParts) == 2 && pathParts[0] != "" && pathParts[1] == "cancel" && r.Method == http.MethodPost {
 			eventHandlers.CancelEvent(w, r)
 			return
 		}
-		
+
 		// Check if this is an RSVP request: /events/{id}/rsvp
 		if len(pathParts) == 2 && pathParts[0] != "" && pathParts[1] == "rsvp" {
 			switch r.Method {
@@ -219,7 +219,7 @@ func main() {
 			}
 			return
 		}
-		
+
 		switch r.Method {
 		case http.MethodGet:
 			eventHandlers.GetEvent(w, r)
@@ -236,13 +236,13 @@ func main() {
 		// Parse path to check for feed endpoint
 		// Expected pattern: /scenes/{id}/feed
 		pathParts := strings.Split(strings.TrimPrefix(r.URL.Path, "/scenes/"), "/")
-		
+
 		// Check if this is a feed request: /scenes/{id}/feed
 		if len(pathParts) == 2 && pathParts[0] != "" && pathParts[1] == "feed" && r.Method == http.MethodGet {
 			postHandlers.GetSceneFeed(w, r)
 			return
 		}
-		
+
 		// No other scene endpoints yet, return 404
 		ctx := middleware.SetErrorCode(r.Context(), api.ErrCodeNotFound)
 		api.WriteError(w, ctx, http.StatusNotFound, api.ErrCodeNotFound, "The requested resource was not found")
@@ -284,25 +284,25 @@ func main() {
 	mux.HandleFunc("/streams/", func(w http.ResponseWriter, r *http.Request) {
 		// Expected patterns: /streams/{id}/end, /streams/{id}/join, /streams/{id}/leave
 		pathParts := strings.Split(strings.TrimPrefix(r.URL.Path, "/streams/"), "/")
-		
+
 		// Check if this is an end request: /streams/{id}/end
 		if len(pathParts) == 2 && pathParts[0] != "" && pathParts[1] == "end" && r.Method == http.MethodPost {
 			streamHandlers.EndStream(w, r)
 			return
 		}
-		
+
 		// Check if this is a join request: /streams/{id}/join
 		if len(pathParts) == 2 && pathParts[0] != "" && pathParts[1] == "join" && r.Method == http.MethodPost {
 			streamHandlers.JoinStream(w, r)
 			return
 		}
-		
+
 		// Check if this is a leave request: /streams/{id}/leave
 		if len(pathParts) == 2 && pathParts[0] != "" && pathParts[1] == "leave" && r.Method == http.MethodPost {
 			streamHandlers.LeaveStream(w, r)
 			return
 		}
-		
+
 		// No other stream endpoints yet, return 404
 		ctx := middleware.SetErrorCode(r.Context(), api.ErrCodeNotFound)
 		api.WriteError(w, ctx, http.StatusNotFound, api.ErrCodeNotFound, "The requested resource was not found")
@@ -359,7 +359,7 @@ func main() {
 			uploadHandlers.SignUpload(w, r)
 		})
 	}
-	
+
 	// Trust score routes
 	mux.HandleFunc("/trust/", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodGet {

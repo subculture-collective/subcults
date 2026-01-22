@@ -354,9 +354,9 @@ func TestValidateTrustWeight(t *testing.T) {
 
 func TestMembership_EffectiveWeight(t *testing.T) {
 	tests := []struct {
-		name        string
-		membership  Membership
-		want        float64
+		name       string
+		membership Membership
+		want       float64
 	}{
 		{
 			name: "owner with full trust",
