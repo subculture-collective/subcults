@@ -9,8 +9,18 @@ import (
 )
 
 // EventRankingWeights defines the weights for different ranking components.
-// Matches the formula specified in the issue:
-// (time_recency_weight * 0.3) + (text_rank * 0.4) + (proximity_rank * 0.2) + (trust_score * 0.1)
+// These weights determine how much each factor contributes to the final composite score.
+//
+// The default formula is optimized for event discovery:
+// - Text match (40%): Prioritizes query relevance for targeted search
+// - Recency (30%): Favors events happening sooner for timely discovery
+// - Proximity (20%): Considers geographic convenience
+// - Trust (10%): Adds scene reputation signal without dominating results
+//
+// Formula: composite_score = (recency * 0.3) + (text * 0.4) + (proximity * 0.2) + (trust * 0.1)
+//
+// Note: When trust ranking is disabled via feature flag, trust weight is effectively 0,
+// and the remaining components are normalized to sum to 0.9.
 type EventRankingWeights struct {
 	Recency   float64 // Time recency weight (default: 0.3)
 	TextMatch float64 // Text match weight (default: 0.4)
