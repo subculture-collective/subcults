@@ -21,7 +21,7 @@ func TestSearchEvents_Success(t *testing.T) {
 	auditRepo := audit.NewInMemoryRepository()
 	rsvpRepo := scene.NewInMemoryRSVPRepository()
 	streamRepo := stream.NewInMemorySessionRepository()
-	handlers := NewEventHandlers(eventRepo, sceneRepo, auditRepo, rsvpRepo, streamRepo)
+	handlers := NewEventHandlers(eventRepo, sceneRepo, auditRepo, rsvpRepo, streamRepo, nil)
 
 	// Create test events at different locations and times
 	baseTime := time.Now().Add(24 * time.Hour)
@@ -137,7 +137,7 @@ func TestSearchEvents_BboxValidation(t *testing.T) {
 	auditRepo := audit.NewInMemoryRepository()
 	rsvpRepo := scene.NewInMemoryRSVPRepository()
 	streamRepo := stream.NewInMemorySessionRepository()
-	handlers := NewEventHandlers(eventRepo, sceneRepo, auditRepo, rsvpRepo, streamRepo)
+	handlers := NewEventHandlers(eventRepo, sceneRepo, auditRepo, rsvpRepo, streamRepo, nil)
 	
 	baseTime := time.Now().Add(24 * time.Hour)
 	from := baseTime.Format(time.RFC3339)
@@ -224,7 +224,7 @@ func TestSearchEvents_TimeRangeValidation(t *testing.T) {
 	auditRepo := audit.NewInMemoryRepository()
 	rsvpRepo := scene.NewInMemoryRSVPRepository()
 	streamRepo := stream.NewInMemorySessionRepository()
-	handlers := NewEventHandlers(eventRepo, sceneRepo, auditRepo, rsvpRepo, streamRepo)
+	handlers := NewEventHandlers(eventRepo, sceneRepo, auditRepo, rsvpRepo, streamRepo, nil)
 	
 	baseTime := time.Now().Add(24 * time.Hour)
 	
@@ -317,7 +317,7 @@ func TestSearchEvents_Pagination(t *testing.T) {
 	auditRepo := audit.NewInMemoryRepository()
 	rsvpRepo := scene.NewInMemoryRSVPRepository()
 	streamRepo := stream.NewInMemorySessionRepository()
-	handlers := NewEventHandlers(eventRepo, sceneRepo, auditRepo, rsvpRepo, streamRepo)
+	handlers := NewEventHandlers(eventRepo, sceneRepo, auditRepo, rsvpRepo, streamRepo, nil)
 	
 	baseTime := time.Now().Add(24 * time.Hour)
 	
@@ -415,7 +415,7 @@ func TestSearchEvents_LimitValidation(t *testing.T) {
 	auditRepo := audit.NewInMemoryRepository()
 	rsvpRepo := scene.NewInMemoryRSVPRepository()
 	streamRepo := stream.NewInMemorySessionRepository()
-	handlers := NewEventHandlers(eventRepo, sceneRepo, auditRepo, rsvpRepo, streamRepo)
+	handlers := NewEventHandlers(eventRepo, sceneRepo, auditRepo, rsvpRepo, streamRepo, nil)
 	
 	baseTime := time.Now().Add(24 * time.Hour)
 	from := baseTime.Format(time.RFC3339)
@@ -470,7 +470,7 @@ func TestSearchEvents_EmptyResults(t *testing.T) {
 	auditRepo := audit.NewInMemoryRepository()
 	rsvpRepo := scene.NewInMemoryRSVPRepository()
 	streamRepo := stream.NewInMemorySessionRepository()
-	handlers := NewEventHandlers(eventRepo, sceneRepo, auditRepo, rsvpRepo, streamRepo)
+	handlers := NewEventHandlers(eventRepo, sceneRepo, auditRepo, rsvpRepo, streamRepo, nil)
 	
 	baseTime := time.Now().Add(24 * time.Hour)
 	from := baseTime.Format(time.RFC3339)

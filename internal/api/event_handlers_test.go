@@ -101,7 +101,7 @@ func TestCreateEvent_Success(t *testing.T) {
 	auditRepo := audit.NewInMemoryRepository()
 	rsvpRepo := scene.NewInMemoryRSVPRepository()
 	streamRepo := stream.NewInMemorySessionRepository()
-	handlers := NewEventHandlers(eventRepo, sceneRepo, auditRepo, rsvpRepo, streamRepo)
+	handlers := NewEventHandlers(eventRepo, sceneRepo, auditRepo, rsvpRepo, streamRepo, nil)
 
 	// Create a scene first
 	testScene := &scene.Scene{
@@ -200,7 +200,7 @@ func TestCreateEvent_InvalidTimeWindow(t *testing.T) {
 			auditRepo := audit.NewInMemoryRepository()
 			rsvpRepo := scene.NewInMemoryRSVPRepository()
 			streamRepo := stream.NewInMemorySessionRepository()
-	handlers := NewEventHandlers(eventRepo, sceneRepo, auditRepo, rsvpRepo, streamRepo)
+	handlers := NewEventHandlers(eventRepo, sceneRepo, auditRepo, rsvpRepo, streamRepo, nil)
 
 			// Create a scene first
 			testScene := &scene.Scene{
@@ -257,7 +257,7 @@ func TestCreateEvent_MissingCoarseGeohash(t *testing.T) {
 	auditRepo := audit.NewInMemoryRepository()
 	rsvpRepo := scene.NewInMemoryRSVPRepository()
 	streamRepo := stream.NewInMemorySessionRepository()
-	handlers := NewEventHandlers(eventRepo, sceneRepo, auditRepo, rsvpRepo, streamRepo)
+	handlers := NewEventHandlers(eventRepo, sceneRepo, auditRepo, rsvpRepo, streamRepo, nil)
 
 	// Create a scene first
 	testScene := &scene.Scene{
@@ -311,7 +311,7 @@ func TestCreateEvent_UnauthorizedCreate(t *testing.T) {
 	auditRepo := audit.NewInMemoryRepository()
 	rsvpRepo := scene.NewInMemoryRSVPRepository()
 	streamRepo := stream.NewInMemorySessionRepository()
-	handlers := NewEventHandlers(eventRepo, sceneRepo, auditRepo, rsvpRepo, streamRepo)
+	handlers := NewEventHandlers(eventRepo, sceneRepo, auditRepo, rsvpRepo, streamRepo, nil)
 
 	// Create a scene with different owner
 	testScene := &scene.Scene{
@@ -366,7 +366,7 @@ func TestCreateEvent_PrivacyEnforcement(t *testing.T) {
 	auditRepo := audit.NewInMemoryRepository()
 	rsvpRepo := scene.NewInMemoryRSVPRepository()
 	streamRepo := stream.NewInMemorySessionRepository()
-	handlers := NewEventHandlers(eventRepo, sceneRepo, auditRepo, rsvpRepo, streamRepo)
+	handlers := NewEventHandlers(eventRepo, sceneRepo, auditRepo, rsvpRepo, streamRepo, nil)
 
 	// Create a scene first
 	testScene := &scene.Scene{
@@ -456,7 +456,7 @@ func TestCreateEvent_TitleValidation(t *testing.T) {
 			auditRepo := audit.NewInMemoryRepository()
 			rsvpRepo := scene.NewInMemoryRSVPRepository()
 			streamRepo := stream.NewInMemorySessionRepository()
-	handlers := NewEventHandlers(eventRepo, sceneRepo, auditRepo, rsvpRepo, streamRepo)
+	handlers := NewEventHandlers(eventRepo, sceneRepo, auditRepo, rsvpRepo, streamRepo, nil)
 
 			// Create a scene first
 			testScene := &scene.Scene{
@@ -514,7 +514,7 @@ func TestUpdateEvent_Success(t *testing.T) {
 	auditRepo := audit.NewInMemoryRepository()
 	rsvpRepo := scene.NewInMemoryRSVPRepository()
 	streamRepo := stream.NewInMemorySessionRepository()
-	handlers := NewEventHandlers(eventRepo, sceneRepo, auditRepo, rsvpRepo, streamRepo)
+	handlers := NewEventHandlers(eventRepo, sceneRepo, auditRepo, rsvpRepo, streamRepo, nil)
 
 	// Create a scene first
 	testScene := &scene.Scene{
@@ -587,7 +587,7 @@ func TestUpdateEvent_CannotUpdatePastEvent(t *testing.T) {
 	auditRepo := audit.NewInMemoryRepository()
 	rsvpRepo := scene.NewInMemoryRSVPRepository()
 	streamRepo := stream.NewInMemorySessionRepository()
-	handlers := NewEventHandlers(eventRepo, sceneRepo, auditRepo, rsvpRepo, streamRepo)
+	handlers := NewEventHandlers(eventRepo, sceneRepo, auditRepo, rsvpRepo, streamRepo, nil)
 
 	// Create a scene first
 	testScene := &scene.Scene{
@@ -655,7 +655,7 @@ func TestUpdateEvent_TimeWindowValidation(t *testing.T) {
 	auditRepo := audit.NewInMemoryRepository()
 	rsvpRepo := scene.NewInMemoryRSVPRepository()
 	streamRepo := stream.NewInMemorySessionRepository()
-	handlers := NewEventHandlers(eventRepo, sceneRepo, auditRepo, rsvpRepo, streamRepo)
+	handlers := NewEventHandlers(eventRepo, sceneRepo, auditRepo, rsvpRepo, streamRepo, nil)
 
 	// Create a scene first
 	testScene := &scene.Scene{
@@ -726,7 +726,7 @@ func TestGetEvent_Success(t *testing.T) {
 	auditRepo := audit.NewInMemoryRepository()
 	rsvpRepo := scene.NewInMemoryRSVPRepository()
 	streamRepo := stream.NewInMemorySessionRepository()
-	handlers := NewEventHandlers(eventRepo, sceneRepo, auditRepo, rsvpRepo, streamRepo)
+	handlers := NewEventHandlers(eventRepo, sceneRepo, auditRepo, rsvpRepo, streamRepo, nil)
 
 	// Create an event
 	now := time.Now()
@@ -777,7 +777,7 @@ func TestGetEvent_NotFound(t *testing.T) {
 	auditRepo := audit.NewInMemoryRepository()
 	rsvpRepo := scene.NewInMemoryRSVPRepository()
 	streamRepo := stream.NewInMemorySessionRepository()
-	handlers := NewEventHandlers(eventRepo, sceneRepo, auditRepo, rsvpRepo, streamRepo)
+	handlers := NewEventHandlers(eventRepo, sceneRepo, auditRepo, rsvpRepo, streamRepo, nil)
 
 	req := httptest.NewRequest(http.MethodGet, "/events/"+uuid.New().String(), nil)
 	w := httptest.NewRecorder()
@@ -805,7 +805,7 @@ func TestGetEvent_PrivacyEnforcement(t *testing.T) {
 	auditRepo := audit.NewInMemoryRepository()
 	rsvpRepo := scene.NewInMemoryRSVPRepository()
 	streamRepo := stream.NewInMemorySessionRepository()
-	handlers := NewEventHandlers(eventRepo, sceneRepo, auditRepo, rsvpRepo, streamRepo)
+	handlers := NewEventHandlers(eventRepo, sceneRepo, auditRepo, rsvpRepo, streamRepo, nil)
 
 	// Create an event without precise location consent
 	now := time.Now()
@@ -850,7 +850,7 @@ func TestCancelEvent_Success(t *testing.T) {
 	auditRepo := audit.NewInMemoryRepository()
 	rsvpRepo := scene.NewInMemoryRSVPRepository()
 	streamRepo := stream.NewInMemorySessionRepository()
-	handlers := NewEventHandlers(eventRepo, sceneRepo, auditRepo, rsvpRepo, streamRepo)
+	handlers := NewEventHandlers(eventRepo, sceneRepo, auditRepo, rsvpRepo, streamRepo, nil)
 
 	// Create a scene first
 	testScene := &scene.Scene{
@@ -925,7 +925,7 @@ func TestCancelEvent_WithoutReason(t *testing.T) {
 	auditRepo := audit.NewInMemoryRepository()
 	rsvpRepo := scene.NewInMemoryRSVPRepository()
 	streamRepo := stream.NewInMemorySessionRepository()
-	handlers := NewEventHandlers(eventRepo, sceneRepo, auditRepo, rsvpRepo, streamRepo)
+	handlers := NewEventHandlers(eventRepo, sceneRepo, auditRepo, rsvpRepo, streamRepo, nil)
 
 	// Create a scene first
 	testScene := &scene.Scene{
@@ -994,7 +994,7 @@ func TestCancelEvent_Unauthorized(t *testing.T) {
 	auditRepo := audit.NewInMemoryRepository()
 	rsvpRepo := scene.NewInMemoryRSVPRepository()
 	streamRepo := stream.NewInMemorySessionRepository()
-	handlers := NewEventHandlers(eventRepo, sceneRepo, auditRepo, rsvpRepo, streamRepo)
+	handlers := NewEventHandlers(eventRepo, sceneRepo, auditRepo, rsvpRepo, streamRepo, nil)
 
 	// Create a scene with different owner
 	testScene := &scene.Scene{
@@ -1060,7 +1060,7 @@ func TestCancelEvent_Idempotent(t *testing.T) {
 	auditRepo := audit.NewInMemoryRepository()
 	rsvpRepo := scene.NewInMemoryRSVPRepository()
 	streamRepo := stream.NewInMemorySessionRepository()
-	handlers := NewEventHandlers(eventRepo, sceneRepo, auditRepo, rsvpRepo, streamRepo)
+	handlers := NewEventHandlers(eventRepo, sceneRepo, auditRepo, rsvpRepo, streamRepo, nil)
 
 	// Create a scene first
 	testScene := &scene.Scene{
@@ -1149,7 +1149,7 @@ func TestCancelEvent_AuditLog(t *testing.T) {
 	auditRepo := audit.NewInMemoryRepository()
 	rsvpRepo := scene.NewInMemoryRSVPRepository()
 	streamRepo := stream.NewInMemorySessionRepository()
-	handlers := NewEventHandlers(eventRepo, sceneRepo, auditRepo, rsvpRepo, streamRepo)
+	handlers := NewEventHandlers(eventRepo, sceneRepo, auditRepo, rsvpRepo, streamRepo, nil)
 
 	// Create a scene first
 	testScene := &scene.Scene{
@@ -1225,7 +1225,7 @@ func TestCancelEvent_IdempotentNoAuditDuplicate(t *testing.T) {
 	auditRepo := audit.NewInMemoryRepository()
 	rsvpRepo := scene.NewInMemoryRSVPRepository()
 	streamRepo := stream.NewInMemorySessionRepository()
-	handlers := NewEventHandlers(eventRepo, sceneRepo, auditRepo, rsvpRepo, streamRepo)
+	handlers := NewEventHandlers(eventRepo, sceneRepo, auditRepo, rsvpRepo, streamRepo, nil)
 
 	// Create a scene first
 	testScene := &scene.Scene{
@@ -1306,7 +1306,7 @@ func TestCreateEvent_MissingSceneID(t *testing.T) {
 	auditRepo := audit.NewInMemoryRepository()
 	rsvpRepo := scene.NewInMemoryRSVPRepository()
 	streamRepo := stream.NewInMemorySessionRepository()
-	handlers := NewEventHandlers(eventRepo, sceneRepo, auditRepo, rsvpRepo, streamRepo)
+	handlers := NewEventHandlers(eventRepo, sceneRepo, auditRepo, rsvpRepo, streamRepo, nil)
 
 	reqBody := CreateEventRequest{
 		SceneID:       "", // Empty scene_id
@@ -1338,7 +1338,7 @@ func TestCreateEvent_InvalidJSON(t *testing.T) {
 	auditRepo := audit.NewInMemoryRepository()
 	rsvpRepo := scene.NewInMemoryRSVPRepository()
 	streamRepo := stream.NewInMemorySessionRepository()
-	handlers := NewEventHandlers(eventRepo, sceneRepo, auditRepo, rsvpRepo, streamRepo)
+	handlers := NewEventHandlers(eventRepo, sceneRepo, auditRepo, rsvpRepo, streamRepo, nil)
 
 	// Malformed JSON
 	malformedJSON := []byte(`{"title": "Test Event", "scene_id": "123", invalid json}`)
@@ -1361,7 +1361,7 @@ func TestCreateEvent_TitleHTMLSanitization(t *testing.T) {
 	auditRepo := audit.NewInMemoryRepository()
 	rsvpRepo := scene.NewInMemoryRSVPRepository()
 	streamRepo := stream.NewInMemorySessionRepository()
-	handlers := NewEventHandlers(eventRepo, sceneRepo, auditRepo, rsvpRepo, streamRepo)
+	handlers := NewEventHandlers(eventRepo, sceneRepo, auditRepo, rsvpRepo, streamRepo, nil)
 
 	// Create a scene first
 	testScene := &scene.Scene{
@@ -1420,7 +1420,7 @@ func TestCreateEvent_TitleSpecialCharacters(t *testing.T) {
 	auditRepo := audit.NewInMemoryRepository()
 	rsvpRepo := scene.NewInMemoryRSVPRepository()
 	streamRepo := stream.NewInMemorySessionRepository()
-	handlers := NewEventHandlers(eventRepo, sceneRepo, auditRepo, rsvpRepo, streamRepo)
+	handlers := NewEventHandlers(eventRepo, sceneRepo, auditRepo, rsvpRepo, streamRepo, nil)
 
 	// Create a scene first
 	testScene := &scene.Scene{
@@ -1498,7 +1498,7 @@ func TestUpdateEvent_InvalidJSON(t *testing.T) {
 	auditRepo := audit.NewInMemoryRepository()
 	rsvpRepo := scene.NewInMemoryRSVPRepository()
 	streamRepo := stream.NewInMemorySessionRepository()
-	handlers := NewEventHandlers(eventRepo, sceneRepo, auditRepo, rsvpRepo, streamRepo)
+	handlers := NewEventHandlers(eventRepo, sceneRepo, auditRepo, rsvpRepo, streamRepo, nil)
 
 	// Create a scene first
 	testScene := &scene.Scene{
@@ -1547,7 +1547,7 @@ func TestUpdateEvent_EmptyCoarseGeohash(t *testing.T) {
 	auditRepo := audit.NewInMemoryRepository()
 	rsvpRepo := scene.NewInMemoryRSVPRepository()
 	streamRepo := stream.NewInMemorySessionRepository()
-	handlers := NewEventHandlers(eventRepo, sceneRepo, auditRepo, rsvpRepo, streamRepo)
+	handlers := NewEventHandlers(eventRepo, sceneRepo, auditRepo, rsvpRepo, streamRepo, nil)
 
 	// Create a scene first
 	testScene := &scene.Scene{
@@ -1632,7 +1632,7 @@ func TestUpdateEvent_TitleValidation(t *testing.T) {
 			auditRepo := audit.NewInMemoryRepository()
 			rsvpRepo := scene.NewInMemoryRSVPRepository()
 			streamRepo := stream.NewInMemorySessionRepository()
-			handlers := NewEventHandlers(eventRepo, sceneRepo, auditRepo, rsvpRepo, streamRepo)
+			handlers := NewEventHandlers(eventRepo, sceneRepo, auditRepo, rsvpRepo, streamRepo, nil)
 
 			// Create a scene first
 			testScene := &scene.Scene{
@@ -1695,7 +1695,7 @@ func TestEventValidation_ErrorStructure(t *testing.T) {
 	auditRepo := audit.NewInMemoryRepository()
 	rsvpRepo := scene.NewInMemoryRSVPRepository()
 	streamRepo := stream.NewInMemorySessionRepository()
-	handlers := NewEventHandlers(eventRepo, sceneRepo, auditRepo, rsvpRepo, streamRepo)
+	handlers := NewEventHandlers(eventRepo, sceneRepo, auditRepo, rsvpRepo, streamRepo, nil)
 
 	// Test with missing title (should trigger validation error)
 	reqBody := CreateEventRequest{
