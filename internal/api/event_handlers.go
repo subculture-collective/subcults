@@ -59,21 +59,36 @@ type CancelEventRequest struct {
 
 // EventHandlers holds dependencies for event HTTP handlers.
 type EventHandlers struct {
-	eventRepo  scene.EventRepository
-	sceneRepo  scene.SceneRepository
-	auditRepo  audit.Repository
-	rsvpRepo   scene.RSVPRepository
-	streamRepo stream.SessionRepository
+	eventRepo       scene.EventRepository
+	sceneRepo       scene.SceneRepository
+	auditRepo       audit.Repository
+	rsvpRepo        scene.RSVPRepository
+	streamRepo      stream.SessionRepository
+	trustScoreStore TrustScoreStore // Optional, can be nil
+}
+
+// TrustScoreStore defines the interface for retrieving trust scores.
+// This avoids importing the trust package directly.
+type TrustScoreStore interface {
+	GetScore(sceneID string) (score *TrustScore, err error)
+}
+
+// TrustScore represents a trust score value.
+type TrustScore struct {
+	SceneID string
+	Score   float64
 }
 
 // NewEventHandlers creates a new EventHandlers instance.
-func NewEventHandlers(eventRepo scene.EventRepository, sceneRepo scene.SceneRepository, auditRepo audit.Repository, rsvpRepo scene.RSVPRepository, streamRepo stream.SessionRepository) *EventHandlers {
+// trustScoreStore is optional and can be nil if trust ranking is not used.
+func NewEventHandlers(eventRepo scene.EventRepository, sceneRepo scene.SceneRepository, auditRepo audit.Repository, rsvpRepo scene.RSVPRepository, streamRepo stream.SessionRepository, trustScoreStore TrustScoreStore) *EventHandlers {
 	return &EventHandlers{
-		eventRepo:  eventRepo,
-		sceneRepo:  sceneRepo,
-		auditRepo:  auditRepo,
-		rsvpRepo:   rsvpRepo,
-		streamRepo: streamRepo,
+		eventRepo:       eventRepo,
+		sceneRepo:       sceneRepo,
+		auditRepo:       auditRepo,
+		rsvpRepo:        rsvpRepo,
+		streamRepo:      streamRepo,
+		trustScoreStore: trustScoreStore,
 	}
 }
 
@@ -577,6 +592,7 @@ type SearchEventsResponse struct {
 }
 
 // SearchEvents handles GET /search/events - searches events by bbox and time range.
+// Supports optional text search (q parameter) and trust-weighted ranking.
 func (h *EventHandlers) SearchEvents(w http.ResponseWriter, r *http.Request) {
 	// Parse query parameters
 	query := r.URL.Query()
@@ -682,6 +698,9 @@ func (h *EventHandlers) SearchEvents(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	
+	// Parse optional text search query
+	searchQuery := query.Get("q")
+	
 	// Parse pagination parameters
 	limitStr := query.Get("limit")
 	limit := 50 // default limit
@@ -697,13 +716,75 @@ func (h *EventHandlers) SearchEvents(w http.ResponseWriter, r *http.Request) {
 	
 	cursor := query.Get("cursor")
 	
-	// Search events
-	events, nextCursor, err := h.eventRepo.SearchByBboxAndTime(minLng, minLat, maxLng, maxLat, from, to, limit, cursor)
+	// Build trust scores map if trust ranking is enabled and store is available
+	var trustScores map[string]float64
+	if h.trustScoreStore != nil {
+		// For now, we'll fetch trust scores on-demand when we get the events
+		// In a production implementation, we might want to batch-fetch or cache these
+		trustScores = make(map[string]float64)
+	}
+	
+	// Search events with new SearchEvents method
+	events, nextCursor, err := h.eventRepo.SearchEvents(scene.EventSearchOptions{
+		MinLng:      minLng,
+		MinLat:      minLat,
+		MaxLng:      maxLng,
+		MaxLat:      maxLat,
+		From:        from,
+		To:          to,
+		Query:       searchQuery,
+		Limit:       limit,
+		Cursor:      cursor,
+		TrustScores: trustScores,
+	})
 	if err != nil {
 		slog.ErrorContext(r.Context(), "failed to search events", "error", err)
 		ctx := middleware.SetErrorCode(r.Context(), ErrCodeInternal)
 		WriteError(w, ctx, http.StatusInternalServerError, ErrCodeInternal, "Failed to search events")
 		return
+	}
+	
+	// Collect unique scene IDs for trust score fetching
+	if h.trustScoreStore != nil && len(events) > 0 {
+		sceneIDs := make(map[string]bool)
+		for _, event := range events {
+			sceneIDs[event.SceneID] = true
+		}
+		
+		// Fetch trust scores for all scenes
+		for sceneID := range sceneIDs {
+			score, err := h.trustScoreStore.GetScore(sceneID)
+			if err != nil {
+				// Log error but don't fail the request
+				slog.WarnContext(r.Context(), "failed to get trust score", "scene_id", sceneID, "error", err)
+				continue
+			}
+			if score != nil {
+				trustScores[sceneID] = score.Score
+			}
+		}
+		
+		// If we got trust scores, re-run the search with them
+		if len(trustScores) > 0 {
+			events, nextCursor, err = h.eventRepo.SearchEvents(scene.EventSearchOptions{
+				MinLng:      minLng,
+				MinLat:      minLat,
+				MaxLng:      maxLng,
+				MaxLat:      maxLat,
+				From:        from,
+				To:          to,
+				Query:       searchQuery,
+				Limit:       limit,
+				Cursor:      cursor,
+				TrustScores: trustScores,
+			})
+			if err != nil {
+				slog.ErrorContext(r.Context(), "failed to search events with trust scores", "error", err)
+				ctx := middleware.SetErrorCode(r.Context(), ErrCodeInternal)
+				WriteError(w, ctx, http.StatusInternalServerError, ErrCodeInternal, "Failed to search events")
+				return
+			}
+		}
 	}
 	
 	// Batch fetch active streams to avoid N+1 queries

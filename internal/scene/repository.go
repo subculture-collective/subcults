@@ -4,7 +4,9 @@ package scene
 
 import (
 	"errors"
+	"fmt"
 	"sort"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -63,6 +65,20 @@ type SceneRepository interface {
 	ListByOwner(ownerDID string) ([]*Scene, error)
 }
 
+// EventSearchOptions configures the search parameters for event queries.
+type EventSearchOptions struct {
+	MinLng      float64           // Bounding box min longitude
+	MinLat      float64           // Bounding box min latitude
+	MaxLng      float64           // Bounding box max longitude
+	MaxLat      float64           // Bounding box max latitude
+	From        time.Time         // Start of time window
+	To          time.Time         // End of time window
+	Query       string            // Text search query (optional)
+	Limit       int               // Max results per page
+	Cursor      string            // Pagination cursor
+	TrustScores map[string]float64 // Map of sceneID -> trust score (optional, for ranking)
+}
+
 // EventRepository defines the interface for event data operations.
 // All implementations must enforce location consent before persisting data.
 type EventRepository interface {
@@ -94,7 +110,14 @@ type EventRepository interface {
 	// SearchByBboxAndTime searches for events within a bounding box and time range.
 	// Filters out cancelled events and applies pagination.
 	// Returns events sorted by starts_at ascending.
+	// DEPRECATED: Use SearchEvents instead for more advanced search features.
 	SearchByBboxAndTime(minLng, minLat, maxLng, maxLat float64, from, to time.Time, limit int, cursor string) ([]*Event, string, error)
+
+	// SearchEvents searches for events with text matching, ranking, and pagination.
+	// Filters out cancelled events, applies text search if query is provided,
+	// and ranks results by composite score (recency + text + proximity + trust).
+	// Returns events sorted by composite score descending, then by ID for stable ordering.
+	SearchEvents(opts EventSearchOptions) ([]*Event, string, error)
 }
 
 // RSVPRepository defines the interface for RSVP data operations.
@@ -633,6 +656,168 @@ func (r *InMemoryEventRepository) SearchByBboxAndTime(minLng, minLat, maxLng, ma
 	}
 
 	return results, nextCursor, nil
+}
+
+// rankedEvent is used for sorting events by composite score.
+type rankedEvent struct {
+	event *Event
+	score float64
+}
+
+// SearchEvents searches for events with text matching, ranking, and pagination.
+// Implements the EventRepository.SearchEvents interface with full ranking support.
+func (r *InMemoryEventRepository) SearchEvents(opts EventSearchOptions) ([]*Event, string, error) {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+
+	// Initialize empty slice to ensure non-nil return
+	results := make([]*Event, 0)
+	var cursorScore float64
+	var cursorID string
+
+	// Parse cursor if provided (format: "score|ID")
+	if opts.Cursor != "" {
+		parts := strings.Split(opts.Cursor, "|")
+		if len(parts) == 2 {
+			// Parse score (negative because we sort descending)
+			if parsedScore, err := parseFloat(parts[0], "score"); err == nil {
+				cursorScore = parsedScore
+				cursorID = parts[1]
+			}
+		}
+	}
+
+	// Calculate bbox center for proximity scoring
+	centerLat := (opts.MinLat + opts.MaxLat) / 2.0
+	centerLng := (opts.MinLng + opts.MaxLng) / 2.0
+
+	// Calculate time window span for recency weight
+	windowSpan := opts.To.Sub(opts.From)
+	now := time.Now()
+
+	// Check if trust ranking is enabled
+	includeTrust := len(opts.TrustScores) > 0
+
+	// Collect and rank matching events
+	rankedEvents := make([]rankedEvent, 0)
+	for _, event := range r.events {
+		// Skip cancelled events
+		if event.Status == "cancelled" {
+			continue
+		}
+
+		// Skip deleted events
+		if event.DeletedAt != nil {
+			continue
+		}
+
+		// Check time range: event starts_at must be between from and to
+		if event.StartsAt.Before(opts.From) || event.StartsAt.After(opts.To) {
+			continue
+		}
+
+		// Check bounding box
+		if event.PrecisePoint != nil {
+			lat := event.PrecisePoint.Lat
+			lng := event.PrecisePoint.Lng
+			if lng < opts.MinLng || lng > opts.MaxLng || lat < opts.MinLat || lat > opts.MaxLat {
+				continue
+			}
+		} else {
+			// Events without precise_point are excluded from search results
+			continue
+		}
+
+		// Apply text filter if query provided
+		if opts.Query != "" {
+			textScore := CalculateTextMatchScore(event, opts.Query)
+			if textScore == 0.0 {
+				continue // No text match, skip this event
+			}
+		}
+
+		// Calculate ranking components
+		recencyWeight := CalculateRecencyWeight(event.StartsAt, now, windowSpan)
+		textMatchScore := CalculateTextMatchScore(event, opts.Query)
+		proximityScore := CalculateProximityScore(event, centerLat, centerLng)
+		
+		// Get trust score for the event's scene
+		trustScore := 0.0
+		if includeTrust {
+			trustScore = opts.TrustScores[event.SceneID]
+		}
+
+		// Calculate composite score
+		compositeScore := CalculateCompositeScore(
+			recencyWeight,
+			textMatchScore,
+			proximityScore,
+			trustScore,
+			DefaultEventRankingWeights,
+			includeTrust,
+		)
+
+		rankedEvents = append(rankedEvents, rankedEvent{
+			event: copyEvent(event),
+			score: compositeScore,
+		})
+	}
+
+	// Sort by composite score descending, then by ID for stable ordering
+	sort.Slice(rankedEvents, func(i, j int) bool {
+		if rankedEvents[i].score == rankedEvents[j].score {
+			return rankedEvents[i].event.ID < rankedEvents[j].event.ID
+		}
+		return rankedEvents[i].score > rankedEvents[j].score
+	})
+
+	// Apply cursor filter AFTER sorting for stable pagination
+	if opts.Cursor != "" && cursorID != "" {
+		filtered := make([]rankedEvent, 0)
+		for _, re := range rankedEvents {
+			// Skip events before cursor position
+			if re.score > cursorScore {
+				// Higher score (comes before cursor), skip
+				continue
+			}
+			// If same score as cursor, skip events with ID <= cursor ID (for stable ordering)
+			if re.score == cursorScore && re.event.ID <= cursorID {
+				continue
+			}
+			// Event is after cursor position, include it
+			filtered = append(filtered, re)
+		}
+		rankedEvents = filtered
+	}
+
+	// Extract events from ranked results
+	for _, re := range rankedEvents {
+		results = append(results, re.event)
+	}
+
+	// Apply limit and generate next cursor
+	var nextCursor string
+	if len(results) > opts.Limit {
+		// We have more results than requested, truncate and set cursor
+		if opts.Limit > 0 {
+			lastRanked := rankedEvents[opts.Limit-1]
+			// Format: "score|ID" with full precision to avoid skipping events
+			// Use strconv.FormatFloat with full precision (-1) to preserve exact score
+			nextCursor = strconv.FormatFloat(lastRanked.score, 'f', -1, 64) + "|" + lastRanked.event.ID
+			results = results[:opts.Limit]
+		}
+	}
+
+	return results, nextCursor, nil
+}
+
+// parseFloat parses a string as float64 with error context.
+func parseFloat(s string, fieldName string) (float64, error) {
+	f, err := strconv.ParseFloat(s, 64)
+	if err != nil {
+		return 0, fmt.Errorf("invalid %s: %w", fieldName, err)
+	}
+	return f, nil
 }
 
 // InMemoryRSVPRepository is an in-memory implementation of RSVPRepository.

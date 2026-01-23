@@ -168,7 +168,9 @@ func main() {
 	}
 
 	// Initialize handlers
-	eventHandlers := api.NewEventHandlers(eventRepo, sceneRepo, auditRepo, rsvpRepo, streamRepo)
+	// Pass trustScoreStore to eventHandlers to enable trust-weighted ranking
+	trustStoreAdapter := api.NewTrustScoreStoreAdapter(trustScoreStore)
+	eventHandlers := api.NewEventHandlers(eventRepo, sceneRepo, auditRepo, rsvpRepo, streamRepo, trustStoreAdapter)
 	rsvpHandlers := api.NewRSVPHandlers(rsvpRepo, eventRepo)
 	streamHandlers := api.NewStreamHandlers(streamRepo, sceneRepo, eventRepo, auditRepo, streamMetrics)
 	postHandlers := api.NewPostHandlers(postRepo, sceneRepo, membershipRepo, metadataService)
