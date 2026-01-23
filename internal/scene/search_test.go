@@ -358,3 +358,113 @@ if resultsWithTrust[0].SceneID != "scene-high-trust" {
 t.Errorf("expected high-trust scene to rank first with trust scores, got %s", resultsWithTrust[0].SceneID)
 }
 }
+
+// TestSearchEvents_CursorPrecision tests that cursor maintains full score precision.
+func TestSearchEvents_CursorPrecision(t *testing.T) {
+repo := NewInMemoryEventRepository()
+
+now := time.Now()
+baseTime := now.Add(24 * time.Hour)
+
+// Create events that will have very similar composite scores
+// that might round to the same value with limited precision
+for i := 0; i < 5; i++ {
+event := &Event{
+ID:            uuid.New().String(),
+SceneID:       "scene1",
+Title:         "Music Event",
+AllowPrecise:  true,
+PrecisePoint:  &Point{Lat: 40.7128, Lng: -74.0060},
+CoarseGeohash: "dr5regw",
+Status:        "scheduled",
+// Very small time differences to create similar recency scores
+StartsAt:      baseTime.Add(time.Duration(i) * time.Millisecond),
+CreatedAt:     &baseTime,
+UpdatedAt:     &baseTime,
+}
+if err := repo.Insert(event); err != nil {
+t.Fatalf("failed to insert event: %v", err)
+}
+}
+
+from := baseTime.Add(-1 * time.Hour)
+to := baseTime.Add(24 * time.Hour)
+
+// Get first page with limit 2
+results1, cursor1, err := repo.SearchEvents(EventSearchOptions{
+MinLng: -74.1,
+MinLat: 40.6,
+MaxLng: -73.9,
+MaxLat: 40.8,
+From:   from,
+To:     to,
+Query:  "music",
+Limit:  2,
+})
+if err != nil {
+t.Fatalf("failed to search: %v", err)
+}
+
+if len(results1) != 2 {
+t.Fatalf("expected 2 events in first page, got %d", len(results1))
+}
+
+if cursor1 == "" {
+t.Fatal("expected cursor1 to be set")
+}
+
+// Get second page with cursor
+results2, cursor2, err := repo.SearchEvents(EventSearchOptions{
+MinLng: -74.1,
+MinLat: 40.6,
+MaxLng: -73.9,
+MaxLat: 40.8,
+From:   from,
+To:     to,
+Query:  "music",
+Limit:  2,
+Cursor: cursor1,
+})
+if err != nil {
+t.Fatalf("failed to search with cursor: %v", err)
+}
+
+if len(results2) != 2 {
+t.Fatalf("expected 2 events in second page, got %d", len(results2))
+}
+
+// Get third page
+results3, _, err := repo.SearchEvents(EventSearchOptions{
+MinLng: -74.1,
+MinLat: 40.6,
+MaxLng: -73.9,
+MaxLat: 40.8,
+From:   from,
+To:     to,
+Query:  "music",
+Limit:  2,
+Cursor: cursor2,
+})
+if err != nil {
+t.Fatalf("failed to search with cursor2: %v", err)
+}
+
+if len(results3) != 1 {
+t.Fatalf("expected 1 event in third page, got %d", len(results3))
+}
+
+// Verify no duplicates across pages
+seenIDs := make(map[string]bool)
+allResults := append(append(results1, results2...), results3...)
+for _, event := range allResults {
+if seenIDs[event.ID] {
+t.Errorf("duplicate event ID %s found across pages", event.ID)
+}
+seenIDs[event.ID] = true
+}
+
+// Should have all 5 events
+if len(seenIDs) != 5 {
+t.Errorf("expected 5 unique events across all pages, got %d", len(seenIDs))
+}
+}

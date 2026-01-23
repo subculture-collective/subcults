@@ -503,3 +503,275 @@ func TestSearchEvents_EmptyResults(t *testing.T) {
 		t.Error("next_cursor should be empty when there are no more results")
 	}
 }
+
+// mockTrustScoreStore is a simple in-memory trust store for testing.
+type mockTrustScoreStore struct {
+scores map[string]float64
+}
+
+func newMockTrustScoreStore() *mockTrustScoreStore {
+return &mockTrustScoreStore{
+scores: make(map[string]float64),
+}
+}
+
+func (m *mockTrustScoreStore) SetScore(sceneID string, score float64) {
+m.scores[sceneID] = score
+}
+
+func (m *mockTrustScoreStore) GetScore(sceneID string) (*TrustScore, error) {
+score, ok := m.scores[sceneID]
+if !ok {
+return nil, nil
+}
+return &TrustScore{
+SceneID: sceneID,
+Score:   score,
+}, nil
+}
+
+// TestSearchEvents_WithTrustRanking tests trust-weighted ranking in the handler.
+func TestSearchEvents_WithTrustRanking(t *testing.T) {
+eventRepo := scene.NewInMemoryEventRepository()
+sceneRepo := scene.NewInMemorySceneRepository()
+auditRepo := audit.NewInMemoryRepository()
+rsvpRepo := scene.NewInMemoryRSVPRepository()
+streamRepo := stream.NewInMemorySessionRepository()
+
+// Create trust store with different scores
+trustStore := newMockTrustScoreStore()
+trustStore.SetScore("scene-low-trust", 0.3)
+trustStore.SetScore("scene-high-trust", 0.9)
+
+handlers := NewEventHandlers(eventRepo, sceneRepo, auditRepo, rsvpRepo, streamRepo, trustStore)
+
+baseTime := time.Now().Add(24 * time.Hour)
+
+// Create two events with identical characteristics except scene trust
+// Both have same time, location, and title
+event1 := &scene.Event{
+ID:            uuid.New().String(),
+SceneID:       "scene-low-trust",
+Title:         "Music Event",
+AllowPrecise:  true,
+PrecisePoint:  &scene.Point{Lat: 40.7128, Lng: -74.0060},
+CoarseGeohash: "dr5regw",
+Status:        "scheduled",
+StartsAt:      baseTime.Add(1 * time.Hour),
+CreatedAt:     &baseTime,
+UpdatedAt:     &baseTime,
+}
+
+event2 := &scene.Event{
+ID:            uuid.New().String(),
+SceneID:       "scene-high-trust",
+Title:         "Music Event",
+AllowPrecise:  true,
+PrecisePoint:  &scene.Point{Lat: 40.7128, Lng: -74.0060},
+CoarseGeohash: "dr5regw",
+Status:        "scheduled",
+StartsAt:      baseTime.Add(1 * time.Hour), // Same time
+CreatedAt:     &baseTime,
+UpdatedAt:     &baseTime,
+}
+
+// Insert events
+if err := eventRepo.Insert(event1); err != nil {
+t.Fatalf("failed to insert event1: %v", err)
+}
+if err := eventRepo.Insert(event2); err != nil {
+t.Fatalf("failed to insert event2: %v", err)
+}
+
+// Search with trust ranking enabled
+from := baseTime.Format(time.RFC3339)
+to := baseTime.Add(3 * time.Hour).Format(time.RFC3339)
+
+url := fmt.Sprintf("/search/events?bbox=-74.1,40.6,-73.9,40.8&from=%s&to=%s&q=music&limit=10", from, to)
+req := httptest.NewRequest(http.MethodGet, url, nil)
+w := httptest.NewRecorder()
+
+handlers.SearchEvents(w, req)
+
+if w.Code != http.StatusOK {
+t.Fatalf("expected status 200, got %d: %s", w.Code, w.Body.String())
+}
+
+var response SearchEventsResponse
+if err := json.NewDecoder(w.Body).Decode(&response); err != nil {
+t.Fatalf("failed to decode response: %v", err)
+}
+
+if len(response.Events) != 2 {
+t.Fatalf("expected 2 events, got %d", len(response.Events))
+}
+
+// High trust scene should rank first due to trust weighting
+if response.Events[0].Event.SceneID != "scene-high-trust" {
+t.Errorf("expected high-trust scene to rank first, got scene_id=%s", response.Events[0].Event.SceneID)
+}
+
+if response.Events[1].Event.SceneID != "scene-low-trust" {
+t.Errorf("expected low-trust scene to rank second, got scene_id=%s", response.Events[1].Event.SceneID)
+}
+}
+
+// TestSearchEvents_TrustRankingWithPagination tests cursor stability with trust ranking.
+func TestSearchEvents_TrustRankingWithPagination(t *testing.T) {
+eventRepo := scene.NewInMemoryEventRepository()
+sceneRepo := scene.NewInMemorySceneRepository()
+auditRepo := audit.NewInMemoryRepository()
+rsvpRepo := scene.NewInMemoryRSVPRepository()
+streamRepo := stream.NewInMemorySessionRepository()
+
+// Create trust store
+trustStore := newMockTrustScoreStore()
+trustStore.SetScore("scene1", 0.5)
+trustStore.SetScore("scene2", 0.7)
+trustStore.SetScore("scene3", 0.9)
+
+handlers := NewEventHandlers(eventRepo, sceneRepo, auditRepo, rsvpRepo, streamRepo, trustStore)
+
+baseTime := time.Now().Add(24 * time.Hour)
+
+// Create 3 events with different trust scores
+for i, sceneID := range []string{"scene1", "scene2", "scene3"} {
+event := &scene.Event{
+ID:            uuid.New().String(),
+SceneID:       sceneID,
+Title:         "Music Event",
+AllowPrecise:  true,
+PrecisePoint:  &scene.Point{Lat: 40.7128, Lng: -74.0060},
+CoarseGeohash: "dr5regw",
+Status:        "scheduled",
+StartsAt:      baseTime.Add(time.Duration(i) * time.Hour),
+CreatedAt:     &baseTime,
+UpdatedAt:     &baseTime,
+}
+if err := eventRepo.Insert(event); err != nil {
+t.Fatalf("failed to insert event: %v", err)
+}
+}
+
+from := baseTime.Format(time.RFC3339)
+to := baseTime.Add(6 * time.Hour).Format(time.RFC3339)
+
+// Get first page (limit=2)
+url1 := fmt.Sprintf("/search/events?bbox=-74.1,40.6,-73.9,40.8&from=%s&to=%s&q=music&limit=2", from, to)
+req1 := httptest.NewRequest(http.MethodGet, url1, nil)
+w1 := httptest.NewRecorder()
+
+handlers.SearchEvents(w1, req1)
+
+if w1.Code != http.StatusOK {
+t.Fatalf("expected status 200, got %d: %s", w1.Code, w1.Body.String())
+}
+
+var response1 SearchEventsResponse
+if err := json.NewDecoder(w1.Body).Decode(&response1); err != nil {
+t.Fatalf("failed to decode response: %v", err)
+}
+
+if len(response1.Events) != 2 {
+t.Fatalf("expected 2 events in first page, got %d", len(response1.Events))
+}
+
+if response1.NextCursor == "" {
+t.Error("expected next_cursor to be set")
+}
+
+// Get second page with cursor
+url2 := fmt.Sprintf("/search/events?bbox=-74.1,40.6,-73.9,40.8&from=%s&to=%s&q=music&limit=2&cursor=%s", from, to, response1.NextCursor)
+req2 := httptest.NewRequest(http.MethodGet, url2, nil)
+w2 := httptest.NewRecorder()
+
+handlers.SearchEvents(w2, req2)
+
+if w2.Code != http.StatusOK {
+t.Fatalf("expected status 200, got %d: %s", w2.Code, w2.Body.String())
+}
+
+var response2 SearchEventsResponse
+if err := json.NewDecoder(w2.Body).Decode(&response2); err != nil {
+t.Fatalf("failed to decode response: %v", err)
+}
+
+if len(response2.Events) != 1 {
+t.Fatalf("expected 1 event in second page, got %d", len(response2.Events))
+}
+
+// Verify no duplicate events between pages
+seenIDs := make(map[string]bool)
+for _, event := range response1.Events {
+seenIDs[event.Event.ID] = true
+}
+for _, event := range response2.Events {
+if seenIDs[event.Event.ID] {
+t.Errorf("duplicate event ID %s found across pages", event.Event.ID)
+}
+}
+}
+
+// TestSearchEvents_TrustStoreError tests that trust store errors don't fail the request.
+func TestSearchEvents_TrustStoreError(t *testing.T) {
+eventRepo := scene.NewInMemoryEventRepository()
+sceneRepo := scene.NewInMemorySceneRepository()
+auditRepo := audit.NewInMemoryRepository()
+rsvpRepo := scene.NewInMemoryRSVPRepository()
+streamRepo := stream.NewInMemorySessionRepository()
+
+// Create a failing trust store
+trustStore := &failingTrustStore{}
+
+handlers := NewEventHandlers(eventRepo, sceneRepo, auditRepo, rsvpRepo, streamRepo, trustStore)
+
+baseTime := time.Now().Add(24 * time.Hour)
+
+event := &scene.Event{
+ID:            uuid.New().String(),
+SceneID:       "scene1",
+Title:         "Music Event",
+AllowPrecise:  true,
+PrecisePoint:  &scene.Point{Lat: 40.7128, Lng: -74.0060},
+CoarseGeohash: "dr5regw",
+Status:        "scheduled",
+StartsAt:      baseTime.Add(1 * time.Hour),
+CreatedAt:     &baseTime,
+UpdatedAt:     &baseTime,
+}
+
+if err := eventRepo.Insert(event); err != nil {
+t.Fatalf("failed to insert event: %v", err)
+}
+
+from := baseTime.Format(time.RFC3339)
+to := baseTime.Add(3 * time.Hour).Format(time.RFC3339)
+
+url := fmt.Sprintf("/search/events?bbox=-74.1,40.6,-73.9,40.8&from=%s&to=%s&q=music&limit=10", from, to)
+req := httptest.NewRequest(http.MethodGet, url, nil)
+w := httptest.NewRecorder()
+
+handlers.SearchEvents(w, req)
+
+// Should still succeed despite trust store errors
+if w.Code != http.StatusOK {
+t.Errorf("expected status 200, got %d: %s", w.Code, w.Body.String())
+}
+
+var response SearchEventsResponse
+if err := json.NewDecoder(w.Body).Decode(&response); err != nil {
+t.Fatalf("failed to decode response: %v", err)
+}
+
+// Should still return the event
+if len(response.Events) != 1 {
+t.Errorf("expected 1 event, got %d", len(response.Events))
+}
+}
+
+// failingTrustStore always returns errors for testing error handling.
+type failingTrustStore struct{}
+
+func (f *failingTrustStore) GetScore(sceneID string) (*TrustScore, error) {
+return nil, fmt.Errorf("simulated trust store error")
+}

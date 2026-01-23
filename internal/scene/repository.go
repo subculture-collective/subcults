@@ -801,18 +801,14 @@ func (r *InMemoryEventRepository) SearchEvents(opts EventSearchOptions) ([]*Even
 		// We have more results than requested, truncate and set cursor
 		if opts.Limit > 0 {
 			lastRanked := rankedEvents[opts.Limit-1]
-			// Format: "score|ID"
-			nextCursor = formatFloat(lastRanked.score) + "|" + lastRanked.event.ID
+			// Format: "score|ID" with full precision to avoid skipping events
+			// Use strconv.FormatFloat with full precision (-1) to preserve exact score
+			nextCursor = strconv.FormatFloat(lastRanked.score, 'f', -1, 64) + "|" + lastRanked.event.ID
 			results = results[:opts.Limit]
 		}
 	}
 
 	return results, nextCursor, nil
-}
-
-// formatFloat formats a float64 as a string for cursor encoding.
-func formatFloat(f float64) string {
-	return strings.TrimRight(strings.TrimRight(fmt.Sprintf("%.6f", f), "0"), ".")
 }
 
 // parseFloat parses a string as float64 with error context.
