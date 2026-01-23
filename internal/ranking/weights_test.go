@@ -65,10 +65,10 @@ func TestTextWeight(t *testing.T) {
 // TestProximityWeight tests the distance-based proximity scoring.
 func TestProximityWeight(t *testing.T) {
 	tests := []struct {
-		name          string
+		name           string
 		distanceMeters float64
-		expectedMin   float64
-		expectedMax   float64
+		expectedMin    float64
+		expectedMax    float64
 	}{
 		{
 			name:           "at exact location (0m)",
@@ -220,7 +220,7 @@ func TestRecencyWeight(t *testing.T) {
 			// Since RecencyWeight uses time.Now() internally, we'll just test it directly.
 			// The function will use the current time, so we adjust our test startTime
 			// relative to when the test runs. For precise testing, we simulate the calculation.
-			
+
 			// Create a test helper that simulates RecencyWeight with a fixed "now"
 			testRecencyWeight := func(startTime time.Time, now time.Time, windowSpan time.Duration) float64 {
 				if windowSpan <= 0 {

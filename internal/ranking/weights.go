@@ -28,12 +28,12 @@ func ProximityWeight(distanceMeters float64) float64 {
 	if distanceMeters < 0 {
 		distanceMeters = 0 // Clamp negative distances
 	}
-	
+
 	// Normalize distance to kilometers and apply decay function
 	// This gives: 1.0 at 0m, 0.5 at 1000m, 0.33 at 2000m, etc.
 	distanceKm := distanceMeters / 1000.0
 	score := 1.0 / (1.0 + distanceKm)
-	
+
 	return score
 }
 
@@ -48,14 +48,14 @@ func ProximityWeight(distanceMeters float64) float64 {
 // Formula: 1 - ((event_start - now) / window_span) clamped to [0, 1]
 func RecencyWeight(startTime time.Time, windowSpan time.Duration) float64 {
 	now := time.Now()
-	
+
 	if windowSpan <= 0 {
 		return 1.0 // If no window span, consider all events equally recent
 	}
 
 	// Calculate time difference from now to event start
 	timeDiff := startTime.Sub(now)
-	
+
 	// If event is in the past or happening now, it's maximally recent
 	if timeDiff <= 0 {
 		return 1.0
@@ -63,7 +63,7 @@ func RecencyWeight(startTime time.Time, windowSpan time.Duration) float64 {
 
 	// Calculate weight: 1 - (timeDiff / windowSpan)
 	weight := 1.0 - (float64(timeDiff) / float64(windowSpan))
-	
+
 	// Clamp to [0, 1] range
 	if weight < 0.0 {
 		return 0.0
@@ -71,7 +71,7 @@ func RecencyWeight(startTime time.Time, windowSpan time.Duration) float64 {
 	if weight > 1.0 {
 		return 1.0
 	}
-	
+
 	return weight
 }
 
@@ -122,14 +122,14 @@ func CompositeScoreScene(params SceneParams, weights *Weights) float64 {
 	if weights == nil {
 		weights = DefaultWeights()
 	}
-	
+
 	score := (params.Text * weights.Scene.TextMatch) +
 		(params.Proximity * weights.Scene.Proximity)
-	
+
 	if params.TrustEnabled {
 		score += params.Trust * weights.Scene.Trust
 	}
-	
+
 	return score
 }
 
@@ -148,14 +148,14 @@ func CompositeScoreEvent(params EventParams, weights *Weights) float64 {
 	if weights == nil {
 		weights = DefaultWeights()
 	}
-	
+
 	score := (params.Recency * weights.Event.Recency) +
 		(params.Text * weights.Event.TextMatch) +
 		(params.Proximity * weights.Event.Proximity)
-	
+
 	if params.TrustEnabled {
 		score += params.Trust * weights.Event.Trust
 	}
-	
+
 	return score
 }
