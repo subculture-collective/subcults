@@ -68,6 +68,7 @@ func DefaultWeights() *Weights {
 // LoadCalibration loads ranking weights from a JSON calibration file.
 // If the file doesn't exist or can't be read, returns default weights with an error.
 // The file is expected to be in JSON format matching CalibrationConfig structure.
+// Partial configurations are merged with defaults for graceful degradation.
 //
 // Parameters:
 //   - filePath: Path to the calibration JSON file
@@ -98,11 +99,12 @@ func LoadCalibration(filePath string) (*Weights, error) {
 		return DefaultWeights(), fmt.Errorf("failed to parse calibration file: %w", err)
 	}
 
-	// Log successful calibration load with override details
+	// Merge loaded weights with defaults to handle partial configurations
 	defaults := DefaultWeights()
-	logCalibrationOverrides(defaults, &config.Weights)
+	merged := MergeCalibration(defaults, &config.Weights)
+	logCalibrationOverrides(defaults, merged)
 
-	return &config.Weights, nil
+	return merged, nil
 }
 
 // MergeCalibration merges override weights with default weights.
@@ -115,6 +117,17 @@ func LoadCalibration(filePath string) (*Weights, error) {
 //
 // Returns a new Weights struct with merged values.
 func MergeCalibration(base *Weights, override *Weights) *Weights {
+	// Guard against nil base to avoid panics; fall back to defaults.
+	if base == nil {
+		return DefaultWeights()
+	}
+
+	// If there is no override provided, return a copy of the base.
+	if override == nil {
+		result := *base
+		return &result
+	}
+
 	result := *base // Copy base
 
 	// Merge scene weights

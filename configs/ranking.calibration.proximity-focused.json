@@ -2,14 +2,14 @@
   "version": "1.0",
   "weights": {
     "scene": {
-      "text_match": 0.5,
-      "proximity": 0.4,
+      "text_match": 0.3,
+      "proximity": 0.5,
       "trust": 0.1
     },
     "event": {
-      "recency": 0.4,
+      "recency": 0.2,
       "text_match": 0.3,
-      "proximity": 0.2,
+      "proximity": 0.4,
       "trust": 0.1
     }
   }

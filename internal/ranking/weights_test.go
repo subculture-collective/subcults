@@ -42,13 +42,13 @@ func TestTextWeight(t *testing.T) {
 			name:     "negative score (edge case)",
 			rawRank:  -0.5,
 			weight:   0.4,
-			expected: -0.2, // Function doesn't clamp negatives
+			expected: 0.0, // Negative scores are clamped to 0 before weighting
 		},
 		{
 			name:     "score above 1 (edge case)",
 			rawRank:  1.5,
 			weight:   0.4,
-			expected: 0.6, // Function doesn't clamp above 1
+			expected: 0.4, // Scores above 1 are clamped to 1 before weighting
 		},
 	}
 
@@ -256,6 +256,66 @@ func TestRecencyWeight(t *testing.T) {
 	}
 }
 
+// TestRecencyWeight_ActualFunction tests the actual RecencyWeight function with real time.
+// This test validates that the exported function works correctly with time.Now().
+func TestRecencyWeight_ActualFunction(t *testing.T) {
+	windowSpan := 24 * time.Hour
+
+	tests := []struct {
+		name        string
+		startTime   time.Time
+		windowSpan  time.Duration
+		expectedMin float64
+		expectedMax float64
+	}{
+		{
+			name:        "event in the past",
+			startTime:   time.Now().Add(-1 * time.Hour),
+			windowSpan:  windowSpan,
+			expectedMin: 1.0,
+			expectedMax: 1.0,
+		},
+		{
+			name:        "event happening very soon",
+			startTime:   time.Now().Add(1 * time.Minute),
+			windowSpan:  windowSpan,
+			expectedMin: 0.99,
+			expectedMax: 1.0,
+		},
+		{
+			name:        "event far in future",
+			startTime:   time.Now().Add(30 * time.Hour),
+			windowSpan:  windowSpan,
+			expectedMin: 0.0,
+			expectedMax: 0.0,
+		},
+		{
+			name:        "zero window span",
+			startTime:   time.Now().Add(1 * time.Hour),
+			windowSpan:  0,
+			expectedMin: 1.0,
+			expectedMax: 1.0,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := RecencyWeight(tt.startTime, tt.windowSpan)
+
+			// Verify result is in expected range
+			if result < tt.expectedMin || result > tt.expectedMax {
+				t.Errorf("expected result in range [%f, %f], got %f",
+					tt.expectedMin, tt.expectedMax, result)
+			}
+
+			// Verify result is clamped to [0, 1]
+			if result < 0.0 || result > 1.0 {
+				t.Errorf("result %f is outside valid range [0.0, 1.0]", result)
+			}
+		})
+	}
+}
+
 // TestTrustWeight tests the trust weight with feature flag support.
 func TestTrustWeight(t *testing.T) {
 	tests := []struct {
@@ -298,13 +358,13 @@ func TestTrustWeight(t *testing.T) {
 			name:       "negative trust score enabled (edge case)",
 			trustScore: -0.5,
 			enabled:    true,
-			expected:   -0.5, // Function doesn't clamp negatives
+			expected:   0.0, // TrustWeight clamps to lower bound 0
 		},
 		{
 			name:       "trust score above 1 enabled (edge case)",
 			trustScore: 1.5,
 			enabled:    true,
-			expected:   1.5, // Function doesn't clamp above 1
+			expected:   1.0, // TrustWeight clamps to upper bound 1
 		},
 	}
 

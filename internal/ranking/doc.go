@@ -36,8 +36,9 @@
 //
 // Calibration:
 //
-// The calibration system allows runtime tuning of ranking weights via
-// JSON configuration files. This enables A/B testing and optimization
-// without code changes. See configs/ranking.calibration.json for the
+// The calibration system allows deploy-time tuning of ranking weights via
+// JSON configuration files loaded at startup. This enables A/B testing and
+// optimization without code changes (but requires a redeploy or restart to
+// pick up new configuration). See configs/ranking.calibration.json for the
 // default configuration.
 package ranking

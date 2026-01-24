@@ -110,13 +110,13 @@ func BenchmarkFullEventRanking(b *testing.B) {
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		// Calculate individual components
+		// Calculate individual components (raw scores, not pre-weighted)
 		recency := RecencyWeight(startTime, windowSpan)
-		text := TextWeight(0.85, weights.Event.TextMatch)
+		text := 0.85 // Raw text match score from database
 		proximity := ProximityWeight(1500.0)
 		trust := TrustWeight(0.75, true)
 
-		// Calculate composite score
+		// Calculate composite score (applies weights internally)
 		params := EventParams{
 			Recency:      recency,
 			Text:         text,
@@ -134,12 +134,12 @@ func BenchmarkFullSceneRanking(b *testing.B) {
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		// Calculate individual components
-		text := TextWeight(0.85, weights.Scene.TextMatch)
+		// Calculate individual components (raw scores, not pre-weighted)
+		text := 0.85 // Raw text match score from database
 		proximity := ProximityWeight(2500.0)
 		trust := TrustWeight(0.65, true)
 
-		// Calculate composite score
+		// Calculate composite score (applies weights internally)
 		params := SceneParams{
 			Text:         text,
 			Proximity:    proximity,

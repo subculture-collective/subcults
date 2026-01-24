@@ -332,14 +332,15 @@ Subcults uses a multi-factor ranking system to surface the most relevant scenes 
 
 #### Components
 
-All ranking components produce scores normalized to [0, 1]:
+Ranking components are normalized to produce scores in the [0, 1] range:
 
-1. **Text Match** (`TextWeight`): Relevance to search query
-   - Based on full-text search (ts_rank with tsvector)
+1. **Text Match**: Relevance to search query
+   - Based on full-text search (ts_rank with tsvector), normalized to [0, 1]
    - Higher scores for title matches vs. description/tags
+   - Note: The raw ts_rank score is expected to be normalized before passing to ranking functions
 
 2. **Proximity** (`ProximityWeight`): Geographic distance from search center
-   - Exponential decay function: `1 / (1 + distance_km)`
+   - Hyperbolic decay function: `1 / (1 + distance_km)`
    - 1.0 at exact location, 0.5 at ~1km, decays gradually
 
 3. **Recency** (`RecencyWeight`): Time until event starts (events only)
@@ -349,6 +350,7 @@ All ranking components produce scores normalized to [0, 1]:
 4. **Trust** (`TrustWeight`): Scene reputation via alliance graph
    - Feature-flagged via `RANK_TRUST_ENABLED`
    - Returns 0 when disabled for graceful degradation
+   - Clamped to [0, 1] range
 
 #### Composite Formulas
 
@@ -415,11 +417,14 @@ To adjust ranking behavior:
 **Example**: To increase proximity importance for events:
 ```json
 {
-  "event": {
-    "recency": 0.25,
-    "text_match": 0.35,
-    "proximity": 0.3,  // Increased from 0.2
-    "trust": 0.1
+  "version": "1.0",
+  "weights": {
+    "event": {
+      "recency": 0.25,
+      "text_match": 0.35,
+      "proximity": 0.3,
+      "trust": 0.1
+    }
   }
 }
 ```

@@ -11,25 +11,40 @@ import (
 //   - rawRank: The raw text match score (typically from database ts_rank or similar)
 //   - w: The weight to apply to the raw rank
 //
-// Returns a weighted score. The raw rank is expected to be normalized to [0, 1] range.
+// Returns a weighted score normalized to the [0, 1] range. The raw rank and weight
+// are expected to be in the [0, 1] range; any out-of-range inputs are clamped.
 func TextWeight(rawRank float64, w float64) float64 {
+	// Clamp rawRank to [0, 1]
+	if rawRank < 0.0 {
+		rawRank = 0.0
+	} else if rawRank > 1.0 {
+		rawRank = 1.0
+	}
+
+	// Clamp weight to [0, 1]
+	if w < 0.0 {
+		w = 0.0
+	} else if w > 1.0 {
+		w = 1.0
+	}
+
 	return rawRank * w
 }
 
 // ProximityWeight computes a distance-based proximity score normalized to [0, 1].
-// Uses an exponential decay function to convert distance to a proximity score.
+// Uses a hyperbolic decay function to convert distance to a proximity score.
 //
 // Parameters:
 //   - distanceMeters: The distance in meters from the reference point
 //
 // Returns a value between 0.0 (far) and 1.0 (very close).
-// Formula: 1 / (1 + (distance / 1000)) - gives 0.5 at ~1km, decays gradually
+// Formula: 1 / (1 + (distance / 1000)) - gives 1.0 at 0m, 0.5 at ~1km, 0.33 at ~2km, decays gradually
 func ProximityWeight(distanceMeters float64) float64 {
 	if distanceMeters < 0 {
 		distanceMeters = 0 // Clamp negative distances
 	}
 
-	// Normalize distance to kilometers and apply decay function
+	// Normalize distance to kilometers and apply hyperbolic decay function
 	// This gives: 1.0 at 0m, 0.5 at 1000m, 0.33 at 2000m, etc.
 	distanceKm := distanceMeters / 1000.0
 	score := 1.0 / (1.0 + distanceKm)
@@ -76,17 +91,26 @@ func RecencyWeight(startTime time.Time, windowSpan time.Duration) float64 {
 }
 
 // TrustWeight computes the trust component score with feature flag support.
-// When trust ranking is disabled, returns 0. Otherwise returns the trust score.
+// When trust ranking is disabled, returns 0. Otherwise returns the trust score clamped to [0, 1].
 //
 // Parameters:
 //   - trustScore: The computed trust score (expected to be in [0, 1] range)
 //   - enabled: Whether trust-based ranking is enabled
 //
-// Returns trustScore if enabled is true, otherwise 0.
+// Returns trustScore (clamped to [0, 1]) if enabled is true, otherwise 0.
 func TrustWeight(trustScore float64, enabled bool) float64 {
 	if !enabled {
 		return 0.0
 	}
+
+	// Clamp trustScore to [0, 1] to ensure contract compliance
+	if trustScore < 0.0 {
+		return 0.0
+	}
+	if trustScore > 1.0 {
+		return 1.0
+	}
+
 	return trustScore
 }
 
