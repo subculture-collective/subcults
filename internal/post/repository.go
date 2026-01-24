@@ -535,19 +535,12 @@ func (r *InMemoryPostRepository) SearchPosts(query string, sceneID *string, limi
 			cursorScore, err := strconv.ParseFloat(parts[0], 64)
 			if err == nil {
 				cursorID := parts[1]
-				// Filter out posts at or before the cursor position
+				// In (score DESC, id ASC) order, items after the cursor are:
+				// - posts with strictly lower score than the cursor score, or
+				// - posts with the same score but an ID greater than the cursor ID.
 				filtered := make([]scoredPost, 0, len(candidates))
 				for _, candidate := range candidates {
-					// Skip posts with higher or equal score until we pass the cursor ID
-					if candidate.score > cursorScore {
-						filtered = append(filtered, candidate)
-					} else if candidate.score == cursorScore {
-						// For equal scores, only include posts with ID > cursor ID
-						if candidate.post.ID > cursorID {
-							filtered = append(filtered, candidate)
-						}
-					} else {
-						// Lower scores are included
+					if candidate.score < cursorScore || (candidate.score == cursorScore && candidate.post.ID > cursorID) {
 						filtered = append(filtered, candidate)
 					}
 				}

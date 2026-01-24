@@ -364,13 +364,9 @@ func (h *SearchHandlers) SearchPosts(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	
-	// Get trust scores if ranking is enabled
-	var trustScores map[string]float64
-	if trust.IsRankingEnabled() {
-		// TODO: Fetch requester's trust scores from trust store
-		// For now, pass nil to disable trust-weighted ranking
-		trustScores = nil
-	}
+	// Trust scores are not yet implemented for post search
+	// Pass nil to use text relevance only
+	var trustScores map[string]float64 = nil
 	
 	// Execute search
 	results, nextCursor, err := h.postRepo.SearchPosts(q, sceneID, limit, cursor, trustScores)
@@ -391,12 +387,8 @@ func (h *SearchHandlers) SearchPosts(w http.ResponseWriter, r *http.Request) {
 			CreatedAt: p.CreatedAt.Format("2006-01-02T15:04:05Z07:00"), // ISO 8601
 		}
 		
-		// Add trust score if ranking is enabled and post has a scene
-		if trust.IsRankingEnabled() && p.SceneID != nil && trustScores != nil {
-			if score, ok := trustScores[*p.SceneID]; ok {
-				result.TrustScore = &score
-			}
-		}
+		// Note: Trust score integration is not yet implemented for post search
+		// trust_score field will always be nil and is omitted from JSON response
 		
 		searchResults = append(searchResults, result)
 	}

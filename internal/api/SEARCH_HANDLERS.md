@@ -4,11 +4,11 @@ The search handlers package provides HTTP endpoints for searching scenes, events
 
 ## Endpoints
 
-### POST Search
+### Post Search
 
 **Endpoint:** `GET /search/posts`
 
-**Description:** Search for posts by text query with optional scene filter. Results are ranked by text relevance and optionally by trust score when enabled.
+**Description:** Search for posts by text query with optional scene filter. Results are ranked by text relevance.
 
 **Query Parameters:**
 
@@ -28,7 +28,6 @@ The search handlers package provides HTTP endpoints for searching scenes, events
       "id": "uuid",
       "excerpt": "First 160 characters of post text...",
       "scene_id": "scene-uuid",
-      "trust_score": 0.85,
       "created_at": "2024-01-24T12:00:00Z"
     }
   ],
@@ -42,20 +41,22 @@ The search handlers package provides HTTP endpoints for searching scenes, events
 - `id` (string): Post UUID
 - `excerpt` (string): First 160 characters of post text, truncated at word boundary when possible
 - `scene_id` (string, optional): Scene UUID if post is associated with a scene
-- `trust_score` (float, optional): Scene trust score (0.0-1.0), only included when trust ranking is enabled
 - `created_at` (string): ISO 8601 timestamp
 - `next_cursor` (string): Cursor for next page (empty on last page)
 - `count` (int): Number of results in this response
 
 **Ranking Algorithm:**
 
+Currently, post search uses text relevance only:
+
 ```
-composite_score = (text_relevance * 0.75) + (scene_trust * 0.25)
+score = text_relevance * 1.0
 ```
+
+(Trust-weighted ranking integration is planned for a future update)
 
 Where:
 - `text_relevance`: 1.0 for exact substring match, proportional for partial word matches (e.g., 2/3 words matched = 0.67)
-- `scene_trust`: Scene's trust score from the requester's trust graph (0.0 when disabled or unavailable)
 - Results are ordered by `(score DESC, id ASC)` for stable pagination
 
 **Moderation Filtering:**
@@ -96,7 +97,6 @@ GET /search/posts?q=festival&limit=10&cursor=0.875000:post-uuid
       "id": "550e8400-e29b-41d4-a716-446655440000",
       "excerpt": "Electronic music festival happening next week! Join us for amazing techno, house, and ambient performances...",
       "scene_id": "650e8400-e29b-41d4-a716-446655440000",
-      "trust_score": 0.85,
       "created_at": "2024-01-24T15:30:00Z"
     },
     {
@@ -106,7 +106,7 @@ GET /search/posts?q=festival&limit=10&cursor=0.875000:post-uuid
       "created_at": "2024-01-24T14:20:00Z"
     }
   ],
-  "next_cursor": "0.750000:750e8400-e29b-41d4-a716-446655440000",
+  "next_cursor": "1.000000:750e8400-e29b-41d4-a716-446655440000",
   "count": 2
 }
 ```
@@ -152,13 +152,13 @@ Trust-weighted ranking is controlled by the `RANK_TRUST_ENABLED` environment var
 
 **When Enabled:**
 - Scene search includes trust scores in ranking calculation
-- Post search includes scene trust scores in composite scoring
-- Response includes `trust_score` field for applicable results
+- Post search is currently ranked by text relevance only (trust score integration pending)
+- Response includes `trust_score` field for scene search results
 
 **When Disabled:**
 - Trust scores are not fetched or included in ranking
 - `trust_score` field is omitted from responses
-- Ranking is based purely on text relevance and proximity
+- Scene and post search ranking is based purely on text relevance
 
 **Setting the Flag:**
 
