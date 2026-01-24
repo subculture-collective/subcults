@@ -5,6 +5,7 @@
 
 import React from 'react';
 import { DarkModeToggle } from '../components/DarkModeToggle';
+import { NotificationSettings } from '../components/NotificationSettings';
 import { useTheme } from '../stores/themeStore';
 
 export const SettingsPage: React.FC = () => {
@@ -49,12 +50,7 @@ export const SettingsPage: React.FC = () => {
           </section>
           
           {/* Notifications Section */}
-          <section className="bg-background-secondary border border-border rounded-lg p-6 theme-transition">
-            <h2 className="text-2xl font-semibold mb-4 text-foreground">Notifications</h2>
-            <p className="text-foreground-secondary">
-              Notification preferences and alert settings will be displayed here.
-            </p>
-          </section>
+          <NotificationSettings />
           
           {/* Demo Section - Show theme colors */}
           <section className="bg-background-secondary border border-border rounded-lg p-6 theme-transition">
