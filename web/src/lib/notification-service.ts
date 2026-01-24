@@ -112,7 +112,7 @@ export async function subscribeToPushNotifications(): Promise<PushSubscriptionDa
     // Subscribe to push notifications
     const subscription = await registration.pushManager.subscribe({
       userVisibleOnly: true,
-      applicationServerKey: urlBase64ToUint8Array(serviceConfig.vapidPublicKey),
+      applicationServerKey: urlBase64ToUint8Array(serviceConfig.vapidPublicKey) as BufferSource,
     });
 
     // Convert subscription to serializable format

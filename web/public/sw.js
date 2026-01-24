@@ -7,7 +7,7 @@
 const VERSION = '1.0.0';
 
 // Log service worker lifecycle events
-self.addEventListener('install', (event) => {
+self.addEventListener('install', () => {
   console.log(`[ServiceWorker v${VERSION}] Installing...`);
   // Skip waiting to activate immediately
   self.skipWaiting();

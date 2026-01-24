@@ -54,6 +54,7 @@ describe('notification-service', () => {
     } as unknown as typeof Notification;
 
     // Mock PushManager
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     (global as any).PushManager = class PushManager {};
 
     global.navigator.serviceWorker = {
@@ -99,8 +100,8 @@ describe('notification-service', () => {
 
     it('returns false when Notification API is not available', () => {
       const originalNotification = global.Notification;
-      // @ts-expect-error - Testing missing API
-      delete global.Notification;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      delete (global as any).Notification;
 
       expect(isBrowserSupported()).toBe(false);
 
@@ -109,8 +110,8 @@ describe('notification-service', () => {
 
     it('returns false when serviceWorker is not available', () => {
       const originalServiceWorker = global.navigator.serviceWorker;
-      // @ts-expect-error - Testing missing API
-      delete global.navigator.serviceWorker;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      delete (global.navigator as any).serviceWorker;
 
       expect(isBrowserSupported()).toBe(false);
 
@@ -118,12 +119,14 @@ describe('notification-service', () => {
     });
 
     it('returns false when PushManager is not available', () => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const originalPushManager = (global as any).PushManager;
-      // @ts-expect-error - Testing missing API
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       delete (global as any).PushManager;
 
       expect(isBrowserSupported()).toBe(false);
 
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (global as any).PushManager = originalPushManager;
     });
   });
@@ -136,8 +139,8 @@ describe('notification-service', () => {
 
     it('returns default when browser not supported', () => {
       const originalNotification = global.Notification;
-      // @ts-expect-error - Testing missing API
-      delete global.Notification;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      delete (global as any).Notification;
 
       expect(getNotificationPermission()).toBe('default');
 
@@ -155,8 +158,8 @@ describe('notification-service', () => {
 
     it('throws error when browser not supported', async () => {
       const originalNotification = global.Notification;
-      // @ts-expect-error - Testing missing API
-      delete global.Notification;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      delete (global as any).Notification;
 
       await expect(requestNotificationPermission()).rejects.toThrow(
         'Notifications not supported in this browser'
@@ -166,6 +169,7 @@ describe('notification-service', () => {
     });
 
     it('throws error when permission request fails', async () => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (Notification.requestPermission as any) = vi
         .fn()
         .mockRejectedValue(new Error('User denied'));
@@ -189,8 +193,8 @@ describe('notification-service', () => {
 
     it('throws error when browser not supported', async () => {
       const originalNotification = global.Notification;
-      // @ts-expect-error - Testing missing API
-      delete global.Notification;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      delete (global as any).Notification;
 
       await expect(subscribeToPushNotifications()).rejects.toThrow(
         'Notifications not supported in this browser'
@@ -201,6 +205,7 @@ describe('notification-service', () => {
 
     it('throws error when service not initialized', async () => {
       // Re-initialize with null config
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       initializeNotificationService(null as any);
 
       await expect(subscribeToPushNotifications()).rejects.toThrow(
@@ -269,8 +274,8 @@ describe('notification-service', () => {
 
     it('throws error when browser not supported', async () => {
       const originalNotification = global.Notification;
-      // @ts-expect-error - Testing missing API
-      delete global.Notification;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      delete (global as any).Notification;
 
       await expect(unsubscribeFromPushNotifications()).rejects.toThrow(
         'Notifications not supported in this browser'
@@ -295,6 +300,7 @@ describe('notification-service', () => {
     });
 
     it('throws error when service not initialized', async () => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       initializeNotificationService(null as any);
 
       await expect(sendSubscriptionToBackend(mockSubscriptionData)).rejects.toThrow(
@@ -331,6 +337,7 @@ describe('notification-service', () => {
     });
 
     it('throws error when service not initialized', async () => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       initializeNotificationService(null as any);
 
       await expect(deleteSubscriptionFromBackend(mockSubscriptionData)).rejects.toThrow(
@@ -390,8 +397,8 @@ describe('notification-service', () => {
 
     it('returns null when browser not supported', async () => {
       const originalNotification = global.Notification;
-      // @ts-expect-error - Testing missing API
-      delete global.Notification;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      delete (global as any).Notification;
 
       const subscription = await getCurrentSubscription();
 
