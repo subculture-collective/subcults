@@ -31,10 +31,17 @@ type RecomputeJobConfig struct {
 	Interval time.Duration
 	// Logger for job activity.
 	Logger *slog.Logger
+	// Metrics for performance tracking.
+	Metrics *Metrics
+	// Timeout for each recompute cycle.
+	Timeout time.Duration
 }
 
 // DefaultRecomputeInterval is the default interval between recompute cycles.
 const DefaultRecomputeInterval = 30 * time.Second
+
+// DefaultRecomputeTimeout is the default timeout for a single recompute cycle.
+const DefaultRecomputeTimeout = 30 * time.Second
 
 // RecomputeJob periodically recalculates trust scores for dirty scenes.
 type RecomputeJob struct {
@@ -61,6 +68,9 @@ func NewRecomputeJob(
 	}
 	if config.Logger == nil {
 		config.Logger = slog.Default()
+	}
+	if config.Timeout == 0 {
+		config.Timeout = DefaultRecomputeTimeout
 	}
 
 	return &RecomputeJob{
@@ -130,42 +140,128 @@ func (j *RecomputeJob) run(ctx context.Context) {
 			j.config.Logger.Info("trust recompute job stopping due to stop signal")
 			return
 		case <-ticker.C:
-			j.recomputeDirtyScenes()
+			j.recomputeDirtyScenes(ctx)
 		}
 	}
 }
 
 // recomputeDirtyScenes processes all dirty scenes and updates their trust scores.
-func (j *RecomputeJob) recomputeDirtyScenes() {
+func (j *RecomputeJob) recomputeDirtyScenes(parentCtx context.Context) {
 	dirtyScenes := j.dirtyTracker.GetDirtyScenes()
 	if len(dirtyScenes) == 0 {
 		return
 	}
 
-	j.config.Logger.Info("recomputing trust scores",
-		"dirty_count", len(dirtyScenes))
+	// Create context with timeout derived from parent
+	ctx, cancel := context.WithTimeout(parentCtx, j.config.Timeout)
+	defer cancel()
 
-	for _, sceneID := range dirtyScenes {
-		if err := j.recomputeScene(sceneID); err != nil {
+	// Track metrics
+	startTime := time.Now()
+	sceneCount := len(dirtyScenes)
+	var successCount int
+	var varianceSum float64
+	var varianceCount int
+
+	j.config.Logger.Info("recomputing trust scores",
+		"dirty_count", sceneCount)
+
+	// Process each scene
+	for i, sceneID := range dirtyScenes {
+		// Check timeout
+		select {
+		case <-ctx.Done():
+			j.config.Logger.Error("trust recompute timeout exceeded",
+				"processed", i,
+				"total", sceneCount,
+				"timeout", j.config.Timeout)
+			if j.config.Metrics != nil {
+				j.config.Metrics.IncRecomputeErrors()
+			}
+			return
+		default:
+		}
+
+		// Get previous score for variance calculation
+		var previousScore float64
+		var hasPreviousScore bool
+		if prevScoreObj, err := j.scoreStore.GetScore(sceneID); err == nil && prevScoreObj != nil {
+			previousScore = prevScoreObj.Score
+			hasPreviousScore = true
+		}
+
+		// Recompute scene
+		newScore, err := j.recomputeSceneWithScore(sceneID)
+		if err != nil {
 			j.config.Logger.Error("failed to recompute trust score",
 				"scene_id", sceneID,
 				"error", err)
+			if j.config.Metrics != nil {
+				j.config.Metrics.IncRecomputeErrors()
+			}
 			continue
 		}
+
+		// Calculate variance for this scene
+		if hasPreviousScore {
+			variance := abs(newScore - previousScore)
+			varianceSum += variance
+			varianceCount++
+		}
+
 		j.dirtyTracker.ClearDirty(sceneID)
+		successCount++
+
+		// Log batch progress every 10 scenes
+		if (i+1)%10 == 0 {
+			j.config.Logger.Debug("recompute progress",
+				"processed", i+1,
+				"total", sceneCount)
+		}
 	}
+
+	// Calculate metrics
+	duration := time.Since(startTime).Seconds()
+	avgVariance := 0.0
+	if varianceCount > 0 {
+		avgVariance = varianceSum / float64(varianceCount)
+	}
+
+	// Update metrics
+	if j.config.Metrics != nil {
+		j.config.Metrics.IncRecomputeTotal()
+		j.config.Metrics.ObserveRecomputeDuration(duration)
+		j.config.Metrics.SetLastRecomputeTimestamp(float64(time.Now().Unix()))
+		j.config.Metrics.SetLastRecomputeSceneCount(float64(successCount))
+	}
+
+	// Completion log with required fields
+	j.config.Logger.Info("trust recompute completed",
+		"duration_seconds", duration,
+		"scenes_processed", successCount,
+		"scenes_failed", sceneCount-successCount,
+		"avg_weight_variance", avgVariance)
 }
 
-// recomputeScene calculates and stores the trust score for a single scene.
-func (j *RecomputeJob) recomputeScene(sceneID string) error {
+// abs returns the absolute value of a float64.
+func abs(x float64) float64 {
+	if x < 0 {
+		return -x
+	}
+	return x
+}
+
+// recomputeSceneWithScore calculates and stores the trust score for a single scene.
+// Returns the new score for variance calculation.
+func (j *RecomputeJob) recomputeSceneWithScore(sceneID string) (float64, error) {
 	memberships, err := j.dataSource.GetMembershipsByScene(sceneID)
 	if err != nil {
-		return err
+		return 0, err
 	}
 
 	alliances, err := j.dataSource.GetAlliancesByScene(sceneID)
 	if err != nil {
-		return err
+		return 0, err
 	}
 
 	score := ComputeTrustScore(memberships, alliances)
@@ -177,7 +273,7 @@ func (j *RecomputeJob) recomputeScene(sceneID string) error {
 	}
 
 	if err := j.scoreStore.SaveScore(trustScore); err != nil {
-		return err
+		return 0, err
 	}
 
 	j.config.Logger.Debug("trust score recomputed",
@@ -186,11 +282,11 @@ func (j *RecomputeJob) recomputeScene(sceneID string) error {
 		"memberships", len(memberships),
 		"alliances", len(alliances))
 
-	return nil
+	return score, nil
 }
 
 // RecomputeNow immediately recomputes all dirty scenes without waiting for the ticker.
 // This is useful for testing or forcing immediate updates.
 func (j *RecomputeJob) RecomputeNow() {
-	j.recomputeDirtyScenes()
+	j.recomputeDirtyScenes(context.Background())
 }

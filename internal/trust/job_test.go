@@ -2,12 +2,41 @@ package trust
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 	"math"
 	"os"
+	"strings"
 	"testing"
 	"time"
 )
+
+// slowDataSource wraps a DataSource with artificial delays for testing timeouts.
+type slowDataSource struct {
+	ds    DataSource
+	delay time.Duration
+}
+
+// newSlowDataSource creates a new slow data source wrapper.
+func newSlowDataSource(ds DataSource, delay time.Duration) *slowDataSource {
+	return &slowDataSource{
+		ds:    ds,
+		delay: delay,
+	}
+}
+
+// GetMembershipsByScene returns memberships after a delay.
+func (s *slowDataSource) GetMembershipsByScene(sceneID string) ([]Membership, error) {
+	time.Sleep(s.delay)
+	return s.ds.GetMembershipsByScene(sceneID)
+}
+
+// GetAlliancesByScene returns alliances after a delay.
+func (s *slowDataSource) GetAlliancesByScene(sceneID string) ([]Alliance, error) {
+	time.Sleep(s.delay)
+	return s.ds.GetAlliancesByScene(sceneID)
+}
+
 
 func TestRecomputeJob_StartStop(t *testing.T) {
 	dataSource := NewInMemoryDataSource()
@@ -454,4 +483,216 @@ func TestInMemoryScoreStore(t *testing.T) {
 			t.Errorf("expected 2 scores, got %d", len(allScores))
 		}
 	})
+}
+
+func TestRecomputeJob_WithMetrics(t *testing.T) {
+	dataSource := NewInMemoryDataSource()
+	scoreStore := NewInMemoryScoreStore()
+	dirtyTracker := NewDirtyTracker()
+	metrics := NewMetrics()
+
+	// Setup 50 scenes with data
+	for i := 0; i < 50; i++ {
+		sceneID := fmt.Sprintf("scene-%d", i)
+		dataSource.AddMembership(Membership{
+			SceneID:     sceneID,
+			UserDID:     fmt.Sprintf("did:user%d", i),
+			Role:        "member",
+			TrustWeight: 0.5,
+		})
+		dirtyTracker.MarkDirty(sceneID)
+	}
+
+	job := NewRecomputeJob(
+		RecomputeJobConfig{
+			Interval: 100 * time.Millisecond,
+			Logger:   slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError})),
+			Metrics:  metrics,
+			Timeout:  5 * time.Second,
+		},
+		dirtyTracker,
+		dataSource,
+		scoreStore,
+	)
+
+	// Trigger recompute
+	job.RecomputeNow()
+
+	// Verify metrics were updated
+	if v := getCounterValue(metrics.recomputeTotal); v != 1 {
+		t.Errorf("recomputeTotal = %f, want 1", v)
+	}
+
+	if v := getHistogramSampleCount(metrics.recomputeDuration); v != 1 {
+		t.Errorf("recomputeDuration sample count = %d, want 1", v)
+	}
+
+	if v := getGaugeValue(metrics.lastRecomputeSceneCount); v != 50 {
+		t.Errorf("lastRecomputeSceneCount = %f, want 50", v)
+	}
+
+	if v := getGaugeValue(metrics.lastRecomputeTimestamp); v <= 0 {
+		t.Errorf("lastRecomputeTimestamp = %f, should be > 0", v)
+	}
+
+	// Verify all scenes were processed
+	if count := dirtyTracker.DirtyCount(); count != 0 {
+		t.Errorf("dirty count = %d, want 0", count)
+	}
+
+	allScores := scoreStore.AllScores()
+	if len(allScores) != 50 {
+		t.Errorf("stored scores = %d, want 50", len(allScores))
+	}
+}
+
+func TestRecomputeJob_TimeoutAbort(t *testing.T) {
+	dataSource := NewInMemoryDataSource()
+	slowDataSource := newSlowDataSource(dataSource, 200*time.Millisecond)
+	scoreStore := NewInMemoryScoreStore()
+	dirtyTracker := NewDirtyTracker()
+	metrics := NewMetrics()
+
+	// Setup 10 scenes - with 200ms delay per scene, this would take 2+ seconds
+	for i := 0; i < 10; i++ {
+		sceneID := fmt.Sprintf("scene-%d", i)
+		dataSource.AddMembership(Membership{
+			SceneID:     sceneID,
+			UserDID:     fmt.Sprintf("did:user%d", i),
+			Role:        "member",
+			TrustWeight: 0.5,
+		})
+		dirtyTracker.MarkDirty(sceneID)
+	}
+
+	job := NewRecomputeJob(
+		RecomputeJobConfig{
+			Interval: 100 * time.Millisecond,
+			Logger:   slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError})),
+			Metrics:  metrics,
+			Timeout:  500 * time.Millisecond, // Very short timeout to trigger abort
+		},
+		dirtyTracker,
+		slowDataSource,
+		scoreStore,
+	)
+
+	// Trigger recompute
+	job.RecomputeNow()
+
+	// Verify error counter was incremented due to timeout
+	if v := getCounterValue(metrics.recomputeErrors); v != 1 {
+		t.Errorf("recomputeErrors = %f, want 1", v)
+	}
+
+	// Some scenes should still be dirty (not all processed)
+	if count := dirtyTracker.DirtyCount(); count == 0 {
+		t.Error("dirty count should be > 0 due to timeout abort")
+	}
+
+	// Not all scores should be stored
+	allScores := scoreStore.AllScores()
+	if len(allScores) >= 10 {
+		t.Errorf("stored scores = %d, should be < 10 due to timeout", len(allScores))
+	}
+}
+
+func TestRecomputeJob_CompletionLog(t *testing.T) {
+	dataSource := NewInMemoryDataSource()
+	scoreStore := NewInMemoryScoreStore()
+	dirtyTracker := NewDirtyTracker()
+
+	// Create a custom logger to capture logs
+	var logBuf strings.Builder
+	logger := slog.New(slog.NewTextHandler(&logBuf, &slog.HandlerOptions{Level: slog.LevelInfo}))
+
+	// Setup scenes with initial scores for variance calculation
+	for i := 0; i < 5; i++ {
+		sceneID := fmt.Sprintf("scene-%d", i)
+		dataSource.AddMembership(Membership{
+			SceneID:     sceneID,
+			UserDID:     fmt.Sprintf("did:user%d", i),
+			Role:        "member",
+			TrustWeight: 0.5,
+		})
+		// Set initial score
+		scoreStore.SaveScore(SceneTrustScore{
+			SceneID:    sceneID,
+			Score:      0.3,
+			ComputedAt: time.Now().Add(-1 * time.Hour),
+		})
+		dirtyTracker.MarkDirty(sceneID)
+	}
+
+	job := NewRecomputeJob(
+		RecomputeJobConfig{
+			Interval: 100 * time.Millisecond,
+			Logger:   logger,
+		},
+		dirtyTracker,
+		dataSource,
+		scoreStore,
+	)
+
+	// Trigger recompute
+	job.RecomputeNow()
+
+	// Verify completion log contains required fields
+	logOutput := logBuf.String()
+	requiredFields := []string{
+		"trust recompute completed",
+		"duration_seconds",
+		"scenes_processed",
+		"avg_weight_variance",
+	}
+
+	for _, field := range requiredFields {
+		if !strings.Contains(logOutput, field) {
+			t.Errorf("completion log missing required field: %s", field)
+		}
+	}
+
+	// Verify that variance was calculated (should be non-zero since scores changed)
+	if !strings.Contains(logOutput, "avg_weight_variance") {
+		t.Error("completion log should contain avg_weight_variance field")
+	}
+}
+
+// BenchmarkRecompute is a placeholder for future scaling tests.
+// To be expanded with various scene counts (100, 1000, 10000) and
+// different alliance graph complexities.
+func BenchmarkRecompute(b *testing.B) {
+	dataSource := NewInMemoryDataSource()
+	scoreStore := NewInMemoryScoreStore()
+	dirtyTracker := NewDirtyTracker()
+
+	// Setup a modest dataset for initial benchmark
+	sceneCount := 100
+	for i := 0; i < sceneCount; i++ {
+		sceneID := fmt.Sprintf("scene-%d", i)
+		dataSource.AddMembership(Membership{
+			SceneID:     sceneID,
+			UserDID:     fmt.Sprintf("did:user%d", i),
+			Role:        "member",
+			TrustWeight: 0.5,
+		})
+	}
+
+	job := NewRecomputeJob(
+		RecomputeJobConfig{
+			Logger: slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError})),
+		},
+		dirtyTracker,
+		dataSource,
+		scoreStore,
+	)
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		// Mark all scenes dirty
+		for j := 0; j < sceneCount; j++ {
+			dirtyTracker.MarkDirty(fmt.Sprintf("scene-%d", j))
+		}
+		job.RecomputeNow()
+	}
 }
