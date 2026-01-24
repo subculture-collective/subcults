@@ -2,7 +2,10 @@
 // membership and alliance relationships.
 package trust
 
-import "sync"
+import (
+	"sync"
+	"time"
+)
 
 // InMemoryDataSource is an in-memory implementation of DataSource for testing.
 type InMemoryDataSource struct {
@@ -111,4 +114,30 @@ func (s *InMemoryScoreStore) AllScores() map[string]SceneTrustScore {
 		result[k] = v
 	}
 	return result
+}
+
+// SlowDataSource wraps a DataSource with artificial delays for testing timeouts.
+type SlowDataSource struct {
+	ds    DataSource
+	delay time.Duration
+}
+
+// NewSlowDataSource creates a new slow data source wrapper.
+func NewSlowDataSource(ds DataSource, delay time.Duration) *SlowDataSource {
+	return &SlowDataSource{
+		ds:    ds,
+		delay: delay,
+	}
+}
+
+// GetMembershipsByScene returns memberships after a delay.
+func (s *SlowDataSource) GetMembershipsByScene(sceneID string) ([]Membership, error) {
+	time.Sleep(s.delay)
+	return s.ds.GetMembershipsByScene(sceneID)
+}
+
+// GetAlliancesByScene returns alliances after a delay.
+func (s *SlowDataSource) GetAlliancesByScene(sceneID string) ([]Alliance, error) {
+	time.Sleep(s.delay)
+	return s.ds.GetAlliancesByScene(sceneID)
 }
