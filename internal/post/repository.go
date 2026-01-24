@@ -4,7 +4,10 @@ package post
 
 import (
 	"errors"
+	"fmt"
 	"sort"
+	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -102,6 +105,13 @@ type PostRepository interface {
 	// If cursor is nil, starts from the most recent post.
 	// Returns posts, next cursor (nil if no more), and error.
 	ListByEvent(eventID string, limit int, cursor *FeedCursor) ([]*Post, *FeedCursor, error)
+
+	// SearchPosts searches for posts by text query with optional scene filter.
+	// Returns posts ordered by (score DESC, id ASC) for stable pagination.
+	// Excludes soft-deleted posts and posts with moderation labels (hidden, spam, flagged).
+	// If cursor is empty, starts from the highest scored post.
+	// Returns posts, next cursor (empty if no more), and error.
+	SearchPosts(query string, sceneID *string, limit int, cursor string, trustScores map[string]float64) ([]*Post, string, error)
 }
 
 // InMemoryPostRepository is an in-memory implementation of PostRepository.
@@ -411,6 +421,152 @@ func (r *InMemoryPostRepository) ListByEvent(eventID string, limit int, cursor *
 	} else {
 		results = candidates
 		// No more posts, cursor is nil
+	}
+
+	// Return deep copies to prevent external mutation
+	copies := make([]*Post, len(results))
+	for i, p := range results {
+		postCopy := *p
+		copies[i] = &postCopy
+	}
+
+	return copies, nextCursor, nil
+}
+
+// SearchPosts searches for posts by text query with optional scene filter.
+// Returns posts ordered by (score DESC, id ASC) for stable pagination.
+func (r *InMemoryPostRepository) SearchPosts(query string, sceneID *string, limit int, cursor string, trustScores map[string]float64) ([]*Post, string, error) {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+
+	// Normalize query for case-insensitive matching
+	queryLower := strings.ToLower(strings.TrimSpace(query))
+	if queryLower == "" {
+		return []*Post{}, "", nil
+	}
+
+	// Collect matching posts
+	type scoredPost struct {
+		post      *Post
+		textScore float64
+		score     float64
+	}
+	var candidates []scoredPost
+
+	for _, post := range r.posts {
+		// Skip deleted posts
+		if post.DeletedAt != nil {
+			continue
+		}
+
+		// Skip moderated posts (hidden, spam, flagged)
+		if post.HasLabel(LabelHidden) || post.HasLabel(LabelSpam) || post.HasLabel(LabelFlagged) {
+			continue
+		}
+
+		// Apply scene filter if provided
+		if sceneID != nil {
+			if post.SceneID == nil || *post.SceneID != *sceneID {
+				continue
+			}
+		}
+
+		// Calculate text relevance score (simple substring match)
+		textLower := strings.ToLower(post.Text)
+		textScore := 0.0
+		if strings.Contains(textLower, queryLower) {
+			// Exact substring match
+			textScore = 1.0
+		} else {
+			// Check for individual word matches
+			queryWords := strings.Fields(queryLower)
+			matchCount := 0
+			for _, word := range queryWords {
+				if strings.Contains(textLower, word) {
+					matchCount++
+				}
+			}
+			if matchCount > 0 {
+				textScore = float64(matchCount) / float64(len(queryWords))
+			}
+		}
+
+		// Skip posts with no text match
+		if textScore == 0.0 {
+			continue
+		}
+
+		// Calculate composite score
+		// Formula: score = (text_rank * 0.75) + (scene_trust * 0.25 if enabled else 0)
+		score := textScore * 0.75
+
+		// Add trust score component if available
+		if post.SceneID != nil && trustScores != nil {
+			if trustScore, ok := trustScores[*post.SceneID]; ok {
+				score += trustScore * 0.25
+			}
+		}
+
+		candidates = append(candidates, scoredPost{
+			post:      post,
+			textScore: textScore,
+			score:     score,
+		})
+	}
+
+	// Sort by score DESC, then by ID ASC for tie-breaking
+	sort.Slice(candidates, func(i, j int) bool {
+		// Sort by score DESC (higher scores first)
+		if candidates[i].score > candidates[j].score {
+			return true
+		}
+		if candidates[i].score < candidates[j].score {
+			return false
+		}
+		// Tie-break by ID ASC (lexicographic order) when scores are equal
+		return candidates[i].post.ID < candidates[j].post.ID
+	})
+
+	// Apply cursor filter if provided
+	// Cursor format: "score:id"
+	if cursor != "" {
+		parts := strings.Split(cursor, ":")
+		if len(parts) == 2 {
+			cursorScore, err := strconv.ParseFloat(parts[0], 64)
+			if err == nil {
+				cursorID := parts[1]
+				// In (score DESC, id ASC) order, items after the cursor are:
+				// - posts with strictly lower score than the cursor score, or
+				// - posts with the same score but an ID greater than the cursor ID.
+				filtered := make([]scoredPost, 0, len(candidates))
+				for _, candidate := range candidates {
+					if candidate.score < cursorScore || (candidate.score == cursorScore && candidate.post.ID > cursorID) {
+						filtered = append(filtered, candidate)
+					}
+				}
+				candidates = filtered
+			}
+		}
+	}
+
+	// Apply limit and generate next cursor
+	var results []*Post
+	var nextCursor string
+
+	if len(candidates) > limit {
+		results = make([]*Post, limit)
+		for i := 0; i < limit; i++ {
+			results[i] = candidates[i].post
+		}
+		// Next cursor points to the last returned post
+		lastCandidate := candidates[limit-1]
+		nextCursor = fmt.Sprintf("%.6f:%s", lastCandidate.score, lastCandidate.post.ID)
+	} else {
+		results = make([]*Post, len(candidates))
+		for i, candidate := range candidates {
+			results[i] = candidate.post
+		}
+		// No more posts, cursor is empty
 	}
 
 	// Return deep copies to prevent external mutation

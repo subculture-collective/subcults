@@ -175,7 +175,7 @@ func main() {
 	streamHandlers := api.NewStreamHandlers(streamRepo, sceneRepo, eventRepo, auditRepo, streamMetrics)
 	postHandlers := api.NewPostHandlers(postRepo, sceneRepo, membershipRepo, metadataService)
 	trustHandlers := api.NewTrustHandlers(sceneRepo, trustDataSource, trustScoreStore, trustDirtyTracker)
-	searchHandlers := api.NewSearchHandlers(sceneRepo, trustStoreAdapter)
+	searchHandlers := api.NewSearchHandlers(sceneRepo, postRepo, trustStoreAdapter)
 
 	// Create HTTP server with routes
 	mux := http.NewServeMux()
@@ -265,6 +265,16 @@ func main() {
 		switch r.Method {
 		case http.MethodGet:
 			searchHandlers.SearchScenes(w, r)
+		default:
+			ctx := middleware.SetErrorCode(r.Context(), api.ErrCodeBadRequest)
+			api.WriteError(w, ctx, http.StatusMethodNotAllowed, api.ErrCodeBadRequest, "Method not allowed")
+		}
+	})
+
+	mux.HandleFunc("/search/posts", func(w http.ResponseWriter, r *http.Request) {
+		switch r.Method {
+		case http.MethodGet:
+			searchHandlers.SearchPosts(w, r)
 		default:
 			ctx := middleware.SetErrorCode(r.Context(), api.ErrCodeBadRequest)
 			api.WriteError(w, ctx, http.StatusMethodNotAllowed, api.ErrCodeBadRequest, "Method not allowed")
