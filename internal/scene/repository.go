@@ -63,6 +63,24 @@ type SceneRepository interface {
 	// ListByOwner retrieves all non-deleted scenes owned by the specified DID.
 	// Returns empty slice if no scenes found.
 	ListByOwner(ownerDID string) ([]*Scene, error)
+	
+	// SearchScenes searches for scenes with text matching, geo filtering, ranking, and pagination.
+	// Filters out deleted and hidden scenes, applies text search if query is provided,
+	// and ranks results by composite score (text + proximity + trust).
+	// Returns scenes sorted by composite score descending, then by ID for stable ordering.
+	SearchScenes(opts SceneSearchOptions) ([]*Scene, string, error)
+}
+
+// SceneSearchOptions configures the search parameters for scene queries.
+type SceneSearchOptions struct {
+	MinLng      float64            // Bounding box min longitude
+	MinLat      float64            // Bounding box min latitude
+	MaxLng      float64            // Bounding box max longitude
+	MaxLat      float64            // Bounding box max latitude
+	Query       string             // Text search query (optional)
+	Limit       int                // Max results per page (max 50)
+	Cursor      string             // Pagination cursor
+	TrustScores map[string]float64 // Map of sceneID -> trust score (optional, for ranking)
 }
 
 // EventSearchOptions configures the search parameters for event queries.
@@ -362,6 +380,133 @@ func (r *InMemorySceneRepository) ListByOwner(ownerDID string) ([]*Scene, error)
 	}
 
 	return result, nil
+}
+
+// SearchScenes searches for scenes with text matching, geo filtering, ranking, and pagination.
+// Filters out deleted and hidden scenes, applies text search if query is provided,
+// and ranks results by composite score (text + proximity + trust).
+// Returns scenes sorted by composite score descending, then by ID for stable ordering.
+func (r *InMemorySceneRepository) SearchScenes(opts SceneSearchOptions) ([]*Scene, string, error) {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+
+	// Calculate bbox center for proximity scoring
+	centerLat := (opts.MinLat + opts.MaxLat) / 2.0
+	centerLng := (opts.MinLng + opts.MaxLng) / 2.0
+
+	// Decode cursor if provided
+	cursor, err := DecodeSceneCursor(opts.Cursor)
+	if err != nil {
+		return nil, "", err
+	}
+
+	// Filter and score scenes
+	type scoredScene struct {
+		scene *Scene
+		score float64
+	}
+	var scored []scoredScene
+
+	for _, scene := range r.scenes {
+		// Skip deleted scenes
+		if scene.DeletedAt != nil {
+			continue
+		}
+
+		// Skip hidden/unlisted scenes (only public and members-only visible in search)
+		if scene.Visibility == VisibilityHidden {
+			continue
+		}
+
+		// Apply bbox filter if scene has precise location
+		if scene.PrecisePoint != nil {
+			if scene.PrecisePoint.Lat < opts.MinLat || scene.PrecisePoint.Lat > opts.MaxLat ||
+				scene.PrecisePoint.Lng < opts.MinLng || scene.PrecisePoint.Lng > opts.MaxLng {
+				continue
+			}
+		}
+
+		// Calculate text match score
+		textScore := CalculateSceneTextMatchScore(scene, opts.Query)
+
+		// Skip if query doesn't match (textScore == 0)
+		if opts.Query != "" && textScore == 0.0 {
+			continue
+		}
+
+		// Calculate proximity score
+		proximityScore := CalculateSceneProximityScore(scene, centerLat, centerLng)
+
+		// Get trust score if available
+		trustScore := 0.0
+		if opts.TrustScores != nil {
+			if ts, ok := opts.TrustScores[scene.ID]; ok {
+				trustScore = ts
+			}
+		}
+
+		// Calculate composite score
+		includeTrust := opts.TrustScores != nil && len(opts.TrustScores) > 0
+		compositeScore := CalculateSceneCompositeScore(
+			textScore,
+			proximityScore,
+			trustScore,
+			DefaultSceneRankingWeights,
+			includeTrust,
+		)
+
+		scored = append(scored, scoredScene{
+			scene: scene,
+			score: compositeScore,
+		})
+	}
+
+	// Sort by score DESC, then by ID ASC for stable ordering
+	sort.Slice(scored, func(i, j int) bool {
+		if scored[i].score == scored[j].score {
+			return scored[i].scene.ID < scored[j].scene.ID
+		}
+		return scored[i].score > scored[j].score
+	})
+
+	// Apply cursor pagination
+	startIdx := 0
+	if cursor != nil {
+		// Find the position after the cursor
+		for i, s := range scored {
+			if s.score < cursor.Score || (s.score == cursor.Score && s.scene.ID > cursor.ID) {
+				startIdx = i
+				break
+			}
+		}
+	}
+
+	// Extract page of results
+	endIdx := startIdx + opts.Limit
+	if endIdx > len(scored) {
+		endIdx = len(scored)
+	}
+
+	// Build result slice
+	var results []*Scene
+	for i := startIdx; i < endIdx; i++ {
+		// Return a copy to avoid external modification
+		sceneCopy := *scored[i].scene
+		if scored[i].scene.PrecisePoint != nil {
+			pointCopy := *scored[i].scene.PrecisePoint
+			sceneCopy.PrecisePoint = &pointCopy
+		}
+		results = append(results, &sceneCopy)
+	}
+
+	// Generate next cursor if there are more results
+	var nextCursor string
+	if endIdx < len(scored) {
+		lastScene := scored[endIdx-1]
+		nextCursor = EncodeSceneCursor(lastScene.score, lastScene.scene.ID)
+	}
+
+	return results, nextCursor, nil
 }
 
 // InMemoryEventRepository is an in-memory implementation of EventRepository.

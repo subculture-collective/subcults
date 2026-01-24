@@ -3,6 +3,9 @@
 package scene
 
 import (
+	"encoding/base64"
+	"encoding/json"
+	"fmt"
 	"math"
 	"strings"
 	"time"
@@ -145,4 +148,138 @@ func CalculateCompositeScore(
 	}
 	
 	return score
+}
+
+// SceneRankingWeights defines the weights for different ranking components in scene search.
+// These weights determine how much each factor contributes to the final composite score.
+//
+// The default formula is optimized for scene discovery:
+// - Text match (60%): Prioritizes query relevance for targeted search
+// - Proximity (25%): Considers geographic convenience
+// - Trust (15%): Adds scene reputation signal without dominating results
+//
+// Formula: composite_score = (text * 0.6) + (proximity * 0.25) + (trust * 0.15)
+//
+// Note: When trust ranking is disabled via feature flag, trust weight is effectively 0,
+// and the remaining components are normalized to sum to 0.85.
+type SceneRankingWeights struct {
+TextMatch float64 // Text match weight (default: 0.6)
+Proximity float64 // Proximity/geo weight (default: 0.25)
+Trust     float64 // Trust score weight (default: 0.15)
+}
+
+// DefaultSceneRankingWeights returns the default ranking weights for scene search.
+var DefaultSceneRankingWeights = SceneRankingWeights{
+TextMatch: 0.6,
+Proximity: 0.25,
+Trust:     0.15,
+}
+
+// CalculateSceneTextMatchScore computes a simple text match score based on query presence.
+// Returns a value between 0.0 and 1.0 based on where the match is found.
+// For in-memory implementation, we use simple case-insensitive substring matching.
+// In a real PostGIS implementation, this would use ts_rank with tsvector.
+func CalculateSceneTextMatchScore(scene *Scene, query string) float64 {
+if query == "" {
+return 1.0 // No query means all scenes match equally
+}
+
+queryLower := strings.ToLower(query)
+
+// Check name (highest weight)
+if strings.Contains(strings.ToLower(scene.Name), queryLower) {
+return 1.0
+}
+
+// Check description (medium weight)
+if strings.Contains(strings.ToLower(scene.Description), queryLower) {
+return 0.7
+}
+
+// Check tags (lower weight)
+for _, tag := range scene.Tags {
+if strings.Contains(strings.ToLower(tag), queryLower) {
+return 0.5
+}
+}
+
+return 0.0 // No match
+}
+
+// CalculateSceneProximityScore computes a distance-based proximity score for a scene.
+// Returns a value between 0.0 (far) and 1.0 (close) based on distance from reference point.
+// For simplicity in in-memory implementation, we use the center of the bbox as reference.
+// In a real PostGIS implementation, this would use ST_Distance with proper geo calculations.
+func CalculateSceneProximityScore(scene *Scene, centerLat, centerLng float64) float64 {
+if scene.PrecisePoint == nil {
+return 0.5 // Default score if no location
+}
+
+// Calculate simple Euclidean distance (not great circle, but good enough for in-memory)
+// For production with PostGIS, use ST_Distance with proper geodesic calculations
+latDiff := scene.PrecisePoint.Lat - centerLat
+lngDiff := scene.PrecisePoint.Lng - centerLng
+distance := math.Sqrt(latDiff*latDiff + lngDiff*lngDiff)
+
+// Normalize distance to [0, 1] range
+// Use a simple decay function: 1 / (1 + distance)
+// This gives 1.0 for distance=0, 0.5 for distance=1, etc.
+score := 1.0 / (1.0 + distance)
+
+return score
+}
+
+// CalculateSceneCompositeScore computes the final composite ranking score for a scene.
+// Combines text match, proximity, and optional trust scores using configured weights.
+func CalculateSceneCompositeScore(
+textMatchScore float64,
+proximityScore float64,
+trustScore float64,
+weights SceneRankingWeights,
+includeTrust bool,
+) float64 {
+score := (textMatchScore * weights.TextMatch) +
+(proximityScore * weights.Proximity)
+
+if includeTrust {
+score += trustScore * weights.Trust
+}
+
+return score
+}
+
+// SceneCursor represents the pagination cursor for scene search results.
+type SceneCursor struct {
+Score float64 `json:"score"` // Composite score of last scene
+ID    string  `json:"id"`    // Scene ID for stable ordering
+}
+
+// EncodeSceneCursor encodes a cursor to a base64 string for pagination.
+func EncodeSceneCursor(score float64, id string) string {
+cursor := SceneCursor{
+Score: score,
+ID:    id,
+}
+data, _ := json.Marshal(cursor)
+return base64.URLEncoding.EncodeToString(data)
+}
+
+// DecodeSceneCursor decodes a base64 cursor string back to SceneCursor.
+// Returns error if cursor is invalid or cannot be decoded.
+func DecodeSceneCursor(encoded string) (*SceneCursor, error) {
+if encoded == "" {
+return nil, nil
+}
+
+data, err := base64.URLEncoding.DecodeString(encoded)
+if err != nil {
+return nil, fmt.Errorf("invalid cursor encoding: %w", err)
+}
+
+var cursor SceneCursor
+if err := json.Unmarshal(data, &cursor); err != nil {
+return nil, fmt.Errorf("invalid cursor format: %w", err)
+}
+
+return &cursor, nil
 }
