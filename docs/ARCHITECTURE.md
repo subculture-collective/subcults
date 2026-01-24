@@ -324,6 +324,147 @@ All location data respects consent flags:
 3. **API Level**: Geohash-based jitter applied for non-consenting users
 4. **Frontend Level**: Map displays jittered coordinates for privacy
 
+## Search & Ranking System
+
+### Ranking Formula
+
+Subcults uses a multi-factor ranking system to surface the most relevant scenes and events. The ranking module (`internal/ranking`) provides centralized calculation functions with calibration support.
+
+#### Components
+
+Ranking components are normalized to produce scores in the [0, 1] range:
+
+1. **Text Match**: Relevance to search query
+   - Based on full-text search (ts_rank with tsvector), normalized to [0, 1]
+   - Higher scores for title matches vs. description/tags
+   - Note: The raw ts_rank score is expected to be normalized before passing to ranking functions
+
+2. **Proximity** (`ProximityWeight`): Geographic distance from search center
+   - Hyperbolic decay function: `1 / (1 + distance_km)`
+   - 1.0 at exact location, 0.5 at ~1km, decays gradually
+
+3. **Recency** (`RecencyWeight`): Time until event starts (events only)
+   - Linear decay: `1 - (time_diff / window_span)`
+   - 1.0 for current/past events, 0.0 at search window end
+
+4. **Trust** (`TrustWeight`): Scene reputation via alliance graph
+   - Feature-flagged via `RANK_TRUST_ENABLED`
+   - Returns 0 when disabled for graceful degradation
+   - Clamped to [0, 1] range
+
+#### Composite Formulas
+
+**Scene Ranking**:
+```
+composite_score = (text * 0.4) + (proximity * 0.3) + (trust * 0.1)
+Max score: 0.7 (trust disabled) or 0.8 (trust enabled)
+```
+
+**Event Ranking**:
+```
+composite_score = (recency * 0.3) + (text * 0.4) + (proximity * 0.2) + (trust * 0.1)
+Max score: 0.9 (trust disabled) or 1.0 (trust enabled)
+```
+
+The default weights prioritize:
+- **Text match (40%)**: Ensures query relevance for targeted search
+- **Recency (30%, events only)**: Favors upcoming events for timely discovery
+- **Proximity (20-30%)**: Considers geographic convenience
+- **Trust (10%)**: Adds reputation signal without dominating results
+
+### Calibration System
+
+#### Configuration File
+
+Ranking weights are defined in `configs/ranking.calibration.json`:
+
+```json
+{
+  "version": "1.0",
+  "weights": {
+    "scene": {
+      "text_match": 0.4,
+      "proximity": 0.3,
+      "trust": 0.1
+    },
+    "event": {
+      "recency": 0.3,
+      "text_match": 0.4,
+      "proximity": 0.2,
+      "trust": 0.1
+    }
+  }
+}
+```
+
+#### Loading Process
+
+1. Application startup loads calibration file via `ranking.LoadCalibration(path)`
+2. If file is missing/invalid, defaults are used (graceful degradation)
+3. Overrides are logged at INFO level for observability
+4. Changes require deployment (not runtime modifiable for security)
+
+#### Tuning Workflow
+
+To adjust ranking behavior:
+
+1. Edit `configs/ranking.calibration.json` with new weights
+2. Run tests to verify composite score behavior changes as expected
+3. Deploy updated configuration file
+4. Monitor search quality metrics and user engagement
+5. Iterate based on feedback
+
+**Example**: To increase proximity importance for events:
+```json
+{
+  "version": "1.0",
+  "weights": {
+    "event": {
+      "recency": 0.25,
+      "text_match": 0.35,
+      "proximity": 0.3,
+      "trust": 0.1
+    }
+  }
+}
+```
+
+### Future: Machine Learning Opportunities
+
+The current calibration system uses fixed weights optimized for general use cases. Future enhancements could include:
+
+1. **Personalized Ranking**: Per-user weights based on interaction history
+   - Click-through rate on different event types
+   - Geographic preferences (local vs. willing to travel)
+   - Genre/tag affinity signals
+
+2. **A/B Testing Framework**: Experiment with weight variations
+   - Split users into cohorts with different weight configurations
+   - Measure engagement metrics (clicks, RSVP conversions, dwell time)
+   - Statistical significance testing before rollout
+
+3. **Learning-to-Rank Models**: ML models trained on engagement data
+   - Features: All current components + user context
+   - Training signal: Clicks, RSVPs, time-on-page
+   - Models: LambdaMART, neural ranking (BERT-based)
+   - Online learning for continuous improvement
+
+4. **Contextual Adjustments**: Dynamic weights based on query context
+   - Time-sensitive queries (e.g., "tonight") → increase recency weight
+   - Location-specific queries (e.g., "Brooklyn") → increase proximity weight
+   - Genre queries (e.g., "techno") → increase text weight
+
+5. **Diversity & Exploration**: Balance relevance with discovery
+   - Avoid filter bubbles by injecting diverse results
+   - Exploration bonus for scenes with low visibility but high quality
+   - Time-decay for repeatedly shown but not engaged content
+
+**Implementation Notes**:
+- All ML features must respect privacy (no tracking without consent)
+- Models should be explainable for trust and debugging
+- Offline evaluation metrics before production deployment
+- Fallback to rule-based ranking if ML service unavailable
+
 ## Testing Strategy
 
 ### Frontend Tests
