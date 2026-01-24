@@ -161,7 +161,7 @@ func CalculateCompositeScore(
 // Formula: composite_score = (text * 0.6) + (proximity * 0.25) + (trust * 0.15)
 //
 // Note: When trust ranking is disabled via feature flag, trust weight is effectively 0,
-// and the remaining components are normalized to sum to 0.85.
+// resulting in a maximum possible score of 0.85 (not 1.0).
 type SceneRankingWeights struct {
 TextMatch float64 // Text match weight (default: 0.6)
 Proximity float64 // Proximity/geo weight (default: 0.25)

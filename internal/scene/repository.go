@@ -418,12 +418,14 @@ func (r *InMemorySceneRepository) SearchScenes(opts SceneSearchOptions) ([]*Scen
 			continue
 		}
 
-		// Apply bbox filter if scene has precise location
-		if scene.PrecisePoint != nil {
-			if scene.PrecisePoint.Lat < opts.MinLat || scene.PrecisePoint.Lat > opts.MaxLat ||
-				scene.PrecisePoint.Lng < opts.MinLng || scene.PrecisePoint.Lng > opts.MaxLng {
-				continue
-			}
+		// Apply bbox filter: require precise location within bounds
+		if scene.PrecisePoint == nil {
+			// Exclude scenes without a precise location from bbox-based search
+			continue
+		}
+		if scene.PrecisePoint.Lat < opts.MinLat || scene.PrecisePoint.Lat > opts.MaxLat ||
+			scene.PrecisePoint.Lng < opts.MinLng || scene.PrecisePoint.Lng > opts.MaxLng {
+			continue
 		}
 
 		// Calculate text match score

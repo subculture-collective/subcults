@@ -221,8 +221,8 @@ t.Errorf("expected status %d, got %d", tt.expectCode, w.Code)
 }
 }
 
-// TestSearchScenes_RequiresQueryOrBbox tests that at least one of q or bbox is required.
-func TestSearchScenes_RequiresQueryOrBbox(t *testing.T) {
+// TestSearchScenes_RequiresBbox tests that bbox parameter is required.
+func TestSearchScenes_RequiresBbox(t *testing.T) {
 sceneRepo := scene.NewInMemorySceneRepository()
 handlers := NewSearchHandlers(sceneRepo, nil)
 
@@ -234,6 +234,16 @@ handlers.SearchScenes(w, req)
 
 if w.Code != http.StatusBadRequest {
 t.Errorf("expected status 400, got %d", w.Code)
+}
+
+// Request with only q (no bbox) should also fail
+req2 := httptest.NewRequest(http.MethodGet, "/search/scenes?q=test", nil)
+w2 := httptest.NewRecorder()
+
+handlers.SearchScenes(w2, req2)
+
+if w2.Code != http.StatusBadRequest {
+t.Errorf("expected status 400 for q without bbox, got %d", w2.Code)
 }
 }
 
@@ -437,12 +447,13 @@ t.Error("trust score should not be included when trust ranking is disabled")
 
 // mockTrustScoreStore is a mock implementation of TrustScoreStore for testing.
 type mockTrustScoreStore struct {
-scores map[string]float64
+	scores map[string]float64
 }
 
-func (m *mockTrustScoreStore) GetScoreForScene(sceneID string) (float64, error) {
-if score, ok := m.scores[sceneID]; ok {
-return score, nil
-}
-return 0.0, nil
+// GetScore satisfies the TrustScoreStore interface expected by SearchHandlers.
+func (m *mockTrustScoreStore) GetScore(sceneID string) (*TrustScore, error) {
+	if score, ok := m.scores[sceneID]; ok {
+		return &TrustScore{SceneID: sceneID, Score: score}, nil
+	}
+	return &TrustScore{SceneID: sceneID, Score: 0.0}, nil
 }

@@ -14,12 +14,10 @@ GET /search/scenes
 
 | Parameter | Type | Required | Default | Description |
 |-----------|------|----------|---------|-------------|
-| `q` | string | No* | - | Text search query matching scene name, description, or tags |
-| `bbox` | string | No* | - | Bounding box in format `minLng,minLat,maxLng,maxLat` |
+| `q` | string | No | - | Text search query matching scene name, description, or tags |
+| `bbox` | string | Yes | - | Bounding box in format `minLng,minLat,maxLng,maxLat` |
 | `limit` | integer | No | 20 | Max results per page (1-50) |
 | `cursor` | string | No | - | Pagination cursor from previous response |
-
-\* At least one of `q` or `bbox` must be provided
 
 ## Response Format
 
@@ -57,7 +55,7 @@ GET /search/scenes
 | `jittered_centroid` | Point | **Privacy-protected** coordinates (always jittered) |
 | `coarse_geohash` | string | Coarse location geohash for privacy |
 | `tags` | array | Categorization tags |
-| `visibility` | string | Visibility mode (`public`, `private`) |
+| `visibility` | string | Visibility mode (`public`, `private`, `unlisted`). `unlisted` scenes are hidden and excluded from search results. |
 | `trust_score` | float | Trust score (0.0-1.0, only if trust ranking enabled) |
 
 ### Point
@@ -95,13 +93,13 @@ Results are sorted by score descending, then by ID ascending for stable ordering
 
 ## Examples
 
-### Basic Text Search
+### Text Search with Bounding Box
 
 ```bash
-curl "http://localhost:8080/search/scenes?q=electronic"
+curl "http://localhost:8080/search/scenes?q=electronic&bbox=-74.1,40.6,-73.9,40.8"
 ```
 
-### Geographic Search
+### Geographic Search Only
 
 ```bash
 curl "http://localhost:8080/search/scenes?bbox=-74.1,40.6,-73.9,40.8"
@@ -138,13 +136,13 @@ curl "http://localhost:8080/search/scenes?q=music&bbox=-74.1,40.6,-73.9,40.8&lim
 
 ## Error Responses
 
-### Missing Query Parameters
+### Missing Bounding Box
 
 ```json
 {
   "error": {
     "code": "validation_error",
-    "message": "At least one of 'q' or 'bbox' must be provided"
+    "message": "bbox parameter is required"
   }
 }
 ```
@@ -190,11 +188,13 @@ All coordinates returned in `jittered_centroid` are **privacy-protected**:
 
 ### Visibility Filtering
 
-Only scenes with appropriate visibility are returned:
+Only scenes the requester is authorized to discover are returned:
 
-- **public**: Included in search results
-- **private**: Included (members-only access enforced elsewhere)
-- **unlisted**: **Excluded** from search results
+- **public**: Included in search results for all callers
+- **private**: **Currently included in search results** (membership-based filtering not yet implemented - see Security Note below)
+- **unlisted**: **Always excluded** from search results
+
+**Security Note**: The current implementation does not enforce membership-based access control for private scenes in search results. This means private scenes are discoverable by unauthenticated users and non-members through the search endpoint. This is a known limitation that will be addressed in a future update to apply proper authorization checks based on scene membership before including private scenes in search results.
 
 ### Deleted Scenes
 

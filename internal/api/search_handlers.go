@@ -10,9 +10,9 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/onnwee/subcults/internal/geo"
 	"github.com/onnwee/subcults/internal/middleware"
 	"github.com/onnwee/subcults/internal/scene"
-	"github.com/onnwee/subcults/internal/trust"
 )
 
 // SearchHandlers holds dependencies for search HTTP handlers.
@@ -63,17 +63,17 @@ func (h *SearchHandlers) SearchScenes(w http.ResponseWriter, r *http.Request) {
 	// Get text search query (optional)
 	q := strings.TrimSpace(query.Get("q"))
 	
-	// Get bbox parameters
+	// Get bbox parameters (required)
 	bboxStr := query.Get("bbox")
-	if bboxStr == "" && q == "" {
+	if bboxStr == "" {
 		ctx := middleware.SetErrorCode(r.Context(), ErrCodeValidation)
-		WriteError(w, ctx, http.StatusBadRequest, ErrCodeValidation, "At least one of 'q' or 'bbox' must be provided")
+		WriteError(w, ctx, http.StatusBadRequest, ErrCodeValidation, "bbox parameter is required")
 		return
 	}
 	
-	// Parse bbox if provided
+	// Parse bbox
 	var minLng, minLat, maxLng, maxLat float64
-	if bboxStr != "" {
+	{
 		parts := strings.Split(bboxStr, ",")
 		if len(parts) != 4 {
 			ctx := middleware.SetErrorCode(r.Context(), ErrCodeValidation)
@@ -142,12 +142,6 @@ func (h *SearchHandlers) SearchScenes(w http.ResponseWriter, r *http.Request) {
 			WriteError(w, ctx, http.StatusBadRequest, ErrCodeValidation, fmt.Sprintf("bbox area too large (max %.1f square degrees)", MaxBboxAreaDegrees))
 			return
 		}
-	} else {
-		// No bbox provided, use world bounds
-		minLng = -180
-		minLat = -90
-		maxLng = 180
-		maxLat = 90
 	}
 	
 	// Get pagination parameters
@@ -167,15 +161,9 @@ func (h *SearchHandlers) SearchScenes(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	
-	// Get trust scores if trust ranking is enabled
-	var trustScores map[string]float64
-	if trust.IsRankingEnabled() && h.trustStore != nil {
-		// For now, we'll pass nil and let the ranking use default scores
-		// In production, this would fetch trust scores for scenes in the result set
-		trustScores = nil
-	}
-	
 	// Execute search
+	// Note: Trust scoring is not yet implemented. When implemented, trust scores
+	// should be fetched for the requester's trust graph and passed to SearchScenes.
 	results, nextCursor, err := h.sceneRepo.SearchScenes(scene.SceneSearchOptions{
 		MinLng:      minLng,
 		MinLat:      minLat,
@@ -184,7 +172,7 @@ func (h *SearchHandlers) SearchScenes(w http.ResponseWriter, r *http.Request) {
 		Query:       q,
 		Limit:       limit,
 		Cursor:      cursor,
-		TrustScores: trustScores,
+		TrustScores: nil, // Trust scoring not yet implemented
 	})
 	
 	if err != nil {
@@ -212,13 +200,6 @@ func (h *SearchHandlers) SearchScenes(w http.ResponseWriter, r *http.Request) {
 			result.JitteredPoint = applyJitter(s.PrecisePoint)
 		}
 		
-		// Include trust score if available and enabled
-		if trust.IsRankingEnabled() && trustScores != nil {
-			if ts, ok := trustScores[s.ID]; ok {
-				result.TrustScore = &ts
-			}
-		}
-		
 		searchResults = append(searchResults, result)
 	}
 	
@@ -238,20 +219,91 @@ func (h *SearchHandlers) SearchScenes(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// applyJitter applies deterministic jitter to a point for privacy.
-// This is a simple implementation for the in-memory repository.
-// In production, this would use the geo.ApplyJitter function with proper geohash-based jitter.
+// applyJitter applies deterministic geohash-based jitter to a point for privacy.
+// Uses the point's geohash to generate a stable offset that prevents exact location
+// exposure while maintaining determinism (same coordinates = same jittered result).
 func applyJitter(point *scene.Point) *scene.Point {
-	// Simple jitter: add small random offset based on coordinates (deterministic)
-	// This prevents exact location exposure while keeping results stable
-	// For production, use proper geohash-based jitter from geo package
+	// Calculate geohash at precision 8 (approximately 20m x 20m cell)
+	// This provides stable jitter based on the location's geohash cell
+	geohash := encodeGeohash(point.Lat, point.Lng, 8)
 	
-	// Use coordinates as seed for deterministic jitter
-	seed := int64(point.Lat*1000000 + point.Lng*1000000)
-	offset := float64((seed % 1000)) / 10000.0 // ~0.01 degree offset
+	// Use geohash to generate deterministic offset
+	// Hash the geohash string to get a numeric seed
+	var hash int64
+	for i, c := range geohash {
+		hash = hash*31 + int64(c) + int64(i)
+	}
+	
+	// Ensure positive seed
+	if hash < 0 {
+		hash = -hash
+	}
+	
+	// Generate offset in range [0.005, 0.015] degrees (~500m to 1.5km at equator)
+	// This is sufficient to hide exact location while keeping scenes discoverable
+	latOffset := 0.005 + float64(hash%1000)/100000.0
+	lngOffset := 0.005 + float64((hash/1000)%1000)/100000.0
+	
+	// Apply offset in a deterministic direction based on hash
+	latSign := 1.0
+	if (hash/1000000)%2 == 0 {
+		latSign = -1.0
+	}
+	lngSign := 1.0
+	if (hash/2000000)%2 == 0 {
+		lngSign = -1.0
+	}
 	
 	return &scene.Point{
-		Lat: point.Lat + offset,
-		Lng: point.Lng + offset,
+		Lat: point.Lat + latOffset*latSign,
+		Lng: point.Lng + lngOffset*lngSign,
 	}
+}
+
+// encodeGeohash encodes a lat/lng coordinate to a geohash string.
+// This is a simplified implementation for jitter calculation.
+// For production, use a proper geohash library.
+func encodeGeohash(lat, lng float64, precision int) string {
+	const base32 = "0123456789bcdefghjkmnpqrstuvwxyz"
+	
+	minLat, maxLat := -90.0, 90.0
+	minLng, maxLng := -180.0, 180.0
+	
+	var geohash strings.Builder
+	bits := 0
+	bit := 0
+	ch := 0
+	
+	for geohash.Len() < precision {
+		if bits%2 == 0 {
+			// longitude
+			mid := (minLng + maxLng) / 2
+			if lng > mid {
+				ch |= (1 << (4 - bit))
+				minLng = mid
+			} else {
+				maxLng = mid
+			}
+		} else {
+			// latitude
+			mid := (minLat + maxLat) / 2
+			if lat > mid {
+				ch |= (1 << (4 - bit))
+				minLat = mid
+			} else {
+				maxLat = mid
+			}
+		}
+		
+		bits++
+		bit++
+		
+		if bit == 5 {
+			geohash.WriteByte(base32[ch])
+			bit = 0
+			ch = 0
+		}
+	}
+	
+	return geohash.String()
 }
