@@ -12,19 +12,23 @@ import (
 
 	"github.com/onnwee/subcults/internal/geo"
 	"github.com/onnwee/subcults/internal/middleware"
+	"github.com/onnwee/subcults/internal/post"
 	"github.com/onnwee/subcults/internal/scene"
+	"github.com/onnwee/subcults/internal/trust"
 )
 
 // SearchHandlers holds dependencies for search HTTP handlers.
 type SearchHandlers struct {
 	sceneRepo scene.SceneRepository
+	postRepo  post.PostRepository
 	trustStore TrustScoreStore
 }
 
 // NewSearchHandlers creates a new SearchHandlers instance.
-func NewSearchHandlers(sceneRepo scene.SceneRepository, trustStore TrustScoreStore) *SearchHandlers {
+func NewSearchHandlers(sceneRepo scene.SceneRepository, postRepo post.PostRepository, trustStore TrustScoreStore) *SearchHandlers {
 	return &SearchHandlers{
 		sceneRepo:  sceneRepo,
+		postRepo:   postRepo,
 		trustStore: trustStore,
 	}
 }
@@ -307,3 +311,128 @@ func encodeGeohash(lat, lng float64, precision int) string {
 	
 	return geohash.String()
 }
+
+// PostSearchResponse represents the response for post search.
+type PostSearchResponse struct {
+	Results    []*PostSearchResult `json:"results"`
+	NextCursor string              `json:"next_cursor,omitempty"`
+	Count      int                 `json:"count"`
+}
+
+// PostSearchResult represents a minimal post result for search.
+type PostSearchResult struct {
+	ID         string    `json:"id"`
+	Excerpt    string    `json:"excerpt"`           // First 160 chars
+	SceneID    *string   `json:"scene_id,omitempty"`
+	TrustScore *float64  `json:"trust_score,omitempty"` // Only if trust ranking enabled
+	CreatedAt  string    `json:"created_at"`        // ISO 8601 format
+}
+
+// SearchPosts handles GET /search/posts - searches for posts with text relevance and scene filter.
+func (h *SearchHandlers) SearchPosts(w http.ResponseWriter, r *http.Request) {
+	// Parse query parameters
+	query := r.URL.Query()
+	
+	// Get text search query (required)
+	q := strings.TrimSpace(query.Get("q"))
+	if q == "" {
+		ctx := middleware.SetErrorCode(r.Context(), ErrCodeValidation)
+		WriteError(w, ctx, http.StatusBadRequest, ErrCodeValidation, "q parameter is required")
+		return
+	}
+	
+	// Get optional scene filter
+	var sceneID *string
+	if sceneIDStr := query.Get("scene_id"); sceneIDStr != "" {
+		sceneID = &sceneIDStr
+	}
+	
+	// Get pagination parameters
+	cursor := query.Get("cursor")
+	
+	limit := DefaultSearchLimit
+	if limitStr := query.Get("limit"); limitStr != "" {
+		var err error
+		limit, err = strconv.Atoi(limitStr)
+		if err != nil || limit < 1 {
+			ctx := middleware.SetErrorCode(r.Context(), ErrCodeValidation)
+			WriteError(w, ctx, http.StatusBadRequest, ErrCodeValidation, "limit must be a positive integer")
+			return
+		}
+		if limit > MaxSearchLimit {
+			limit = MaxSearchLimit
+		}
+	}
+	
+	// Get trust scores if ranking is enabled
+	var trustScores map[string]float64
+	if trust.IsRankingEnabled() {
+		// TODO: Fetch requester's trust scores from trust store
+		// For now, pass nil to disable trust-weighted ranking
+		trustScores = nil
+	}
+	
+	// Execute search
+	results, nextCursor, err := h.postRepo.SearchPosts(q, sceneID, limit, cursor, trustScores)
+	if err != nil {
+		slog.ErrorContext(r.Context(), "failed to search posts", "error", err, "query", q, "scene_id", sceneID)
+		ctx := middleware.SetErrorCode(r.Context(), ErrCodeInternal)
+		WriteError(w, ctx, http.StatusInternalServerError, ErrCodeInternal, "Failed to search posts")
+		return
+	}
+	
+	// Convert to search results with excerpts
+	searchResults := make([]*PostSearchResult, 0, len(results))
+	for _, p := range results {
+		result := &PostSearchResult{
+			ID:        p.ID,
+			Excerpt:   makeExcerpt(p.Text, 160),
+			SceneID:   p.SceneID,
+			CreatedAt: p.CreatedAt.Format("2006-01-02T15:04:05Z07:00"), // ISO 8601
+		}
+		
+		// Add trust score if ranking is enabled and post has a scene
+		if trust.IsRankingEnabled() && p.SceneID != nil && trustScores != nil {
+			if score, ok := trustScores[*p.SceneID]; ok {
+				result.TrustScore = &score
+			}
+		}
+		
+		searchResults = append(searchResults, result)
+	}
+	
+	// Build response
+	response := PostSearchResponse{
+		Results:    searchResults,
+		NextCursor: nextCursor,
+		Count:      len(searchResults),
+	}
+	
+	// Return results
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	if err := json.NewEncoder(w).Encode(response); err != nil {
+		slog.ErrorContext(r.Context(), "failed to encode search response", "error", err)
+		return
+	}
+}
+
+// makeExcerpt creates a text excerpt of the specified length.
+// Truncates at word boundary if possible.
+func makeExcerpt(text string, maxLen int) string {
+	if len(text) <= maxLen {
+		return text
+	}
+	
+	// Try to truncate at word boundary
+	truncated := text[:maxLen]
+	lastSpace := strings.LastIndex(truncated, " ")
+	if lastSpace > maxLen/2 {
+		// If we found a space in the second half, use it
+		return truncated[:lastSpace] + "..."
+	}
+	
+	// Otherwise just truncate at max length
+	return truncated + "..."
+}
+

@@ -16,7 +16,7 @@ import (
 // TestSearchScenes_Success tests successful scene search.
 func TestSearchScenes_Success(t *testing.T) {
 sceneRepo := scene.NewInMemorySceneRepository()
-handlers := NewSearchHandlers(sceneRepo, nil)
+handlers := NewSearchHandlers(sceneRepo, nil, nil)
 
 now := time.Now()
 
@@ -94,7 +94,7 @@ t.Error("expected jittered point to be present")
 // TestSearchScenes_Pagination tests cursor pagination.
 func TestSearchScenes_Pagination(t *testing.T) {
 sceneRepo := scene.NewInMemorySceneRepository()
-handlers := NewSearchHandlers(sceneRepo, nil)
+handlers := NewSearchHandlers(sceneRepo, nil, nil)
 
 now := time.Now()
 
@@ -163,7 +163,7 @@ t.Errorf("duplicate scene ID %s in page 2", r.ID)
 // TestSearchScenes_BboxValidation tests bbox parameter validation.
 func TestSearchScenes_BboxValidation(t *testing.T) {
 sceneRepo := scene.NewInMemorySceneRepository()
-handlers := NewSearchHandlers(sceneRepo, nil)
+handlers := NewSearchHandlers(sceneRepo, nil, nil)
 
 tests := []struct {
 name       string
@@ -224,7 +224,7 @@ t.Errorf("expected status %d, got %d", tt.expectCode, w.Code)
 // TestSearchScenes_RequiresBbox tests that bbox parameter is required.
 func TestSearchScenes_RequiresBbox(t *testing.T) {
 sceneRepo := scene.NewInMemorySceneRepository()
-handlers := NewSearchHandlers(sceneRepo, nil)
+handlers := NewSearchHandlers(sceneRepo, nil, nil)
 
 // Request with neither q nor bbox
 req := httptest.NewRequest(http.MethodGet, "/search/scenes", nil)
@@ -250,7 +250,7 @@ t.Errorf("expected status 400 for q without bbox, got %d", w2.Code)
 // TestSearchScenes_LimitValidation tests limit parameter validation.
 func TestSearchScenes_LimitValidation(t *testing.T) {
 sceneRepo := scene.NewInMemorySceneRepository()
-handlers := NewSearchHandlers(sceneRepo, nil)
+handlers := NewSearchHandlers(sceneRepo, nil, nil)
 
 now := time.Now()
 
@@ -314,7 +314,7 @@ t.Errorf("expected status %d, got %d", tt.expectCode, w.Code)
 // TestSearchScenes_HiddenScenesExcluded tests that hidden scenes are excluded from search results.
 func TestSearchScenes_HiddenScenesExcluded(t *testing.T) {
 sceneRepo := scene.NewInMemorySceneRepository()
-handlers := NewSearchHandlers(sceneRepo, nil)
+handlers := NewSearchHandlers(sceneRepo, nil, nil)
 
 now := time.Now()
 
@@ -376,14 +376,11 @@ func TestSearchScenes_TrustRankingFlag(t *testing.T) {
 sceneRepo := scene.NewInMemorySceneRepository()
 
 // Create a mock trust store
-mockTrustStore := &mockTrustScoreStore{
-scores: map[string]float64{
-"scene1": 0.9,
-"scene2": 0.3,
-},
-}
+mockTrustStore := newMockTrustScoreStore()
+mockTrustStore.SetScore("scene1", 0.9)
+mockTrustStore.SetScore("scene2", 0.3)
 
-handlers := NewSearchHandlers(sceneRepo, mockTrustStore)
+handlers := NewSearchHandlers(sceneRepo, nil, mockTrustStore)
 
 now := time.Now()
 
@@ -445,15 +442,3 @@ t.Error("trust score should not be included when trust ranking is disabled")
 }
 }
 
-// mockTrustScoreStore is a mock implementation of TrustScoreStore for testing.
-type mockTrustScoreStore struct {
-	scores map[string]float64
-}
-
-// GetScore satisfies the TrustScoreStore interface expected by SearchHandlers.
-func (m *mockTrustScoreStore) GetScore(sceneID string) (*TrustScore, error) {
-	if score, ok := m.scores[sceneID]; ok {
-		return &TrustScore{SceneID: sceneID, Score: score}, nil
-	}
-	return &TrustScore{SceneID: sceneID, Score: 0.0}, nil
-}
