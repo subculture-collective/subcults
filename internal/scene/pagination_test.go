@@ -283,8 +283,8 @@ func TestScenePagination_InsertionOrderIndependence(t *testing.T) {
 		for i := range shuffled {
 			shuffled[i] = i
 		}
-		rand.Seed(int64(run * 12345))
-		rand.Shuffle(len(shuffled), func(i, j int) {
+		r := rand.New(rand.NewSource(int64(run * 12345)))
+		r.Shuffle(len(shuffled), func(i, j int) {
 			shuffled[i], shuffled[j] = shuffled[j], shuffled[i]
 		})
 

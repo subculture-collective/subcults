@@ -199,21 +199,16 @@ func TestPostPagination_InsertionOrderIndependence(t *testing.T) {
 	// Create multiple posts with identical scores (same text)
 	// They will be created at slightly different times but should still
 	// be ordered deterministically by ID
-	baseTime := time.Date(2024, 1, 1, 10, 0, 0, 0, time.UTC)
-	
 	for i := 0; i < 10; i++ {
 		post := &Post{
 			SceneID:   &sceneID,
 			AuthorDID: "did:example:user1",
 			Text:      "music event", // Same text = same score
 			Labels:    []string{},
-			CreatedAt: baseTime, // Same timestamp
 		}
 		if err := repo.Create(post); err != nil {
 			t.Fatalf("failed to create post %d: %v", i, err)
 		}
-		// Small delay to ensure different creation order
-		time.Sleep(time.Microsecond)
 	}
 
 	// Search multiple times - should return same order every time
