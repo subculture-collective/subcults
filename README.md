@@ -32,6 +32,7 @@ Rebuild the connective tissue of the underground: a trust‑based discovery laye
 - Basic trust graph (memberships + alliances scoring)
 - Coarse location privacy & EXIF stripping
 - Direct revenue (ticket/merch checkout)
+- Web Push notifications (opt-in, privacy-first engagement)
 
 ## Roadmap Phases
 
@@ -366,6 +367,7 @@ Subcult is built with privacy as a core principle. See [docs/PRIVACY.md](docs/PR
 - Media sanitization (EXIF stripping)
 - Access logging practices
 - User authentication and rate limiting
+- Web Push notifications (opt-in only, see [docs/web-push-notifications.md](docs/web-push-notifications.md))
 
 ## License
 
