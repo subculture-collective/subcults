@@ -302,3 +302,248 @@ func TestCalculateCompositeScore_CustomWeights(t *testing.T) {
 		t.Errorf("expected score 1.0 with custom weights, got %f", score)
 	}
 }
+
+// TestCalculateSceneTextMatchScore tests text match scoring for scenes.
+func TestCalculateSceneTextMatchScore(t *testing.T) {
+tests := []struct {
+name          string
+scene         *Scene
+query         string
+expectedScore float64
+}{
+{
+name: "exact name match",
+scene: &Scene{
+Name:        "Electronic Music",
+Description: "Rock concert",
+Tags:        []string{"jazz"},
+},
+query:         "electronic",
+expectedScore: 1.0,
+},
+{
+name: "description match",
+scene: &Scene{
+Name:        "Music Venue",
+Description: "Electronic music events",
+Tags:        []string{"rock"},
+},
+query:         "electronic",
+expectedScore: 0.7,
+},
+{
+name: "tag match",
+scene: &Scene{
+Name:        "Music Venue",
+Description: "Live performances",
+Tags:        []string{"electronic", "rock"},
+},
+query:         "electronic",
+expectedScore: 0.5,
+},
+{
+name: "no match",
+scene: &Scene{
+Name:        "Jazz Venue",
+Description: "Live jazz",
+Tags:        []string{"jazz"},
+},
+query:         "electronic",
+expectedScore: 0.0,
+},
+{
+name: "empty query matches all",
+scene: &Scene{
+Name: "Any Scene",
+},
+query:         "",
+expectedScore: 1.0,
+},
+}
+
+for _, tt := range tests {
+t.Run(tt.name, func(t *testing.T) {
+score := CalculateSceneTextMatchScore(tt.scene, tt.query)
+if score != tt.expectedScore {
+t.Errorf("expected score %.2f, got %.2f", tt.expectedScore, score)
+}
+})
+}
+}
+
+// TestCalculateSceneProximityScore tests proximity scoring for scenes.
+func TestCalculateSceneProximityScore(t *testing.T) {
+centerLat := 40.7128
+centerLng := -74.0060
+
+tests := []struct {
+name          string
+scene         *Scene
+expectedMin   float64
+expectedMax   float64
+}{
+{
+name: "exact center location",
+scene: &Scene{
+PrecisePoint: &Point{Lat: 40.7128, Lng: -74.0060},
+},
+expectedMin: 1.0,
+expectedMax: 1.0,
+},
+{
+name: "nearby location",
+scene: &Scene{
+PrecisePoint: &Point{Lat: 40.7, Lng: -74.0},
+},
+expectedMin: 0.8,
+expectedMax: 1.0,
+},
+{
+name: "no location",
+scene: &Scene{
+PrecisePoint: nil,
+},
+expectedMin: 0.5,
+expectedMax: 0.5,
+},
+}
+
+for _, tt := range tests {
+t.Run(tt.name, func(t *testing.T) {
+score := CalculateSceneProximityScore(tt.scene, centerLat, centerLng)
+if score < tt.expectedMin || score > tt.expectedMax {
+t.Errorf("expected score between %.2f and %.2f, got %.2f", tt.expectedMin, tt.expectedMax, score)
+}
+})
+}
+}
+
+// TestCalculateSceneCompositeScore tests composite score calculation.
+func TestCalculateSceneCompositeScore(t *testing.T) {
+weights := DefaultSceneRankingWeights
+
+tests := []struct {
+name         string
+textMatch    float64
+proximity    float64
+trust        float64
+includeTrust bool
+expected     float64
+}{
+{
+name:         "all perfect scores with trust",
+textMatch:    1.0,
+proximity:    1.0,
+trust:        1.0,
+includeTrust: true,
+expected:     1.0, // 0.6 + 0.25 + 0.15
+},
+{
+name:         "all perfect scores without trust",
+textMatch:    1.0,
+proximity:    1.0,
+trust:        1.0,
+includeTrust: false,
+expected:     0.85, // 0.6 + 0.25 (no trust)
+},
+{
+name:         "half scores with trust",
+textMatch:    0.5,
+proximity:    0.5,
+trust:        0.5,
+includeTrust: true,
+expected:     0.5, // (0.6 + 0.25 + 0.15) * 0.5
+},
+{
+name:         "text match only",
+textMatch:    1.0,
+proximity:    0.0,
+trust:        0.0,
+includeTrust: false,
+expected:     0.6, // 1.0 * 0.6
+},
+}
+
+for _, tt := range tests {
+t.Run(tt.name, func(t *testing.T) {
+score := CalculateSceneCompositeScore(
+tt.textMatch,
+tt.proximity,
+tt.trust,
+weights,
+tt.includeTrust,
+)
+// Allow small floating point variance
+if math.Abs(score-tt.expected) > 0.001 {
+t.Errorf("expected score %.3f, got %.3f", tt.expected, score)
+}
+})
+}
+}
+
+// TestSceneCursorEncoding tests cursor encoding and decoding.
+func TestSceneCursorEncoding(t *testing.T) {
+score := 0.85
+id := "scene-123"
+
+// Encode cursor
+encoded := EncodeSceneCursor(score, id)
+if encoded == "" {
+t.Fatal("encoded cursor should not be empty")
+}
+
+// Decode cursor
+decoded, err := DecodeSceneCursor(encoded)
+if err != nil {
+t.Fatalf("failed to decode cursor: %v", err)
+}
+
+if decoded.Score != score {
+t.Errorf("expected score %.2f, got %.2f", score, decoded.Score)
+}
+
+if decoded.ID != id {
+t.Errorf("expected ID %s, got %s", id, decoded.ID)
+}
+}
+
+// TestDecodeSceneCursor_InvalidInput tests cursor decoding with invalid input.
+func TestDecodeSceneCursor_InvalidInput(t *testing.T) {
+tests := []struct {
+name   string
+cursor string
+}{
+{
+name:   "empty cursor",
+cursor: "",
+},
+{
+name:   "invalid base64",
+cursor: "not-base64!@#",
+},
+{
+name:   "invalid json",
+cursor: "aW52YWxpZCBqc29u", // base64 of "invalid json"
+},
+}
+
+for _, tt := range tests {
+t.Run(tt.name, func(t *testing.T) {
+decoded, err := DecodeSceneCursor(tt.cursor)
+if tt.cursor == "" {
+// Empty cursor should return nil without error
+if err != nil {
+t.Errorf("empty cursor should not error, got: %v", err)
+}
+if decoded != nil {
+t.Error("empty cursor should return nil")
+}
+} else {
+// Invalid cursors should error
+if err == nil {
+t.Error("expected error for invalid cursor")
+}
+}
+})
+}
+}
