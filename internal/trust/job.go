@@ -140,20 +140,20 @@ func (j *RecomputeJob) run(ctx context.Context) {
 			j.config.Logger.Info("trust recompute job stopping due to stop signal")
 			return
 		case <-ticker.C:
-			j.recomputeDirtyScenes()
+			j.recomputeDirtyScenes(ctx)
 		}
 	}
 }
 
 // recomputeDirtyScenes processes all dirty scenes and updates their trust scores.
-func (j *RecomputeJob) recomputeDirtyScenes() {
+func (j *RecomputeJob) recomputeDirtyScenes(parentCtx context.Context) {
 	dirtyScenes := j.dirtyTracker.GetDirtyScenes()
 	if len(dirtyScenes) == 0 {
 		return
 	}
 
-	// Create context with timeout
-	ctx, cancel := context.WithTimeout(context.Background(), j.config.Timeout)
+	// Create context with timeout derived from parent
+	ctx, cancel := context.WithTimeout(parentCtx, j.config.Timeout)
 	defer cancel()
 
 	// Track metrics
@@ -184,8 +184,10 @@ func (j *RecomputeJob) recomputeDirtyScenes() {
 
 		// Get previous score for variance calculation
 		var previousScore float64
+		var hasPreviousScore bool
 		if prevScoreObj, err := j.scoreStore.GetScore(sceneID); err == nil && prevScoreObj != nil {
 			previousScore = prevScoreObj.Score
+			hasPreviousScore = true
 		}
 
 		// Recompute scene
@@ -194,11 +196,14 @@ func (j *RecomputeJob) recomputeDirtyScenes() {
 			j.config.Logger.Error("failed to recompute trust score",
 				"scene_id", sceneID,
 				"error", err)
+			if j.config.Metrics != nil {
+				j.config.Metrics.IncRecomputeErrors()
+			}
 			continue
 		}
 
 		// Calculate variance for this scene
-		if previousScore != 0 {
+		if hasPreviousScore {
 			variance := abs(newScore - previousScore)
 			varianceSum += variance
 			varianceCount++
@@ -283,5 +288,5 @@ func (j *RecomputeJob) recomputeSceneWithScore(sceneID string) (float64, error) 
 // RecomputeNow immediately recomputes all dirty scenes without waiting for the ticker.
 // This is useful for testing or forcing immediate updates.
 func (j *RecomputeJob) RecomputeNow() {
-	j.recomputeDirtyScenes()
+	j.recomputeDirtyScenes(context.Background())
 }

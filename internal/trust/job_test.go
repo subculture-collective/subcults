@@ -11,6 +11,33 @@ import (
 	"time"
 )
 
+// slowDataSource wraps a DataSource with artificial delays for testing timeouts.
+type slowDataSource struct {
+	ds    DataSource
+	delay time.Duration
+}
+
+// newSlowDataSource creates a new slow data source wrapper.
+func newSlowDataSource(ds DataSource, delay time.Duration) *slowDataSource {
+	return &slowDataSource{
+		ds:    ds,
+		delay: delay,
+	}
+}
+
+// GetMembershipsByScene returns memberships after a delay.
+func (s *slowDataSource) GetMembershipsByScene(sceneID string) ([]Membership, error) {
+	time.Sleep(s.delay)
+	return s.ds.GetMembershipsByScene(sceneID)
+}
+
+// GetAlliancesByScene returns alliances after a delay.
+func (s *slowDataSource) GetAlliancesByScene(sceneID string) ([]Alliance, error) {
+	time.Sleep(s.delay)
+	return s.ds.GetAlliancesByScene(sceneID)
+}
+
+
 func TestRecomputeJob_StartStop(t *testing.T) {
 	dataSource := NewInMemoryDataSource()
 	scoreStore := NewInMemoryScoreStore()
@@ -521,7 +548,7 @@ func TestRecomputeJob_WithMetrics(t *testing.T) {
 
 func TestRecomputeJob_TimeoutAbort(t *testing.T) {
 	dataSource := NewInMemoryDataSource()
-	slowDataSource := NewSlowDataSource(dataSource, 200*time.Millisecond)
+	slowDataSource := newSlowDataSource(dataSource, 200*time.Millisecond)
 	scoreStore := NewInMemoryScoreStore()
 	dirtyTracker := NewDirtyTracker()
 	metrics := NewMetrics()
@@ -620,28 +647,15 @@ func TestRecomputeJob_CompletionLog(t *testing.T) {
 	}
 
 	for _, field := range requiredFields {
-		if !contains(logOutput, field) {
+		if !strings.Contains(logOutput, field) {
 			t.Errorf("completion log missing required field: %s", field)
 		}
 	}
 
 	// Verify that variance was calculated (should be non-zero since scores changed)
-	if !contains(logOutput, "avg_weight_variance") {
+	if !strings.Contains(logOutput, "avg_weight_variance") {
 		t.Error("completion log should contain avg_weight_variance field")
 	}
-}
-
-func contains(s, substr string) bool {
-	return len(s) > 0 && len(substr) > 0 && (s == substr || len(s) >= len(substr) && (s[:len(substr)] == substr || s[len(s)-len(substr):] == substr || containsInMiddle(s, substr)))
-}
-
-func containsInMiddle(s, substr string) bool {
-	for i := 0; i <= len(s)-len(substr); i++ {
-		if s[i:i+len(substr)] == substr {
-			return true
-		}
-	}
-	return false
 }
 
 // BenchmarkRecompute is a placeholder for future scaling tests.

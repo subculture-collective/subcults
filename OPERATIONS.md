@@ -22,7 +22,7 @@ The trust recompute job supports the following configuration options:
 
 | Environment Variable | Default | Description |
 |---------------------|---------|-------------|
-| `TRUST_RECOMPUTE_TIMEOUT_SEC` | `30` | Maximum duration (in seconds) for a single recompute cycle. If exceeded, the job aborts and increments the error counter. |
+| `TRUST_RECOMPUTE_TIMEOUT_SEC` | `30` | Maximum duration (in seconds) for a single recompute cycle. If exceeded, the job aborts and increments the error counter. **Note:** This environment variable is documented for future implementation; the timeout is currently configured via `RecomputeJobConfig.Timeout` in code. |
 
 **Example:**
 ```bash
@@ -33,6 +33,8 @@ export TRUST_RECOMPUTE_TIMEOUT_SEC=60
 ### Metrics
 
 The following Prometheus metrics are exposed at `/metrics` after the first recompute run:
+
+**Note:** These metrics must be registered with the Prometheus registry during application startup. The `trust.Metrics` instance should be created and registered via `metrics.Register(prometheus.DefaultRegisterer)` in the service initialization code (typically in `cmd/api/main.go` or similar).
 
 #### Counters
 - **`trust_recompute_total`** - Total number of trust score recomputation operations completed
@@ -151,7 +153,7 @@ Configure the following Prometheus alerts for production monitoring:
 **Trust Recompute High Latency**
 ```yaml
 alert: TrustRecomputeHighLatency
-expr: histogram_quantile(0.95, trust_recompute_duration_seconds) > 2
+expr: histogram_quantile(0.95, rate(trust_recompute_duration_seconds_bucket[5m])) > 2
 for: 5m
 severity: warning
 description: "Trust recompute p95 latency ({{ $value }}s) exceeds SLO target of 2s"
@@ -160,7 +162,7 @@ description: "Trust recompute p95 latency ({{ $value }}s) exceeds SLO target of 
 **Trust Recompute Critical Latency**
 ```yaml
 alert: TrustRecomputeCriticalLatency
-expr: histogram_quantile(0.95, trust_recompute_duration_seconds) > 5
+expr: histogram_quantile(0.95, rate(trust_recompute_duration_seconds_bucket[5m])) > 5
 for: 5m
 severity: critical
 description: "Trust recompute p95 latency ({{ $value }}s) exceeds critical threshold of 5s"
@@ -169,7 +171,7 @@ description: "Trust recompute p95 latency ({{ $value }}s) exceeds critical thres
 **Trust Recompute High Error Rate**
 ```yaml
 alert: TrustRecomputeHighErrorRate
-expr: rate(trust_recompute_errors_total[5m]) / rate(trust_recompute_total[5m]) > 0.01
+expr: rate(trust_recompute_errors_total[5m]) / clamp_min(rate(trust_recompute_total[5m]), 1e-6) > 0.01
 for: 5m
 severity: critical
 description: "Trust recompute error rate ({{ $value | humanizePercentage }}) exceeds 1%"
