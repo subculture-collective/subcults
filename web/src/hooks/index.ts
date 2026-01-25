@@ -30,3 +30,6 @@ export { useLiveAudio, type UseLiveAudioOptions, type UseLiveAudioResult } from 
 
 // Search hooks
 export { useSearch, type UseSearchResult, type UseSearchOptions } from './useSearch';
+
+// Telemetry hooks
+export { useTelemetry, type EmitFunction } from './useTelemetry';
