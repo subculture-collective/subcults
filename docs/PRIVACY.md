@@ -160,6 +160,67 @@ See [Scene Visibility Documentation](./api/SCENE_VISIBILITY.md) for complete API
 
 ## User Controls
 
+### Telemetry & Diagnostics
+
+Users have granular control over diagnostic data collection:
+
+#### Error Logging (Always Active)
+
+Client-side errors are automatically logged to help improve application stability:
+
+- **Data Collected:** Error messages, stack traces, component traces, URL, user agent, session ID
+- **PII Redaction:** All sensitive data is automatically removed before transmission:
+  - JWT tokens (eyJ... format)
+  - Email addresses
+  - DID identifiers (did:plc:..., did:web:...)
+  - Authorization headers
+  - API keys (32+ character alphanumeric strings)
+- **Rate Limiting:** Maximum 10 errors per minute to prevent abuse
+- **Endpoint:** `POST /api/log/client-error`
+
+Error logging is essential for identifying and fixing bugs that impact user experience. All data is redacted to protect privacy.
+
+#### Session Replay (Opt-In Only)
+
+Session replay captures user interactions to diagnose complex UX issues:
+
+- **Default:** **OFF** (user must explicitly enable)
+- **Events Recorded:** DOM changes (sampled 50%), clicks (100%), navigation (100%), scroll (10%)
+- **PII Protection:**
+  - No text content captured
+  - No form values recorded
+  - Element IDs/classes only (no sensitive attributes)
+  - Only pathname recorded (no query parameters)
+- **Buffer Limit:** 100 events maximum (ring buffer)
+- **Performance Threshold:** Recording stops when buffer reaches 90% capacity
+- **Transmission:** Only sent when an error occurs AND user has opted in
+- **Control:** Toggle in Settings → Privacy → Session Replay
+
+**How to Enable:**
+```typescript
+// In Settings UI
+setSessionReplayOptIn(true);
+```
+
+When enabled, session replay provides context for error reports by showing the sequence of interactions leading to the problem. All recorded data is sanitized to prevent PII exposure.
+
+#### Telemetry Opt-Out
+
+Users can disable general analytics collection:
+
+- **Default:** ON (telemetry enabled by default)
+- **Scope:** Usage analytics, performance metrics, feature engagement
+- **Does not affect:** Error logging (required for stability)
+- **Control:** Toggle in Settings → Privacy → Analytics
+
+**How to Disable:**
+```typescript
+// In Settings UI
+setTelemetryOptOut(true);
+```
+
+See [Telemetry Documentation](../web/src/lib/TELEMETRY.md) for complete details on what data is collected.
+
 ### Authentication
 
 JWT-based authentication with Decentralized Identifiers (DIDs):
@@ -198,14 +259,20 @@ This prevents log injection attacks while supporting request correlation.
 
 ## Data Retention
 
-> **Placeholder:** Retention policies are under development. The following are planned guidelines:
-
 | Data Type | Retention Period | Notes |
 |-----------|------------------|-------|
 | Access logs | 90 days | Security audit trail |
+| Client error logs | 30 days | Debugging and stability analysis |
+| Session replay data | 7 days | Only when opted-in; auto-deleted after 7 days |
 | Soft-deleted content | 30 days | Grace period before hard delete |
 | Session tokens | Until expiry | Access: 15min, Refresh: 7 days |
 | Uploaded media | Until user deletion | Subject to storage quotas |
+| Telemetry events | 90 days | Aggregated for analytics; not tied to individual users |
+
+**User Rights:**
+- Request deletion of error logs via support contact
+- Disable session replay at any time (no future data collected)
+- Opt out of telemetry without affecting core functionality
 
 ## Decentralized Identity
 
@@ -221,6 +288,8 @@ Privacy improvements tracked in the [Privacy & Safety Epic](https://github.com/s
 
 - [x] EXIF/metadata stripping for uploaded media (service layer implemented)
 - [x] Scene visibility controls (public, members-only, hidden)
+- [x] Client-side error logging with PII redaction
+- [x] Opt-in session replay for UX debugging
 - [ ] EXIF stripping integration with media upload API endpoints
 - [ ] Search endpoint integration for hidden scene exclusion
 - [ ] Location jitter for map display
@@ -238,4 +307,4 @@ Found a privacy concern? Please report responsibly:
 
 ---
 
-*Last updated: December 2024*
+*Last updated: January 2025*

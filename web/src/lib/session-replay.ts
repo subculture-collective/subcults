@@ -7,7 +7,7 @@
 /**
  * Replay event types
  */
-export enum ReplayEventType {
+export const enum ReplayEventType {
   DOMChange = 'dom_change',
   Click = 'click',
   Navigation = 'navigation',

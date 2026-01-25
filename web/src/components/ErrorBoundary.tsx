@@ -62,7 +62,9 @@ export class ErrorBoundary extends Component<Props, State> {
     }
     
     // Send to error logging service with PII redaction
-    errorLogger.logError(error, errorInfo);
+    errorLogger.logError(error, { 
+      componentStack: errorInfo.componentStack || undefined 
+    });
   }
 
   componentDidUpdate(_prevProps: Props, prevState: State) {
