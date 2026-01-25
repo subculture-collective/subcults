@@ -4,6 +4,7 @@
  */
 
 import React, { Component, type ReactNode } from 'react';
+import { errorLogger } from '../lib/error-logger';
 
 interface Props {
   children: ReactNode;
@@ -60,10 +61,10 @@ export class ErrorBoundary extends Component<Props, State> {
       });
     }
     
-    // TODO: Send to error tracking service (e.g., Sentry) in production
-    // if (import.meta.env.PROD) {
-    //   sentryClient.captureException(error, { extra: errorInfo });
-    // }
+    // Send to error logging service with PII redaction
+    errorLogger.logError(error, { 
+      componentStack: errorInfo.componentStack || undefined 
+    });
   }
 
   componentDidUpdate(_prevProps: Props, prevState: State) {
