@@ -67,3 +67,11 @@ export {
   type PushSubscriptionData,
   type NotificationStore,
 } from './notificationStore';
+
+// Settings Store
+export {
+  useSettingsStore,
+  useTelemetryOptOut,
+  useSettingsActions,
+  type SettingsStore,
+} from './settingsStore';
