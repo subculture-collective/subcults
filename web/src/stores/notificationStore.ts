@@ -26,7 +26,6 @@ interface NotificationState {
 interface NotificationActions {
   setPermission: (permission: NotificationPermission) => void;
   setSubscription: (subscription: PushSubscriptionData | null) => void;
-  setIsSubscribed: (isSubscribed: boolean) => void;
   setLoading: (isLoading: boolean) => void;
   setError: (error: string | null) => void;
   reset: () => void;
@@ -55,17 +54,22 @@ function getStoredSubscription(): PushSubscriptionData | null {
 }
 
 /**
- * Persist subscription to localStorage
+ * Handle subscription persistence.
+ *
+ * For privacy and XSS resilience, we do NOT persist the full push subscription
+ * (endpoint + keys) in localStorage. The active subscription should be derived
+ * from `PushManager.getSubscription()` instead.
+ *
+ * This function is kept to preserve the existing API surface and to clear any
+ * legacy stored subscription data that may still exist under the old key.
  */
-function persistSubscription(subscription: PushSubscriptionData | null): void {
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+function persistSubscription(_subscription: PushSubscriptionData | null): void {
   try {
-    if (subscription) {
-      localStorage.setItem(NOTIFICATION_STORAGE_KEY, JSON.stringify(subscription));
-    } else {
-      localStorage.removeItem(NOTIFICATION_STORAGE_KEY);
-    }
+    // Clear any legacy persisted subscription data; do not persist new data.
+    localStorage.removeItem(NOTIFICATION_STORAGE_KEY);
   } catch (error) {
-    console.warn('[notificationStore] Failed to persist subscription:', error);
+    console.warn('[notificationStore] Failed to update subscription persistence:', error);
   }
 }
 
@@ -79,13 +83,15 @@ function getInitialPermission(): NotificationPermission {
   return Notification.permission as NotificationPermission;
 }
 
+const initialSubscription = getStoredSubscription();
+
 /**
  * Notification store for managing Web Push subscriptions
  */
 export const useNotificationStore = create<NotificationStore>((set) => ({
   permission: getInitialPermission(),
-  isSubscribed: false,
-  subscription: getStoredSubscription(),
+  isSubscribed: initialSubscription !== null,
+  subscription: initialSubscription,
   isLoading: false,
   error: null,
 
@@ -96,10 +102,6 @@ export const useNotificationStore = create<NotificationStore>((set) => ({
   setSubscription: (subscription: PushSubscriptionData | null) => {
     set({ subscription, isSubscribed: subscription !== null });
     persistSubscription(subscription);
-  },
-
-  setIsSubscribed: (isSubscribed: boolean) => {
-    set({ isSubscribed });
   },
 
   setLoading: (isLoading: boolean) => {
@@ -147,7 +149,6 @@ export function useNotificationState() {
 export function useNotificationActions() {
   const setPermission = useNotificationStore((state) => state.setPermission);
   const setSubscription = useNotificationStore((state) => state.setSubscription);
-  const setIsSubscribed = useNotificationStore((state) => state.setIsSubscribed);
   const setLoading = useNotificationStore((state) => state.setLoading);
   const setError = useNotificationStore((state) => state.setError);
   const reset = useNotificationStore((state) => state.reset);
@@ -155,7 +156,6 @@ export function useNotificationActions() {
   return {
     setPermission,
     setSubscription,
-    setIsSubscribed,
     setLoading,
     setError,
     reset,

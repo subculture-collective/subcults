@@ -44,16 +44,16 @@ export const NotificationSettings: React.FC = () => {
 
       try {
         const currentSub = await getCurrentSubscription();
-        if (currentSub && !subscription) {
-          setSubscription(currentSub);
-        }
+        // Always sync store state to the current browser subscription.
+        // If currentSub is null, clear the store subscription to avoid stale UI state.
+        setSubscription(currentSub || null);
       } catch (error) {
         console.error('[NotificationSettings] Failed to check existing subscription:', error);
       }
     };
 
     checkExistingSubscription();
-  }, [browserSupported, subscription, setSubscription]);
+  }, [browserSupported, setSubscription]);
 
   const handleEnableNotifications = async () => {
     setLoading(true);
@@ -72,11 +72,28 @@ export const NotificationSettings: React.FC = () => {
       // Step 2: Subscribe to push notifications
       const subscriptionData = await subscribeToPushNotifications();
 
-      // Step 3: Send subscription to backend
-      await sendSubscriptionToBackend(subscriptionData);
-
-      // Step 4: Update state
+      // Step 3: Immediately update local state so UI matches browser subscription
       setSubscription(subscriptionData);
+
+      // Step 4: Send subscription to backend
+      try {
+        await sendSubscriptionToBackend(subscriptionData);
+      } catch (backendError) {
+        console.error(
+          '[NotificationSettings] Failed to sync subscription with backend, rolling back subscription:',
+          backendError,
+        );
+        try {
+          await unsubscribeFromPushNotifications();
+        } catch (unsubscribeError) {
+          console.error(
+            '[NotificationSettings] Failed to roll back push subscription after backend failure:',
+            unsubscribeError,
+          );
+        }
+        setSubscription(null);
+        throw backendError;
+      }
 
       // TODO: Increment metrics for successful subscription
       console.log('[NotificationSettings] Successfully subscribed to notifications');
@@ -167,7 +184,7 @@ export const NotificationSettings: React.FC = () => {
             {/* Toggle Button */}
             <button
               onClick={isSubscribed ? handleDisableNotifications : handleEnableNotifications}
-              disabled={isLoading || permission === 'denied'}
+              disabled={isLoading || (!isSubscribed && permission === 'denied')}
               className={`px-4 py-2 rounded-lg font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
                 isSubscribed
                   ? 'bg-red-600 hover:bg-red-700 text-white'
@@ -198,11 +215,11 @@ export const NotificationSettings: React.FC = () => {
           </div>
         )}
 
-        {/* Subscription Details (for debugging) */}
-        {subscription && (
+        {/* Subscription Details (development only) */}
+        {import.meta.env.DEV && subscription && (
           <details className="text-sm">
             <summary className="cursor-pointer text-foreground-secondary hover:text-foreground">
-              Subscription Details
+              Subscription Details (Dev Only)
             </summary>
             <pre className="mt-2 p-3 bg-background rounded border border-border overflow-x-auto text-xs text-foreground-muted">
               {JSON.stringify({ endpoint: subscription.endpoint }, null, 2)}

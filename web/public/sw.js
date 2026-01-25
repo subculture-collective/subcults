@@ -88,6 +88,9 @@ self.addEventListener('notificationclick', (event) => {
     (async () => {
       const url = event.notification.data?.url || '/';
       
+      // Normalize URL to absolute for comparison
+      const targetUrl = new URL(url, self.location.origin).href;
+      
       // Try to focus existing window/tab
       const clients = await self.clients.matchAll({
         type: 'window',
@@ -95,14 +98,14 @@ self.addEventListener('notificationclick', (event) => {
       });
 
       for (const client of clients) {
-        if (client.url === url && 'focus' in client) {
+        if (client.url === targetUrl && 'focus' in client) {
           return client.focus();
         }
       }
 
       // Open new window if no matching client found
       if (self.clients.openWindow) {
-        return self.clients.openWindow(url);
+        return self.clients.openWindow(targetUrl);
       }
     })()
   );

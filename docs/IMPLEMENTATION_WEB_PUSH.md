@@ -182,7 +182,7 @@ npx web-push generate-vapid-keys
 
 ## Files Changed/Created
 
-### Created (9 files)
+### Created (7 files)
 1. `web/src/stores/notificationStore.ts` (142 lines)
 2. `web/src/stores/notificationStore.test.ts` (290 lines)
 3. `web/src/lib/notification-service.ts` (258 lines)
@@ -191,7 +191,7 @@ npx web-push generate-vapid-keys
 6. `web/public/sw.js` (107 lines)
 7. `docs/web-push-notifications.md` (228 lines)
 
-### Modified (4 files)
+### Modified (5 files)
 1. `web/src/main.tsx` (+26 lines)
 2. `web/src/pages/SettingsPage.tsx` (+2 lines)
 3. `web/src/stores/index.ts` (+9 lines)

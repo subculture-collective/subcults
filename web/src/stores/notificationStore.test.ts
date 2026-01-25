@@ -168,50 +168,38 @@ describe('notificationStore', () => {
       expect(result.current.isSubscribed).toBe(false);
     });
 
-    it('persists subscription to localStorage', () => {
+    it('no longer persists subscription to localStorage for security', () => {
       const { result } = renderHook(() => useNotificationStore());
 
       act(() => {
         result.current.setSubscription(mockSubscription);
       });
 
-      const stored = localStorage.getItem('subcults-notification-subscription');
-      expect(stored).toBeTruthy();
-      expect(JSON.parse(stored!)).toEqual(mockSubscription);
+      // Should NOT persist subscription data (security improvement)
+      expect(localStorage.getItem('subcults-notification-subscription')).toBeNull();
     });
 
-    it('removes subscription from localStorage when cleared', () => {
+    it('clears legacy subscription from localStorage', () => {
+      // Set legacy data
+      localStorage.setItem('subcults-notification-subscription', JSON.stringify(mockSubscription));
+
       const { result } = renderHook(() => useNotificationStore());
 
       act(() => {
         result.current.setSubscription(mockSubscription);
       });
 
-      expect(localStorage.getItem('subcults-notification-subscription')).toBeTruthy();
-
-      act(() => {
-        result.current.setSubscription(null);
-      });
-
+      // Should clear legacy data
       expect(localStorage.getItem('subcults-notification-subscription')).toBeNull();
     });
   });
 
-  describe('setIsSubscribed', () => {
-    it('updates subscription status', () => {
+  describe('setIsSubscribed (removed)', () => {
+    it('no longer has setIsSubscribed action to prevent state inconsistency', () => {
       const { result } = renderHook(() => useNotificationStore());
 
-      act(() => {
-        result.current.setIsSubscribed(true);
-      });
-
-      expect(result.current.isSubscribed).toBe(true);
-
-      act(() => {
-        result.current.setIsSubscribed(false);
-      });
-
-      expect(result.current.isSubscribed).toBe(false);
+      // setIsSubscribed should not exist
+      expect(result.current).not.toHaveProperty('setIsSubscribed');
     });
   });
 
@@ -286,13 +274,10 @@ describe('notificationStore', () => {
     });
 
     it('clears localStorage on reset', () => {
+      // Set legacy data
+      localStorage.setItem('subcults-notification-subscription', JSON.stringify(mockSubscription));
+
       const { result } = renderHook(() => useNotificationStore());
-
-      act(() => {
-        result.current.setSubscription(mockSubscription);
-      });
-
-      expect(localStorage.getItem('subcults-notification-subscription')).toBeTruthy();
 
       act(() => {
         result.current.reset();
@@ -328,17 +313,17 @@ describe('notificationStore', () => {
 
       expect(result.current).toHaveProperty('setPermission');
       expect(result.current).toHaveProperty('setSubscription');
-      expect(result.current).toHaveProperty('setIsSubscribed');
       expect(result.current).toHaveProperty('setLoading');
       expect(result.current).toHaveProperty('setError');
       expect(result.current).toHaveProperty('reset');
       expect(result.current).not.toHaveProperty('permission');
       expect(result.current).not.toHaveProperty('isSubscribed');
+      expect(result.current).not.toHaveProperty('setIsSubscribed'); // Removed action
     });
   });
 
   describe('localStorage integration', () => {
-    it('persists complex subscription data correctly', () => {
+    it('no longer persists subscription data for security', () => {
       const complexSubscription: PushSubscriptionData = {
         endpoint: 'https://example.com/push/endpoint/with/special/chars?param=value&other=123',
         keys: {
@@ -353,13 +338,9 @@ describe('notificationStore', () => {
         result.current.setSubscription(complexSubscription);
       });
 
+      // Should NOT persist for security reasons
       const stored = localStorage.getItem('subcults-notification-subscription');
-      const parsed = JSON.parse(stored!);
-
-      expect(parsed).toEqual(complexSubscription);
-      expect(parsed.endpoint).toBe(complexSubscription.endpoint);
-      expect(parsed.keys.p256dh).toBe(complexSubscription.keys.p256dh);
-      expect(parsed.keys.auth).toBe(complexSubscription.keys.auth);
+      expect(stored).toBeNull();
     });
   });
 });

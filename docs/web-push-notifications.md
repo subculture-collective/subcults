@@ -4,7 +4,7 @@ This directory contains the implementation of Web Push notifications for Subcult
 
 ## Architecture Overview
 
-The Web Push notification system consists of three main components:
+The Web Push notification system consists of four main components:
 
 1. **Notification Store** (`stores/notificationStore.ts`) - Zustand store managing subscription state
 2. **Notification Service** (`lib/notification-service.ts`) - Web Push API wrapper and backend communication
@@ -18,8 +18,8 @@ The Web Push notification system consists of three main components:
 - **Explicit Opt-In**: Notifications are NEVER auto-prompted. Users must explicitly enable them from Settings.
 - **User Control**: Users can disable notifications at any time, both in-app and via browser settings.
 - **Transparent Purpose**: Clear communication about what notifications will be sent (new events, stream starts, membership approvals).
-- **Secure Storage**: Subscription data stored securely, never shared with third parties.
-- **No Tracking**: Subscription endpoints are only used for sending notifications, not tracking user behavior.
+- **Local Storage**: Subscription endpoints and keys are treated as sensitive data and are not persisted to localStorage. The active subscription is derived from the browser's PushManager on each page load.
+- **No Tracking**: Subscription endpoints are only used for sending notifications, not for analytics or tracking user behavior across the app or web.
 
 ## User Flow
 

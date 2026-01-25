@@ -4,6 +4,7 @@
  */
 
 import type { PushSubscriptionData } from '../stores/notificationStore';
+import { apiClient } from './api-client';
 
 /**
  * Configuration for notification service
@@ -167,18 +168,7 @@ export async function sendSubscriptionToBackend(
   }
 
   try {
-    const response = await fetch(serviceConfig.apiEndpoint, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      credentials: 'include', // Include auth cookies
-      body: JSON.stringify(subscription),
-    });
-
-    if (!response.ok) {
-      throw new Error(`Failed to send subscription to backend: ${response.status}`);
-    }
+    await apiClient.post(serviceConfig.apiEndpoint, subscription);
   } catch (error) {
     console.error('[notificationService] Failed to send subscription to backend:', error);
     throw new Error('Failed to register subscription with server');
@@ -196,22 +186,14 @@ export async function deleteSubscriptionFromBackend(
   }
 
   try {
-    const response = await fetch(serviceConfig.apiEndpoint, {
-      method: 'DELETE',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      credentials: 'include',
+    await apiClient.delete(serviceConfig.apiEndpoint, {
       body: JSON.stringify({ endpoint: subscription.endpoint }),
     });
-
-    if (!response.ok) {
-      // Don't throw on 404 - subscription might already be deleted
-      if (response.status !== 404) {
-        throw new Error(`Failed to delete subscription from backend: ${response.status}`);
-      }
-    }
   } catch (error) {
+    // Don't throw on 404 - subscription might already be deleted
+    if (error && typeof error === 'object' && 'status' in error && error.status === 404) {
+      return;
+    }
     console.error('[notificationService] Failed to delete subscription from backend:', error);
     // Don't throw - best effort cleanup
   }

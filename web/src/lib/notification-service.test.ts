@@ -16,6 +16,15 @@ import {
   getCurrentSubscription,
 } from './notification-service';
 import type { PushSubscriptionData } from '../stores/notificationStore';
+import * as apiClientModule from './api-client';
+
+// Mock the apiClient module
+vi.mock('./api-client', () => ({
+  apiClient: {
+    post: vi.fn().mockResolvedValue(undefined),
+    delete: vi.fn().mockResolvedValue(undefined),
+  },
+}));
 
 describe('notification-service', () => {
   const mockConfig = {
@@ -47,6 +56,9 @@ describe('notification-service', () => {
   });
 
   beforeEach(() => {
+    // Clear all mocks
+    vi.clearAllMocks();
+
     // Mock browser APIs
     global.Notification = {
       permission: 'default',
@@ -65,12 +77,6 @@ describe('notification-service', () => {
         },
       }),
     } as unknown as ServiceWorkerContainer;
-
-    // Mock fetch
-    global.fetch = vi.fn().mockResolvedValue({
-      ok: true,
-      status: 200,
-    });
 
     // Mock window.atob for base64 decoding
     global.atob = vi.fn((str: string) => str);
@@ -289,14 +295,10 @@ describe('notification-service', () => {
     it('sends subscription to backend API', async () => {
       await sendSubscriptionToBackend(mockSubscriptionData);
 
-      expect(fetch).toHaveBeenCalledWith(mockConfig.apiEndpoint, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        credentials: 'include',
-        body: JSON.stringify(mockSubscriptionData),
-      });
+      expect(apiClientModule.apiClient.post).toHaveBeenCalledWith(
+        mockConfig.apiEndpoint,
+        mockSubscriptionData
+      );
     });
 
     it('throws error when service not initialized', async () => {
@@ -311,10 +313,7 @@ describe('notification-service', () => {
     });
 
     it('throws error when API request fails', async () => {
-      global.fetch = vi.fn().mockResolvedValue({
-        ok: false,
-        status: 500,
-      });
+      vi.mocked(apiClientModule.apiClient.post).mockRejectedValueOnce(new Error('API Error'));
 
       await expect(sendSubscriptionToBackend(mockSubscriptionData)).rejects.toThrow(
         'Failed to register subscription with server'
@@ -326,14 +325,12 @@ describe('notification-service', () => {
     it('deletes subscription from backend API', async () => {
       await deleteSubscriptionFromBackend(mockSubscriptionData);
 
-      expect(fetch).toHaveBeenCalledWith(mockConfig.apiEndpoint, {
-        method: 'DELETE',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        credentials: 'include',
-        body: JSON.stringify({ endpoint: mockSubscriptionData.endpoint }),
-      });
+      expect(apiClientModule.apiClient.delete).toHaveBeenCalledWith(
+        mockConfig.apiEndpoint,
+        {
+          body: JSON.stringify({ endpoint: mockSubscriptionData.endpoint }),
+        }
+      );
     });
 
     it('throws error when service not initialized', async () => {
@@ -348,16 +345,14 @@ describe('notification-service', () => {
     });
 
     it('does not throw on 404 response', async () => {
-      global.fetch = vi.fn().mockResolvedValue({
-        ok: false,
-        status: 404,
-      });
+      const error404 = { status: 404 };
+      vi.mocked(apiClientModule.apiClient.delete).mockRejectedValueOnce(error404);
 
       await expect(deleteSubscriptionFromBackend(mockSubscriptionData)).resolves.not.toThrow();
     });
 
     it('does not throw on network error (best effort cleanup)', async () => {
-      global.fetch = vi.fn().mockRejectedValue(new Error('Network error'));
+      vi.mocked(apiClientModule.apiClient.delete).mockRejectedValueOnce(new Error('Network error'));
 
       await expect(deleteSubscriptionFromBackend(mockSubscriptionData)).resolves.not.toThrow();
     });
