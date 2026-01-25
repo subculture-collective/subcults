@@ -8,10 +8,13 @@ import { create } from 'zustand';
 interface SettingsState {
   /** Opt-out of telemetry collection */
   telemetryOptOut: boolean;
+  /** Opt-in to session replay recording (default: false) */
+  sessionReplayOptIn: boolean;
 }
 
 interface SettingsActions {
   setTelemetryOptOut: (optOut: boolean) => void;
+  setSessionReplayOptIn: (optIn: boolean) => void;
   initializeSettings: () => void;
 }
 
@@ -27,6 +30,7 @@ const SETTINGS_STORAGE_KEY = 'subcults-settings';
  */
 const DEFAULT_SETTINGS: SettingsState = {
   telemetryOptOut: false,
+  sessionReplayOptIn: false, // Default OFF for privacy
 };
 
 /**
@@ -39,6 +43,7 @@ function loadSettings(): SettingsState {
       const parsed = JSON.parse(stored);
       return {
         telemetryOptOut: parsed.telemetryOptOut ?? DEFAULT_SETTINGS.telemetryOptOut,
+        sessionReplayOptIn: parsed.sessionReplayOptIn ?? DEFAULT_SETTINGS.sessionReplayOptIn,
       };
     }
   } catch (error) {
@@ -81,6 +86,11 @@ export const useSettingsStore = create<SettingsStore>((set, get) => ({
     saveSettings(get());
   },
 
+  setSessionReplayOptIn: (optIn: boolean) => {
+    set({ sessionReplayOptIn: optIn });
+    saveSettings(get());
+  },
+
   initializeSettings: () => {
     const loaded = loadSettings();
     set(loaded);
@@ -95,14 +105,23 @@ export function useTelemetryOptOut(): boolean {
 }
 
 /**
+ * Hook for session replay opt-in flag only (optimized for re-renders)
+ */
+export function useSessionReplayOptIn(): boolean {
+  return useSettingsStore((state) => state.sessionReplayOptIn);
+}
+
+/**
  * Hook for settings actions only (stable reference)
  */
 export function useSettingsActions() {
   const setTelemetryOptOut = useSettingsStore((state) => state.setTelemetryOptOut);
+  const setSessionReplayOptIn = useSettingsStore((state) => state.setSessionReplayOptIn);
   const initializeSettings = useSettingsStore((state) => state.initializeSettings);
 
   return {
     setTelemetryOptOut,
+    setSessionReplayOptIn,
     initializeSettings,
   };
 }

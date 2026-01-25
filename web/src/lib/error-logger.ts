@@ -3,6 +3,8 @@
  * Captures and logs client-side errors with PII redaction and rate limiting
  */
 
+import { sessionReplay, type ReplayEvent } from './session-replay';
+
 /**
  * Error payload structure for logging endpoint
  */
@@ -23,6 +25,8 @@ export interface ErrorLogPayload {
   componentStack?: string;
   /** Session ID for grouping related errors */
   sessionId: string;
+  /** Session replay events (only if opted in and available) */
+  replayEvents?: ReplayEvent[];
 }
 
 /**
@@ -151,6 +155,9 @@ class ErrorLogger {
     // Increment error count
     this.errorCount++;
 
+    // Get session replay events if available (user must be opted in)
+    const replayEvents = sessionReplay.getAndClearBuffer();
+
     // Build error payload with redaction
     const payload: ErrorLogPayload = {
       message: redactSensitiveData(error.message),
@@ -163,6 +170,7 @@ class ErrorLogger {
         ? redactSensitiveData(errorInfo.componentStack) 
         : undefined,
       sessionId: this.sessionId,
+      replayEvents: replayEvents.length > 0 ? replayEvents : undefined,
     };
 
     // Log to console in development

@@ -10,6 +10,8 @@ import { ThemeProvider } from './components/ThemeProvider';
 import { AppRouter } from './routes';
 import { authStore } from './stores/authStore';
 import { useStreamingStore } from './stores/streamingStore';
+import { useSettingsStore } from './stores/settingsStore';
+import { sessionReplay } from './lib/session-replay';
 import './App.css';
 
 function App() {
@@ -22,6 +24,21 @@ function App() {
   useEffect(() => {
     const streamingStore = useStreamingStore.getState();
     streamingStore.initialize();
+  }, []);
+
+  // Initialize settings store and session replay
+  useEffect(() => {
+    // Load settings from localStorage
+    useSettingsStore.getState().initializeSettings();
+    
+    // Start session replay if user has opted in
+    // (will check opt-in status internally)
+    sessionReplay.start();
+    
+    // Cleanup on unmount
+    return () => {
+      sessionReplay.destroy();
+    };
   }, []);
 
   return (
