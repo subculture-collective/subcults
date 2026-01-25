@@ -4,6 +4,19 @@ import './index.css'
 import './i18n' // Initialize i18n
 import App from './App.tsx'
 import { initializeNotificationService } from './lib/notification-service'
+import { errorLogger } from './lib/error-logger'
+
+// Global error handlers for uncaught errors and promise rejections
+window.addEventListener('error', (event) => {
+  errorLogger.logError(event.error || new Error(event.message));
+});
+
+window.addEventListener('unhandledrejection', (event) => {
+  const error = event.reason instanceof Error 
+    ? event.reason 
+    : new Error(String(event.reason));
+  errorLogger.logError(error);
+});
 
 // Register service worker for Web Push notifications (production only)
 if (import.meta.env.PROD && 'serviceWorker' in navigator) {
