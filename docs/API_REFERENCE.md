@@ -480,6 +480,99 @@ Requests include credentials by default (`credentials: 'include'`) to send httpO
 3. Verify token hasn't expired (check backend logs)
 4. Check if endpoint requires authentication
 
+## Pagination
+
+The API uses cursor-based pagination for all search and feed endpoints, ensuring deterministic ordering, no duplicates, and complete coverage of results across pages.
+
+### Pagination Guarantees
+
+All paginated endpoints guarantee:
+
+1. **No Duplicates**: Each item appears exactly once across all pages
+2. **Complete Coverage**: All matching items are returned when paginating to exhaustion
+3. **Deterministic Ordering**: Results are ordered consistently using composite scores with ID-based tie-breaking
+4. **Stable Cursors**: Cursors maintain full precision and round-trip without data loss
+5. **Insertion Order Independence**: Results are ordered by score and ID, not insertion time
+
+### Cursor Formats
+
+Different endpoints use different cursor encoding formats:
+
+- **Scene Search**: Base64-encoded JSON `{"score": 0.85, "id": "scene-123"}`
+- **Event Search**: Pipe-delimited `score|eventID` (e.g., `0.8532|event-uuid`)
+- **Post Search**: Colon-delimited `score:id` (e.g., `0.750000:post-uuid`)
+- **Feeds**: Timestamp-based `{unix_nano}:{post_id}`
+
+### Ordering Rules
+
+Results are ordered using the following rules for stable pagination:
+
+1. **Primary**: Composite score (DESC) - weighted combination of relevance factors
+2. **Secondary**: ID (ASC) - guarantees deterministic ordering when scores are identical
+
+This two-tier ordering ensures:
+- Items with higher scores appear first
+- Items with identical scores are ordered alphabetically by ID
+- Order remains consistent across multiple requests
+
+### Example: Scene Search with Pagination
+
+```typescript
+// First page
+const page1 = await apiClient.get<SearchScenesResponse>(
+  '/search/scenes?bbox=-74.1,40.6,-73.9,40.8&q=music&limit=20'
+);
+
+// Second page using cursor from first page
+const page2 = await apiClient.get<SearchScenesResponse>(
+  `/search/scenes?bbox=-74.1,40.6,-73.9,40.8&q=music&limit=20&cursor=${page1.next_cursor}`
+);
+
+// Continue until next_cursor is empty
+let cursor = page1.next_cursor;
+const allResults = [...page1.scenes];
+
+while (cursor) {
+  const page = await apiClient.get<SearchScenesResponse>(
+    `/search/scenes?bbox=-74.1,40.6,-73.9,40.8&q=music&limit=20&cursor=${cursor}`
+  );
+  allResults.push(...page.scenes);
+  cursor = page.next_cursor;
+}
+```
+
+### Edge Cases
+
+- **Empty Results**: Returns empty array with `next_cursor: ""`
+- **Last Page**: Returns results with `next_cursor: ""` (no more pages)
+- **Single Item**: Returns one item with `next_cursor: ""`
+- **Invalid Cursor**: Returns 400 Bad Request with error code `invalid_cursor`
+
+### Score Ties
+
+When multiple items have identical composite scores (e.g., same location, same text match), they are ordered deterministically by ID (ascending). This ensures:
+
+- Consistent ordering across requests
+- No items are skipped or duplicated
+- Reproducible pagination sequences
+
+### Performance
+
+- **Cursor Decode**: O(1) complexity, typically <1ms per operation
+- **No Offset-Based Pagination**: Cursors provide efficient deep pagination without performance degradation
+- **Recommended Page Size**: 20-50 items for optimal balance between requests and payload size
+
+### Testing
+
+Comprehensive pagination tests verify:
+- No duplicates across pages (`TestScenePagination_NoDuplicates`, `TestEventPagination_NoDuplicates`, `TestPostPagination_NoDuplicates`)
+- Ordering consistency (`TestScenePagination_OrderingConsistency`, `TestPostPagination_OrderingConsistency`)
+- Deterministic tie-breaking (`TestScenePagination_ScoreTies`, `TestEventPagination_ScoreTies`, `TestPostPagination_ScoreTies`)
+- Cursor round-trip stability (`TestSceneCursor_RoundTrip`, `TestPostCursor_RoundTrip`)
+- Edge cases (empty results, last page, single item)
+
+See `internal/scene/pagination_test.go` and `internal/post/pagination_test.go` for full test coverage.
+
 ## Related Documentation
 
 - [Architecture Overview](./ARCHITECTURE.md) - System architecture and design decisions
