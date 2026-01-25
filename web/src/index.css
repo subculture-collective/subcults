@@ -89,3 +89,18 @@
     transition-timing-function: ease-in-out;
   }
 }
+
+/**
+ * Accessibility: Volume Slider Focus Styles
+ * Ensures keyboard users can see focus on range inputs
+ */
+.volume-slider {
+  /* Remove default outline on all focus */
+  outline: none;
+}
+
+.volume-slider:focus-visible {
+  /* Provide visible focus indicator for keyboard users */
+  outline: 2px solid #646cff;
+  outline-offset: 2px;
+}

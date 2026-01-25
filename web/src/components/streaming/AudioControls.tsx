@@ -176,11 +176,11 @@ export const AudioControls: React.FC<AudioControlsProps> = ({
               onChange={handleVolumeChange}
               disabled={disabled}
               aria-label="Volume slider"
+              className="volume-slider"
               style={{
                 width: '100%',
                 height: '0.25rem',
                 borderRadius: '0.125rem',
-                outline: 'none',
                 opacity: disabled ? 0.5 : 1,
                 cursor: disabled ? 'not-allowed' : 'pointer',
               }}
