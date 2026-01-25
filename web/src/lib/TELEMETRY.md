@@ -46,6 +46,90 @@ function SearchComponent() {
       results_count: results.length,
     });
   };
+
+  return <SearchBar onSearch={handleSearch} />;
+}
+```
+
+### Integration Example: Search with Telemetry
+
+```tsx
+import { useState } from 'react';
+import { useTelemetry } from '../hooks';
+import { apiClient } from '../lib/api-client';
+
+function SceneSearch() {
+  const [query, setQuery] = useState('');
+  const [results, setResults] = useState([]);
+  const emit = useTelemetry();
+
+  const handleSearch = async () => {
+    const startTime = Date.now();
+    
+    try {
+      const scenes = await apiClient.searchScenes(query);
+      setResults(scenes);
+      
+      // Emit successful search event
+      emit('search.scene', {
+        query_length: query.length,
+        results_count: scenes.length,
+        duration_ms: Date.now() - startTime,
+      });
+    } catch (error) {
+      // Emit failed search event
+      emit('search.error', {
+        query_length: query.length,
+        error_type: 'network',
+      });
+    }
+  };
+
+  return (
+    <div>
+      <input value={query} onChange={(e) => setQuery(e.target.value)} />
+      <button onClick={handleSearch}>Search</button>
+    </div>
+  );
+}
+```
+
+### Integration Example: Stream Join with Telemetry
+
+```tsx
+import { useTelemetry } from '../hooks';
+import { useStreamingActions } from '../stores';
+
+function StreamControls({ roomId }: { roomId: string }) {
+  const emit = useTelemetry();
+  const { connect, disconnect } = useStreamingActions();
+
+  const handleJoin = async () => {
+    const joinTime = Date.now();
+    
+    try {
+      await connect(roomId);
+      
+      emit('stream.join', {
+        room_id: roomId,
+      });
+      
+      // Track duration on leave
+      return () => {
+        emit('stream.leave', {
+          room_id: roomId,
+          duration_ms: Date.now() - joinTime,
+        });
+      };
+    } catch (error) {
+      emit('stream.join_error', {
+        room_id: roomId,
+        error_type: 'connection_failed',
+      });
+    }
+  };
+
+  return <button onClick={handleJoin}>Join Stream</button>;
 }
 ```
 
