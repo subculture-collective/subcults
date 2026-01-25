@@ -67,8 +67,11 @@ const SENSITIVE_PATTERNS = [
   // Authorization headers
   /Authorization:\s*Bearer\s+[A-Za-z0-9._-]+/gi,
   
-  // API keys (common patterns)
-  /[a-zA-Z0-9]{32,}/g, // 32+ character alphanumeric strings (catches many API keys)
+  // API keys / access tokens
+  // 1) Keys with common prefixes (Stripe, generic "api_", "key_", etc.)
+  /(?:sk|pk|api|key|rk|r2|lk)_[A-Za-z0-9_-]{16,}/gi,
+  // 2) Generic high-entropy tokens (more conservative than 32+ chars, uses word boundaries)
+  /\b[A-Za-z0-9_-]{40,}\b/g,
 ];
 
 /**
@@ -164,7 +167,7 @@ class ErrorLogger {
       stack: error.stack ? redactSensitiveData(error.stack) : undefined,
       type: error.name,
       timestamp: Date.now(),
-      url: window.location.href,
+      url: window.location.pathname + window.location.hash,
       userAgent: navigator.userAgent,
       componentStack: errorInfo?.componentStack 
         ? redactSensitiveData(errorInfo.componentStack) 

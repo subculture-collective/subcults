@@ -110,7 +110,7 @@ class SessionReplay {
     // Remove event listeners
     document.removeEventListener('click', this.handleClick);
     window.removeEventListener('popstate', this.handleNavigation);
-    window.removeEventListener('scroll', this.handleScroll, { passive: true } as EventListenerOptions);
+    window.removeEventListener('scroll', this.handleScroll, { passive: true });
 
     // Disconnect mutation observer
     if (this.mutationObserver) {
@@ -312,7 +312,7 @@ class SessionReplay {
 
 /**
  * Get opt-in status from settings store
- * Uses dynamic import to avoid circular dependency
+ * Reads dynamically from localStorage on each check to respect real-time changes
  */
 function getSessionReplayOptIn(): boolean {
   try {
@@ -329,7 +329,7 @@ function getSessionReplayOptIn(): boolean {
   return false; // Default to false (opt-out)
 }
 
-// Export singleton instance
+// Export singleton instance with dynamic opt-in check
 export const sessionReplay = new SessionReplay({}, getSessionReplayOptIn);
 
 // Export class for testing

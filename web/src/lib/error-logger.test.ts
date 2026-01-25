@@ -48,6 +48,24 @@ describe('redactSensitiveData', () => {
     expect(redacted).not.toContain('test_live_abcdefghijklmnopqrstuvwxyz1234567890ABCDEFGH');
   });
 
+  it('redacts API keys with common prefixes', () => {
+    const text = 'API key: api_live_1234567890abcdefghijklmn and key_test_abcdef1234567890';
+    const redacted = redactSensitiveData(text);
+    
+    expect(redacted).toContain('[REDACTED]');
+    expect(redacted).not.toContain('api_live_1234567890abcdefghijklmn');
+    expect(redacted).not.toContain('key_test_abcdef1234567890');
+  });
+
+  it('does not redact short alphanumeric strings to avoid over-redaction', () => {
+    // SHA256 hashes and UUIDs should not be overly aggressive
+    const text = 'Error in function calculateHash with result abc123def456';
+    const redacted = redactSensitiveData(text);
+    
+    // Short strings should not be redacted
+    expect(redacted).toBe(text);
+  });
+
   it('preserves non-sensitive text', () => {
     const text = 'Regular error message without PII';
     const redacted = redactSensitiveData(text);
@@ -60,7 +78,7 @@ describe('redactSensitiveData', () => {
   });
 
   it('handles multiple sensitive patterns in one string', () => {
-    const text = 'Error with email user@test.com and DID did:plc:123 and token eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.test.signature';
+    const text = 'Error with email user@test.com and DID did:plc:123 and token eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIn0.SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c';
     const redacted = redactSensitiveData(text);
     
     expect(redacted).not.toContain('user@test.com');
@@ -174,6 +192,27 @@ describe('ErrorLogger', () => {
 
       expect(payload.message).not.toContain('user@test.com');
       expect(payload.message).toContain('[REDACTED]');
+    });
+
+    it('excludes query parameters from URL to prevent PII leakage', async () => {
+      // Mock window.location
+      delete (window as any).location;
+      (window as any).location = {
+        pathname: '/scenes/123',
+        hash: '#section',
+        href: '/scenes/123?token=secret&email=user@test.com#section',
+      };
+
+      const error = new Error('Test error');
+      await logger.logError(error);
+
+      const call = fetchMock.mock.calls[0];
+      const payload: ErrorLogPayload = JSON.parse(call[1].body);
+
+      // Should include pathname and hash, but not query params
+      expect(payload.url).toBe('/scenes/123#section');
+      expect(payload.url).not.toContain('token=');
+      expect(payload.url).not.toContain('email=');
     });
 
     it('redacts sensitive data from stack trace', async () => {
