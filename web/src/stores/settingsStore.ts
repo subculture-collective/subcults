@@ -60,6 +60,18 @@ function saveSettings(settings: SettingsState): void {
 
 /**
  * Settings store with localStorage persistence
+ * 
+ * IMPORTANT: Call initializeSettings() on app startup to load persisted preferences.
+ * Without initialization, user opt-out preferences will not be respected until
+ * they manually change settings in the current session.
+ * 
+ * Example:
+ * ```typescript
+ * // In App.tsx or root component:
+ * useEffect(() => {
+ *   useSettingsStore.getState().initializeSettings();
+ * }, []);
+ * ```
  */
 export const useSettingsStore = create<SettingsStore>((set, get) => ({
   ...DEFAULT_SETTINGS,

@@ -174,16 +174,6 @@ describe('useTelemetry', () => {
     });
   });
 
-  describe('cleanup', () => {
-    it('flushes on unmount', () => {
-      const { unmount } = renderHook(() => useTelemetry());
-
-      unmount();
-
-      expect(telemetryService.flush).toHaveBeenCalledTimes(1);
-    });
-  });
-
   describe('stability', () => {
     it('returns stable emit function when dependencies do not change', () => {
       const { result, rerender } = renderHook(() => useTelemetry());

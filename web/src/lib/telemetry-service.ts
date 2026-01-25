@@ -38,8 +38,13 @@ const SESSION_ID_KEY = 'subcults-session-id';
 
 /**
  * Generate a UUID v4
+ * Uses crypto.randomUUID() for better entropy, falls back to Math.random()
  */
 function generateUUID(): string {
+  if (typeof crypto !== 'undefined' && crypto.randomUUID) {
+    return crypto.randomUUID();
+  }
+  // Fallback for environments without crypto.randomUUID
   return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
     const r = (Math.random() * 16) | 0;
     const v = c === 'x' ? r : (r & 0x3) | 0x8;
@@ -49,10 +54,10 @@ function generateUUID(): string {
 
 /**
  * Get or create session ID for this tab
- * Session ID persists until full page reload
+ * Session ID persists for the browser tab session (until tab closes)
  */
 function getSessionId(): string {
-  // Use sessionStorage (clears on tab close, not on navigation)
+  // Use sessionStorage (persists across navigation, clears when tab closes)
   let sessionId = sessionStorage.getItem(SESSION_ID_KEY);
   
   if (!sessionId) {

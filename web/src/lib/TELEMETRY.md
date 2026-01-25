@@ -8,7 +8,7 @@ The telemetry system provides:
 - **Event batching**: Automatically batches events and sends them in intervals (5s) or when reaching size threshold (20 events)
 - **Retry logic**: Retries failed network requests once with exponential backoff
 - **Privacy opt-out**: Users can disable telemetry collection via settings
-- **Session tracking**: Each browser tab gets a unique session ID (persists until full reload)
+- **Session tracking**: Each browser tab gets a unique session ID (persists until tab closes)
 - **Automatic auth integration**: Includes user DID when authenticated
 
 ## Architecture
@@ -212,7 +212,7 @@ When opted out:
 ### Session ID
 
 - **Scope**: Single browser tab
-- **Lifetime**: Until page reload (stored in sessionStorage)
+- **Lifetime**: Until tab closes (persists across page reloads within the tab)
 - **Format**: UUID v4
 - **Purpose**: Track user journey within a session (not across tabs/sessions)
 
@@ -221,6 +221,27 @@ When opted out:
 - **Included**: Only if user is authenticated
 - **Format**: DID (Decentralized Identifier)
 - **Automatic**: useTelemetry() hook handles this
+
+## Setup & Initialization
+
+The settings store must be initialized on app startup to load persisted preferences from localStorage:
+
+```typescript
+// In App.tsx or root component:
+import { useEffect } from 'react';
+import { useSettingsStore } from './stores';
+
+function App() {
+  useEffect(() => {
+    // Initialize settings from localStorage
+    useSettingsStore.getState().initializeSettings();
+  }, []);
+  
+  // ... rest of app
+}
+```
+
+**Important:** Without this initialization, user opt-out preferences will not be respected until they manually change settings in the current session.
 
 ## Configuration
 

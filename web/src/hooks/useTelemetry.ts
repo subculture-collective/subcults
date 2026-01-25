@@ -3,7 +3,7 @@
  * React hook for emitting telemetry events
  */
 
-import { useCallback, useEffect } from 'react';
+import { useCallback } from 'react';
 import { telemetryService } from '../lib/telemetry-service';
 import { useAuth } from '../stores/authStore';
 import { useTelemetryOptOut } from '../stores/settingsStore';
@@ -34,14 +34,6 @@ export type EmitFunction = (name: string, payload?: Record<string, unknown>) => 
 export function useTelemetry(): EmitFunction {
   const { user } = useAuth();
   const isOptedOut = useTelemetryOptOut();
-
-  // Cleanup on unmount
-  useEffect(() => {
-    return () => {
-      // Flush any pending events when component unmounts
-      telemetryService.flush();
-    };
-  }, []);
 
   // Create stable emit function
   const emit = useCallback(
