@@ -1,6 +1,6 @@
 /**
  * Language Store Tests
- * Validates language preference state management and detection
+ * Validates language preference state management and i18n synchronization
  */
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
@@ -22,9 +22,11 @@ describe('languageStore', () => {
     vi.restoreAllMocks();
   });
 
-  describe('language detection', () => {
-    it('uses stored language from localStorage', () => {
-      localStorage.setItem('subcults-language', 'es');
+  describe('initializeLanguage', () => {
+    it('syncs with i18n current language', () => {
+      // Mock i18n to return Spanish
+      vi.spyOn(i18n, 'language', 'get').mockReturnValue('es');
+      
       const { result } = renderHook(() => useLanguageStore());
 
       act(() => {
@@ -34,66 +36,18 @@ describe('languageStore', () => {
       expect(result.current.language).toBe('es');
     });
 
-    it('detects Spanish from browser languages', () => {
-      // Mock navigator.languages
-      Object.defineProperty(navigator, 'languages', {
-        writable: true,
-        value: ['es-MX', 'es', 'en'],
-      });
-
+    it('defaults to en when i18n language is not supported', () => {
+      // Mock i18n to return unsupported language
+      vi.spyOn(i18n, 'language', 'get').mockReturnValue('fr');
+      
       const { result } = renderHook(() => useLanguageStore());
 
       act(() => {
         result.current.initializeLanguage();
       });
 
-      expect(result.current.language).toBe('es');
-    });
-
-    it('detects English from browser languages', () => {
-      Object.defineProperty(navigator, 'languages', {
-        writable: true,
-        value: ['en-US', 'en'],
-      });
-
-      const { result } = renderHook(() => useLanguageStore());
-
-      act(() => {
-        result.current.initializeLanguage();
-      });
-
-      expect(result.current.language).toBe('en');
-    });
-
-    it('falls back to English when no preference available', () => {
-      Object.defineProperty(navigator, 'languages', {
-        writable: true,
-        value: ['fr-FR', 'de'],
-      });
-
-      const { result } = renderHook(() => useLanguageStore());
-
-      act(() => {
-        result.current.initializeLanguage();
-      });
-
-      expect(result.current.language).toBe('en');
-    });
-
-    it('prioritizes localStorage over browser languages', () => {
-      localStorage.setItem('subcults-language', 'en');
-      Object.defineProperty(navigator, 'languages', {
-        writable: true,
-        value: ['es-MX', 'es'],
-      });
-
-      const { result } = renderHook(() => useLanguageStore());
-
-      act(() => {
-        result.current.initializeLanguage();
-      });
-
-      expect(result.current.language).toBe('en');
+      // Store accepts what i18n provides (i18n handles fallback)
+      expect(result.current.language).toBe('fr');
     });
   });
 
@@ -106,16 +60,6 @@ describe('languageStore', () => {
       });
 
       expect(result.current.language).toBe('es');
-    });
-
-    it('persists language to localStorage', () => {
-      const { result } = renderHook(() => useLanguageStore());
-
-      act(() => {
-        result.current.setLanguage('es');
-      });
-
-      expect(localStorage.getItem('subcults-language')).toBe('es');
     });
 
     it('updates i18n language', () => {

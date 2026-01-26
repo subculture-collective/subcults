@@ -11,6 +11,7 @@ import { AppRouter } from './routes';
 import { authStore } from './stores/authStore';
 import { useStreamingStore } from './stores/streamingStore';
 import { useSettingsStore } from './stores/settingsStore';
+import { useLanguageStore } from './stores/languageStore';
 import { sessionReplay } from './lib/session-replay';
 import './App.css';
 
@@ -24,6 +25,11 @@ function App() {
   useEffect(() => {
     const streamingStore = useStreamingStore.getState();
     streamingStore.initialize();
+  }, []);
+
+  // Initialize language store on app startup
+  useEffect(() => {
+    useLanguageStore.getState().initializeLanguage();
   }, []);
 
   // Initialize settings store and session replay

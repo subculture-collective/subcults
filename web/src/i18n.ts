@@ -55,8 +55,9 @@ i18n
     
     // React options
     react: {
-      // Use Suspense for loading translations
-      useSuspense: true,
+      // Disable React Suspense because the app is not wrapped in a Suspense boundary.
+      // This prevents runtime crashes when translations are loaded asynchronously.
+      useSuspense: false,
     },
     
     // Interpolation options

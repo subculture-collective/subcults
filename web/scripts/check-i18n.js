@@ -17,7 +17,21 @@ const ROOT_DIR = join(__dirname, '..');
 const SRC_DIR = join(ROOT_DIR, 'src');
 const LOCALES_DIR = join(ROOT_DIR, 'public', 'locales');
 
-const NAMESPACES = ['common', 'scenes', 'events', 'streaming', 'auth'];
+// Load NAMESPACES from i18n.ts to ensure consistency
+function loadNamespaces() {
+  const i18nPath = join(SRC_DIR, 'i18n.ts');
+  const content = readFileSync(i18nPath, 'utf-8');
+  const match = content.match(/export const NAMESPACES = \[([^\]]+)\]/);
+  if (match) {
+    // Parse the array values
+    return match[1]
+      .split(',')
+      .map(s => s.trim().replace(/['"]/g, ''));
+  }
+  throw new Error('Could not load NAMESPACES from i18n.ts');
+}
+
+const NAMESPACES = loadNamespaces();
 
 /**
  * Remove comments from code
@@ -59,6 +73,7 @@ function findSourceFiles(dir) {
 
 /**
  * Extract translation keys from a file with namespace awareness
+ * Handles multiple useTranslation calls with different namespaces
  */
 function extractKeysFromFile(filePath) {
   let content = readFileSync(filePath, 'utf-8');
@@ -68,13 +83,27 @@ function extractKeysFromFile(filePath) {
   
   const keys = [];
   
-  // Detect useTranslation namespace
-  const useTranslationMatch = content.match(/useTranslation\s*\(\s*['"`]([^'"`]+)['"`]\s*\)/);
-  const defaultNamespace = useTranslationMatch ? useTranslationMatch[1] : 'common';
+  // Find all useTranslation calls and their namespaces
+  const useTranslationPattern = /useTranslation\s*\(\s*['"`]([^'"`]+)['"`]\s*\)/g;
+  const namespaceUsages = [];
+  let match;
+  
+  while ((match = useTranslationPattern.exec(content)) !== null) {
+    namespaceUsages.push({
+      namespace: match[1],
+      position: match.index
+    });
+  }
+  
+  // If no explicit namespace found, use 'common' as default
+  const defaultNamespace = namespaceUsages.length > 0 ? namespaceUsages[0].namespace : 'common';
+  
+  // For files with multiple useTranslation calls, we use the first one as default
+  // This is a heuristic; ideally we'd do proper AST parsing to track which t() belongs to which hook
+  // But for most cases, components use a single namespace
   
   // Pattern for t() calls
   const tPattern = /\bt\s*\(\s*['"`]([^'"`]+)['"`]/g;
-  let match;
   
   while ((match = tPattern.exec(content)) !== null) {
     const key = match[1];

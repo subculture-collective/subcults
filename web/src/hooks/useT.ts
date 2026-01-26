@@ -4,7 +4,7 @@
  */
 
 import { useTranslation, Trans as I18nextTrans } from 'react-i18next';
-import type { Namespace } from './i18n';
+import type { Namespace } from '../i18n';
 
 /**
  * Custom hook for translations with type safety
