@@ -8,6 +8,7 @@ import { render } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { StreamPage } from './StreamPage';
 import { expectNoA11yViolations } from '../test/a11y-helpers';
+import * as streamingStore from '../stores/streamingStore';
 
 // Mock streaming components
 vi.mock('../components/streaming', () => ({
@@ -91,10 +92,26 @@ describe('StreamPage - Accessibility', () => {
     expect(h1?.textContent).toContain('streaming.streamPage.streamRoom');
   });
 
-  it.skip('should use alert role for error messages - requires error state injection', () => {
-    // This test is skipped because it would require complex mock state injection
-    // The actual implementation in StreamPage.tsx does use role="alert" for errors
-    // Manual testing or E2E tests should verify this functionality
+  it('should use alert role for error messages', () => {
+    // Mock the streaming connection to return an error
+    vi.mocked(streamingStore.useStreamingConnection).mockReturnValueOnce({
+      isConnected: false,
+      isConnecting: false,
+      error: 'Connection failed',
+      connectionQuality: 'poor',
+    });
+
+    const { container } = render(
+      <MemoryRouter initialEntries={['/stream/test-room']}>
+        <Routes>
+          <Route path="/stream/:room" element={<StreamPage />} />
+        </Routes>
+      </MemoryRouter>
+    );
+
+    const alert = container.querySelector('[role="alert"]');
+    expect(alert).toBeInTheDocument();
+    expect(alert?.textContent).toContain('Connection failed');
   });
 
   it('should have accessible button for joining stream', () => {

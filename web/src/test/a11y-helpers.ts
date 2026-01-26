@@ -3,6 +3,7 @@
  * Utilities for consistent accessibility testing across the application
  */
 
+import { expect } from 'vitest';
 import { axe as axeCore } from 'vitest-axe';
 import type { RenderResult } from '@testing-library/react';
 
