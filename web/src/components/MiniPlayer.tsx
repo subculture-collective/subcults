@@ -18,7 +18,7 @@ import {
  * Persists across route changes
  */
 export const MiniPlayer: React.FC = memo(() => {
-  const { t } = useTranslation();
+  const { t } = useTranslation('streaming');
   const { isConnected, roomName, connectionQuality } = useStreamingConnection();
   const { volume, isLocalMuted, setVolume, toggleMute } = useStreamingAudio();
   const { disconnect } = useStreamingActions();
@@ -80,7 +80,7 @@ export const MiniPlayer: React.FC = memo(() => {
       ref={miniPlayerRef}
       className="mini-player"
       role="region"
-      aria-label={t('streaming.miniPlayer.label')}
+      aria-label={t('miniPlayer.label')}
       onKeyDown={handleKeyDown}
       style={{
         position: 'fixed',
@@ -106,8 +106,8 @@ export const MiniPlayer: React.FC = memo(() => {
           backgroundColor: qualityColor,
           flexShrink: 0,
         }}
-        title={t(`streaming.miniPlayer.quality.${connectionQuality}`)}
-        aria-label={t(`streaming.miniPlayer.quality.${connectionQuality}`)}
+        title={t(`miniPlayer.quality.${connectionQuality}`)}
+        aria-label={t(`miniPlayer.quality.${connectionQuality}`)}
       />
 
       {/* Stream Info */}
@@ -128,7 +128,7 @@ export const MiniPlayer: React.FC = memo(() => {
             textOverflow: 'ellipsis',
           }}
         >
-          {t('streaming.miniPlayer.nowPlaying')}
+          {t('miniPlayer.nowPlaying')}
         </div>
         <div
           style={{
@@ -147,7 +147,7 @@ export const MiniPlayer: React.FC = memo(() => {
       <button
         onClick={toggleMute}
         className="mini-player-mute-btn"
-        aria-label={isLocalMuted ? t('streaming.miniPlayer.unmute') : t('streaming.miniPlayer.mute')}
+        aria-label={isLocalMuted ? t('miniPlayer.unmute') : t('miniPlayer.mute')}
         style={{
           padding: '0.5rem',
           fontSize: '1.125rem',
@@ -182,7 +182,7 @@ export const MiniPlayer: React.FC = memo(() => {
         <button
           onClick={() => setShowVolumeSlider(!showVolumeSlider)}
           className="mini-player-volume-btn"
-          aria-label={t('streaming.miniPlayer.volumeControl')}
+          aria-label={t('miniPlayer.volumeControl')}
           aria-expanded={showVolumeSlider}
           aria-controls="mini-player-volume-slider"
           style={{
@@ -231,7 +231,7 @@ export const MiniPlayer: React.FC = memo(() => {
                 textAlign: 'center',
               }}
             >
-              {t('streaming.miniPlayer.volume')}: {volume}%
+              {t('miniPlayer.volume')}: {volume}%
             </label>
             <input
               id="mini-player-volume-input"
@@ -241,7 +241,7 @@ export const MiniPlayer: React.FC = memo(() => {
               step="1"
               value={volume}
               onChange={handleVolumeChange}
-              aria-label={t('streaming.miniPlayer.volumeSlider')}
+              aria-label={t('miniPlayer.volumeSlider')}
               aria-valuemin={0}
               aria-valuemax={100}
               aria-valuenow={volume}
@@ -262,7 +262,7 @@ export const MiniPlayer: React.FC = memo(() => {
       <button
         onClick={disconnect}
         className="mini-player-leave-btn"
-        aria-label={t('streaming.miniPlayer.leave')}
+        aria-label={t('miniPlayer.leave')}
         style={{
           padding: '0.5rem 1rem',
           fontSize: '0.875rem',
@@ -277,7 +277,7 @@ export const MiniPlayer: React.FC = memo(() => {
           whiteSpace: 'nowrap',
         }}
       >
-        {t('streaming.miniPlayer.leave')}
+        {t('miniPlayer.leave')}
       </button>
 
       <style>{`

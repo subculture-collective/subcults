@@ -19,13 +19,13 @@ export const JoinStreamButton: React.FC<JoinStreamButtonProps> = ({
   onJoin,
   disabled = false,
 }) => {
-  const { t } = useTranslation();
+  const { t } = useTranslation('streaming');
   
   const buttonText = isConnecting
-    ? t('streaming.joinButton.connecting')
+    ? t('joinButton.connecting')
     : isConnected
-    ? t('streaming.joinButton.connected')
-    : t('streaming.joinButton.join');
+    ? t('joinButton.connected')
+    : t('joinButton.join');
 
   return (
     <button

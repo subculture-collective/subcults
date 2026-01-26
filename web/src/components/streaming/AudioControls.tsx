@@ -21,7 +21,7 @@ export const AudioControls: React.FC<AudioControlsProps> = ({
   onVolumeChange,
   disabled = false,
 }) => {
-  const { t } = useTranslation();
+  const { t } = useTranslation('streaming');
   const [volume, setVolume] = useState(100);
   const [showVolumeSlider, setShowVolumeSlider] = useState(false);
   const volumeRef = useRef<HTMLDivElement>(null);
@@ -74,7 +74,7 @@ export const AudioControls: React.FC<AudioControlsProps> = ({
         onClick={onToggleMute}
         disabled={disabled}
         className={`mute-button ${isMuted ? 'muted' : 'unmuted'}`}
-        aria-label={isMuted ? t('streaming.audioControls.unmute') : t('streaming.audioControls.mute')}
+        aria-label={isMuted ? t('audioControls.unmute') : t('audioControls.mute')}
         style={{
           padding: '0.75rem',
           fontSize: '1.25rem',
@@ -118,7 +118,7 @@ export const AudioControls: React.FC<AudioControlsProps> = ({
           onClick={() => setShowVolumeSlider(!showVolumeSlider)}
           disabled={disabled}
           className="volume-button"
-          aria-label={t('streaming.audioControls.volumeControl')}
+          aria-label={t('audioControls.volumeControl')}
           aria-expanded={showVolumeSlider}
           style={{
             padding: '0.5rem',
@@ -165,7 +165,7 @@ export const AudioControls: React.FC<AudioControlsProps> = ({
                 marginBottom: '0.5rem',
               }}
             >
-              {t('streaming.audioControls.volumeLabel')}: {volume}%
+              {t('audioControls.volumeLabel')}: {volume}%
             </label>
             <input
               id="volume-slider"
@@ -197,7 +197,7 @@ export const AudioControls: React.FC<AudioControlsProps> = ({
         onClick={onLeave}
         disabled={disabled}
         className="leave-button"
-        aria-label={t('streaming.audioControls.leaveRoom')}
+        aria-label={t('audioControls.leaveRoom')}
         style={{
           padding: '0.75rem 1.5rem',
           fontSize: '0.875rem',
@@ -219,7 +219,7 @@ export const AudioControls: React.FC<AudioControlsProps> = ({
           e.currentTarget.style.backgroundColor = '#dc2626';
         }}
       >
-        {t('streaming.audioControls.leave')}
+        {t('audioControls.leave')}
       </button>
     </div>
   );

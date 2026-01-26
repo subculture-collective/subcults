@@ -16,7 +16,7 @@ export const ParticipantList: React.FC<ParticipantListProps> = ({
   participants,
   localParticipant,
 }) => {
-  const { t } = useTranslation();
+  const { t } = useTranslation('streaming');
   
   const allParticipants = localParticipant
     ? [localParticipant, ...participants]
@@ -33,7 +33,7 @@ export const ParticipantList: React.FC<ParticipantListProps> = ({
           fontStyle: 'italic',
         }}
       >
-        {t('streaming.participantList.empty')}
+        {t('participantList.empty')}
       </div>
     );
   }
@@ -83,7 +83,7 @@ interface ParticipantItemProps {
 }
 
 const ParticipantItem: React.FC<ParticipantItemProps> = ({ participant }) => {
-  const { t } = useTranslation();
+  const { t } = useTranslation('streaming');
   
   return (
     <div
@@ -142,7 +142,7 @@ const ParticipantItem: React.FC<ParticipantItemProps> = ({ participant }) => {
                 fontWeight: 400,
               }}
             >
-              ({t('streaming.participantList.you')})
+              ({t('participantList.you')})
             </span>
           )}
         </div>
@@ -153,7 +153,7 @@ const ParticipantItem: React.FC<ParticipantItemProps> = ({ participant }) => {
             marginTop: '0.125rem',
           }}
         >
-          {participant.isSpeaking ? t('streaming.participantList.speaking') : ''}
+          {participant.isSpeaking ? t('participantList.speaking') : ''}
         </div>
       </div>
 
