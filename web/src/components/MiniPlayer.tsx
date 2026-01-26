@@ -246,11 +246,11 @@ export const MiniPlayer: React.FC = memo(() => {
               aria-valuemax={100}
               aria-valuenow={volume}
               aria-valuetext={`${volume}%`}
+              className="volume-slider"
               style={{
                 width: '100%',
                 height: '0.25rem',
                 borderRadius: '0.125rem',
-                outline: 'none',
                 cursor: 'pointer',
               }}
             />

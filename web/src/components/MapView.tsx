@@ -311,6 +311,8 @@ export const MapView = forwardRef<MapViewHandle, MapViewProps>(
         style={{ width: '100%', height: '100%' }}
         data-testid="map-container"
         data-map-loaded={isMapLoaded}
+        role="application"
+        aria-label="Interactive map showing scenes and events"
       />
     );
   }
