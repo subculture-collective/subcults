@@ -32,10 +32,11 @@ type Config struct {
 	LiveKitAPISecret string `koanf:"livekit_api_secret"`
 
 	// Stripe
-	StripeAPIKey              string `koanf:"stripe_api_key"`
-	StripeWebhookSecret       string `koanf:"stripe_webhook_secret"`
-	StripeOnboardingReturnURL string `koanf:"stripe_onboarding_return_url"`
+	StripeAPIKey              string  `koanf:"stripe_api_key"`
+	StripeWebhookSecret       string  `koanf:"stripe_webhook_secret"`
+	StripeOnboardingReturnURL string  `koanf:"stripe_onboarding_return_url"`
 	StripeOnboardingRefreshURL string `koanf:"stripe_onboarding_refresh_url"`
+	StripeApplicationFeePercent float64 `koanf:"stripe_application_fee_percent"` // Platform fee as percentage (e.g., 5.0 for 5%)
 
 	// MapTiler
 	MapTilerAPIKey string `koanf:"maptiler_api_key"`
@@ -76,10 +77,11 @@ var (
 
 // Default values for non-secret configuration.
 const (
-	DefaultPort              = 8080
-	DefaultEnv               = "development"
-	DefaultR2MaxUploadSizeMB = 15
-	DefaultRankTrustEnabled  = false
+	DefaultPort                      = 8080
+	DefaultEnv                       = "development"
+	DefaultR2MaxUploadSizeMB         = 15
+	DefaultRankTrustEnabled          = false
+	DefaultStripeApplicationFeePercent = 5.0 // 5% platform fee by default
 )
 
 // Load reads configuration from environment variables and an optional config file.
@@ -126,6 +128,21 @@ func Load(configFilePath string) (*Config, []error) {
 		}
 	}
 
+	// Parse Stripe application fee percentage with default
+	stripeFeePercent := DefaultStripeApplicationFeePercent
+	if k.Exists("stripe_application_fee_percent") {
+		stripeFeePercent = k.Float64("stripe_application_fee_percent")
+	}
+	if feePercentStr := os.Getenv("STRIPE_APPLICATION_FEE_PERCENT"); feePercentStr != "" {
+		// Env var takes precedence over file config
+		parsed, err := strconv.ParseFloat(feePercentStr, 64)
+		if err != nil {
+			loadErrs = append(loadErrs, fmt.Errorf("STRIPE_APPLICATION_FEE_PERCENT must be a valid float: %w", err))
+		} else {
+			stripeFeePercent = parsed
+		}
+	}
+
 	// Build config struct, with env vars taking precedence over file values
 	cfg := &Config{
 		Port:                port,
@@ -139,6 +156,7 @@ func Load(configFilePath string) (*Config, []error) {
 		StripeWebhookSecret:       getEnvOrKoanf("STRIPE_WEBHOOK_SECRET", k, "stripe_webhook_secret"),
 		StripeOnboardingReturnURL:  getEnvOrKoanf("STRIPE_ONBOARDING_RETURN_URL", k, "stripe_onboarding_return_url"),
 		StripeOnboardingRefreshURL: getEnvOrKoanf("STRIPE_ONBOARDING_REFRESH_URL", k, "stripe_onboarding_refresh_url"),
+		StripeApplicationFeePercent: stripeFeePercent,
 		MapTilerAPIKey:            getEnvOrKoanf("MAPTILER_API_KEY", k, "maptiler_api_key"),
 		JetstreamURL:        getEnvOrKoanf("JETSTREAM_URL", k, "jetstream_url"),
 		R2BucketName:        getEnvOrKoanf("R2_BUCKET_NAME", k, "r2_bucket_name"),

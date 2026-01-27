@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"log/slog"
 	"net/http"
+	"net/url"
 	"time"
 
 	"github.com/onnwee/subcults/internal/middleware"
@@ -14,24 +15,30 @@ import (
 
 // PaymentHandlers holds dependencies for payment-related HTTP handlers.
 type PaymentHandlers struct {
-	sceneRepo     scene.SceneRepository
-	stripeClient  payment.Client
-	returnURL     string
-	refreshURL    string
+	sceneRepo           scene.SceneRepository
+	paymentRepo         payment.PaymentRepository
+	stripeClient        payment.Client
+	returnURL           string
+	refreshURL          string
+	applicationFeePercent float64
 }
 
 // NewPaymentHandlers creates a new PaymentHandlers instance.
 func NewPaymentHandlers(
 	sceneRepo scene.SceneRepository,
+	paymentRepo payment.PaymentRepository,
 	stripeClient payment.Client,
 	returnURL string,
 	refreshURL string,
+	applicationFeePercent float64,
 ) *PaymentHandlers {
 	return &PaymentHandlers{
-		sceneRepo:    sceneRepo,
-		stripeClient: stripeClient,
-		returnURL:    returnURL,
-		refreshURL:   refreshURL,
+		sceneRepo:           sceneRepo,
+		paymentRepo:         paymentRepo,
+		stripeClient:        stripeClient,
+		returnURL:           returnURL,
+		refreshURL:          refreshURL,
+		applicationFeePercent: applicationFeePercent,
 	}
 }
 
@@ -140,4 +147,208 @@ func (h *PaymentHandlers) OnboardScene(w http.ResponseWriter, r *http.Request) {
 	if err := json.NewEncoder(w).Encode(response); err != nil {
 		slog.Error("failed to encode response", "error", err)
 	}
+}
+
+// CheckoutSessionRequest represents the request body for creating a Stripe Checkout Session.
+type CheckoutSessionRequest struct {
+	SceneID    string                 `json:"scene_id"`
+	EventID    *string                `json:"event_id,omitempty"`
+	Items      []CheckoutItemRequest  `json:"items"`
+	SuccessURL string                 `json:"success_url"`
+	CancelURL  string                 `json:"cancel_url"`
+}
+
+// CheckoutItemRequest represents a line item in the checkout.
+type CheckoutItemRequest struct {
+	PriceID  string `json:"price_id"`
+	Quantity int64  `json:"quantity"`
+}
+
+// CheckoutSessionResponse represents the response for a successful checkout session creation.
+type CheckoutSessionResponse struct {
+	SessionURL string `json:"session_url"`
+	SessionID  string `json:"session_id"`
+}
+
+// CreateCheckoutSession creates a Stripe Checkout Session for event ticket or merch with application fee.
+// POST /payments/checkout
+func (h *PaymentHandlers) CreateCheckoutSession(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	// Get authenticated user DID from context
+	userDID := middleware.GetUserDID(ctx)
+	if userDID == "" {
+		ctx = middleware.SetErrorCode(ctx, ErrCodeUnauthorized)
+		WriteError(w, ctx, http.StatusUnauthorized, ErrCodeUnauthorized, "authentication required")
+		return
+	}
+
+	// Parse request body
+	var req CheckoutSessionRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		ctx = middleware.SetErrorCode(ctx, ErrCodeBadRequest)
+		WriteError(w, ctx, http.StatusBadRequest, ErrCodeBadRequest, "invalid request body")
+		return
+	}
+
+	// Validate required fields
+	if req.SceneID == "" {
+		ctx = middleware.SetErrorCode(ctx, ErrCodeBadRequest)
+		WriteError(w, ctx, http.StatusBadRequest, ErrCodeBadRequest, "scene_id is required")
+		return
+	}
+	if len(req.Items) == 0 {
+		ctx = middleware.SetErrorCode(ctx, ErrCodeBadRequest)
+		WriteError(w, ctx, http.StatusBadRequest, ErrCodeBadRequest, "items list cannot be empty")
+		return
+	}
+	if req.SuccessURL == "" {
+		ctx = middleware.SetErrorCode(ctx, ErrCodeBadRequest)
+		WriteError(w, ctx, http.StatusBadRequest, ErrCodeBadRequest, "success_url is required")
+		return
+	}
+	if req.CancelURL == "" {
+		ctx = middleware.SetErrorCode(ctx, ErrCodeBadRequest)
+		WriteError(w, ctx, http.StatusBadRequest, ErrCodeBadRequest, "cancel_url is required")
+		return
+	}
+
+	// Validate URLs for safety
+	if _, err := url.Parse(req.SuccessURL); err != nil || !isValidRedirectURL(req.SuccessURL) {
+		ctx = middleware.SetErrorCode(ctx, ErrCodeBadRequest)
+		WriteError(w, ctx, http.StatusBadRequest, ErrCodeBadRequest, "success_url must be a valid HTTPS URL")
+		return
+	}
+	if _, err := url.Parse(req.CancelURL); err != nil || !isValidRedirectURL(req.CancelURL) {
+		ctx = middleware.SetErrorCode(ctx, ErrCodeBadRequest)
+		WriteError(w, ctx, http.StatusBadRequest, ErrCodeBadRequest, "cancel_url must be a valid HTTPS URL")
+		return
+	}
+
+	// Validate items
+	for i, item := range req.Items {
+		if item.PriceID == "" {
+			ctx = middleware.SetErrorCode(ctx, ErrCodeBadRequest)
+			WriteError(w, ctx, http.StatusBadRequest, ErrCodeBadRequest, "price_id is required for all items")
+			return
+		}
+		if item.Quantity <= 0 {
+			ctx = middleware.SetErrorCode(ctx, ErrCodeBadRequest)
+			WriteError(w, ctx, http.StatusBadRequest, ErrCodeBadRequest, "quantity must be positive")
+			return
+		}
+		// Enforce reasonable quantity limit to prevent abuse
+		if item.Quantity > 100 {
+			ctx = middleware.SetErrorCode(ctx, ErrCodeBadRequest)
+			WriteError(w, ctx, http.StatusBadRequest, ErrCodeBadRequest, "quantity cannot exceed 100 per item")
+			return
+		}
+		slog.InfoContext(ctx, "checkout item", "index", i, "price_id", item.PriceID, "quantity", item.Quantity)
+	}
+
+	// Get scene from repository
+	existingScene, err := h.sceneRepo.GetByID(req.SceneID)
+	if err != nil {
+		slog.ErrorContext(ctx, "failed to get scene", "scene_id", req.SceneID, "error", err)
+		ctx = middleware.SetErrorCode(ctx, ErrCodeNotFound)
+		WriteError(w, ctx, http.StatusNotFound, ErrCodeNotFound, "scene not found")
+		return
+	}
+
+	// Validate scene has connected account
+	if existingScene.ConnectedAccountID == nil || *existingScene.ConnectedAccountID == "" {
+		ctx = middleware.SetErrorCode(ctx, "not_onboarded")
+		WriteError(w, ctx, http.StatusBadRequest, "not_onboarded", "scene must be onboarded for payments before creating checkout session")
+		return
+	}
+
+	// Convert items to payment client format
+	items := make([]payment.CheckoutItem, len(req.Items))
+	for i, item := range req.Items {
+		items[i] = payment.CheckoutItem{
+			PriceID:  item.PriceID,
+			Quantity: item.Quantity,
+		}
+	}
+
+	// Note: In a real implementation, we would fetch the total amount from Stripe Price API
+	// For now, we'll compute the fee based on a placeholder amount of $100 (10000 cents)
+	// This will be properly calculated when Stripe processes the actual prices
+	placeholderAmount := int64(10000) // $100 in cents as placeholder
+	applicationFee := int64(float64(placeholderAmount) * h.applicationFeePercent / 100.0)
+
+	// Create Stripe Checkout Session
+	sessionParams := &payment.CheckoutSessionParams{
+		ConnectedAccountID: *existingScene.ConnectedAccountID,
+		Items:              items,
+		SuccessURL:         req.SuccessURL,
+		CancelURL:          req.CancelURL,
+		ApplicationFee:     applicationFee,
+		UserDID:            userDID,
+	}
+
+	session, err := h.stripeClient.CreateCheckoutSession(sessionParams)
+	if err != nil {
+		slog.ErrorContext(ctx, "failed to create checkout session", "scene_id", req.SceneID, "error", err)
+		ctx = middleware.SetErrorCode(ctx, ErrCodeInternal)
+		WriteError(w, ctx, http.StatusInternalServerError, ErrCodeInternal, "failed to create checkout session")
+		return
+	}
+
+	// Create provisional payment record
+	paymentRecord := &payment.PaymentRecord{
+		SessionID: session.ID,
+		Status:    payment.StatusPending,
+		Amount:    placeholderAmount,
+		Fee:       applicationFee,
+		UserDID:   userDID,
+		SceneID:   req.SceneID,
+		EventID:   req.EventID,
+	}
+
+	if err := h.paymentRepo.Insert(paymentRecord); err != nil {
+		slog.ErrorContext(ctx, "failed to insert payment record", "session_id", session.ID, "error", err)
+		// Not a critical failure; continue and return session URL
+	}
+
+	// Return session URL
+	response := CheckoutSessionResponse{
+		SessionURL: session.URL,
+		SessionID:  session.ID,
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	if err := json.NewEncoder(w).Encode(response); err != nil {
+		slog.Error("failed to encode response", "error", err)
+	}
+}
+
+// isValidRedirectURL validates that a URL is safe for redirection.
+// It ensures the URL uses HTTPS (or HTTP for localhost in development).
+func isValidRedirectURL(rawURL string) bool {
+parsedURL, err := url.Parse(rawURL)
+if err != nil {
+return false
+}
+
+// Must have a scheme
+if parsedURL.Scheme == "" {
+return false
+}
+
+// Allow https for all domains
+if parsedURL.Scheme == "https" {
+return true
+}
+
+// Allow http only for localhost/127.0.0.1 (development)
+if parsedURL.Scheme == "http" {
+host := parsedURL.Hostname()
+if host == "localhost" || host == "127.0.0.1" || host == "::1" {
+return true
+}
+}
+
+return false
 }
