@@ -8,6 +8,7 @@ React + TypeScript + Vite frontend for the Subcults platform.
 - **Scene & Event Clustering** for scalable map visualization
 - **Privacy-first** geolocation (opt-in, coarse accuracy)
 - **Privacy-enforced** location data (respects `allow_precise` flag)
+- **Internationalization (i18n)** with React i18next, namespace separation, and lazy loading
 - Responsive map with ResizeObserver
 - TypeScript for type safety
 - Vitest for testing
@@ -40,6 +41,7 @@ React + TypeScript + Vite frontend for the Subcults platform.
 - `npm run test:ui` - Run tests with Vitest UI
 - `npm run test:coverage` - Generate coverage report
 - `npm run lint` - Run ESLint
+- `npm run check:i18n` - Validate translation keys (CI check)
 
 ## Components
 
@@ -245,3 +247,37 @@ web/src/
 │   └── scene.ts                 # TypeScript types
 └── clustering.ts                # Public API exports
 ```
+
+## Internationalization (i18n)
+
+Subcults supports multiple languages with automatic detection and lazy loading:
+
+- **Supported Languages**: English (en), Spanish (es)
+- **Namespace Organization**: common, scenes, events, streaming, auth
+- **Lazy Loading**: Translations loaded on-demand via HTTP backend
+- **Language Detection**: User preference → Browser language → Fallback to English
+
+See [docs/I18N.md](docs/I18N.md) for complete documentation on:
+- Using translations in components
+- Adding new translations
+- Adding new languages
+- Translation validation
+
+Quick Example:
+```tsx
+import { useT } from './hooks/useT';
+import { useLanguageActions } from './stores/languageStore';
+
+function MyComponent() {
+  const { t } = useT('scenes');
+  const { setLanguage } = useLanguageActions();
+  
+  return (
+    <div>
+      <h1>{t('title')}</h1>
+      <button onClick={() => setLanguage('es')}>Español</button>
+    </div>
+  );
+}
+```
+

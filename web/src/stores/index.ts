@@ -75,3 +75,12 @@ export {
   useSettingsActions,
   type SettingsStore,
 } from './settingsStore';
+
+// Language Store
+export {
+  useLanguageStore,
+  useLanguage,
+  useLanguageActions,
+  type Language,
+  type LanguageStore,
+} from './languageStore';

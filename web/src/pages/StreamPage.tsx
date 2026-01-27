@@ -23,7 +23,7 @@ import { useToasts } from '../stores/toastStore';
 
 export const StreamPage: React.FC = () => {
   const { room } = useParams<{ room: string }>();
-  const { t } = useTranslation();
+  const { t } = useTranslation('streaming');
   const { error: showError } = useToasts();
   
   // Global streaming state
@@ -64,8 +64,8 @@ export const StreamPage: React.FC = () => {
   if (!room) {
     return (
       <div style={{ padding: '2rem', textAlign: 'center' }}>
-        <h1>{t('streaming.streamPage.invalidRoom')}</h1>
-        <p>{t('streaming.streamPage.noRoomId')}</p>
+        <h1>{t('streamPage.invalidRoom')}</h1>
+        <p>{t('streamPage.noRoomId')}</p>
       </div>
     );
   }
@@ -81,10 +81,10 @@ export const StreamPage: React.FC = () => {
     >
       <div style={{ marginBottom: '2rem' }}>
         <h1 style={{ fontSize: '2rem', fontWeight: 700, marginBottom: '0.5rem' }}>
-          {t('streaming.streamPage.streamRoom')}
+          {t('streamPage.streamRoom')}
         </h1>
         <p style={{ color: '#9ca3af' }}>
-          {t('streaming.streamPage.room')}: {room}
+          {t('streamPage.room')}: {room}
         </p>
       </div>
 
@@ -100,7 +100,7 @@ export const StreamPage: React.FC = () => {
           }}
           role="alert"
         >
-          <strong>{t('streaming.streamPage.error')}:</strong> {error}
+          <strong>{t('streamPage.error')}:</strong> {error}
         </div>
       )}
 
@@ -140,7 +140,7 @@ export const StreamPage: React.FC = () => {
                 marginBottom: '1rem',
               }}
             >
-              {t('streaming.streamPage.participants')} ({participantCount})
+              {t('streamPage.participants')} ({participantCount})
             </h2>
             <ParticipantList
               participants={participants}

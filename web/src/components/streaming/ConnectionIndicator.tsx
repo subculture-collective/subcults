@@ -35,14 +35,14 @@ function getQualityColor(quality: ConnectionQuality): string {
 function getQualityKey(quality: ConnectionQuality): string {
   switch (quality) {
     case 'excellent':
-      return 'streaming.connectionIndicator.excellent';
+      return 'connectionIndicator.excellent';
     case 'good':
-      return 'streaming.connectionIndicator.good';
+      return 'connectionIndicator.good';
     case 'poor':
-      return 'streaming.connectionIndicator.poor';
+      return 'connectionIndicator.poor';
     case 'unknown':
     default:
-      return 'streaming.connectionIndicator.unknown';
+      return 'connectionIndicator.unknown';
   }
 }
 
@@ -67,7 +67,7 @@ export const ConnectionIndicator: React.FC<ConnectionIndicatorProps> = ({
   quality,
   showLabel = true,
 }) => {
-  const { t } = useTranslation();
+  const { t } = useTranslation('streaming');
   const color = getQualityColor(quality);
   const label = t(getQualityKey(quality));
   const bars = getQualityBars(quality);
@@ -76,7 +76,7 @@ export const ConnectionIndicator: React.FC<ConnectionIndicatorProps> = ({
     <div
       className="connection-indicator"
       role="status"
-      aria-label={`${t('streaming.connectionIndicator.quality')}: ${label}`}
+      aria-label={`${t('connectionIndicator.quality')}: ${label}`}
       style={{
         display: 'flex',
         alignItems: 'center',
