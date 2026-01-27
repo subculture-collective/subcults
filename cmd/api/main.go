@@ -183,6 +183,12 @@ func main() {
 			logger.Warn("invalid STRIPE_APPLICATION_FEE_PERCENT, using default 5.0%", "error", err)
 		}
 	}
+	
+	// Validate fee percentage
+	if stripeApplicationFeePercent < 0 || stripeApplicationFeePercent >= 100 {
+		logger.Error("invalid STRIPE_APPLICATION_FEE_PERCENT: must be between 0 and 100", "value", stripeApplicationFeePercent)
+		os.Exit(1)
+	}
 
 	var paymentHandlers *api.PaymentHandlers
 	if stripeAPIKey != "" && stripeOnboardingReturnURL != "" && stripeOnboardingRefreshURL != "" {

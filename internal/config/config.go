@@ -129,9 +129,18 @@ func Load(configFilePath string) (*Config, []error) {
 	}
 
 	// Parse Stripe application fee percentage with default
-	stripeFeePercent, stripeFeeErr := getEnvFloatOrDefault("STRIPE_APPLICATION_FEE_PERCENT", k.Float64("stripe_application_fee_percent"), DefaultStripeApplicationFeePercent)
-	if stripeFeeErr != nil {
-		loadErrs = append(loadErrs, stripeFeeErr)
+	stripeFeePercent := DefaultStripeApplicationFeePercent
+	if k.Exists("stripe_application_fee_percent") {
+		stripeFeePercent = k.Float64("stripe_application_fee_percent")
+	}
+	if feePercentStr := os.Getenv("STRIPE_APPLICATION_FEE_PERCENT"); feePercentStr != "" {
+		// Env var takes precedence over file config
+		parsed, err := strconv.ParseFloat(feePercentStr, 64)
+		if err != nil {
+			loadErrs = append(loadErrs, fmt.Errorf("STRIPE_APPLICATION_FEE_PERCENT must be a valid float: %w", err))
+		} else {
+			stripeFeePercent = parsed
+		}
 	}
 
 	// Build config struct, with env vars taking precedence over file values
@@ -227,22 +236,6 @@ func getEnvIntOrDefaultMulti(envKeys []string, koanfVal int, defaultVal int) (in
 			}
 			return i, nil
 		}
-	}
-	if koanfVal != 0 {
-		return koanfVal, nil
-	}
-	return defaultVal, nil
-}
-
-// getEnvFloatOrDefault returns the environment variable as float64 if set, otherwise the koanf value, or default.
-// Returns an error if the environment variable is set but cannot be parsed as a float.
-func getEnvFloatOrDefault(envKey string, koanfVal float64, defaultVal float64) (float64, error) {
-	if val := os.Getenv(envKey); val != "" {
-		f, err := strconv.ParseFloat(val, 64)
-		if err != nil {
-			return 0, fmt.Errorf("%s must be a valid float: %w", envKey, err)
-		}
-		return f, nil
 	}
 	if koanfVal != 0 {
 		return koanfVal, nil
