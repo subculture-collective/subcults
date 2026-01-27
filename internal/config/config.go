@@ -32,8 +32,10 @@ type Config struct {
 	LiveKitAPISecret string `koanf:"livekit_api_secret"`
 
 	// Stripe
-	StripeAPIKey        string `koanf:"stripe_api_key"`
-	StripeWebhookSecret string `koanf:"stripe_webhook_secret"`
+	StripeAPIKey              string `koanf:"stripe_api_key"`
+	StripeWebhookSecret       string `koanf:"stripe_webhook_secret"`
+	StripeOnboardingReturnURL string `koanf:"stripe_onboarding_return_url"`
+	StripeOnboardingRefreshURL string `koanf:"stripe_onboarding_refresh_url"`
 
 	// MapTiler
 	MapTilerAPIKey string `koanf:"maptiler_api_key"`
@@ -54,20 +56,22 @@ type Config struct {
 
 // Configuration validation errors.
 var (
-	ErrMissingDatabaseURL         = errors.New("DATABASE_URL is required")
-	ErrMissingJWTSecret           = errors.New("JWT_SECRET is required")
-	ErrMissingLiveKitURL          = errors.New("LIVEKIT_URL is required")
-	ErrMissingLiveKitAPIKey       = errors.New("LIVEKIT_API_KEY is required")
-	ErrMissingLiveKitAPISecret    = errors.New("LIVEKIT_API_SECRET is required")
-	ErrMissingStripeAPIKey        = errors.New("STRIPE_API_KEY is required")
-	ErrMissingStripeWebhookSecret = errors.New("STRIPE_WEBHOOK_SECRET is required")
-	ErrMissingMapTilerAPIKey      = errors.New("MAPTILER_API_KEY is required")
-	ErrMissingJetstreamURL        = errors.New("JETSTREAM_URL is required")
-	ErrMissingR2BucketName        = errors.New("R2_BUCKET_NAME is required")
-	ErrMissingR2AccessKeyID       = errors.New("R2_ACCESS_KEY_ID is required")
-	ErrMissingR2SecretAccessKey   = errors.New("R2_SECRET_ACCESS_KEY is required")
-	ErrMissingR2Endpoint          = errors.New("R2_ENDPOINT is required")
-	ErrInvalidPort                = errors.New("PORT must be a valid integer")
+	ErrMissingDatabaseURL                = errors.New("DATABASE_URL is required")
+	ErrMissingJWTSecret                  = errors.New("JWT_SECRET is required")
+	ErrMissingLiveKitURL                 = errors.New("LIVEKIT_URL is required")
+	ErrMissingLiveKitAPIKey              = errors.New("LIVEKIT_API_KEY is required")
+	ErrMissingLiveKitAPISecret           = errors.New("LIVEKIT_API_SECRET is required")
+	ErrMissingStripeAPIKey               = errors.New("STRIPE_API_KEY is required")
+	ErrMissingStripeWebhookSecret        = errors.New("STRIPE_WEBHOOK_SECRET is required")
+	ErrMissingStripeOnboardingReturnURL  = errors.New("STRIPE_ONBOARDING_RETURN_URL is required")
+	ErrMissingStripeOnboardingRefreshURL = errors.New("STRIPE_ONBOARDING_REFRESH_URL is required")
+	ErrMissingMapTilerAPIKey             = errors.New("MAPTILER_API_KEY is required")
+	ErrMissingJetstreamURL               = errors.New("JETSTREAM_URL is required")
+	ErrMissingR2BucketName               = errors.New("R2_BUCKET_NAME is required")
+	ErrMissingR2AccessKeyID              = errors.New("R2_ACCESS_KEY_ID is required")
+	ErrMissingR2SecretAccessKey          = errors.New("R2_SECRET_ACCESS_KEY is required")
+	ErrMissingR2Endpoint                 = errors.New("R2_ENDPOINT is required")
+	ErrInvalidPort                       = errors.New("PORT must be a valid integer")
 )
 
 // Default values for non-secret configuration.
@@ -131,9 +135,11 @@ func Load(configFilePath string) (*Config, []error) {
 		LiveKitURL:          getEnvOrKoanf("LIVEKIT_URL", k, "livekit_url"),
 		LiveKitAPIKey:       getEnvOrKoanf("LIVEKIT_API_KEY", k, "livekit_api_key"),
 		LiveKitAPISecret:    getEnvOrKoanf("LIVEKIT_API_SECRET", k, "livekit_api_secret"),
-		StripeAPIKey:        getEnvOrKoanf("STRIPE_API_KEY", k, "stripe_api_key"),
-		StripeWebhookSecret: getEnvOrKoanf("STRIPE_WEBHOOK_SECRET", k, "stripe_webhook_secret"),
-		MapTilerAPIKey:      getEnvOrKoanf("MAPTILER_API_KEY", k, "maptiler_api_key"),
+		StripeAPIKey:              getEnvOrKoanf("STRIPE_API_KEY", k, "stripe_api_key"),
+		StripeWebhookSecret:       getEnvOrKoanf("STRIPE_WEBHOOK_SECRET", k, "stripe_webhook_secret"),
+		StripeOnboardingReturnURL:  getEnvOrKoanf("STRIPE_ONBOARDING_RETURN_URL", k, "stripe_onboarding_return_url"),
+		StripeOnboardingRefreshURL: getEnvOrKoanf("STRIPE_ONBOARDING_REFRESH_URL", k, "stripe_onboarding_refresh_url"),
+		MapTilerAPIKey:            getEnvOrKoanf("MAPTILER_API_KEY", k, "maptiler_api_key"),
 		JetstreamURL:        getEnvOrKoanf("JETSTREAM_URL", k, "jetstream_url"),
 		R2BucketName:        getEnvOrKoanf("R2_BUCKET_NAME", k, "r2_bucket_name"),
 		R2AccessKeyID:       getEnvOrKoanf("R2_ACCESS_KEY_ID", k, "r2_access_key_id"),
@@ -245,6 +251,12 @@ func (c *Config) Validate() []error {
 	if c.StripeWebhookSecret == "" {
 		errs = append(errs, ErrMissingStripeWebhookSecret)
 	}
+	if c.StripeOnboardingReturnURL == "" {
+		errs = append(errs, ErrMissingStripeOnboardingReturnURL)
+	}
+	if c.StripeOnboardingRefreshURL == "" {
+		errs = append(errs, ErrMissingStripeOnboardingRefreshURL)
+	}
 	if c.MapTilerAPIKey == "" {
 		errs = append(errs, ErrMissingMapTilerAPIKey)
 	}
@@ -282,9 +294,11 @@ func (c *Config) LogSummary() map[string]string {
 		"livekit_url":           c.LiveKitURL,
 		"livekit_api_key":       maskSecret(c.LiveKitAPIKey),
 		"livekit_api_secret":    maskSecret(c.LiveKitAPISecret),
-		"stripe_api_key":        maskStripeKey(c.StripeAPIKey),
-		"stripe_webhook_secret": maskSecret(c.StripeWebhookSecret),
-		"maptiler_api_key":      maskSecret(c.MapTilerAPIKey),
+		"stripe_api_key":                 maskStripeKey(c.StripeAPIKey),
+		"stripe_webhook_secret":          maskSecret(c.StripeWebhookSecret),
+		"stripe_onboarding_return_url":   c.StripeOnboardingReturnURL,
+		"stripe_onboarding_refresh_url":  c.StripeOnboardingRefreshURL,
+		"maptiler_api_key":               maskSecret(c.MapTilerAPIKey),
 		"jetstream_url":         c.JetstreamURL,
 		"r2_bucket_name":        c.R2BucketName,
 		"r2_access_key_id":      maskSecret(c.R2AccessKeyID),

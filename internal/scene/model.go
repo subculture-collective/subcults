@@ -47,6 +47,9 @@ type Scene struct {
 	Palette       *Palette   `json:"palette,omitempty"`    // Color scheme
 	OwnerUserID   *string    `json:"owner_user_id,omitempty"` // FK to users table
 
+	// Payments
+	ConnectedAccountID *string `json:"connected_account_id,omitempty"` // Stripe Connect Express account ID
+
 	// Timestamps
 	CreatedAt *time.Time `json:"created_at,omitempty"`
 	UpdatedAt *time.Time `json:"updated_at,omitempty"`
