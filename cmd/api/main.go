@@ -173,12 +173,30 @@ func main() {
 	stripeAPIKey := os.Getenv("STRIPE_API_KEY")
 	stripeOnboardingReturnURL := os.Getenv("STRIPE_ONBOARDING_RETURN_URL")
 	stripeOnboardingRefreshURL := os.Getenv("STRIPE_ONBOARDING_REFRESH_URL")
+	
+	// Parse application fee percentage (default: 5.0%)
+	stripeApplicationFeePercent := 5.0
+	if feePercentStr := os.Getenv("STRIPE_APPLICATION_FEE_PERCENT"); feePercentStr != "" {
+		if parsed, err := strconv.ParseFloat(feePercentStr, 64); err == nil {
+			stripeApplicationFeePercent = parsed
+		} else {
+			logger.Warn("invalid STRIPE_APPLICATION_FEE_PERCENT, using default 5.0%", "error", err)
+		}
+	}
 
 	var paymentHandlers *api.PaymentHandlers
 	if stripeAPIKey != "" && stripeOnboardingReturnURL != "" && stripeOnboardingRefreshURL != "" {
 		stripeClient := payment.NewStripeClient(stripeAPIKey)
-		paymentHandlers = api.NewPaymentHandlers(sceneRepo, stripeClient, stripeOnboardingReturnURL, stripeOnboardingRefreshURL)
-		logger.Info("Stripe payment handlers initialized")
+		paymentRepo := payment.NewInMemoryPaymentRepository()
+		paymentHandlers = api.NewPaymentHandlers(
+			sceneRepo,
+			paymentRepo,
+			stripeClient,
+			stripeOnboardingReturnURL,
+			stripeOnboardingRefreshURL,
+			stripeApplicationFeePercent,
+		)
+		logger.Info("Stripe payment handlers initialized", "application_fee_percent", stripeApplicationFeePercent)
 	} else {
 		logger.Warn("Stripe credentials not fully configured, payment endpoints will not be available")
 	}
@@ -407,6 +425,14 @@ func main() {
 				return
 			}
 			paymentHandlers.OnboardScene(w, r)
+		})
+		mux.HandleFunc("/payments/checkout", func(w http.ResponseWriter, r *http.Request) {
+			if r.Method != http.MethodPost {
+				ctx := middleware.SetErrorCode(r.Context(), api.ErrCodeBadRequest)
+				api.WriteError(w, ctx, http.StatusMethodNotAllowed, api.ErrCodeBadRequest, "Method not allowed")
+				return
+			}
+			paymentHandlers.CreateCheckoutSession(w, r)
 		})
 	}
 
