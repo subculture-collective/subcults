@@ -81,9 +81,6 @@ func (c *StripeClient) CreateCheckoutSession(params *CheckoutSessionParams) (*st
 			OnBehalfOf:           stripe.String(params.ConnectedAccountID),
 		},
 	}
-	
-	// Set Stripe-Account header for Connect
-	sessionParams.SetStripeAccount(params.ConnectedAccountID)
 
 	return session.New(sessionParams)
 }

@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"log/slog"
 	"net/http"
+	"net/url"
 	"time"
 
 	"github.com/onnwee/subcults/internal/middleware"
@@ -212,6 +213,18 @@ func (h *PaymentHandlers) CreateCheckoutSession(w http.ResponseWriter, r *http.R
 		return
 	}
 
+	// Validate URLs for safety
+	if _, err := url.Parse(req.SuccessURL); err != nil || !isValidRedirectURL(req.SuccessURL) {
+		ctx = middleware.SetErrorCode(ctx, ErrCodeBadRequest)
+		WriteError(w, ctx, http.StatusBadRequest, ErrCodeBadRequest, "success_url must be a valid HTTPS URL")
+		return
+	}
+	if _, err := url.Parse(req.CancelURL); err != nil || !isValidRedirectURL(req.CancelURL) {
+		ctx = middleware.SetErrorCode(ctx, ErrCodeBadRequest)
+		WriteError(w, ctx, http.StatusBadRequest, ErrCodeBadRequest, "cancel_url must be a valid HTTPS URL")
+		return
+	}
+
 	// Validate items
 	for i, item := range req.Items {
 		if item.PriceID == "" {
@@ -309,4 +322,33 @@ func (h *PaymentHandlers) CreateCheckoutSession(w http.ResponseWriter, r *http.R
 	if err := json.NewEncoder(w).Encode(response); err != nil {
 		slog.Error("failed to encode response", "error", err)
 	}
+}
+
+// isValidRedirectURL validates that a URL is safe for redirection.
+// It ensures the URL uses HTTPS (or HTTP for localhost in development).
+func isValidRedirectURL(rawURL string) bool {
+parsedURL, err := url.Parse(rawURL)
+if err != nil {
+return false
+}
+
+// Must have a scheme
+if parsedURL.Scheme == "" {
+return false
+}
+
+// Allow https for all domains
+if parsedURL.Scheme == "https" {
+return true
+}
+
+// Allow http only for localhost/127.0.0.1 (development)
+if parsedURL.Scheme == "http" {
+host := parsedURL.Hostname()
+if host == "localhost" || host == "127.0.0.1" || host == "::1" {
+return true
+}
+}
+
+return false
 }

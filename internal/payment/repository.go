@@ -4,6 +4,7 @@ package payment
 import (
 	"errors"
 	"sync"
+	"time"
 
 	"github.com/google/uuid"
 )
@@ -39,6 +40,15 @@ func (r *InMemoryPaymentRepository) Insert(record *PaymentRecord) error {
 
 	if record.ID == "" {
 		record.ID = uuid.New().String()
+	}
+
+	// Set timestamps for new record
+	now := time.Now()
+	if record.CreatedAt == nil {
+		record.CreatedAt = &now
+	}
+	if record.UpdatedAt == nil {
+		record.UpdatedAt = &now
 	}
 
 	// Deep copy to prevent external mutation
@@ -87,6 +97,10 @@ func (r *InMemoryPaymentRepository) Update(record *PaymentRecord) error {
 	if _, ok := r.records[record.ID]; !ok {
 		return ErrPaymentRecordNotFound
 	}
+
+	// Update the UpdatedAt timestamp
+	now := time.Now()
+	record.UpdatedAt = &now
 
 	// Deep copy to prevent external mutation
 	copied := *record

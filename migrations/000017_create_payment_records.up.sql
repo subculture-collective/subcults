@@ -24,7 +24,6 @@ CREATE TABLE IF NOT EXISTS payment_records (
 );
 
 -- Create indexes for common queries
-CREATE INDEX IF NOT EXISTS idx_payment_records_session_id ON payment_records(session_id);
 CREATE INDEX IF NOT EXISTS idx_payment_records_user_did ON payment_records(user_did);
 CREATE INDEX IF NOT EXISTS idx_payment_records_scene_id ON payment_records(scene_id);
 CREATE INDEX IF NOT EXISTS idx_payment_records_event_id ON payment_records(event_id) WHERE event_id IS NOT NULL;
