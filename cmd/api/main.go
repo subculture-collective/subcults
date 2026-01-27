@@ -23,6 +23,7 @@ import (
 	"github.com/onnwee/subcults/internal/livekit"
 	"github.com/onnwee/subcults/internal/membership"
 	"github.com/onnwee/subcults/internal/middleware"
+	"github.com/onnwee/subcults/internal/payment"
 	"github.com/onnwee/subcults/internal/post"
 	"github.com/onnwee/subcults/internal/scene"
 	"github.com/onnwee/subcults/internal/stream"
@@ -165,6 +166,21 @@ func main() {
 			os.Exit(1)
 		}
 		logger.Info("attachment metadata service initialized")
+	}
+
+	// Initialize Stripe payment handlers
+	// Get Stripe credentials from environment variables
+	stripeAPIKey := os.Getenv("STRIPE_API_KEY")
+	stripeOnboardingReturnURL := os.Getenv("STRIPE_ONBOARDING_RETURN_URL")
+	stripeOnboardingRefreshURL := os.Getenv("STRIPE_ONBOARDING_REFRESH_URL")
+
+	var paymentHandlers *api.PaymentHandlers
+	if stripeAPIKey != "" && stripeOnboardingReturnURL != "" && stripeOnboardingRefreshURL != "" {
+		stripeClient := payment.NewStripeClient(stripeAPIKey)
+		paymentHandlers = api.NewPaymentHandlers(sceneRepo, stripeClient, stripeOnboardingReturnURL, stripeOnboardingRefreshURL)
+		logger.Info("Stripe payment handlers initialized")
+	} else {
+		logger.Warn("Stripe credentials not fully configured, payment endpoints will not be available")
 	}
 
 	// Initialize handlers
@@ -379,6 +395,18 @@ func main() {
 				return
 			}
 			uploadHandlers.SignUpload(w, r)
+		})
+	}
+
+	// Payment routes (if configured)
+	if paymentHandlers != nil {
+		mux.HandleFunc("/payments/onboard", func(w http.ResponseWriter, r *http.Request) {
+			if r.Method != http.MethodPost {
+				ctx := middleware.SetErrorCode(r.Context(), api.ErrCodeBadRequest)
+				api.WriteError(w, ctx, http.StatusMethodNotAllowed, api.ErrCodeBadRequest, "Method not allowed")
+				return
+			}
+			paymentHandlers.OnboardScene(w, r)
 		})
 	}
 
