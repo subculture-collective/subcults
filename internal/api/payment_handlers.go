@@ -77,7 +77,7 @@ func (h *PaymentHandlers) OnboardScene(w http.ResponseWriter, r *http.Request) {
 	// Get scene from repository
 	existingScene, err := h.sceneRepo.GetByID(req.SceneID)
 	if err != nil {
-		slog.Error("failed to get scene", "scene_id", req.SceneID, "error", err)
+		slog.ErrorContext(ctx, "failed to get scene", "scene_id", req.SceneID, "error", err)
 		ctx = middleware.SetErrorCode(ctx, ErrCodeNotFound)
 		WriteError(w, ctx, http.StatusNotFound, ErrCodeNotFound, "scene not found")
 		return
@@ -100,7 +100,7 @@ func (h *PaymentHandlers) OnboardScene(w http.ResponseWriter, r *http.Request) {
 	// Create Stripe Connect account
 	account, err := h.stripeClient.CreateConnectAccount()
 	if err != nil {
-		slog.Error("failed to create Stripe Connect account", "scene_id", req.SceneID, "error", err)
+		slog.ErrorContext(ctx, "failed to create Stripe Connect account", "scene_id", req.SceneID, "error", err)
 		ctx = middleware.SetErrorCode(ctx, ErrCodeInternal)
 		WriteError(w, ctx, http.StatusInternalServerError, ErrCodeInternal, "failed to create payment account")
 		return
@@ -109,7 +109,7 @@ func (h *PaymentHandlers) OnboardScene(w http.ResponseWriter, r *http.Request) {
 	// Create onboarding link
 	link, err := h.stripeClient.CreateAccountLink(account.ID, h.returnURL, h.refreshURL)
 	if err != nil {
-		slog.Error("failed to create account link", "account_id", account.ID, "error", err)
+		slog.ErrorContext(ctx, "failed to create account link", "account_id", account.ID, "error", err)
 		ctx = middleware.SetErrorCode(ctx, ErrCodeInternal)
 		WriteError(w, ctx, http.StatusInternalServerError, ErrCodeInternal, "failed to create onboarding link")
 		return
@@ -120,7 +120,7 @@ func (h *PaymentHandlers) OnboardScene(w http.ResponseWriter, r *http.Request) {
 	// will be tracked via webhook (separate task).
 	existingScene.ConnectedAccountID = &account.ID
 	if err := h.sceneRepo.Update(existingScene); err != nil {
-		slog.Error("failed to update scene with connected account", "scene_id", req.SceneID, "error", err)
+		slog.ErrorContext(ctx, "failed to update scene with connected account", "scene_id", req.SceneID, "error", err)
 		ctx = middleware.SetErrorCode(ctx, ErrCodeInternal)
 		WriteError(w, ctx, http.StatusInternalServerError, ErrCodeInternal, "failed to save payment account")
 		return

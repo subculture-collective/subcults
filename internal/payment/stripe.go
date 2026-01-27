@@ -14,16 +14,12 @@ type Client interface {
 }
 
 // StripeClient implements the Client interface using the real Stripe SDK.
-type StripeClient struct {
-	apiKey string
-}
+type StripeClient struct{}
 
 // NewStripeClient creates a new Stripe client with the given API key.
 func NewStripeClient(apiKey string) *StripeClient {
 	stripe.Key = apiKey
-	return &StripeClient{
-		apiKey: apiKey,
-	}
+	return &StripeClient{}
 }
 
 // CreateConnectAccount creates a new Stripe Connect Express account.
