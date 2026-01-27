@@ -68,6 +68,9 @@ const (
 	
 	// ErrCodeSceneNotFound indicates the scene was not found.
 	ErrCodeSceneNotFound = "scene_not_found"
+	
+	// ErrCodeUnauthorized indicates authentication is required.
+	ErrCodeUnauthorized = "unauthorized"
 )
 
 // ErrorResponse represents the standard error response format.

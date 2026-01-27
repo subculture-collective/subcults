@@ -85,6 +85,7 @@ require (
 	github.com/puzpuzpuz/xsync/v3 v3.5.1 // indirect
 	github.com/redis/go-redis/v9 v9.11.0 // indirect
 	github.com/stoewer/go-strcase v1.3.1 // indirect
+	github.com/stripe/stripe-go/v81 v81.4.0 // indirect
 	github.com/twitchtv/twirp v8.1.3+incompatible // indirect
 	github.com/wlynxg/anet v0.0.5 // indirect
 	github.com/zeebo/xxh3 v1.0.2 // indirect
