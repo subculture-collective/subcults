@@ -377,3 +377,74 @@ func TestInMemoryAnalyticsRepository_ComputeAnalytics_RetentionCalculations(t *t
 		t.Errorf("Expected median ~150ms, got %.0fms", medianMs)
 	}
 }
+
+// TestInMemoryAnalyticsRepository_ComputeAnalytics_ParticipantsNeverLeave tests analytics for participants still listening when stream ends.
+func TestInMemoryAnalyticsRepository_ComputeAnalytics_ParticipantsNeverLeave(t *testing.T) {
+	sessionRepo := NewInMemorySessionRepository()
+	repo := NewInMemoryAnalyticsRepository(sessionRepo)
+
+	// Create a stream session
+	sceneID := "scene-1"
+	streamID, _, err := sessionRepo.CreateStreamSession(&sceneID, nil, "did:plc:host")
+	if err != nil {
+		t.Fatalf("Failed to create stream: %v", err)
+	}
+
+	// User1: joins but never leaves (still listening)
+	_ = repo.RecordParticipantEvent(streamID, "user1", "join", nil)
+	time.Sleep(50 * time.Millisecond)
+
+	// User2: joins, leaves after 100ms
+	_ = repo.RecordParticipantEvent(streamID, "user2", "join", nil)
+	time.Sleep(50 * time.Millisecond)
+	
+	// User3: joins while user2 is still present (peak = 3)
+	_ = repo.RecordParticipantEvent(streamID, "user3", "join", nil)
+	time.Sleep(50 * time.Millisecond)
+	
+	// User2 leaves (concurrent drops to 2)
+	_ = repo.RecordParticipantEvent(streamID, "user2", "leave", nil)
+	time.Sleep(50 * time.Millisecond)
+
+	err = sessionRepo.EndStreamSession(streamID)
+	if err != nil {
+		t.Fatalf("Failed to end stream: %v", err)
+	}
+
+	// Compute analytics
+	analytics, err := repo.ComputeAnalytics(streamID)
+	if err != nil {
+		t.Fatalf("Expected no error, got %v", err)
+	}
+
+	// Verify metrics
+	if analytics.PeakConcurrentListeners != 3 {
+		t.Errorf("Expected peak 3, got %d", analytics.PeakConcurrentListeners)
+	}
+
+	if analytics.TotalUniqueParticipants != 3 {
+		t.Errorf("Expected 3 unique participants, got %d", analytics.TotalUniqueParticipants)
+	}
+
+	// Retention metrics should only include user2 who explicitly left
+	// user1 and user3 are still listening, so they're excluded from retention
+	if analytics.AvgListenDurationSeconds == nil {
+		t.Fatal("Expected average duration to be set")
+	}
+
+	// Should have exactly 1 duration (user2 only): ~100ms (from join to leave: 50ms + 50ms)
+	avgMs := *analytics.AvgListenDurationSeconds * 1000
+	if avgMs < 90 || avgMs > 110 {
+		t.Errorf("Expected average ~100ms (user2 only), got %.0fms", avgMs)
+	}
+
+	// Median should equal average when there's only one sample
+	if analytics.MedianListenDurationSeconds == nil {
+		t.Fatal("Expected median duration to be set")
+	}
+
+	medianMs := *analytics.MedianListenDurationSeconds * 1000
+	if medianMs < 90 || medianMs > 110 {
+		t.Errorf("Expected median ~100ms (user2 only), got %.0fms", medianMs)
+	}
+}

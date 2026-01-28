@@ -33,9 +33,10 @@ All analytics data is **privacy-first** and **PII-free**:
 ### Geographic Distribution
 
 - **Geographic Distribution**: Privacy-safe aggregate of participant locations
-  - Format: `{"geohash_prefix": count}`
+  - Format: `{"geohash_prefix": unique_participant_count}`
   - Example: `{"dr5r": 5, "9q8y": 3}`
   - Each prefix is 4 characters (~20km resolution)
+  - Counts represent the number of distinct participants (deduplicated by DID) whose location resolves to that geohash prefix; re-joins are not double-counted
   - Only participants who provided location data are included
 
 ## API Endpoints
@@ -149,9 +150,9 @@ Analytics are automatically computed when a stream ends:
 - Only includes participants who explicitly left (excludes still-listening participants)
 
 **Geographic Distribution**:
-- Group join events by 4-character geohash prefix
-- Count participants per prefix
-- Excludes events without geographic data
+- Group unique participants by 4-character geohash prefix
+- Count distinct participants per prefix (deduplicated by participant DID, ignoring re-joins)
+- Excludes participants without geographic data
 
 ## Database Schema
 

@@ -12,10 +12,9 @@ CREATE TABLE IF NOT EXISTS stream_participant_events (
     -- Uses coarse geohash derived from user's location at time of join
     geohash_prefix VARCHAR(4), -- First 4 chars for regional distribution (~20km precision)
     
-    occurred_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    occurred_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     
     -- Index for efficient analytics queries
-    CONSTRAINT chk_event_type CHECK (event_type IN ('join', 'leave'))
 );
 
 CREATE INDEX idx_participant_events_stream ON stream_participant_events(stream_session_id, occurred_at);
