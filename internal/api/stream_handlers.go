@@ -783,3 +783,50 @@ func (h *StreamHandlers) GetStreamAnalytics(w http.ResponseWriter, r *http.Reque
 		slog.ErrorContext(ctx, "failed to encode analytics response", "error", err)
 	}
 }
+
+// GetActiveParticipants handles GET /streams/{id}/participants - retrieves active participants.
+// Returns minimal participant info (no PII) for UI display.
+func (h *StreamHandlers) GetActiveParticipants(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	// Extract stream ID from URL path
+	// Expected: /streams/{id}/participants
+	pathParts := strings.Split(strings.TrimPrefix(r.URL.Path, "/streams/"), "/")
+	if len(pathParts) != 2 || pathParts[0] == "" || pathParts[1] != "participants" {
+		ctx = middleware.SetErrorCode(ctx, ErrCodeBadRequest)
+		WriteError(w, ctx, http.StatusBadRequest, ErrCodeBadRequest, "Invalid URL path")
+		return
+	}
+	streamID := pathParts[0]
+
+	// Verify stream exists
+	session, err := h.streamRepo.GetByID(streamID)
+	if err != nil {
+		if errors.Is(err, stream.ErrStreamNotFound) {
+			ctx = middleware.SetErrorCode(ctx, ErrCodeNotFound)
+			WriteError(w, ctx, http.StatusNotFound, ErrCodeNotFound, "Stream session not found")
+		} else {
+			slog.ErrorContext(ctx, "failed to get stream session", "error", err)
+			ctx = middleware.SetErrorCode(ctx, ErrCodeInternal)
+			WriteError(w, ctx, http.StatusInternalServerError, ErrCodeInternal, "Internal server error")
+		}
+		return
+	}
+
+	// Get active count (efficient, uses denormalized field)
+	activeCount := session.ActiveParticipantCount
+
+	// Return participant count only (no PII)
+	// Individual participant identities are not exposed to preserve privacy
+	response := map[string]interface{}{
+		"stream_id":     streamID,
+		"active_count":  activeCount,
+		"room_name":     session.RoomName,
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	if err := json.NewEncoder(w).Encode(response); err != nil {
+		slog.ErrorContext(ctx, "failed to encode participants response", "error", err)
+	}
+}

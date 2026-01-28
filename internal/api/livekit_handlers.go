@@ -3,7 +3,6 @@ package api
 
 import (
 	"encoding/json"
-	"fmt"
 	"log/slog"
 	"net/http"
 	"regexp"
@@ -12,6 +11,7 @@ import (
 	"github.com/onnwee/subcults/internal/audit"
 	"github.com/onnwee/subcults/internal/livekit"
 	"github.com/onnwee/subcults/internal/middleware"
+	"github.com/onnwee/subcults/internal/stream"
 )
 
 // LiveKitTokenRequest represents the request body for generating a LiveKit token.
@@ -89,9 +89,8 @@ func (h *LiveKitHandlers) IssueToken(w http.ResponseWriter, r *http.Request) {
 	// TODO: Future enhancement - verify membership if room is restricted
 	// For now, any authenticated user can join any room
 
-	// Generate participant identity: user-{uuid}
-	// Extract UUID from DID if possible, otherwise use a new UUID
-	participantID := generateParticipantID(userDID)
+	// Generate participant identity using shared utility function
+	participantID := stream.GenerateParticipantID(userDID)
 
 	// Prepare metadata
 	metadata := make(map[string]interface{})
@@ -153,42 +152,4 @@ func (h *LiveKitHandlers) IssueToken(w http.ResponseWriter, r *http.Request) {
 	if err := json.NewEncoder(w).Encode(response); err != nil {
 		slog.ErrorContext(ctx, "failed to encode token response", "error", err)
 	}
-}
-
-// generateParticipantID creates a deterministic participant identity from a user DID.
-// Format: user-{stable-identifier}
-//
-// Note: This generates a stable identity based on the user's DID, ensuring that
-// the same user always gets the same participant ID. This is important for LiveKit's
-// room management, where participants with the same identity are treated as the same user,
-// enabling features like:
-// - Reconnection to the same session after temporary disconnection
-// - Consistent participant tracking across multiple join attempts
-// - Proper cleanup of previous sessions when rejoining
-//
-// The identifier is extracted from the DID and truncated if needed to maintain reasonable length.
-func generateParticipantID(did string) string {
-	// DIDs have format: did:method:identifier (e.g., did:plc:abc123...)
-	// We'll use the identifier part to create a stable ID
-
-	// Split on colons and take the last part (the identifier)
-	parts := strings.Split(did, ":")
-	var identifier string
-
-	if len(parts) >= 3 {
-		// Use the identifier portion (last part)
-		identifier = parts[len(parts)-1]
-	} else {
-		// Fallback: if DID format is unexpected, use the whole DID
-		identifier = did
-	}
-
-	// Ensure identifier is safe for LiveKit (alphanumeric, hyphens, underscores)
-	// and truncate to reasonable length (max 48 chars to keep total under 64)
-	maxLen := 48
-	if len(identifier) > maxLen {
-		identifier = identifier[:maxLen]
-	}
-
-	return fmt.Sprintf("user-%s", identifier)
 }
