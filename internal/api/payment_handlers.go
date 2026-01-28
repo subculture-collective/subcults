@@ -355,90 +355,109 @@ func isValidRedirectURL(rawURL string) bool {
 
 // PaymentStatusResponse represents the response for payment status query.
 type PaymentStatusResponse struct {
-Status      string `json:"status"`
-AmountCents int64  `json:"amount_cents"`
-FeeCents    int64  `json:"fee_cents"`
-Currency    string `json:"currency"`
-UpdatedAt   string `json:"updated_at"`
+	Status      string     `json:"status"`
+	AmountCents int64      `json:"amount_cents"`
+	FeeCents    int64      `json:"fee_cents"`
+	Currency    string     `json:"currency"`
+	UpdatedAt   *time.Time `json:"updated_at,omitempty"`
 }
 
-// GetPaymentStatus retrieves the current status of a payment by session ID or payment ID.
+// GetPaymentStatus retrieves the current status of a payment by checkout session ID.
 // GET /payments/status?sessionId=...
 func (h *PaymentHandlers) GetPaymentStatus(w http.ResponseWriter, r *http.Request) {
-ctx := r.Context()
+	ctx := r.Context()
 
-// Get authenticated user DID from context
-userDID := middleware.GetUserDID(ctx)
-if userDID == "" {
-ctx = middleware.SetErrorCode(ctx, ErrCodeUnauthorized)
-WriteError(w, ctx, http.StatusUnauthorized, ErrCodeUnauthorized, "authentication required")
-return
+	// Get authenticated user DID from context
+	userDID := middleware.GetUserDID(ctx)
+	if userDID == "" {
+		ctx = middleware.SetErrorCode(ctx, ErrCodeUnauthorized)
+		WriteError(w, ctx, http.StatusUnauthorized, ErrCodeUnauthorized, "authentication required")
+		return
+	}
+
+	// Check if sessionId query parameter exists
+	sessionID := r.URL.Query().Get("sessionId")
+
+	if sessionID == "" {
+		ctx = middleware.SetErrorCode(ctx, ErrCodeBadRequest)
+		WriteError(w, ctx, http.StatusBadRequest, ErrCodeBadRequest, "sessionId query parameter is required")
+		return
+	}
+
+	// Retrieve payment record by session ID
+	paymentRecord, err := h.paymentRepo.GetBySessionID(sessionID)
+	if err != nil {
+		if err == payment.ErrPaymentRecordNotFound {
+			ctx = middleware.SetErrorCode(ctx, ErrCodePaymentNotFound)
+			WriteError(w, ctx, http.StatusNotFound, ErrCodePaymentNotFound, "payment not found")
+			return
+		}
+		slog.ErrorContext(ctx, "failed to get payment record", "session_id", sessionID, "error", err)
+		ctx = middleware.SetErrorCode(ctx, ErrCodeInternal)
+		WriteError(w, ctx, http.StatusInternalServerError, ErrCodeInternal, "failed to retrieve payment status")
+		return
+	}
+
+	// Authorization: only the user who created the payment or scene owner can access
+	// First check if requesting user is the payment creator
+	isPaymentOwner := paymentRecord.UserDID == userDID
+
+	// If not the payment owner, check if they are the scene owner
+	isSceneOwner := false
+	if !isPaymentOwner {
+		scene, err := h.sceneRepo.GetByID(paymentRecord.SceneID)
+		if err != nil {
+			if err == scene.ErrSceneNotFound || err == scene.ErrSceneDeleted {
+				// Scene not found or deleted - deny access
+				ctx = middleware.SetErrorCode(ctx, ErrCodeForbidden)
+				WriteError(w, ctx, http.StatusForbidden, ErrCodeForbidden, "scene not found")
+				return
+			}
+			slog.ErrorContext(ctx, "failed to get scene", "scene_id", paymentRecord.SceneID, "error", err)
+			ctx = middleware.SetErrorCode(ctx, ErrCodeInternal)
+			WriteError(w, ctx, http.StatusInternalServerError, ErrCodeInternal, "failed to verify authorization")
+			return
+		}
+		isSceneOwner = scene.IsOwner(userDID)
+	}
+
+	// If neither payment owner nor scene owner, deny access
+	if !isPaymentOwner && !isSceneOwner {
+		ctx = middleware.SetErrorCode(ctx, ErrCodeForbidden)
+		WriteError(w, ctx, http.StatusForbidden, ErrCodeForbidden, "only payment creator or scene owner can access payment status")
+		return
+	}
+
+	// Return payment status
+	response := PaymentStatusResponse{
+		Status:      paymentRecord.Status,
+		AmountCents: paymentRecord.Amount,
+		FeeCents:    paymentRecord.Fee,
+		Currency:    paymentRecord.Currency,
+		UpdatedAt:   paymentRecord.UpdatedAt,
+	}
+
+	// For terminal states, allow a short-lived client-side cache to reduce
+	// repeated repository/DB reads during polling while keeping data private.
+	if isTerminalPaymentStatus(paymentRecord.Status) {
+		w.Header().Set("Cache-Control", "private, max-age=5")
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	if err := json.NewEncoder(w).Encode(response); err != nil {
+		slog.Error("failed to encode response", "error", err)
+	}
 }
 
-// Check if sessionId query parameter exists
-sessionID := r.URL.Query().Get("sessionId")
-
-if sessionID == "" {
-ctx = middleware.SetErrorCode(ctx, ErrCodeBadRequest)
-WriteError(w, ctx, http.StatusBadRequest, ErrCodeBadRequest, "sessionId query parameter is required")
-return
-}
-
-// Retrieve payment record by session ID
-paymentRecord, err := h.paymentRepo.GetBySessionID(sessionID)
-if err != nil {
-if err == payment.ErrPaymentRecordNotFound {
-ctx = middleware.SetErrorCode(ctx, ErrCodePaymentNotFound)
-WriteError(w, ctx, http.StatusNotFound, ErrCodePaymentNotFound, "payment not found")
-return
-}
-slog.ErrorContext(ctx, "failed to get payment record", "session_id", sessionID, "error", err)
-ctx = middleware.SetErrorCode(ctx, ErrCodeInternal)
-WriteError(w, ctx, http.StatusInternalServerError, ErrCodeInternal, "failed to retrieve payment status")
-return
-}
-
-// Authorization: only the user who created the payment or scene owner can access
-// First check if requesting user is the payment creator
-isPaymentOwner := paymentRecord.UserDID == userDID
-
-// If not the payment owner, check if they are the scene owner
-isSceneOwner := false
-if !isPaymentOwner {
-scene, err := h.sceneRepo.GetByID(paymentRecord.SceneID)
-if err != nil {
-slog.ErrorContext(ctx, "failed to get scene", "scene_id", paymentRecord.SceneID, "error", err)
-ctx = middleware.SetErrorCode(ctx, ErrCodeInternal)
-WriteError(w, ctx, http.StatusInternalServerError, ErrCodeInternal, "failed to verify authorization")
-return
-}
-isSceneOwner = scene.IsOwner(userDID)
-}
-
-// If neither payment owner nor scene owner, deny access
-if !isPaymentOwner && !isSceneOwner {
-ctx = middleware.SetErrorCode(ctx, ErrCodeForbidden)
-WriteError(w, ctx, http.StatusForbidden, ErrCodeForbidden, "only payment creator or scene owner can access payment status")
-return
-}
-
-// Return payment status
-var updatedAt string
-if paymentRecord.UpdatedAt != nil {
-updatedAt = paymentRecord.UpdatedAt.Format(time.RFC3339)
-}
-
-response := PaymentStatusResponse{
-Status:      paymentRecord.Status,
-AmountCents: paymentRecord.Amount,
-FeeCents:    paymentRecord.Fee,
-Currency:    paymentRecord.Currency,
-UpdatedAt:   updatedAt,
-}
-
-w.Header().Set("Content-Type", "application/json")
-w.WriteHeader(http.StatusOK)
-if err := json.NewEncoder(w).Encode(response); err != nil {
-slog.Error("failed to encode response", "error", err)
-}
+// isTerminalPaymentStatus returns true if the payment status is in a terminal state
+// where subsequent polls will not change the result (e.g., succeeded, failed, etc.).
+// This is used to enable short-lived HTTP caching to reduce repeated repository/DB reads.
+func isTerminalPaymentStatus(status string) bool {
+	switch status {
+	case payment.StatusSucceeded, payment.StatusFailed, payment.StatusCanceled, payment.StatusRefunded:
+		return true
+	default:
+		return false
+	}
 }
