@@ -82,6 +82,18 @@ func (c *StripeClient) CreateCheckoutSession(params *CheckoutSessionParams) (*st
 		},
 	}
 
-	return session.New(sessionParams)
+	// Create the session first to get the session ID
+	sess, err := session.New(sessionParams)
+	if err != nil {
+		return nil, err
+	}
+
+	// NOTE: We cannot set metadata on the PaymentIntent at session creation time
+	// because the PaymentIntent doesn't exist yet. Stripe creates the PaymentIntent
+	// after the session is created. To work around this, webhook handlers should
+	// look up payment records by payment_intent_id in the database rather than
+	// relying on metadata. This is documented in webhook_handlers.go.
+	
+	return sess, nil
 }
 

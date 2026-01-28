@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strconv"
+	"strings"
 	"testing"
 	"time"
 
@@ -492,23 +493,53 @@ func TestWebhookSignatureGeneration(t *testing.T) {
 		t.Error("signature should not be empty")
 	}
 
-	// Parse components
-	if sig[:2] != "t=" {
+	// Signature should start with 't='
+	if !strings.HasPrefix(sig, "t=") {
 		t.Error("signature should start with 't='")
 	}
 
-	// Should contain v1=
-	if len(sig) < 20 || sig[12:15] != ",v1" {
+	// Should contain ',v1=' separator
+	if !strings.Contains(sig, ",v1=") {
 		t.Error("signature should contain ',v1=' component")
 	}
 
-	// Extract timestamp
-	timestampStr := sig[2:12]
+	// Parse the signature to extract and validate timestamp
+	parts := strings.Split(sig, ",")
+	if len(parts) < 2 {
+		t.Error("signature should have at least timestamp and v1 components")
+	}
+
+	// Extract timestamp from first part (format: t=1234567890)
+	if len(parts[0]) < 3 {
+		t.Error("timestamp part should be at least 't=X'")
+	}
+	timestampStr := parts[0][2:] // Remove "t=" prefix
 	parsedTimestamp, err := strconv.ParseInt(timestampStr, 10, 64)
 	if err != nil {
 		t.Errorf("failed to parse timestamp from signature: %v", err)
 	}
 	if parsedTimestamp != timestamp {
 		t.Errorf("timestamp mismatch: expected %d, got %d", timestamp, parsedTimestamp)
+	}
+
+	// Validate v1 signature part exists and is hex-encoded
+	v1Found := false
+	for _, part := range parts {
+		if strings.HasPrefix(part, "v1=") {
+			v1Found = true
+			sigHex := part[3:] // Remove "v1=" prefix
+			// Should be a valid hex string (64 chars for SHA256)
+			if len(sigHex) != 64 {
+				t.Errorf("v1 signature should be 64 hex chars (SHA256), got %d", len(sigHex))
+			}
+			// Validate it's valid hex
+			if _, err := hex.DecodeString(sigHex); err != nil {
+				t.Errorf("v1 signature should be valid hex: %v", err)
+			}
+			break
+		}
+	}
+	if !v1Found {
+		t.Error("signature should contain v1= component")
 	}
 }
