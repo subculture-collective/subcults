@@ -15,11 +15,11 @@ import (
 
 // PaymentHandlers holds dependencies for payment-related HTTP handlers.
 type PaymentHandlers struct {
-	sceneRepo             scene.SceneRepository
-	paymentRepo           payment.PaymentRepository
-	stripeClient          payment.Client
-	returnURL             string
-	refreshURL            string
+	sceneRepo           scene.SceneRepository
+	paymentRepo         payment.PaymentRepository
+	stripeClient        payment.Client
+	returnURL           string
+	refreshURL          string
 	applicationFeePercent float64
 }
 

@@ -173,6 +173,22 @@ func main() {
 	stripeAPIKey := os.Getenv("STRIPE_API_KEY")
 	stripeOnboardingReturnURL := os.Getenv("STRIPE_ONBOARDING_RETURN_URL")
 	stripeOnboardingRefreshURL := os.Getenv("STRIPE_ONBOARDING_REFRESH_URL")
+	
+	// Parse application fee percentage (default: 5.0%)
+	stripeApplicationFeePercent := 5.0
+	if feePercentStr := os.Getenv("STRIPE_APPLICATION_FEE_PERCENT"); feePercentStr != "" {
+		if parsed, err := strconv.ParseFloat(feePercentStr, 64); err == nil {
+			stripeApplicationFeePercent = parsed
+		} else {
+			logger.Warn("invalid STRIPE_APPLICATION_FEE_PERCENT, using default 5.0%", "error", err)
+		}
+	}
+	
+	// Validate fee percentage
+	if stripeApplicationFeePercent < 0 || stripeApplicationFeePercent >= 100 {
+		logger.Error("invalid STRIPE_APPLICATION_FEE_PERCENT: must be between 0 and 100", "value", stripeApplicationFeePercent)
+		os.Exit(1)
+	}
 
 	// Parse application fee percentage (default: 5.0%)
 	stripeApplicationFeePercent := 5.0

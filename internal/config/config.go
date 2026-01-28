@@ -32,10 +32,10 @@ type Config struct {
 	LiveKitAPISecret string `koanf:"livekit_api_secret"`
 
 	// Stripe
-	StripeAPIKey                string  `koanf:"stripe_api_key"`
-	StripeWebhookSecret         string  `koanf:"stripe_webhook_secret"`
-	StripeOnboardingReturnURL   string  `koanf:"stripe_onboarding_return_url"`
-	StripeOnboardingRefreshURL  string  `koanf:"stripe_onboarding_refresh_url"`
+	StripeAPIKey              string  `koanf:"stripe_api_key"`
+	StripeWebhookSecret       string  `koanf:"stripe_webhook_secret"`
+	StripeOnboardingReturnURL string  `koanf:"stripe_onboarding_return_url"`
+	StripeOnboardingRefreshURL string `koanf:"stripe_onboarding_refresh_url"`
 	StripeApplicationFeePercent float64 `koanf:"stripe_application_fee_percent"` // Platform fee as percentage (e.g., 5.0 for 5%)
 
 	// MapTiler
@@ -157,14 +157,14 @@ func Load(configFilePath string) (*Config, []error) {
 		StripeOnboardingReturnURL:  getEnvOrKoanf("STRIPE_ONBOARDING_RETURN_URL", k, "stripe_onboarding_return_url"),
 		StripeOnboardingRefreshURL: getEnvOrKoanf("STRIPE_ONBOARDING_REFRESH_URL", k, "stripe_onboarding_refresh_url"),
 		StripeApplicationFeePercent: stripeFeePercent,
-		MapTilerAPIKey:             getEnvOrKoanf("MAPTILER_API_KEY", k, "maptiler_api_key"),
-		JetstreamURL:               getEnvOrKoanf("JETSTREAM_URL", k, "jetstream_url"),
-		R2BucketName:               getEnvOrKoanf("R2_BUCKET_NAME", k, "r2_bucket_name"),
-		R2AccessKeyID:              getEnvOrKoanf("R2_ACCESS_KEY_ID", k, "r2_access_key_id"),
-		R2SecretAccessKey:          getEnvOrKoanf("R2_SECRET_ACCESS_KEY", k, "r2_secret_access_key"),
-		R2Endpoint:                 getEnvOrKoanf("R2_ENDPOINT", k, "r2_endpoint"),
-		R2MaxUploadSizeMB:          maxUploadSize,
-		RankTrustEnabled:           rankTrustEnabled,
+		MapTilerAPIKey:            getEnvOrKoanf("MAPTILER_API_KEY", k, "maptiler_api_key"),
+		JetstreamURL:        getEnvOrKoanf("JETSTREAM_URL", k, "jetstream_url"),
+		R2BucketName:        getEnvOrKoanf("R2_BUCKET_NAME", k, "r2_bucket_name"),
+		R2AccessKeyID:       getEnvOrKoanf("R2_ACCESS_KEY_ID", k, "r2_access_key_id"),
+		R2SecretAccessKey:   getEnvOrKoanf("R2_SECRET_ACCESS_KEY", k, "r2_secret_access_key"),
+		R2Endpoint:          getEnvOrKoanf("R2_ENDPOINT", k, "r2_endpoint"),
+		R2MaxUploadSizeMB:   maxUploadSize,
+		RankTrustEnabled:    rankTrustEnabled,
 	}
 
 	// Validate and collect errors
