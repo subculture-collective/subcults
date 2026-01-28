@@ -20,6 +20,7 @@ import (
 	"github.com/onnwee/subcults/internal/api"
 	"github.com/onnwee/subcults/internal/attachment"
 	"github.com/onnwee/subcults/internal/audit"
+	"github.com/onnwee/subcults/internal/idempotency"
 	"github.com/onnwee/subcults/internal/livekit"
 	"github.com/onnwee/subcults/internal/membership"
 	"github.com/onnwee/subcults/internal/middleware"
@@ -199,7 +200,6 @@ func main() {
 		stripeClient := payment.NewStripeClient(stripeAPIKey)
 		paymentRepo := payment.NewInMemoryPaymentRepository()
 		webhookRepo := payment.NewInMemoryWebhookRepository()
-
 		// Initialize idempotency repository for payment operations
 		idempotencyRepo := idempotency.NewInMemoryRepository()
 		idempotencyRoutes := map[string]bool{
@@ -207,7 +207,6 @@ func main() {
 		}
 		idempotencyMiddleware = middleware.IdempotencyMiddleware(idempotencyRepo, idempotencyRoutes)
 		logger.Info("idempotency middleware initialized", "routes", idempotencyRoutes)
-
 		paymentHandlers = api.NewPaymentHandlers(
 			sceneRepo,
 			paymentRepo,
@@ -459,7 +458,9 @@ func main() {
 			}
 			paymentHandlers.OnboardScene(w, r)
 		})
-		mux.HandleFunc("/payments/checkout", func(w http.ResponseWriter, r *http.Request) {
+		
+		// Wrap checkout handler with idempotency middleware
+		checkoutHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			if r.Method != http.MethodPost {
 				ctx := middleware.SetErrorCode(r.Context(), api.ErrCodeBadRequest)
 				api.WriteError(w, ctx, http.StatusMethodNotAllowed, api.ErrCodeBadRequest, "Method not allowed")
@@ -467,6 +468,13 @@ func main() {
 			}
 			paymentHandlers.CreateCheckoutSession(w, r)
 		})
+		
+		if idempotencyMiddleware != nil {
+			checkoutHandler = idempotencyMiddleware(checkoutHandler).(http.HandlerFunc)
+		}
+		
+		mux.Handle("/payments/checkout", checkoutHandler)
+		
 		mux.HandleFunc("/payments/status", func(w http.ResponseWriter, r *http.Request) {
 			if r.Method != http.MethodGet {
 				ctx := middleware.SetErrorCode(r.Context(), api.ErrCodeBadRequest)
