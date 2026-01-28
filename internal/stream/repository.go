@@ -36,6 +36,10 @@ type Session struct {
 	JoinCount  int `json:"join_count"`  // Total number of join events
 	LeaveCount int `json:"leave_count"` // Total number of leave events
 
+	// Organizer controls
+	IsLocked             bool    `json:"is_locked"`                        // When true, new participants cannot join
+	FeaturedParticipant  *string `json:"featured_participant,omitempty"`   // ParticipantID of featured/spotlighted speaker
+
 	StartedAt time.Time  `json:"started_at"`
 	EndedAt   *time.Time `json:"ended_at,omitempty"`
 }
@@ -86,6 +90,15 @@ type SessionRepository interface {
 	// UpdateActiveParticipantCount updates the denormalized active_participant_count.
 	// Returns ErrStreamNotFound if session doesn't exist.
 	UpdateActiveParticipantCount(id string, count int) error
+
+	// SetLockStatus updates the is_locked status for a stream session.
+	// Returns ErrStreamNotFound if session doesn't exist.
+	SetLockStatus(id string, locked bool) error
+
+	// SetFeaturedParticipant sets or clears the featured participant for a stream session.
+	// Pass nil participantID to clear the featured participant.
+	// Returns ErrStreamNotFound if session doesn't exist.
+	SetFeaturedParticipant(id string, participantID *string) error
 
 	// HasActiveStreamForScene checks if there's an active stream (ended_at IS NULL) for the given scene.
 	HasActiveStreamForScene(sceneID string) (bool, error)
@@ -298,6 +311,8 @@ func (r *InMemorySessionRepository) CreateStreamSession(sceneID *string, eventID
 		ActiveParticipantCount: 0,
 		JoinCount:              0,
 		LeaveCount:             0,
+		IsLocked:               false,
+		FeaturedParticipant:    nil,
 		StartedAt:              now,
 		EndedAt:                nil, // Active stream
 	}
@@ -375,7 +390,38 @@ func (r *InMemorySessionRepository) UpdateActiveParticipantCount(id string, coun
 	return nil
 }
 
-// GetActiveStreamForEvent retrieves the active stream (ended_at IS NULL) for a given event.
+// SetLockStatus updates the is_locked status for a stream session.
+// Returns ErrStreamNotFound if session doesn't exist.
+func (r *InMemorySessionRepository) SetLockStatus(id string, locked bool) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	session, ok := r.sessions[id]
+	if !ok {
+		return ErrStreamNotFound
+	}
+
+	session.IsLocked = locked
+	return nil
+}
+
+// SetFeaturedParticipant sets or clears the featured participant for a stream session.
+// Pass nil participantID to clear the featured participant.
+// Returns ErrStreamNotFound if session doesn't exist.
+func (r *InMemorySessionRepository) SetFeaturedParticipant(id string, participantID *string) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	session, ok := r.sessions[id]
+	if !ok {
+		return ErrStreamNotFound
+	}
+
+	session.FeaturedParticipant = participantID
+	return nil
+}
+
+// HasActiveStreamForScene checks if there's an active stream (ended_at IS NULL) for the given scene.
 // Returns nil if no active stream exists for the event.
 // If multiple active streams exist, returns the most recent by started_at.
 func (r *InMemorySessionRepository) GetActiveStreamForEvent(eventID string) (*ActiveStreamInfo, error) {

@@ -106,8 +106,10 @@ func main() {
 	// Get credentials from environment variables
 	livekitAPIKey := os.Getenv("LIVEKIT_API_KEY")
 	livekitAPISecret := os.Getenv("LIVEKIT_API_SECRET")
+	livekitURL := os.Getenv("LIVEKIT_URL")
 
 	var livekitHandlers *api.LiveKitHandlers
+	var roomService *livekit.RoomService
 	if livekitAPIKey != "" && livekitAPISecret != "" {
 		tokenService, err := livekit.NewTokenService(livekitAPIKey, livekitAPISecret)
 		if err != nil {
@@ -116,6 +118,16 @@ func main() {
 		}
 		livekitHandlers = api.NewLiveKitHandlers(tokenService, auditRepo)
 		logger.Info("LiveKit token service initialized")
+
+		// Initialize LiveKit room service for organizer controls
+		if livekitURL != "" {
+			roomService = livekit.NewRoomService(livekitURL, livekitAPIKey, livekitAPISecret)
+			if roomService != nil {
+				logger.Info("LiveKit room service initialized for organizer controls")
+			}
+		} else {
+			logger.Warn("LIVEKIT_URL not configured, organizer controls will not be available")
+		}
 	} else {
 		logger.Warn("LiveKit credentials not configured, token endpoint will not be available")
 	}
@@ -257,7 +269,7 @@ func main() {
 	trustStoreAdapter := api.NewTrustScoreStoreAdapter(trustScoreStore)
 	eventHandlers := api.NewEventHandlers(eventRepo, sceneRepo, auditRepo, rsvpRepo, streamRepo, trustStoreAdapter)
 	rsvpHandlers := api.NewRSVPHandlers(rsvpRepo, eventRepo)
-	streamHandlers := api.NewStreamHandlers(streamRepo, participantRepo, analyticsRepo, sceneRepo, eventRepo, auditRepo, streamMetrics, eventBroadcaster)
+	streamHandlers := api.NewStreamHandlers(streamRepo, participantRepo, analyticsRepo, sceneRepo, eventRepo, auditRepo, streamMetrics, eventBroadcaster, roomService)
 	postHandlers := api.NewPostHandlers(postRepo, sceneRepo, membershipRepo, metadataService)
 	trustHandlers := api.NewTrustHandlers(sceneRepo, trustDataSource, trustScoreStore, trustDirtyTracker)
 	searchHandlers := api.NewSearchHandlers(sceneRepo, postRepo, trustStoreAdapter)
@@ -413,6 +425,36 @@ func main() {
 		// Check if this is a leave request: /streams/{id}/leave
 		if len(pathParts) == 2 && pathParts[0] != "" && pathParts[1] == "leave" && r.Method == http.MethodPost {
 			streamHandlers.LeaveStream(w, r)
+			return
+		}
+
+		// Check if this is a participants request: /streams/{id}/participants
+		if len(pathParts) == 2 && pathParts[0] != "" && pathParts[1] == "participants" && r.Method == http.MethodGet {
+			streamHandlers.GetActiveParticipants(w, r)
+			return
+		}
+
+		// Check if this is a mute request: /streams/{id}/participants/{participant_id}/mute
+		if len(pathParts) == 4 && pathParts[0] != "" && pathParts[1] == "participants" && pathParts[2] != "" && pathParts[3] == "mute" && r.Method == http.MethodPost {
+			streamHandlers.MuteParticipant(w, r)
+			return
+		}
+
+		// Check if this is a kick request: /streams/{id}/participants/{participant_id}/kick
+		if len(pathParts) == 4 && pathParts[0] != "" && pathParts[1] == "participants" && pathParts[2] != "" && pathParts[3] == "kick" && r.Method == http.MethodPost {
+			streamHandlers.KickParticipant(w, r)
+			return
+		}
+
+		// Check if this is a featured participant request: /streams/{id}/featured_participant
+		if len(pathParts) == 2 && pathParts[0] != "" && pathParts[1] == "featured_participant" && r.Method == http.MethodPatch {
+			streamHandlers.SetFeaturedParticipant(w, r)
+			return
+		}
+
+		// Check if this is a lock request: /streams/{id}/lock
+		if len(pathParts) == 2 && pathParts[0] != "" && pathParts[1] == "lock" && r.Method == http.MethodPatch {
+			streamHandlers.LockStream(w, r)
 			return
 		}
 
