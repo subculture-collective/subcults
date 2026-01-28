@@ -34,7 +34,6 @@ func TestHandleStripeWebhook_InvalidSignature(t *testing.T) {
 	paymentRepo := payment.NewInMemoryPaymentRepository()
 	webhookRepo := payment.NewInMemoryWebhookRepository()
 	sceneRepo := scene.NewInMemorySceneRepository()
-
 	handlers := NewWebhookHandlers(webhookSecret, paymentRepo, webhookRepo, sceneRepo)
 
 	// Create a test event
@@ -102,7 +101,6 @@ func TestHandleStripeWebhook_ValidSignature(t *testing.T) {
 	paymentRepo := payment.NewInMemoryPaymentRepository()
 	webhookRepo := payment.NewInMemoryWebhookRepository()
 	sceneRepo := scene.NewInMemorySceneRepository()
-
 	handlers := NewWebhookHandlers(webhookSecret, paymentRepo, webhookRepo, sceneRepo)
 
 	// Create a test event
@@ -164,7 +162,6 @@ func TestHandleStripeWebhook_Idempotency(t *testing.T) {
 	paymentRepo := payment.NewInMemoryPaymentRepository()
 	webhookRepo := payment.NewInMemoryWebhookRepository()
 	sceneRepo := scene.NewInMemorySceneRepository()
-
 	handlers := NewWebhookHandlers(webhookSecret, paymentRepo, webhookRepo, sceneRepo)
 
 	// Create a test event
@@ -243,7 +240,6 @@ func TestHandleStripeWebhook_CheckoutSessionCompleted(t *testing.T) {
 	paymentRepo := payment.NewInMemoryPaymentRepository()
 	webhookRepo := payment.NewInMemoryWebhookRepository()
 	sceneRepo := scene.NewInMemorySceneRepository()
-
 	handlers := NewWebhookHandlers(webhookSecret, paymentRepo, webhookRepo, sceneRepo)
 
 	// Create a payment record
@@ -306,7 +302,6 @@ func TestHandleStripeWebhook_PaymentIntentFailed(t *testing.T) {
 	paymentRepo := payment.NewInMemoryPaymentRepository()
 	webhookRepo := payment.NewInMemoryWebhookRepository()
 	sceneRepo := scene.NewInMemorySceneRepository()
-
 	handlers := NewWebhookHandlers(webhookSecret, paymentRepo, webhookRepo, sceneRepo)
 
 	// Create a payment record

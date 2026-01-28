@@ -192,12 +192,21 @@ func main() {
 
 	var paymentHandlers *api.PaymentHandlers
 	var webhookHandlers *api.WebhookHandlers
+	var idempotencyMiddleware func(http.Handler) http.Handler
 	stripeWebhookSecret := os.Getenv("STRIPE_WEBHOOK_SECRET")
 
 	if stripeAPIKey != "" && stripeOnboardingReturnURL != "" && stripeOnboardingRefreshURL != "" {
 		stripeClient := payment.NewStripeClient(stripeAPIKey)
 		paymentRepo := payment.NewInMemoryPaymentRepository()
 		webhookRepo := payment.NewInMemoryWebhookRepository()
+
+		// Initialize idempotency repository for payment operations
+		idempotencyRepo := idempotency.NewInMemoryRepository()
+		idempotencyRoutes := map[string]bool{
+			"/payments/checkout": true,
+		}
+		idempotencyMiddleware = middleware.IdempotencyMiddleware(idempotencyRepo, idempotencyRoutes)
+		logger.Info("idempotency middleware initialized", "routes", idempotencyRoutes)
 
 		paymentHandlers = api.NewPaymentHandlers(
 			sceneRepo,
