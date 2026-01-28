@@ -3,6 +3,7 @@ package stream
 
 import (
 	"errors"
+	"sort"
 	"sync"
 	"time"
 
@@ -11,7 +12,7 @@ import (
 
 // Participant-specific errors
 var (
-	ErrParticipantNotFound = errors.New("participant not found")
+	ErrParticipantNotFound      = errors.New("participant not found")
 	ErrParticipantAlreadyActive = errors.New("participant already active in stream")
 )
 
@@ -49,8 +50,8 @@ type InMemoryParticipantRepository struct {
 	mu           sync.RWMutex
 	participants map[string]*Participant // participant.ID -> Participant
 	// Index for quick lookup of active participants by stream and participant_id
-	activeIndex  map[string]map[string]string // streamSessionID -> participantID -> participant.ID
-	sessionRepo  SessionRepository // Reference for updating denormalized count
+	activeIndex map[string]map[string]string // streamSessionID -> participantID -> participant.ID
+	sessionRepo SessionRepository            // Reference for updating denormalized count
 }
 
 // NewInMemoryParticipantRepository creates a new in-memory participant repository.
@@ -78,12 +79,14 @@ func (r *InMemoryParticipantRepository) RecordJoin(streamSessionID, participantI
 	}
 
 	// Check if this participant has been in this stream before (reconnection)
+	// Find the maximum reconnection count from all previous records
 	var reconnectionCount int
 	for _, p := range r.participants {
 		if p.StreamSessionID == streamSessionID && p.ParticipantID == participantID {
-			reconnectionCount = p.ReconnectionCount + 1
 			isReconnection = true
-			break
+			if candidate := p.ReconnectionCount + 1; candidate > reconnectionCount {
+				reconnectionCount = candidate
+			}
 		}
 	}
 
@@ -176,8 +179,8 @@ func (r *InMemoryParticipantRepository) GetActiveParticipants(streamSessionID st
 	}
 
 	result := make([]*Participant, 0, len(streamActive))
-	for _, participantID := range streamActive {
-		if participant, exists := r.participants[participantID]; exists {
+	for _, participantRecordID := range streamActive {
+		if participant, exists := r.participants[participantRecordID]; exists {
 			participantCopy := *participant
 			result = append(result, &participantCopy)
 		}
@@ -200,14 +203,9 @@ func (r *InMemoryParticipantRepository) GetParticipantHistory(streamSessionID st
 	}
 
 	// Sort by joined_at descending (most recent first)
-	// Using a simple bubble sort for in-memory implementation
-	for i := 0; i < len(result)-1; i++ {
-		for j := i + 1; j < len(result); j++ {
-			if result[i].JoinedAt.Before(result[j].JoinedAt) {
-				result[i], result[j] = result[j], result[i]
-			}
-		}
-	}
+	sort.Slice(result, func(i, j int) bool {
+		return result[i].JoinedAt.After(result[j].JoinedAt)
+	})
 
 	return result, nil
 }

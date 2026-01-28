@@ -14,11 +14,7 @@ import (
 var upgrader = websocket.Upgrader{
 	ReadBufferSize:  1024,
 	WriteBufferSize: 1024,
-	CheckOrigin: func(r *http.Request) bool {
-		// TODO: Implement proper CORS checking based on configuration
-		// For now, allow all origins (should be restricted in production)
-		return true
-	},
+	// CheckOrigin is left nil to use Gorilla's default same-origin checks for security
 }
 
 // ParticipantWebSocketHandlers holds dependencies for WebSocket handlers.
@@ -40,8 +36,16 @@ func NewParticipantWebSocketHandlers(
 
 // SubscribeToParticipantEvents handles WebSocket connections for real-time participant updates.
 // GET /streams/{id}/participants/ws
+// Requires authentication - only authenticated users can subscribe to participant events.
 func (h *ParticipantWebSocketHandlers) SubscribeToParticipantEvents(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
+
+	// Require authentication before allowing WebSocket subscription
+	userDID := middleware.GetUserDID(ctx)
+	if userDID == "" {
+		WriteError(w, ctx, http.StatusUnauthorized, ErrCodeAuthFailed, "Authentication required")
+		return
+	}
 
 	// Extract stream ID from URL path
 	// Expected: /streams/{id}/participants/ws
@@ -61,6 +65,13 @@ func (h *ParticipantWebSocketHandlers) SubscribeToParticipantEvents(w http.Respo
 			slog.ErrorContext(ctx, "failed to get stream session", "error", err)
 			WriteError(w, ctx, http.StatusInternalServerError, ErrCodeInternal, "Internal server error")
 		}
+		return
+	}
+
+	// Check if event broadcaster is available
+	if h.eventBroadcaster == nil {
+		slog.ErrorContext(ctx, "event broadcaster not configured", "stream_id", streamID)
+		WriteError(w, ctx, http.StatusInternalServerError, ErrCodeInternal, "Real-time events not available")
 		return
 	}
 

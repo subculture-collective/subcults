@@ -16,12 +16,14 @@ CREATE TABLE IF NOT EXISTS stream_participants (
     reconnection_count INT NOT NULL DEFAULT 0,
     
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    
-    -- Ensure we don't have duplicate active participants
-    -- A participant is considered active if left_at IS NULL
-    CONSTRAINT unique_active_participant UNIQUE (stream_session_id, participant_id, left_at)
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+
+-- Ensure we don't have duplicate active participants per session while they are active (left_at IS NULL)
+-- Uses a partial unique index instead of a constraint because NULL values in UNIQUE constraints are treated as distinct
+CREATE UNIQUE INDEX unique_active_participant
+    ON stream_participants(stream_session_id, participant_id)
+    WHERE left_at IS NULL;
 
 -- Indexes for efficient queries
 CREATE INDEX idx_stream_participants_session ON stream_participants(stream_session_id) WHERE left_at IS NULL;

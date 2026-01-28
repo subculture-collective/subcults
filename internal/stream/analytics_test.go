@@ -158,19 +158,19 @@ func TestInMemoryAnalyticsRepository_ComputeAnalytics_WithEvents(t *testing.T) {
 
 	time.Sleep(5 * time.Millisecond) // Engagement lag
 	_ = repo.RecordParticipantEvent(streamID, "user1", "join", &geo1)
-	
+
 	time.Sleep(5 * time.Millisecond)
 	_ = repo.RecordParticipantEvent(streamID, "user2", "join", &geo2)
-	
+
 	time.Sleep(5 * time.Millisecond)
 	_ = repo.RecordParticipantEvent(streamID, "user3", "join", &geo1) // Peak = 3
-	
+
 	time.Sleep(5 * time.Millisecond)
 	_ = repo.RecordParticipantEvent(streamID, "user1", "leave", nil)
-	
+
 	time.Sleep(5 * time.Millisecond)
 	_ = repo.RecordParticipantEvent(streamID, "user2", "leave", nil)
-	
+
 	// End the stream
 	time.Sleep(5 * time.Millisecond)
 	err = sessionRepo.EndStreamSession(streamID)
@@ -397,11 +397,11 @@ func TestInMemoryAnalyticsRepository_ComputeAnalytics_ParticipantsNeverLeave(t *
 	// User2: joins, leaves after 100ms
 	_ = repo.RecordParticipantEvent(streamID, "user2", "join", nil)
 	time.Sleep(50 * time.Millisecond)
-	
+
 	// User3: joins while user2 is still present (peak = 3)
 	_ = repo.RecordParticipantEvent(streamID, "user3", "join", nil)
 	time.Sleep(50 * time.Millisecond)
-	
+
 	// User2 leaves (concurrent drops to 2)
 	_ = repo.RecordParticipantEvent(streamID, "user2", "leave", nil)
 	time.Sleep(50 * time.Millisecond)

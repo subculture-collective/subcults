@@ -1,6 +1,7 @@
 package stream
 
 import (
+	"fmt"
 	"testing"
 	"time"
 )
@@ -336,8 +337,8 @@ func TestInMemoryParticipantRepository_GetActiveCount(t *testing.T) {
 
 	// Add participants and verify count
 	for i := 1; i <= 5; i++ {
-		participantID := "user-" + string(rune(i))
-		userDID := "did:plc:" + string(rune(i))
+		participantID := fmt.Sprintf("user-%d", i)
+		userDID := fmt.Sprintf("did:plc:%d", i)
 		_, _, err := repo.RecordJoin(streamID, participantID, userDID)
 		if err != nil {
 			t.Fatalf("Failed to join participant: %v", err)
@@ -353,7 +354,7 @@ func TestInMemoryParticipantRepository_GetActiveCount(t *testing.T) {
 	}
 
 	// Leave one participant
-	err = repo.RecordLeave(streamID, "user-"+string(rune(1)))
+	err = repo.RecordLeave(streamID, "user-1")
 	if err != nil {
 		t.Fatalf("Failed to leave: %v", err)
 	}

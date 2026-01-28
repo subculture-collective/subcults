@@ -2,7 +2,7 @@
 
 ## ✅ Completed Implementation
 
-This PR implements real-time participant state synchronization for LiveKit streaming sessions, fulfilling all requirements from issue #[issue-number].
+This PR implements real-time participant state synchronization for LiveKit streaming sessions and fulfills all defined requirements for participant state synchronization.
 
 ## What Was Built
 

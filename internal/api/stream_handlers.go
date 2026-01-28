@@ -33,14 +33,14 @@ type StreamSessionResponse struct {
 
 // StreamHandlers holds dependencies for stream session HTTP handlers.
 type StreamHandlers struct {
-	streamRepo        stream.SessionRepository
-	participantRepo   stream.ParticipantRepository
-	analyticsRepo     stream.AnalyticsRepository
-	sceneRepo         scene.SceneRepository
-	eventRepo         scene.EventRepository
-	auditRepo         audit.Repository
-	streamMetrics     *stream.Metrics
-	eventBroadcaster  *stream.EventBroadcaster
+	streamRepo       stream.SessionRepository
+	participantRepo  stream.ParticipantRepository
+	analyticsRepo    stream.AnalyticsRepository
+	sceneRepo        scene.SceneRepository
+	eventRepo        scene.EventRepository
+	auditRepo        audit.Repository
+	streamMetrics    *stream.Metrics
+	eventBroadcaster *stream.EventBroadcaster
 }
 
 // NewStreamHandlers creates a new StreamHandlers instance.
@@ -328,7 +328,7 @@ func (h *StreamHandlers) isSceneOwner(ctx context.Context, sceneID, userDID stri
 
 // JoinStreamRequest represents the request body for recording a join event.
 type JoinStreamRequest struct {
-	TokenIssuedAt string  `json:"token_issued_at"` // RFC3339 timestamp from token issuance
+	TokenIssuedAt string  `json:"token_issued_at"`          // RFC3339 timestamp from token issuance
 	GeohashPrefix *string `json:"geohash_prefix,omitempty"` // Optional 4-char geohash for geographic tracking
 }
 
@@ -405,7 +405,7 @@ func (h *StreamHandlers) JoinStream(w http.ResponseWriter, r *http.Request) {
 			}
 		} else {
 			isReconnection = reconnection
-			
+
 			// Broadcast participant joined event via WebSocket
 			if h.eventBroadcaster != nil {
 				activeCount, _ := h.participantRepo.GetActiveCount(streamID)
@@ -819,9 +819,9 @@ func (h *StreamHandlers) GetActiveParticipants(w http.ResponseWriter, r *http.Re
 	// Return participant count only (no PII)
 	// Individual participant identities are not exposed to preserve privacy
 	response := map[string]interface{}{
-		"stream_id":     streamID,
-		"active_count":  activeCount,
-		"room_name":     session.RoomName,
+		"stream_id":    streamID,
+		"active_count": activeCount,
+		"room_name":    session.RoomName,
 	}
 
 	w.Header().Set("Content-Type", "application/json")

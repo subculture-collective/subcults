@@ -1,6 +1,7 @@
 -- Rollback stream_participants table and participant_count column
 
--- Drop indexes first
+-- Drop unique index first
+DROP INDEX IF EXISTS unique_active_participant;
 DROP INDEX IF EXISTS idx_stream_active_participant_count;
 DROP INDEX IF EXISTS idx_stream_participants_joined;
 DROP INDEX IF EXISTS idx_stream_participants_user;

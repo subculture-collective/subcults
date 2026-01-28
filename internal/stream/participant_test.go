@@ -9,8 +9,8 @@ func TestGenerateParticipantID(t *testing.T) {
 	tests := []struct {
 		name         string
 		did          string
-		expectedBase string  // Expected base (may be truncated)
-		checkLen     bool    // Check if truncated to 48 chars
+		expectedBase string // Expected base (may be truncated)
+		checkLen     bool   // Check if truncated to 48 chars
 	}{
 		{
 			name:         "standard_did_format",
@@ -47,7 +47,7 @@ func TestGenerateParticipantID(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			result := GenerateParticipantID(tt.did)
-			
+
 			// Verify it starts with "user-"
 			if !strings.HasPrefix(result, "user-") {
 				t.Errorf("Expected participant ID to start with 'user-', got %s", result)
