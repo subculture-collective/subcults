@@ -160,3 +160,21 @@ If a migration fails partway through:
 ```
 
 Then fix the issue and re-run the migration.
+
+### Stream Analytics Tables (Migration 000020)
+
+**stream_participant_events**: Granular tracking of individual join/leave events
+- Records every participant join and leave event with timestamps
+- Optional geohash_prefix (4 chars) for privacy-safe geographic distribution
+- Used to compute detailed analytics on stream end
+
+**stream_analytics**: Computed aggregate metrics for ended streams
+- Peak concurrent listeners, unique participants, join attempts
+- Stream duration, engagement lag (time to first join)
+- Retention metrics: average and median listen duration
+- Geographic distribution (JSONB map of 4-char geohash prefix -> count)
+- Privacy-first: No PII, only aggregates
+
+Analytics are automatically computed when a stream ends and can be viewed by the stream host via `GET /streams/{id}/analytics`.
+
+See `docs/STREAM_ANALYTICS.md` for full API documentation.
