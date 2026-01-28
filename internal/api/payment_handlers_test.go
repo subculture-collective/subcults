@@ -1165,3 +1165,361 @@ if w.Code != http.StatusBadRequest {
 t.Errorf("expected status 400, got %d", w.Code)
 }
 }
+
+// TestGetPaymentStatus_Success tests successful payment status retrieval as payment owner.
+func TestGetPaymentStatus_Success(t *testing.T) {
+sceneRepo := scene.NewInMemorySceneRepository()
+paymentRepo := payment.NewInMemoryPaymentRepository()
+mockClient := &mockStripeClient{}
+handlers := NewPaymentHandlers(
+sceneRepo,
+paymentRepo,
+mockClient,
+"https://example.com/return",
+"https://example.com/refresh",
+5.0,
+)
+
+// Create a test scene
+connectedAccountID := "acct_test123"
+testScene := &scene.Scene{
+ID:                 "scene-1",
+Name:               "Test Scene",
+OwnerDID:           "did:plc:owner123",
+CoarseGeohash:      "dr5regw",
+ConnectedAccountID: &connectedAccountID,
+}
+if err := sceneRepo.Insert(testScene); err != nil {
+t.Fatalf("failed to create test scene: %v", err)
+}
+
+// Create a pending payment record
+paymentRecord := &payment.PaymentRecord{
+SessionID: "cs_test123",
+Amount:    10000,
+Fee:       500,
+Currency:  "usd",
+UserDID:   "did:plc:user123",
+SceneID:   "scene-1",
+}
+if err := paymentRepo.CreatePending(paymentRecord); err != nil {
+t.Fatalf("failed to create payment record: %v", err)
+}
+
+req := httptest.NewRequest(http.MethodGet, "/payments/status?sessionId=cs_test123", nil)
+ctx := middleware.SetUserDID(req.Context(), "did:plc:user123")
+req = req.WithContext(ctx)
+
+w := httptest.NewRecorder()
+handlers.GetPaymentStatus(w, req)
+
+if w.Code != http.StatusOK {
+t.Errorf("expected status 200, got %d: %s", w.Code, w.Body.String())
+}
+
+var response PaymentStatusResponse
+if err := json.NewDecoder(w.Body).Decode(&response); err != nil {
+t.Fatalf("failed to decode response: %v", err)
+}
+
+if response.Status != payment.StatusPending {
+t.Errorf("expected status pending, got %s", response.Status)
+}
+if response.AmountCents != 10000 {
+t.Errorf("expected amount 10000, got %d", response.AmountCents)
+}
+if response.FeeCents != 500 {
+t.Errorf("expected fee 500, got %d", response.FeeCents)
+}
+if response.Currency != "usd" {
+t.Errorf("expected currency usd, got %s", response.Currency)
+}
+}
+
+// TestGetPaymentStatus_AsSceneOwner tests payment status retrieval as scene owner.
+func TestGetPaymentStatus_AsSceneOwner(t *testing.T) {
+sceneRepo := scene.NewInMemorySceneRepository()
+paymentRepo := payment.NewInMemoryPaymentRepository()
+mockClient := &mockStripeClient{}
+handlers := NewPaymentHandlers(
+sceneRepo,
+paymentRepo,
+mockClient,
+"https://example.com/return",
+"https://example.com/refresh",
+5.0,
+)
+
+// Create a test scene
+connectedAccountID := "acct_test123"
+testScene := &scene.Scene{
+ID:                 "scene-1",
+Name:               "Test Scene",
+OwnerDID:           "did:plc:owner123",
+CoarseGeohash:      "dr5regw",
+ConnectedAccountID: &connectedAccountID,
+}
+if err := sceneRepo.Insert(testScene); err != nil {
+t.Fatalf("failed to create test scene: %v", err)
+}
+
+// Create a payment record by a different user
+paymentRecord := &payment.PaymentRecord{
+SessionID: "cs_test123",
+Amount:    10000,
+Fee:       500,
+Currency:  "usd",
+UserDID:   "did:plc:user123",
+SceneID:   "scene-1",
+}
+if err := paymentRepo.CreatePending(paymentRecord); err != nil {
+t.Fatalf("failed to create payment record: %v", err)
+}
+
+// Request as scene owner (not payment creator)
+req := httptest.NewRequest(http.MethodGet, "/payments/status?sessionId=cs_test123", nil)
+ctx := middleware.SetUserDID(req.Context(), "did:plc:owner123")
+req = req.WithContext(ctx)
+
+w := httptest.NewRecorder()
+handlers.GetPaymentStatus(w, req)
+
+if w.Code != http.StatusOK {
+t.Errorf("expected status 200, got %d: %s", w.Code, w.Body.String())
+}
+
+var response PaymentStatusResponse
+if err := json.NewDecoder(w.Body).Decode(&response); err != nil {
+t.Fatalf("failed to decode response: %v", err)
+}
+
+if response.Status != payment.StatusPending {
+t.Errorf("expected status pending, got %s", response.Status)
+}
+}
+
+// TestGetPaymentStatus_CompletedStatus tests pending -> succeeded transition retrieval.
+func TestGetPaymentStatus_CompletedStatus(t *testing.T) {
+sceneRepo := scene.NewInMemorySceneRepository()
+paymentRepo := payment.NewInMemoryPaymentRepository()
+mockClient := &mockStripeClient{}
+handlers := NewPaymentHandlers(
+sceneRepo,
+paymentRepo,
+mockClient,
+"https://example.com/return",
+"https://example.com/refresh",
+5.0,
+)
+
+// Create a test scene
+connectedAccountID := "acct_test123"
+testScene := &scene.Scene{
+ID:                 "scene-1",
+Name:               "Test Scene",
+OwnerDID:           "did:plc:owner123",
+CoarseGeohash:      "dr5regw",
+ConnectedAccountID: &connectedAccountID,
+}
+if err := sceneRepo.Insert(testScene); err != nil {
+t.Fatalf("failed to create test scene: %v", err)
+}
+
+// Create a pending payment record
+paymentRecord := &payment.PaymentRecord{
+SessionID: "cs_test123",
+Amount:    10000,
+Fee:       500,
+Currency:  "usd",
+UserDID:   "did:plc:user123",
+SceneID:   "scene-1",
+}
+if err := paymentRepo.CreatePending(paymentRecord); err != nil {
+t.Fatalf("failed to create payment record: %v", err)
+}
+
+// Check initial status is pending
+req := httptest.NewRequest(http.MethodGet, "/payments/status?sessionId=cs_test123", nil)
+ctx := middleware.SetUserDID(req.Context(), "did:plc:user123")
+req = req.WithContext(ctx)
+
+w := httptest.NewRecorder()
+handlers.GetPaymentStatus(w, req)
+
+if w.Code != http.StatusOK {
+t.Errorf("expected status 200, got %d: %s", w.Code, w.Body.String())
+}
+
+var response PaymentStatusResponse
+if err := json.NewDecoder(w.Body).Decode(&response); err != nil {
+t.Fatalf("failed to decode response: %v", err)
+}
+
+if response.Status != payment.StatusPending {
+t.Errorf("expected status pending, got %s", response.Status)
+}
+
+// Simulate webhook marking payment as completed
+if err := paymentRepo.MarkCompleted("cs_test123", "pi_test123"); err != nil {
+t.Fatalf("failed to mark payment as completed: %v", err)
+}
+
+// Check status is now succeeded
+req2 := httptest.NewRequest(http.MethodGet, "/payments/status?sessionId=cs_test123", nil)
+ctx2 := middleware.SetUserDID(req2.Context(), "did:plc:user123")
+req2 = req2.WithContext(ctx2)
+
+w2 := httptest.NewRecorder()
+handlers.GetPaymentStatus(w2, req2)
+
+if w2.Code != http.StatusOK {
+t.Errorf("expected status 200, got %d: %s", w2.Code, w2.Body.String())
+}
+
+var response2 PaymentStatusResponse
+if err := json.NewDecoder(w2.Body).Decode(&response2); err != nil {
+t.Fatalf("failed to decode response: %v", err)
+}
+
+if response2.Status != payment.StatusSucceeded {
+t.Errorf("expected status succeeded, got %s", response2.Status)
+}
+}
+
+// TestGetPaymentStatus_NotFound tests 404 for unknown session.
+func TestGetPaymentStatus_NotFound(t *testing.T) {
+sceneRepo := scene.NewInMemorySceneRepository()
+paymentRepo := payment.NewInMemoryPaymentRepository()
+mockClient := &mockStripeClient{}
+handlers := NewPaymentHandlers(
+sceneRepo,
+paymentRepo,
+mockClient,
+"https://example.com/return",
+"https://example.com/refresh",
+5.0,
+)
+
+req := httptest.NewRequest(http.MethodGet, "/payments/status?sessionId=cs_nonexistent", nil)
+ctx := middleware.SetUserDID(req.Context(), "did:plc:user123")
+req = req.WithContext(ctx)
+
+w := httptest.NewRecorder()
+handlers.GetPaymentStatus(w, req)
+
+if w.Code != http.StatusNotFound {
+t.Errorf("expected status 404, got %d", w.Code)
+}
+
+var errorResp ErrorResponse
+if err := json.NewDecoder(w.Body).Decode(&errorResp); err != nil {
+t.Fatalf("failed to decode error response: %v", err)
+}
+if errorResp.Error.Code != ErrCodePaymentNotFound {
+t.Errorf("expected error code 'payment_not_found', got %v", errorResp.Error.Code)
+}
+}
+
+// TestGetPaymentStatus_Unauthorized tests access without authentication.
+func TestGetPaymentStatus_Unauthorized(t *testing.T) {
+sceneRepo := scene.NewInMemorySceneRepository()
+paymentRepo := payment.NewInMemoryPaymentRepository()
+mockClient := &mockStripeClient{}
+handlers := NewPaymentHandlers(
+sceneRepo,
+paymentRepo,
+mockClient,
+"https://example.com/return",
+"https://example.com/refresh",
+5.0,
+)
+
+req := httptest.NewRequest(http.MethodGet, "/payments/status?sessionId=cs_test123", nil)
+// No user DID in context
+
+w := httptest.NewRecorder()
+handlers.GetPaymentStatus(w, req)
+
+if w.Code != http.StatusUnauthorized {
+t.Errorf("expected status 401, got %d", w.Code)
+}
+}
+
+// TestGetPaymentStatus_Forbidden tests access by non-owner, non-scene-owner.
+func TestGetPaymentStatus_Forbidden(t *testing.T) {
+sceneRepo := scene.NewInMemorySceneRepository()
+paymentRepo := payment.NewInMemoryPaymentRepository()
+mockClient := &mockStripeClient{}
+handlers := NewPaymentHandlers(
+sceneRepo,
+paymentRepo,
+mockClient,
+"https://example.com/return",
+"https://example.com/refresh",
+5.0,
+)
+
+// Create a test scene
+connectedAccountID := "acct_test123"
+testScene := &scene.Scene{
+ID:                 "scene-1",
+Name:               "Test Scene",
+OwnerDID:           "did:plc:owner123",
+CoarseGeohash:      "dr5regw",
+ConnectedAccountID: &connectedAccountID,
+}
+if err := sceneRepo.Insert(testScene); err != nil {
+t.Fatalf("failed to create test scene: %v", err)
+}
+
+// Create a payment record
+paymentRecord := &payment.PaymentRecord{
+SessionID: "cs_test123",
+Amount:    10000,
+Fee:       500,
+Currency:  "usd",
+UserDID:   "did:plc:user123",
+SceneID:   "scene-1",
+}
+if err := paymentRepo.CreatePending(paymentRecord); err != nil {
+t.Fatalf("failed to create payment record: %v", err)
+}
+
+// Request as different user (not payment creator, not scene owner)
+req := httptest.NewRequest(http.MethodGet, "/payments/status?sessionId=cs_test123", nil)
+ctx := middleware.SetUserDID(req.Context(), "did:plc:otheruser456")
+req = req.WithContext(ctx)
+
+w := httptest.NewRecorder()
+handlers.GetPaymentStatus(w, req)
+
+if w.Code != http.StatusForbidden {
+t.Errorf("expected status 403, got %d", w.Code)
+}
+}
+
+// TestGetPaymentStatus_MissingSessionID tests request without sessionId parameter.
+func TestGetPaymentStatus_MissingSessionID(t *testing.T) {
+sceneRepo := scene.NewInMemorySceneRepository()
+paymentRepo := payment.NewInMemoryPaymentRepository()
+mockClient := &mockStripeClient{}
+handlers := NewPaymentHandlers(
+sceneRepo,
+paymentRepo,
+mockClient,
+"https://example.com/return",
+"https://example.com/refresh",
+5.0,
+)
+
+req := httptest.NewRequest(http.MethodGet, "/payments/status", nil)
+ctx := middleware.SetUserDID(req.Context(), "did:plc:user123")
+req = req.WithContext(ctx)
+
+w := httptest.NewRecorder()
+handlers.GetPaymentStatus(w, req)
+
+if w.Code != http.StatusBadRequest {
+t.Errorf("expected status 400, got %d", w.Code)
+}
+}

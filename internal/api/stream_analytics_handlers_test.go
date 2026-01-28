@@ -22,7 +22,7 @@ func TestGetStreamAnalytics_Success(t *testing.T) {
 	sceneRepo := scene.NewInMemorySceneRepository()
 	eventRepo := scene.NewInMemoryEventRepository()
 	auditRepo := audit.NewInMemoryRepository()
-	handlers := NewStreamHandlers(streamRepo, analyticsRepo, sceneRepo, eventRepo, auditRepo, nil)
+	handlers := NewStreamHandlers(streamRepo, nil, analyticsRepo, sceneRepo, eventRepo, auditRepo, nil, nil)
 
 	// Create a scene first
 	testScene := &scene.Scene{
@@ -109,7 +109,7 @@ func TestGetStreamAnalytics_Unauthorized(t *testing.T) {
 	sceneRepo := scene.NewInMemorySceneRepository()
 	eventRepo := scene.NewInMemoryEventRepository()
 	auditRepo := audit.NewInMemoryRepository()
-	handlers := NewStreamHandlers(streamRepo, analyticsRepo, sceneRepo, eventRepo, auditRepo, nil)
+	handlers := NewStreamHandlers(streamRepo, nil, analyticsRepo, sceneRepo, eventRepo, auditRepo, nil, nil)
 
 	// Create a scene and stream
 	testScene := &scene.Scene{
@@ -153,7 +153,7 @@ func TestGetStreamAnalytics_NotComputedYet(t *testing.T) {
 	sceneRepo := scene.NewInMemorySceneRepository()
 	eventRepo := scene.NewInMemoryEventRepository()
 	auditRepo := audit.NewInMemoryRepository()
-	handlers := NewStreamHandlers(streamRepo, analyticsRepo, sceneRepo, eventRepo, auditRepo, nil)
+	handlers := NewStreamHandlers(streamRepo, nil, analyticsRepo, sceneRepo, eventRepo, auditRepo, nil, nil)
 
 	// Create a scene and stream
 	testScene := &scene.Scene{
@@ -196,7 +196,7 @@ func TestGetStreamAnalytics_StreamNotEnded(t *testing.T) {
 	sceneRepo := scene.NewInMemorySceneRepository()
 	eventRepo := scene.NewInMemoryEventRepository()
 	auditRepo := audit.NewInMemoryRepository()
-	handlers := NewStreamHandlers(streamRepo, analyticsRepo, sceneRepo, eventRepo, auditRepo, nil)
+	handlers := NewStreamHandlers(streamRepo, nil, analyticsRepo, sceneRepo, eventRepo, auditRepo, nil, nil)
 
 	// Create a scene and stream
 	testScene := &scene.Scene{
@@ -238,7 +238,7 @@ func TestJoinStreamWithGeohash(t *testing.T) {
 	sceneRepo := scene.NewInMemorySceneRepository()
 	eventRepo := scene.NewInMemoryEventRepository()
 	auditRepo := audit.NewInMemoryRepository()
-	handlers := NewStreamHandlers(streamRepo, analyticsRepo, sceneRepo, eventRepo, auditRepo, nil)
+	handlers := NewStreamHandlers(streamRepo, nil, analyticsRepo, sceneRepo, eventRepo, auditRepo, nil, nil)
 
 	// Create a scene and stream
 	testScene := &scene.Scene{
@@ -304,7 +304,7 @@ func TestEndStreamComputesAnalytics(t *testing.T) {
 	sceneRepo := scene.NewInMemorySceneRepository()
 	eventRepo := scene.NewInMemoryEventRepository()
 	auditRepo := audit.NewInMemoryRepository()
-	handlers := NewStreamHandlers(streamRepo, analyticsRepo, sceneRepo, eventRepo, auditRepo, nil)
+	handlers := NewStreamHandlers(streamRepo, nil, analyticsRepo, sceneRepo, eventRepo, auditRepo, nil, nil)
 
 	// Create a scene and stream
 	testScene := &scene.Scene{

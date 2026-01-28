@@ -491,7 +491,7 @@ func TestJoinStream_Success(t *testing.T) {
 	eventRepo := scene.NewInMemoryEventRepository()
 	auditRepo := audit.NewInMemoryRepository()
 	streamMetrics := stream.NewMetrics()
-	handlers := NewStreamHandlers(streamRepo, nil, sceneRepo, eventRepo, auditRepo, streamMetrics)
+	handlers := NewStreamHandlers(streamRepo, nil, nil, sceneRepo, eventRepo, auditRepo, streamMetrics, nil)
 
 	// Create a scene and stream session first
 	testScene := &scene.Scene{
@@ -566,7 +566,7 @@ func TestJoinStream_NotFound(t *testing.T) {
 	eventRepo := scene.NewInMemoryEventRepository()
 	auditRepo := audit.NewInMemoryRepository()
 	streamMetrics := stream.NewMetrics()
-	handlers := NewStreamHandlers(streamRepo, nil, sceneRepo, eventRepo, auditRepo, streamMetrics)
+	handlers := NewStreamHandlers(streamRepo, nil, nil, sceneRepo, eventRepo, auditRepo, streamMetrics, nil)
 
 	req := httptest.NewRequest(http.MethodPost, "/streams/nonexistent-id/join", nil)
 	ctx := middleware.SetUserDID(req.Context(), "did:plc:test123")
@@ -587,7 +587,7 @@ func TestJoinStream_Unauthorized(t *testing.T) {
 	eventRepo := scene.NewInMemoryEventRepository()
 	auditRepo := audit.NewInMemoryRepository()
 	streamMetrics := stream.NewMetrics()
-	handlers := NewStreamHandlers(streamRepo, nil, sceneRepo, eventRepo, auditRepo, streamMetrics)
+	handlers := NewStreamHandlers(streamRepo, nil, nil, sceneRepo, eventRepo, auditRepo, streamMetrics, nil)
 
 	req := httptest.NewRequest(http.MethodPost, "/streams/some-id/join", nil)
 	// No auth context
@@ -607,7 +607,7 @@ func TestLeaveStream_Success(t *testing.T) {
 	eventRepo := scene.NewInMemoryEventRepository()
 	auditRepo := audit.NewInMemoryRepository()
 	streamMetrics := stream.NewMetrics()
-	handlers := NewStreamHandlers(streamRepo, nil, sceneRepo, eventRepo, auditRepo, streamMetrics)
+	handlers := NewStreamHandlers(streamRepo, nil, nil, sceneRepo, eventRepo, auditRepo, streamMetrics, nil)
 
 	// Create a scene and stream session first
 	testScene := &scene.Scene{
@@ -670,7 +670,7 @@ func TestLeaveStream_NotFound(t *testing.T) {
 	eventRepo := scene.NewInMemoryEventRepository()
 	auditRepo := audit.NewInMemoryRepository()
 	streamMetrics := stream.NewMetrics()
-	handlers := NewStreamHandlers(streamRepo, nil, sceneRepo, eventRepo, auditRepo, streamMetrics)
+	handlers := NewStreamHandlers(streamRepo, nil, nil, sceneRepo, eventRepo, auditRepo, streamMetrics, nil)
 
 	req := httptest.NewRequest(http.MethodPost, "/streams/nonexistent-id/leave", nil)
 	ctx := middleware.SetUserDID(req.Context(), "did:plc:test123")
@@ -691,7 +691,7 @@ func TestJoinLeave_Multiple(t *testing.T) {
 	eventRepo := scene.NewInMemoryEventRepository()
 	auditRepo := audit.NewInMemoryRepository()
 	streamMetrics := stream.NewMetrics()
-	handlers := NewStreamHandlers(streamRepo, nil, sceneRepo, eventRepo, auditRepo, streamMetrics)
+	handlers := NewStreamHandlers(streamRepo, nil, nil, sceneRepo, eventRepo, auditRepo, streamMetrics, nil)
 
 	// Create a scene and stream session first
 	testScene := &scene.Scene{

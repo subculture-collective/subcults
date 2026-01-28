@@ -201,6 +201,7 @@ func main() {
 		stripeClient := payment.NewStripeClient(stripeAPIKey)
 		paymentRepo := payment.NewInMemoryPaymentRepository()
 		webhookRepo := payment.NewInMemoryWebhookRepository()
+
 		// Initialize idempotency repository for payment operations
 		idempotencyRepo := idempotency.NewInMemoryRepository()
 		idempotencyRoutes := map[string]bool{
@@ -208,6 +209,7 @@ func main() {
 		}
 		idempotencyMiddleware = middleware.IdempotencyMiddleware(idempotencyRepo, idempotencyRoutes)
 		logger.Info("idempotency middleware initialized", "routes", idempotencyRoutes)
+
 		paymentHandlers = api.NewPaymentHandlers(
 			sceneRepo,
 			paymentRepo,
@@ -239,7 +241,7 @@ func main() {
 	trustStoreAdapter := api.NewTrustScoreStoreAdapter(trustScoreStore)
 	eventHandlers := api.NewEventHandlers(eventRepo, sceneRepo, auditRepo, rsvpRepo, streamRepo, trustStoreAdapter)
 	rsvpHandlers := api.NewRSVPHandlers(rsvpRepo, eventRepo)
-	streamHandlers := api.NewStreamHandlers(streamRepo, analyticsRepo, sceneRepo, eventRepo, auditRepo, streamMetrics)
+	streamHandlers := api.NewStreamHandlers(streamRepo, participantRepo, analyticsRepo, sceneRepo, eventRepo, auditRepo, streamMetrics, eventBroadcaster)
 	postHandlers := api.NewPostHandlers(postRepo, sceneRepo, membershipRepo, metadataService)
 	trustHandlers := api.NewTrustHandlers(sceneRepo, trustDataSource, trustScoreStore, trustDirtyTracker)
 	searchHandlers := api.NewSearchHandlers(sceneRepo, postRepo, trustStoreAdapter)
@@ -465,7 +467,7 @@ func main() {
 			}
 			paymentHandlers.OnboardScene(w, r)
 		})
-		
+
 		// Wrap checkout handler with idempotency middleware
 		checkoutHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			if r.Method != http.MethodPost {
@@ -475,14 +477,14 @@ func main() {
 			}
 			paymentHandlers.CreateCheckoutSession(w, r)
 		})
-		
+
 		if idempotencyMiddleware != nil {
 			// Apply idempotency middleware - returns http.Handler
 			mux.Handle("/payments/checkout", idempotencyMiddleware(checkoutHandler))
 		} else {
 			mux.Handle("/payments/checkout", checkoutHandler)
 		}
-		
+
 		mux.HandleFunc("/payments/status", func(w http.ResponseWriter, r *http.Request) {
 			if r.Method != http.MethodGet {
 				ctx := middleware.SetErrorCode(r.Context(), api.ErrCodeBadRequest)
