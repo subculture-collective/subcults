@@ -26,7 +26,7 @@ All other transitions are **not allowed**:
 - ❌ `succeeded` → `failed` (cannot fail after success)
 - ❌ `failed` → `succeeded` (cannot succeed after failure)
 - ❌ `failed` → `pending` (cannot reset failed payment)
-- ❌ `canceled` → any status (canceled is terminal except for refunded)
+- ❌ `canceled` → any status (canceled is terminal)
 - ❌ `refunded` → any status (refunded is terminal)
 
 ## Repository Methods
@@ -42,7 +42,8 @@ Transitions a payment from pending to succeeded.
 - **Returns**: 
   - `ErrPaymentRecordNotFound` if session doesn't exist
   - `ErrInvalidStatusTransition` if not in pending status
-- **Idempotency**: Yes (returns nil if already succeeded)
+  - `ErrPaymentIntentMismatch` if already succeeded with a different payment intent ID
+- **Idempotency**: Yes (returns nil if already succeeded with same payment intent ID)
 - **Thread-safe**: Yes
 - **Side effects**: Stores `payment_intent_id`, updates `updated_at`
 
@@ -56,6 +57,24 @@ Transitions a payment from pending to failed.
 - **Side effects**: 
   - Stores `failure_reason`, updates `updated_at`
   - Updates reason if already failed with different reason
+
+### `MarkCanceled(sessionID string) error`
+Transitions a payment from pending to canceled.
+- **Returns**:
+  - `ErrPaymentRecordNotFound` if session doesn't exist
+  - `ErrInvalidStatusTransition` if not in pending status
+- **Idempotency**: Yes (returns nil if already canceled)
+- **Thread-safe**: Yes
+- **Side effects**: Updates `updated_at`
+
+### `MarkRefunded(sessionID string) error`
+Transitions a payment from succeeded to refunded.
+- **Returns**:
+  - `ErrPaymentRecordNotFound` if session doesn't exist
+  - `ErrInvalidStatusTransition` if not in succeeded status
+- **Idempotency**: Yes (returns nil if already refunded)
+- **Thread-safe**: Yes
+- **Side effects**: Updates `updated_at`
 
 ## Example Usage
 

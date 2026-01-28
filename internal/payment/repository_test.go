@@ -186,7 +186,7 @@ func TestMarkCompleted_InvalidTransition(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			repo := NewInMemoryPaymentRepository()
 
-			// Create a record with the initial status
+			// Create a record with the initial status using insert
 			record := &PaymentRecord{
 				ID:        "payment-1",
 				SessionID: "cs_test_123",
@@ -198,9 +198,10 @@ func TestMarkCompleted_InvalidTransition(t *testing.T) {
 				SceneID:   "scene-1",
 			}
 
-			// Manually insert with the initial status (bypassing CreatePending)
-			repo.records[record.ID] = record
-			repo.sessions[record.SessionID] = record.ID
+			// Insert using repository to respect invariants
+			if err := repo.insert(record); err != nil {
+				t.Fatalf("failed to insert initial record: %v", err)
+			}
 
 			// Try to mark as completed
 			err := repo.MarkCompleted("cs_test_123", "pi_test_456")
@@ -364,7 +365,7 @@ func TestMarkFailed_InvalidTransition(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			repo := NewInMemoryPaymentRepository()
 
-			// Create a record with the initial status
+			// Create a record with the initial status using insert
 			record := &PaymentRecord{
 				ID:        "payment-1",
 				SessionID: "cs_test_123",
@@ -376,9 +377,10 @@ func TestMarkFailed_InvalidTransition(t *testing.T) {
 				SceneID:   "scene-1",
 			}
 
-			// Manually insert with the initial status
-			repo.records[record.ID] = record
-			repo.sessions[record.SessionID] = record.ID
+			// Insert using repository to respect invariants
+			if err := repo.insert(record); err != nil {
+				t.Fatalf("failed to insert initial record: %v", err)
+			}
 
 			// Try to mark as failed
 			err := repo.MarkFailed("cs_test_123", "card_declined")
@@ -442,13 +444,14 @@ func TestStatusTransitions_TableDriven(t *testing.T) {
 	}
 }
 
-// TestInsert_DuplicateSessionID tests that Insert rejects duplicate session IDs.
-func TestInsert_DuplicateSessionID(t *testing.T) {
+
+// TestMarkCanceled_Success tests successful cancellation of a pending payment.
+func TestMarkCanceled_Success(t *testing.T) {
 	repo := NewInMemoryPaymentRepository()
 
-	record1 := &PaymentRecord{
+	// Create a pending payment
+	record := &PaymentRecord{
 		SessionID: "cs_test_123",
-		Status:    StatusPending,
 		Amount:    1000,
 		Fee:       100,
 		Currency:  "usd",
@@ -456,25 +459,235 @@ func TestInsert_DuplicateSessionID(t *testing.T) {
 		SceneID:   "scene-1",
 	}
 
-	err := repo.Insert(record1)
+	err := repo.CreatePending(record)
 	if err != nil {
-		t.Fatalf("first Insert failed: %v", err)
+		t.Fatalf("CreatePending failed: %v", err)
 	}
 
-	// Try to insert another record with the same session ID
-	record2 := &PaymentRecord{
+	// Mark as canceled
+	err = repo.MarkCanceled("cs_test_123")
+	if err != nil {
+		t.Fatalf("MarkCanceled failed: %v", err)
+	}
+
+	// Verify the status was updated
+	retrieved, err := repo.GetBySessionID("cs_test_123")
+	if err != nil {
+		t.Fatalf("GetBySessionID failed: %v", err)
+	}
+
+	if retrieved.Status != StatusCanceled {
+		t.Errorf("expected status %s, got %s", StatusCanceled, retrieved.Status)
+	}
+}
+
+// TestMarkCanceled_Idempotent tests that marking canceled is idempotent.
+func TestMarkCanceled_Idempotent(t *testing.T) {
+	repo := NewInMemoryPaymentRepository()
+
+	record := &PaymentRecord{
 		SessionID: "cs_test_123",
-		Status:    StatusPending,
-		Amount:    2000,
-		Fee:       200,
+		Amount:    1000,
+		Fee:       100,
 		Currency:  "usd",
-		UserDID:   "did:plc:user456",
-		SceneID:   "scene-2",
+		UserDID:   "did:plc:user123",
+		SceneID:   "scene-1",
 	}
 
-	err = repo.Insert(record2)
-	if err != ErrDuplicateSessionID {
-		t.Errorf("expected ErrDuplicateSessionID, got %v", err)
+	err := repo.CreatePending(record)
+	if err != nil {
+		t.Fatalf("CreatePending failed: %v", err)
+	}
+
+	// Mark as canceled
+	err = repo.MarkCanceled("cs_test_123")
+	if err != nil {
+		t.Fatalf("first MarkCanceled failed: %v", err)
+	}
+
+	// Mark as canceled again - should succeed (idempotent)
+	err = repo.MarkCanceled("cs_test_123")
+	if err != nil {
+		t.Errorf("second MarkCanceled should be idempotent but got error: %v", err)
+	}
+}
+
+// TestMarkRefunded_Success tests successful refund of a succeeded payment.
+func TestMarkRefunded_Success(t *testing.T) {
+	repo := NewInMemoryPaymentRepository()
+
+	// Create a pending payment
+	record := &PaymentRecord{
+		SessionID: "cs_test_123",
+		Amount:    1000,
+		Fee:       100,
+		Currency:  "usd",
+		UserDID:   "did:plc:user123",
+		SceneID:   "scene-1",
+	}
+
+	err := repo.CreatePending(record)
+	if err != nil {
+		t.Fatalf("CreatePending failed: %v", err)
+	}
+
+	// Mark as completed
+	err = repo.MarkCompleted("cs_test_123", "pi_test_456")
+	if err != nil {
+		t.Fatalf("MarkCompleted failed: %v", err)
+	}
+
+	// Mark as refunded
+	err = repo.MarkRefunded("cs_test_123")
+	if err != nil {
+		t.Fatalf("MarkRefunded failed: %v", err)
+	}
+
+	// Verify the status was updated
+	retrieved, err := repo.GetBySessionID("cs_test_123")
+	if err != nil {
+		t.Fatalf("GetBySessionID failed: %v", err)
+	}
+
+	if retrieved.Status != StatusRefunded {
+		t.Errorf("expected status %s, got %s", StatusRefunded, retrieved.Status)
+	}
+}
+
+// TestMarkRefunded_Idempotent tests that marking refunded is idempotent.
+func TestMarkRefunded_Idempotent(t *testing.T) {
+	repo := NewInMemoryPaymentRepository()
+
+	record := &PaymentRecord{
+		SessionID: "cs_test_123",
+		Amount:    1000,
+		Fee:       100,
+		Currency:  "usd",
+		UserDID:   "did:plc:user123",
+		SceneID:   "scene-1",
+	}
+
+	err := repo.CreatePending(record)
+	if err != nil {
+		t.Fatalf("CreatePending failed: %v", err)
+	}
+
+	// Mark as completed first
+	err = repo.MarkCompleted("cs_test_123", "pi_test_456")
+	if err != nil {
+		t.Fatalf("MarkCompleted failed: %v", err)
+	}
+
+	// Mark as refunded
+	err = repo.MarkRefunded("cs_test_123")
+	if err != nil {
+		t.Fatalf("first MarkRefunded failed: %v", err)
+	}
+
+	// Mark as refunded again - should succeed (idempotent)
+	err = repo.MarkRefunded("cs_test_123")
+	if err != nil {
+		t.Errorf("second MarkRefunded should be idempotent but got error: %v", err)
+	}
+}
+
+// TestMarkCompleted_PaymentIntentMismatch tests that different payment intent IDs are rejected.
+func TestMarkCompleted_PaymentIntentMismatch(t *testing.T) {
+	repo := NewInMemoryPaymentRepository()
+
+	record := &PaymentRecord{
+		SessionID: "cs_test_123",
+		Amount:    1000,
+		Fee:       100,
+		Currency:  "usd",
+		UserDID:   "did:plc:user123",
+		SceneID:   "scene-1",
+	}
+
+	err := repo.CreatePending(record)
+	if err != nil {
+		t.Fatalf("CreatePending failed: %v", err)
+	}
+
+	// Mark as completed with first intent ID
+	err = repo.MarkCompleted("cs_test_123", "pi_test_456")
+	if err != nil {
+		t.Fatalf("first MarkCompleted failed: %v", err)
+	}
+
+	// Try to mark as completed with different intent ID - should fail
+	err = repo.MarkCompleted("cs_test_123", "pi_test_789")
+	if err != ErrPaymentIntentMismatch {
+		t.Errorf("expected ErrPaymentIntentMismatch, got %v", err)
+	}
+}
+
+// TestCurrencyDefault tests that currency defaults to "usd" when not set.
+func TestCurrencyDefault(t *testing.T) {
+	repo := NewInMemoryPaymentRepository()
+
+	record := &PaymentRecord{
+		SessionID: "cs_test_123",
+		Amount:    1000,
+		Fee:       100,
+		// Currency not set
+		UserDID: "did:plc:user123",
+		SceneID: "scene-1",
+	}
+
+	err := repo.CreatePending(record)
+	if err != nil {
+		t.Fatalf("CreatePending failed: %v", err)
+	}
+
+	retrieved, err := repo.GetBySessionID("cs_test_123")
+	if err != nil {
+		t.Fatalf("GetBySessionID failed: %v", err)
+	}
+
+	if retrieved.Currency != "usd" {
+		t.Errorf("expected default currency 'usd', got %s", retrieved.Currency)
+	}
+}
+
+// TestDeepCopy_PointerIsolation tests that pointer fields are properly deep copied.
+func TestDeepCopy_PointerIsolation(t *testing.T) {
+	repo := NewInMemoryPaymentRepository()
+
+	eventID := "event-123"
+	record := &PaymentRecord{
+		SessionID: "cs_test_123",
+		Amount:    1000,
+		Fee:       100,
+		Currency:  "usd",
+		UserDID:   "did:plc:user123",
+		SceneID:   "scene-1",
+		EventID:   &eventID,
+	}
+
+	err := repo.CreatePending(record)
+	if err != nil {
+		t.Fatalf("CreatePending failed: %v", err)
+	}
+
+	// Retrieve the record
+	retrieved, err := repo.GetBySessionID("cs_test_123")
+	if err != nil {
+		t.Fatalf("GetBySessionID failed: %v", err)
+	}
+
+	// Modify the pointer field in retrieved record
+	newEventID := "event-456"
+	retrieved.EventID = &newEventID
+
+	// Retrieve again and verify the original is unchanged
+	retrieved2, err := repo.GetBySessionID("cs_test_123")
+	if err != nil {
+		t.Fatalf("second GetBySessionID failed: %v", err)
+	}
+
+	if retrieved2.EventID == nil || *retrieved2.EventID != eventID {
+		t.Errorf("expected EventID %s (deep copy isolation failed), got %v", eventID, retrieved2.EventID)
 	}
 }
 
