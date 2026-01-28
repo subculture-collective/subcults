@@ -31,7 +31,6 @@ CREATE TABLE IF NOT EXISTS payment_records (
 CREATE INDEX IF NOT EXISTS idx_payment_records_user_did ON payment_records(user_did);
 CREATE INDEX IF NOT EXISTS idx_payment_records_scene_id ON payment_records(scene_id);
 CREATE INDEX IF NOT EXISTS idx_payment_records_event_id ON payment_records(event_id) WHERE event_id IS NOT NULL;
-CREATE INDEX IF NOT EXISTS idx_payment_records_status ON payment_records(status);
 CREATE INDEX IF NOT EXISTS idx_payment_records_status_pending ON payment_records(status) WHERE status = 'pending';
 CREATE INDEX IF NOT EXISTS idx_payment_records_created_at ON payment_records(created_at);
 
