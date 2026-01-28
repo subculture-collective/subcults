@@ -35,11 +35,13 @@ type Client struct {
 	logger  *slog.Logger
 	metrics *Metrics
 
-	mu          sync.Mutex
-	rng         *rand.Rand // protected by mu
-	conn        *websocket.Conn
-	isConnected bool
-	isPaused    bool
+	mu               sync.Mutex
+	rng              *rand.Rand // protected by mu
+	conn             *websocket.Conn
+	isConnected      bool
+	isPaused         bool
+	pauseStart       time.Time // protected by mu
+	pauseInitialized bool      // protected by mu
 
 	// Message queue for backpressure handling
 	messageQueue chan queuedMessage
@@ -161,9 +163,6 @@ func (c *Client) connect(ctx context.Context) error {
 // readLoop reads messages from the WebSocket connection until it closes.
 // Implements backpressure handling by pausing consumption when queue is full.
 func (c *Client) readLoop(ctx context.Context) {
-	var pauseStart time.Time
-	var pauseInitialized bool
-	
 	for {
 		select {
 		case <-ctx.Done():
@@ -182,8 +181,8 @@ func (c *Client) readLoop(ctx context.Context) {
 		// Pause if queue exceeds threshold
 		if !c.isPaused && queueLen > BackpressurePauseThreshold {
 			c.isPaused = true
-			pauseStart = time.Now()
-			pauseInitialized = true
+			c.pauseStart = time.Now()
+			c.pauseInitialized = true
 			if c.metrics != nil {
 				c.metrics.IncBackpressurePaused()
 			}
@@ -195,11 +194,11 @@ func (c *Client) readLoop(ctx context.Context) {
 		// Resume if queue drops below threshold
 		if c.isPaused && queueLen < BackpressureResumeThreshold {
 			var pauseDuration time.Duration
-			if pauseInitialized {
-				pauseDuration = time.Since(pauseStart)
+			if c.pauseInitialized {
+				pauseDuration = time.Since(c.pauseStart)
 			}
 			c.isPaused = false
-			pauseInitialized = false
+			c.pauseInitialized = false
 			if c.metrics != nil {
 				c.metrics.IncBackpressureResumed()
 				c.metrics.ObserveBackpressureDuration(pauseDuration.Seconds())
@@ -210,13 +209,13 @@ func (c *Client) readLoop(ctx context.Context) {
 		}
 		
 		// Check for excessive pause duration
-		if c.isPaused && pauseInitialized && time.Since(pauseStart) > MaxPauseDuration {
+		if c.isPaused && c.pauseInitialized && time.Since(c.pauseStart) > MaxPauseDuration {
 			c.logger.Warn("backpressure: exceeded max pause duration",
 				slog.Int("pending", queueLen),
-				slog.Duration("pause_duration", time.Since(pauseStart)),
+				slog.Duration("pause_duration", time.Since(c.pauseStart)),
 				slog.Duration("max_pause", MaxPauseDuration))
 			// Reset pause start to avoid spamming warnings
-			pauseStart = time.Now()
+			c.pauseStart = time.Now()
 		}
 		
 		isPaused := c.isPaused
@@ -251,7 +250,10 @@ func (c *Client) readLoop(ctx context.Context) {
 		}
 
 		// Queue message for processing (non-blocking with timeout)
-		msg := queuedMessage{messageType: messageType, payload: payload}
+		// Copy payload to avoid issues with buffer reuse
+		payloadCopy := make([]byte, len(payload))
+		copy(payloadCopy, payload)
+		msg := queuedMessage{messageType: messageType, payload: payloadCopy}
 		select {
 		case c.messageQueue <- msg:
 			// Message queued successfully
@@ -272,12 +274,23 @@ func (c *Client) close() {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
+	// Record pause duration if we're closing while paused
+	if c.isPaused && c.pauseInitialized && c.metrics != nil {
+		pauseDuration := time.Since(c.pauseStart)
+		c.metrics.IncBackpressureResumed()
+		c.metrics.ObserveBackpressureDuration(pauseDuration.Seconds())
+		c.logger.Info("backpressure: connection closed during pause, recording duration",
+			slog.Duration("pause_duration", pauseDuration))
+	}
+
 	if c.conn != nil {
 		_ = c.conn.Close()
 		c.conn = nil
 	}
 	c.isConnected = false
-	c.isPaused = false // Reset pause state on close
+	c.isPaused = false
+	c.pauseInitialized = false
+	c.pauseStart = time.Time{}
 }
 
 // processMessages processes messages from the queue.

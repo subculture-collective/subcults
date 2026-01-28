@@ -59,7 +59,7 @@ The backpressure system consists of:
 
 ### Metrics
 
-All backpressure metrics are exposed via `/internal/indexer/metrics` endpoint:
+All backpressure metrics are exposed via the Prometheus `/metrics` HTTP endpoint on the indexer metrics server:
 
 ```prometheus
 # Number of times consumption was paused
