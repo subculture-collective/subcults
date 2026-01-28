@@ -15,6 +15,9 @@ type userDIDKey struct{}
 // errorCodeKey is the context key for error code.
 type errorCodeKey struct{}
 
+// rateLimitKeyKey is the context key for rate limit key (user ID or IP).
+type rateLimitKeyKey struct{}
+
 // SetUserDID stores the user DID in the context.
 // This should be called by authentication middleware after validating the token.
 func SetUserDID(ctx context.Context, did string) context.Context {
@@ -39,6 +42,20 @@ func SetErrorCode(ctx context.Context, code string) context.Context {
 func GetErrorCode(ctx context.Context) string {
 	if code, ok := ctx.Value(errorCodeKey{}).(string); ok {
 		return code
+	}
+	return ""
+}
+
+// SetRateLimitKey stores the rate limit key in the context.
+// This should be called by rate limiting middleware to track which key was rate limited.
+func SetRateLimitKey(ctx context.Context, key string) context.Context {
+	return context.WithValue(ctx, rateLimitKeyKey{}, key)
+}
+
+// GetRateLimitKey retrieves the rate limit key from context. Returns empty string if not present.
+func GetRateLimitKey(ctx context.Context) string {
+	if key, ok := ctx.Value(rateLimitKeyKey{}).(string); ok {
+		return key
 	}
 	return ""
 }
@@ -171,6 +188,13 @@ func Logging(logger *slog.Logger) func(http.Handler) http.Handler {
 			if rw.statusCode >= 400 {
 				if errorCode := GetErrorCode(finalCtx); errorCode != "" {
 					attrs = append(attrs, slog.String("error_code", errorCode))
+					
+					// Add rate limit key if this is a rate limit violation
+					if errorCode == "rate_limit_exceeded" {
+						if rateLimitKey := GetRateLimitKey(finalCtx); rateLimitKey != "" {
+							attrs = append(attrs, slog.String("rate_limit_key", rateLimitKey))
+						}
+					}
 				}
 			}
 

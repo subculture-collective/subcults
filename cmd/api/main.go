@@ -103,6 +103,14 @@ func main() {
 	}
 	logger.Info("stream metrics registered")
 
+	// Initialize rate limiting metrics
+	rateLimitMetrics := middleware.NewMetrics()
+	if err := rateLimitMetrics.Register(promRegistry); err != nil {
+		logger.Error("failed to register rate limit metrics", "error", err)
+		os.Exit(1)
+	}
+	logger.Info("rate limit metrics registered")
+
 	// Initialize rate limiting
 	// Check if Redis URL is configured for distributed rate limiting
 	redisURL := os.Getenv("REDIS_URL")
@@ -326,7 +334,7 @@ func main() {
 	mux := http.NewServeMux()
 
 	// Event routes (event creation has rate limiting: 5 req/hour per user)
-	eventCreationHandler := middleware.RateLimiter(rateLimitStore, sceneCreationLimit, middleware.UserKeyFunc())(
+	eventCreationHandler := middleware.RateLimiter(rateLimitStore, sceneCreationLimit, middleware.UserKeyFunc(), rateLimitMetrics)(
 		http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			eventHandlers.CreateEvent(w, r)
 		}),
@@ -402,7 +410,7 @@ func main() {
 	})
 
 	// Search endpoints (with rate limiting: 100 req/min per user)
-	searchEventsHandler := middleware.RateLimiter(rateLimitStore, searchLimit, middleware.UserKeyFunc())(
+	searchEventsHandler := middleware.RateLimiter(rateLimitStore, searchLimit, middleware.UserKeyFunc(), rateLimitMetrics)(
 		http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			switch r.Method {
 			case http.MethodGet:
@@ -415,7 +423,7 @@ func main() {
 	)
 	mux.Handle("/search/events", searchEventsHandler)
 
-	searchScenesHandler := middleware.RateLimiter(rateLimitStore, searchLimit, middleware.UserKeyFunc())(
+	searchScenesHandler := middleware.RateLimiter(rateLimitStore, searchLimit, middleware.UserKeyFunc(), rateLimitMetrics)(
 		http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			switch r.Method {
 			case http.MethodGet:
@@ -428,7 +436,7 @@ func main() {
 	)
 	mux.Handle("/search/scenes", searchScenesHandler)
 
-	searchPostsHandler := middleware.RateLimiter(rateLimitStore, searchLimit, middleware.UserKeyFunc())(
+	searchPostsHandler := middleware.RateLimiter(rateLimitStore, searchLimit, middleware.UserKeyFunc(), rateLimitMetrics)(
 		http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			switch r.Method {
 			case http.MethodGet:
@@ -481,7 +489,7 @@ func main() {
 
 		// Check if this is a join request: /streams/{id}/join (with rate limiting: 10 req/min per user)
 		if len(pathParts) == 2 && pathParts[0] != "" && pathParts[1] == "join" && r.Method == http.MethodPost {
-			streamJoinHandler := middleware.RateLimiter(rateLimitStore, streamJoinLimit, middleware.UserKeyFunc())(
+			streamJoinHandler := middleware.RateLimiter(rateLimitStore, streamJoinLimit, middleware.UserKeyFunc(), rateLimitMetrics)(
 				http.HandlerFunc(streamHandlers.JoinStream),
 			)
 			streamJoinHandler.ServeHTTP(w, r)
@@ -669,7 +677,7 @@ func main() {
 
 	// Apply middleware: General rate limiting (1000 req/min per IP) -> RequestID -> Logging
 	// Rate limiting is applied first to protect all endpoints by default
-	handler := middleware.RateLimiter(rateLimitStore, generalLimit, middleware.IPKeyFunc())(
+	handler := middleware.RateLimiter(rateLimitStore, generalLimit, middleware.IPKeyFunc(), rateLimitMetrics)(
 		middleware.RequestID(
 			middleware.Logging(logger)(mux),
 		),

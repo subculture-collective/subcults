@@ -356,7 +356,7 @@ func TestRateLimiter_AllowsNormalTraffic(t *testing.T) {
 		WindowDuration:    time.Minute,
 	}
 
-	handler := RateLimiter(store, config, IPKeyFunc())(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	handler := RateLimiter(store, config, IPKeyFunc(), nil)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write([]byte("OK"))
 	}))
@@ -382,7 +382,7 @@ func TestRateLimiter_BlocksExcessiveTraffic(t *testing.T) {
 		WindowDuration:    time.Minute,
 	}
 
-	handler := RateLimiter(store, config, IPKeyFunc())(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	handler := RateLimiter(store, config, IPKeyFunc(), nil)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	}))
 
@@ -413,7 +413,7 @@ func TestRateLimiter_ReturnsRetryAfterHeader(t *testing.T) {
 		WindowDuration:    30 * time.Second,
 	}
 
-	handler := RateLimiter(store, config, IPKeyFunc())(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	handler := RateLimiter(store, config, IPKeyFunc(), nil)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	}))
 
@@ -474,7 +474,7 @@ func TestRateLimiter_DifferentClientsIndependent(t *testing.T) {
 		WindowDuration:    time.Minute,
 	}
 
-	handler := RateLimiter(store, config, IPKeyFunc())(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	handler := RateLimiter(store, config, IPKeyFunc(), nil)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	}))
 
@@ -519,7 +519,7 @@ func TestRateLimiter_BurstSimulation(t *testing.T) {
 		WindowDuration:    time.Minute,
 	}
 
-	handler := RateLimiter(store, config, IPKeyFunc())(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	handler := RateLimiter(store, config, IPKeyFunc(), nil)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	}))
 
@@ -555,7 +555,7 @@ func TestRateLimiter_WindowResetsAllowsNewRequests(t *testing.T) {
 		WindowDuration:    50 * time.Millisecond,
 	}
 
-	handler := RateLimiter(store, config, IPKeyFunc())(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	handler := RateLimiter(store, config, IPKeyFunc(), nil)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	}))
 

@@ -197,19 +197,41 @@ func UserKeyFunc() KeyFunc {
 // RateLimiter is a middleware that limits request rates.
 // It returns HTTP 429 Too Many Requests when the limit is exceeded.
 // It also sets X-RateLimit-* headers to indicate quota status.
-func RateLimiter(store RateLimitStore, config RateLimitConfig, keyFunc KeyFunc) func(http.Handler) http.Handler {
+// Rate limit violations are logged via the logging middleware through error codes.
+// If metrics is provided, rate limit events are tracked for observability.
+func RateLimiter(store RateLimitStore, config RateLimitConfig, keyFunc KeyFunc, metrics *Metrics) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			key := keyFunc(r)
 			allowed, remaining, retryAfter := store.Allow(r.Context(), key, config)
+
+			// Determine key type for metrics
+			keyType := "ip"
+			if strings.HasPrefix(key, "user:") {
+				keyType = "user"
+			}
+
+			// Track rate limit request in metrics
+			if metrics != nil {
+				metrics.IncRateLimitRequests(r.URL.Path, keyType)
+			}
 
 			// Set rate limit headers
 			w.Header().Set("X-RateLimit-Limit", strconv.Itoa(config.RequestsPerWindow))
 			w.Header().Set("X-RateLimit-Remaining", strconv.Itoa(remaining))
 
 			if !allowed {
+				// Track rate limit violation in metrics
+				if metrics != nil {
+					metrics.IncRateLimitBlocked(r.URL.Path, keyType)
+				}
+
 				// Set error code for logging middleware
+				// The logging middleware will automatically log this with error_code="rate_limit_exceeded"
 				ctx := SetErrorCode(r.Context(), "rate_limit_exceeded")
+				
+				// Store rate limit details in context for logging
+				ctx = SetRateLimitKey(ctx, key)
 				r = r.WithContext(ctx)
 
 				w.Header().Set("Retry-After", strconv.Itoa(retryAfter))
