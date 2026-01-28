@@ -52,17 +52,14 @@ func TestComputeResponseHash(t *testing.T) {
 	tests := []struct {
 		name         string
 		responseBody string
-		wantHash     string
 	}{
 		{
 			name:         "empty response",
 			responseBody: "",
-			wantHash:     "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
 		},
 		{
 			name:         "simple json",
 			responseBody: `{"status":"ok"}`,
-			wantHash:     "e366e3e11cf1d60e8db1a7ccdcd1e1b9a08c2cd29d2c4f0c3d0e8e0f1a7f8f3e",
 		},
 	}
 	

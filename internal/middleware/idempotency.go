@@ -4,6 +4,7 @@ package middleware
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"io"
 	"log/slog"
 	"net/http"
@@ -40,8 +41,8 @@ func (w *idempotencyResponseWriter) WriteHeader(statusCode int) {
 	if !w.written {
 		w.statusCode = statusCode
 		w.written = true
+		w.ResponseWriter.WriteHeader(statusCode)
 	}
-	w.ResponseWriter.WriteHeader(statusCode)
 }
 
 // Write captures the response body.
@@ -91,16 +92,7 @@ func IdempotencyMiddleware(repo idempotency.Repository, routes map[string]bool) 
 			// Validate key presence
 			if key == "" {
 				ctx := SetErrorCode(r.Context(), "missing_idempotency_key")
-				WriteErrorFunc := func(w http.ResponseWriter, ctx context.Context, status int, code, message string) {
-					// Update context in response writer if it supports it
-					UpdateResponseContext(w, ctx)
-					
-					// Write error response
-					w.Header().Set("Content-Type", "application/json")
-					w.WriteHeader(status)
-					io.WriteString(w, `{"error":"`+code+`","message":"`+message+`"}`)
-				}
-				WriteErrorFunc(w, ctx, http.StatusBadRequest, "missing_idempotency_key", "Idempotency-Key header is required for this request")
+				writeJSONError(w, ctx, http.StatusBadRequest, "missing_idempotency_key", "Idempotency-Key header is required for this request")
 				return
 			}
 			
@@ -119,13 +111,7 @@ func IdempotencyMiddleware(repo idempotency.Repository, routes map[string]bool) 
 				}
 				
 				ctx := SetErrorCode(r.Context(), code)
-				WriteErrorFunc := func(w http.ResponseWriter, ctx context.Context, status int, code, message string) {
-					UpdateResponseContext(w, ctx)
-					w.Header().Set("Content-Type", "application/json")
-					w.WriteHeader(status)
-					io.WriteString(w, `{"error":"`+code+`","message":"`+message+`"}`)
-				}
-				WriteErrorFunc(w, ctx, status, code, message)
+				writeJSONError(w, ctx, status, code, message)
 				return
 			}
 			
@@ -187,4 +173,21 @@ func IdempotencyMiddleware(repo idempotency.Repository, routes map[string]bool) 
 			}
 		})
 	}
+}
+
+// writeJSONError writes a properly formatted JSON error response.
+func writeJSONError(w http.ResponseWriter, ctx context.Context, status int, code, message string) {
+	// Update context in response writer if it supports it
+	UpdateResponseContext(w, ctx)
+	
+	// Create error response
+	errorResp := map[string]string{
+		"error":   code,
+		"message": message,
+	}
+	
+	// Encode to JSON
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(status)
+	json.NewEncoder(w).Encode(errorResp)
 }

@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/onnwee/subcults/internal/idempotency"
@@ -249,10 +250,7 @@ func TestCreateCheckoutSession_IdempotencyKeyTooLong(t *testing.T) {
 	body, _ := json.Marshal(reqBody)
 
 	// Request with key that's too long (>64 chars)
-	longKey := string(make([]byte, idempotency.MaxKeyLength+1))
-	for i := range longKey {
-		longKey = longKey[:i] + "a" + longKey[i+1:]
-	}
+	longKey := strings.Repeat("a", idempotency.MaxKeyLength+1)
 
 	req := httptest.NewRequest(http.MethodPost, "/payments/checkout", bytes.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")

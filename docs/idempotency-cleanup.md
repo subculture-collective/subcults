@@ -100,10 +100,9 @@ spec:
           - name: cleanup
             image: postgres:16
             command:
-            - psql
-            - $(DATABASE_URL)
+            - /bin/sh
             - -c
-            - "DELETE FROM idempotency_keys WHERE created_at < NOW() - INTERVAL '24 hours';"
+            - psql "$DATABASE_URL" -c "DELETE FROM idempotency_keys WHERE created_at < NOW() - INTERVAL '24 hours';"
             env:
             - name: DATABASE_URL
               valueFrom:

@@ -488,10 +488,11 @@ func main() {
 		})
 		
 		if idempotencyMiddleware != nil {
-			checkoutHandler = idempotencyMiddleware(checkoutHandler).(http.HandlerFunc)
+			// Apply idempotency middleware - returns http.Handler
+			mux.Handle("/payments/checkout", idempotencyMiddleware(checkoutHandler))
+		} else {
+			mux.Handle("/payments/checkout", checkoutHandler)
 		}
-		
-		mux.Handle("/payments/checkout", checkoutHandler)
 		
 		mux.HandleFunc("/payments/status", func(w http.ResponseWriter, r *http.Request) {
 			if r.Method != http.MethodGet {
