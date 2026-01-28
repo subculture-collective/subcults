@@ -79,7 +79,226 @@ sum(rate(stream_join_latency_seconds_bucket{le="2.0"}[5m])) / sum(rate(stream_jo
 
 ### Indexer Metrics
 
-(Documented in indexer package - see `internal/indexer/metrics.go`)
+The Jetstream indexer exposes metrics at `/internal/indexer/metrics` (requires authentication).
+
+#### `indexer_messages_processed_total`
+
+**Type**: Counter  
+**Description**: Total number of messages successfully processed from Jetstream.
+
+**Usage**: Track overall indexer throughput and message volume.
+
+**Example Queries**:
+```promql
+# Messages processed per second
+rate(indexer_messages_processed_total[1m])
+
+# Total messages processed in the last hour
+increase(indexer_messages_processed_total[1h])
+```
+
+#### `indexer_messages_error_total`
+
+**Type**: Counter  
+**Description**: Total number of messages that resulted in processing errors.
+
+**Usage**: Monitor indexer reliability and identify issues.
+
+**Example Queries**:
+```promql
+# Error rate per second
+rate(indexer_messages_error_total[1m])
+
+# Error percentage
+rate(indexer_messages_error_total[5m]) / rate(indexer_messages_processed_total[5m]) * 100
+```
+
+#### `indexer_upserts_total`
+
+**Type**: Counter  
+**Description**: Total number of database upsert operations performed.
+
+**Usage**: Track database write activity.
+
+#### `indexer_trust_recompute_total`
+
+**Type**: Counter  
+**Description**: Total number of trust score recomputation operations triggered.
+
+**Usage**: Monitor trust graph computation frequency.
+
+#### `indexer_ingest_latency_seconds`
+
+**Type**: Histogram  
+**Description**: Time taken to process individual messages (from receipt to completion).
+
+**Buckets**: Default Prometheus buckets
+
+**Usage**: Monitor message processing performance.
+
+**Example Queries**:
+```promql
+# 95th percentile processing latency
+histogram_quantile(0.95, rate(indexer_ingest_latency_seconds_bucket[5m]))
+
+# Average processing latency
+rate(indexer_ingest_latency_seconds_sum[5m]) / rate(indexer_ingest_latency_seconds_count[5m])
+```
+
+#### `indexer_processing_lag_seconds`
+
+**Type**: Gauge  
+**Description**: Time difference between message timestamp and processing time (indicates how far behind real-time the indexer is).
+
+**Usage**: Monitor indexer lag and detect backlog issues.
+
+**Example Queries**:
+```promql
+# Current processing lag
+indexer_processing_lag_seconds
+
+# Maximum lag in the last 5 minutes
+max_over_time(indexer_processing_lag_seconds[5m])
+```
+
+#### `indexer_reconnection_attempts_total`
+
+**Type**: Counter  
+**Description**: Total number of reconnection attempts to Jetstream.
+
+**Usage**: Monitor connection stability and network issues.
+
+**Example Queries**:
+```promql
+# Reconnection rate per minute
+rate(indexer_reconnection_attempts_total[1m]) * 60
+
+# Total reconnections in the last hour
+increase(indexer_reconnection_attempts_total[1h])
+```
+
+#### `indexer_database_writes_failed_total`
+
+**Type**: Counter  
+**Description**: Total number of failed database write operations.
+
+**Usage**: Monitor database health and identify persistence issues.
+
+**Example Queries**:
+```promql
+# Database failure rate
+rate(indexer_database_writes_failed_total[5m])
+
+# Failure percentage
+rate(indexer_database_writes_failed_total[5m]) / rate(indexer_upserts_total[5m]) * 100
+```
+
+#### `indexer_backpressure_paused_total`
+
+**Type**: Counter  
+**Description**: Total number of times message consumption was paused due to backpressure.
+
+**Usage**: Monitor queue saturation and processing capacity.
+
+#### `indexer_backpressure_resumed_total`
+
+**Type**: Counter  
+**Description**: Total number of times message consumption resumed after backpressure.
+
+**Usage**: Track backpressure recovery cycles.
+
+#### `indexer_backpressure_pause_duration_seconds`
+
+**Type**: Histogram  
+**Description**: Duration of backpressure pause events.
+
+**Buckets**: 0.1, 0.5, 1, 5, 10, 30, 60 seconds
+
+**Usage**: Analyze backpressure severity and duration.
+
+**Example Queries**:
+```promql
+# 95th percentile pause duration
+histogram_quantile(0.95, rate(indexer_backpressure_pause_duration_seconds_bucket[5m]))
+
+# Average pause duration
+rate(indexer_backpressure_pause_duration_seconds_sum[5m]) / rate(indexer_backpressure_pause_duration_seconds_count[5m])
+```
+
+#### `indexer_pending_messages`
+
+**Type**: Gauge  
+**Description**: Current number of messages waiting in the processing queue.
+
+**Usage**: Monitor queue depth and detect processing bottlenecks.
+
+**Example Queries**:
+```promql
+# Current queue depth
+indexer_pending_messages
+
+# Maximum queue depth in the last hour
+max_over_time(indexer_pending_messages[1h])
+```
+
+### Indexer Alert Conditions
+
+Recommended Prometheus alert rules for the indexer:
+
+```yaml
+groups:
+  - name: indexer
+    rules:
+      # High processing lag
+      - alert: HighIndexerProcessingLag
+        expr: indexer_processing_lag_seconds > 60
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Indexer is lagging behind real-time"
+          description: "Processing lag is {{ $value }}s (threshold: 60s)"
+
+      # Frequent reconnections
+      - alert: FrequentIndexerReconnections
+        expr: rate(indexer_reconnection_attempts_total[5m]) > 0.1
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Indexer experiencing frequent reconnections"
+          description: "Reconnection rate is {{ $value }}/sec"
+
+      # High error rate
+      - alert: HighIndexerErrorRate
+        expr: rate(indexer_messages_error_total[5m]) / rate(indexer_messages_processed_total[5m]) > 0.05
+        for: 10m
+        labels:
+          severity: critical
+        annotations:
+          summary: "High indexer error rate"
+          description: "Error rate is {{ $value | humanizePercentage }}"
+
+      # Database write failures
+      - alert: IndexerDatabaseWriteFailures
+        expr: rate(indexer_database_writes_failed_total[5m]) > 0
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Indexer database writes failing"
+          description: "Database write failure rate is {{ $value }}/sec"
+
+      # Prolonged backpressure
+      - alert: IndexerBackpressure
+        expr: indexer_pending_messages > 1000
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Indexer experiencing backpressure"
+          description: "Pending messages: {{ $value }} (threshold: 1000)"
+```
 
 ## Recording Join/Leave Events
 
@@ -231,9 +450,19 @@ scrape_configs:
       - targets: ['api:8080']
     scrape_interval: 15s
     metrics_path: /metrics
+
+  - job_name: 'subcults-indexer'
+    static_configs:
+      - targets: ['indexer:9090']
+    scrape_interval: 15s
+    metrics_path: /internal/indexer/metrics
+    # Optional: Add authentication if configured
+    # bearer_token: '<internal-auth-token>'
 ```
 
 ### Grafana Dashboards
+
+#### Streaming Dashboard
 
 Recommended panels:
 
@@ -242,6 +471,19 @@ Recommended panels:
 3. **Join Latency Heatmap**: Histogram visualization of `stream_join_latency_seconds`
 4. **P95 Latency**: `histogram_quantile(0.95, rate(stream_join_latency_seconds_bucket[5m]))`
 5. **Active Sessions**: Count from database query
+
+#### Indexer Dashboard
+
+Recommended panels:
+
+1. **Message Processing Rate**: `rate(indexer_messages_processed_total[1m])`
+2. **Error Rate**: `rate(indexer_messages_error_total[1m])`
+3. **Processing Lag**: `indexer_processing_lag_seconds`
+4. **Queue Depth**: `indexer_pending_messages`
+5. **Reconnection Rate**: `rate(indexer_reconnection_attempts_total[5m])`
+6. **P95 Ingest Latency**: `histogram_quantile(0.95, rate(indexer_ingest_latency_seconds_bucket[5m]))`
+7. **Backpressure Events**: `rate(indexer_backpressure_paused_total[5m])`
+8. **Database Write Failures**: `rate(indexer_database_writes_failed_total[5m])`
 
 ## Troubleshooting
 
