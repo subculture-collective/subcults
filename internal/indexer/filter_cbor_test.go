@@ -443,7 +443,10 @@ func TestRecordFilter_FilterCBOR_MetricsTracking(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			recordCBOR, _ := EncodeCBOR(tt.data)
+			recordCBOR, err := EncodeCBOR(tt.data)
+			if err != nil {
+				t.Fatalf("failed to encode record data: %v", err)
+			}
 			msg := JetstreamMessage{
 				DID:    "did:plc:metrics123",
 				TimeUS: 1234567890,
@@ -457,7 +460,10 @@ func TestRecordFilter_FilterCBOR_MetricsTracking(t *testing.T) {
 					Record:     recordCBOR,
 				},
 			}
-			cborData, _ := EncodeCBOR(msg)
+			cborData, err := EncodeCBOR(msg)
+			if err != nil {
+				t.Fatalf("failed to encode message: %v", err)
+			}
 			result := filter.FilterCBOR(cborData)
 
 			if result.Valid != tt.wantValid {
