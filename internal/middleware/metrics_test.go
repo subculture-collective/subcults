@@ -137,7 +137,7 @@ func TestMetrics_Collectors(t *testing.T) {
 	m := NewMetrics()
 	collectors := m.Collectors()
 
-	if len(collectors) != 2 {
-		t.Errorf("expected 2 collectors, got %d", len(collectors))
+	if len(collectors) != 3 {
+		t.Errorf("expected 3 collectors, got %d", len(collectors))
 	}
 }

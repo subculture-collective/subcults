@@ -2,6 +2,7 @@ package middleware
 
 import (
 	"context"
+	"strconv"
 	"testing"
 	"time"
 
@@ -32,7 +33,7 @@ func TestRedisRateLimitStore_Allow(t *testing.T) {
 		WindowDuration:    time.Minute,
 	}
 
-	testKey := "test-redis-key-" + time.Now().Format("20060102150405")
+	testKey := "test-redis-key-" + strconv.FormatInt(time.Now().UnixNano(), 10)
 	ctx = context.Background()
 
 	// Test that requests are allowed up to the limit
@@ -83,8 +84,8 @@ func TestRedisRateLimitStore_DifferentKeys(t *testing.T) {
 		WindowDuration:    time.Minute,
 	}
 
-	key1 := "test-redis-key1-" + time.Now().Format("20060102150405")
-	key2 := "test-redis-key2-" + time.Now().Format("20060102150405")
+	key1 := "test-redis-key1-" + strconv.FormatInt(time.Now().UnixNano(), 10)
+	key2 := "test-redis-key2-" + strconv.FormatInt(time.Now().UnixNano()+1, 10)
 	ctx = context.Background()
 
 	// Each key should have its own limit
@@ -127,7 +128,7 @@ func TestRedisRateLimitStore_WindowExpiry(t *testing.T) {
 		WindowDuration:    100 * time.Millisecond,
 	}
 
-	testKey := "test-redis-expiry-" + time.Now().Format("20060102150405")
+	testKey := "test-redis-expiry-" + strconv.FormatInt(time.Now().UnixNano(), 10)
 	ctx = context.Background()
 
 	// Use up the limit

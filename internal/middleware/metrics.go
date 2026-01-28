@@ -7,15 +7,17 @@ import (
 
 // Metrics names as constants for consistency.
 const (
-	MetricRateLimitRequests = "rate_limit_requests_total"
-	MetricRateLimitBlocked  = "rate_limit_blocked_total"
+	MetricRateLimitRequests    = "rate_limit_requests_total"
+	MetricRateLimitBlocked     = "rate_limit_blocked_total"
+	MetricRateLimitRedisErrors = "rate_limit_redis_errors_total"
 )
 
 // Metrics contains Prometheus metrics for middleware operations.
 // All operations are thread-safe.
 type Metrics struct {
-	rateLimitRequests *prometheus.CounterVec
-	rateLimitBlocked  *prometheus.CounterVec
+	rateLimitRequests  *prometheus.CounterVec
+	rateLimitBlocked   *prometheus.CounterVec
+	rateLimitRedisErrors prometheus.Counter
 }
 
 // NewMetrics creates and returns a new Metrics instance with all collectors initialized.
@@ -36,6 +38,12 @@ func NewMetrics() *Metrics {
 			},
 			[]string{"endpoint", "key_type"},
 		),
+		rateLimitRedisErrors: prometheus.NewCounter(
+			prometheus.CounterOpts{
+				Name: MetricRateLimitRedisErrors,
+				Help: "Total number of Redis errors during rate limiting (fail-open events)",
+			},
+		),
 	}
 }
 
@@ -45,6 +53,7 @@ func (m *Metrics) Register(reg prometheus.Registerer) error {
 	collectors := []prometheus.Collector{
 		m.rateLimitRequests,
 		m.rateLimitBlocked,
+		m.rateLimitRedisErrors,
 	}
 
 	for _, c := range collectors {
@@ -69,10 +78,17 @@ func (m *Metrics) IncRateLimitBlocked(endpoint, keyType string) {
 	m.rateLimitBlocked.WithLabelValues(endpoint, keyType).Inc()
 }
 
+// IncRateLimitRedisErrors increments the Redis error counter.
+// This tracks fail-open events when Redis is unavailable.
+func (m *Metrics) IncRateLimitRedisErrors() {
+	m.rateLimitRedisErrors.Inc()
+}
+
 // Collectors returns all Prometheus collectors for testing.
 func (m *Metrics) Collectors() []prometheus.Collector {
 	return []prometheus.Collector{
 		m.rateLimitRequests,
 		m.rateLimitBlocked,
+		m.rateLimitRedisErrors,
 	}
 }

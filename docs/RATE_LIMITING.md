@@ -42,8 +42,8 @@ All responses include rate limit headers:
 
 - `X-RateLimit-Limit`: Maximum number of requests allowed in the window
 - `X-RateLimit-Remaining`: Number of requests remaining in current window
-- `X-RateLimit-Reset`: Unix timestamp when the limit resets (included in 429 responses)
-- `Retry-After`: Seconds to wait before retrying (included in 429 responses)
+- `X-RateLimit-Reset`: Unix timestamp when the limit resets (only included in 429 responses)
+- `Retry-After`: Seconds to wait before retrying (only included in 429 responses)
 
 ### Example Response
 

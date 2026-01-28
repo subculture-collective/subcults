@@ -251,13 +251,23 @@ func RateLimiter(store RateLimitStore, config RateLimitConfig, keyFunc KeyFunc, 
 // It uses a sliding window counter approach for accurate rate limiting.
 // Thread-safe and suitable for distributed systems.
 type RedisRateLimitStore struct {
-	client *redis.Client
+	client  *redis.Client
+	metrics *Metrics
 }
 
 // NewRedisRateLimitStore creates a new Redis-backed rate limit store.
 func NewRedisRateLimitStore(client *redis.Client) *RedisRateLimitStore {
 	return &RedisRateLimitStore{
-		client: client,
+		client:  client,
+		metrics: nil,
+	}
+}
+
+// NewRedisRateLimitStoreWithMetrics creates a new Redis-backed rate limit store with metrics.
+func NewRedisRateLimitStoreWithMetrics(client *redis.Client, metrics *Metrics) *RedisRateLimitStore {
+	return &RedisRateLimitStore{
+		client:  client,
+		metrics: metrics,
 	}
 }
 
@@ -279,8 +289,13 @@ func (s *RedisRateLimitStore) Allow(ctx context.Context, key string, config Rate
 		local current = redis.call('ZCARD', key)
 		
 		if current < limit then
-			-- Add current request with timestamp as score
-			redis.call('ZADD', key, now, now)
+			-- Use a per-key sequence to ensure unique members for concurrent requests
+			local seqKey = key .. ':seq'
+			local seq = redis.call('INCR', seqKey)
+			redis.call('EXPIRE', seqKey, window + 10)
+			local member = tostring(now) .. '-' .. tostring(seq)
+			-- Add current request with timestamp as score and unique member
+			redis.call('ZADD', key, now, member)
 			-- Set expiry on the key (window duration + buffer)
 			redis.call('EXPIRE', key, window + 10)
 			-- Return: allowed=1, remaining=limit-current-1
@@ -302,21 +317,57 @@ func (s *RedisRateLimitStore) Allow(ctx context.Context, key string, config Rate
 
 	result, err := s.client.Eval(ctx, luaScript, []string{key}, config.RequestsPerWindow, windowSeconds, now).Result()
 	if err != nil {
-		// On Redis error, fail open (allow request) but log the error
+		// Track Redis error in metrics if available
+		if s.metrics != nil {
+			s.metrics.IncRateLimitRedisErrors()
+		}
+		// On Redis error, fail open (allow request)
 		// This prevents Redis outages from taking down the entire API
 		return true, config.RequestsPerWindow, 0
 	}
 
-	// Parse result from Lua script
+	// Parse result from Lua script with safe type assertions
 	resultSlice, ok := result.([]interface{})
 	if !ok || len(resultSlice) != 3 {
+		// Track parsing error in metrics if available
+		if s.metrics != nil {
+			s.metrics.IncRateLimitRedisErrors()
+		}
 		// Invalid result format, fail open
 		return true, config.RequestsPerWindow, 0
 	}
 
-	allowed := resultSlice[0].(int64) == 1
-	remaining := int(resultSlice[1].(int64))
-	retryAfter := int(resultSlice[2].(int64))
+	allowedVal, ok := resultSlice[0].(int64)
+	if !ok {
+		// Track type assertion error in metrics if available
+		if s.metrics != nil {
+			s.metrics.IncRateLimitRedisErrors()
+		}
+		// Unexpected type for allowed flag, fail open
+		return true, config.RequestsPerWindow, 0
+	}
+	remainingVal, ok := resultSlice[1].(int64)
+	if !ok {
+		// Track type assertion error in metrics if available
+		if s.metrics != nil {
+			s.metrics.IncRateLimitRedisErrors()
+		}
+		// Unexpected type for remaining count, fail open
+		return true, config.RequestsPerWindow, 0
+	}
+	retryAfterVal, ok := resultSlice[2].(int64)
+	if !ok {
+		// Track type assertion error in metrics if available
+		if s.metrics != nil {
+			s.metrics.IncRateLimitRedisErrors()
+		}
+		// Unexpected type for retry-after, fail open
+		return true, config.RequestsPerWindow, 0
+	}
+
+	allowed := allowedVal == 1
+	remaining := int(remainingVal)
+	retryAfter := int(retryAfterVal)
 
 	return allowed, remaining, retryAfter
 }

@@ -115,6 +115,7 @@ func main() {
 	// Check if Redis URL is configured for distributed rate limiting
 	redisURL := os.Getenv("REDIS_URL")
 	var rateLimitStore middleware.RateLimitStore
+	var redisClient *redis.Client
 	if redisURL != "" {
 		// Use Redis for distributed rate limiting
 		opt, err := redis.ParseURL(redisURL)
@@ -122,7 +123,7 @@ func main() {
 			logger.Error("failed to parse Redis URL", "error", err)
 			os.Exit(1)
 		}
-		redisClient := redis.NewClient(opt)
+		redisClient = redis.NewClient(opt)
 		
 		// Test connection
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -132,11 +133,24 @@ func main() {
 			os.Exit(1)
 		}
 		
-		rateLimitStore = middleware.NewRedisRateLimitStore(redisClient)
+		rateLimitStore = middleware.NewRedisRateLimitStoreWithMetrics(redisClient, rateLimitMetrics)
 		logger.Info("rate limiting initialized with Redis backend")
 	} else {
 		// Use in-memory rate limiting for single-instance deployments
-		rateLimitStore = middleware.NewInMemoryRateLimitStore()
+		inMemStore := middleware.NewInMemoryRateLimitStore()
+		rateLimitStore = inMemStore
+		
+		// Start periodic cleanup to prevent unbounded memory growth from expired buckets
+		cleanupInterval := 5 * time.Minute // Clean up every 5 minutes
+		go func() {
+			ticker := time.NewTicker(cleanupInterval)
+			defer ticker.Stop()
+			for range ticker.C {
+				inMemStore.Cleanup()
+				logger.Debug("cleaned up expired rate limit buckets")
+			}
+		}()
+		
 		logger.Warn("rate limiting initialized with in-memory backend (not suitable for distributed deployments)")
 	}
 
@@ -321,7 +335,7 @@ func main() {
 		RequestsPerWindow: 10,
 		WindowDuration:    time.Minute,
 	}
-	sceneCreationLimit := middleware.RateLimitConfig{
+	eventCreationLimit := middleware.RateLimitConfig{
 		RequestsPerWindow: 5,
 		WindowDuration:    time.Hour,
 	}
@@ -334,7 +348,7 @@ func main() {
 	mux := http.NewServeMux()
 
 	// Event routes (event creation has rate limiting: 5 req/hour per user)
-	eventCreationHandler := middleware.RateLimiter(rateLimitStore, sceneCreationLimit, middleware.UserKeyFunc(), rateLimitMetrics)(
+	eventCreationHandler := middleware.RateLimiter(rateLimitStore, eventCreationLimit, middleware.UserKeyFunc(), rateLimitMetrics)(
 		http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			eventHandlers.CreateEvent(w, r)
 		}),
@@ -449,6 +463,11 @@ func main() {
 	)
 	mux.Handle("/search/posts", searchPostsHandler)
 
+	// Stream join handler (with rate limiting: 10 req/min per user)
+	streamJoinHandler := middleware.RateLimiter(rateLimitStore, streamJoinLimit, middleware.UserKeyFunc(), rateLimitMetrics)(
+		http.HandlerFunc(streamHandlers.JoinStream),
+	)
+
 	// LiveKit token endpoint (if configured)
 	if livekitHandlers != nil {
 		mux.HandleFunc("/livekit/token", func(w http.ResponseWriter, r *http.Request) {
@@ -489,9 +508,6 @@ func main() {
 
 		// Check if this is a join request: /streams/{id}/join (with rate limiting: 10 req/min per user)
 		if len(pathParts) == 2 && pathParts[0] != "" && pathParts[1] == "join" && r.Method == http.MethodPost {
-			streamJoinHandler := middleware.RateLimiter(rateLimitStore, streamJoinLimit, middleware.UserKeyFunc(), rateLimitMetrics)(
-				http.HandlerFunc(streamHandlers.JoinStream),
-			)
 			streamJoinHandler.ServeHTTP(w, r)
 			return
 		}
@@ -714,6 +730,15 @@ func main() {
 	if err := server.Shutdown(ctx); err != nil {
 		logger.Error("server forced to shutdown", "error", err)
 		os.Exit(1)
+	}
+
+	// Close Redis client if it was initialized
+	if redisClient != nil {
+		if err := redisClient.Close(); err != nil {
+			logger.Error("failed to close Redis client", "error", err)
+		} else {
+			logger.Info("Redis client closed")
+		}
 	}
 
 	logger.Info("server stopped")
