@@ -84,6 +84,7 @@ func main() {
 	auditRepo := audit.NewInMemoryRepository()
 	rsvpRepo := scene.NewInMemoryRSVPRepository()
 	streamRepo := stream.NewInMemorySessionRepository()
+	analyticsRepo := stream.NewInMemoryAnalyticsRepository(streamRepo)
 	postRepo := post.NewInMemoryPostRepository()
 	membershipRepo := membership.NewInMemoryMembershipRepository()
 
@@ -256,7 +257,7 @@ func main() {
 	trustStoreAdapter := api.NewTrustScoreStoreAdapter(trustScoreStore)
 	eventHandlers := api.NewEventHandlers(eventRepo, sceneRepo, auditRepo, rsvpRepo, streamRepo, trustStoreAdapter)
 	rsvpHandlers := api.NewRSVPHandlers(rsvpRepo, eventRepo)
-	streamHandlers := api.NewStreamHandlers(streamRepo, sceneRepo, eventRepo, auditRepo, streamMetrics)
+	streamHandlers := api.NewStreamHandlers(streamRepo, analyticsRepo, sceneRepo, eventRepo, auditRepo, streamMetrics)
 	postHandlers := api.NewPostHandlers(postRepo, sceneRepo, membershipRepo, metadataService)
 	trustHandlers := api.NewTrustHandlers(sceneRepo, trustDataSource, trustScoreStore, trustDirtyTracker)
 	searchHandlers := api.NewSearchHandlers(sceneRepo, postRepo, trustStoreAdapter)
@@ -388,8 +389,14 @@ func main() {
 	})
 
 	mux.HandleFunc("/streams/", func(w http.ResponseWriter, r *http.Request) {
-		// Expected patterns: /streams/{id}/end, /streams/{id}/join, /streams/{id}/leave
+		// Expected patterns: /streams/{id}/end, /streams/{id}/join, /streams/{id}/leave, /streams/{id}/analytics
 		pathParts := strings.Split(strings.TrimPrefix(r.URL.Path, "/streams/"), "/")
+
+		// Check if this is an analytics request: /streams/{id}/analytics
+		if len(pathParts) == 2 && pathParts[0] != "" && pathParts[1] == "analytics" && r.Method == http.MethodGet {
+			streamHandlers.GetStreamAnalytics(w, r)
+			return
+		}
 
 		// Check if this is an end request: /streams/{id}/end
 		if len(pathParts) == 2 && pathParts[0] != "" && pathParts[1] == "end" && r.Method == http.MethodPost {
