@@ -10,8 +10,9 @@ import (
 	"strings"
 	"time"
 
+	"github.com/livekit/protocol/livekit"
 	"github.com/onnwee/subcults/internal/audit"
-	"github.com/onnwee/subcults/internal/livekit"
+	livekitpkg "github.com/onnwee/subcults/internal/livekit"
 	"github.com/onnwee/subcults/internal/middleware"
 	"github.com/onnwee/subcults/internal/scene"
 	"github.com/onnwee/subcults/internal/stream"
@@ -42,7 +43,7 @@ type StreamHandlers struct {
 	auditRepo        audit.Repository
 	streamMetrics    *stream.Metrics
 	eventBroadcaster *stream.EventBroadcaster
-	roomService      *livekit.RoomService
+	roomService      *livekitpkg.RoomService
 }
 
 // NewStreamHandlers creates a new StreamHandlers instance.
@@ -55,7 +56,7 @@ func NewStreamHandlers(
 	auditRepo audit.Repository,
 	streamMetrics *stream.Metrics,
 	eventBroadcaster *stream.EventBroadcaster,
-	roomService *livekit.RoomService,
+	roomService *livekitpkg.RoomService,
 ) *StreamHandlers {
 	return &StreamHandlers{
 		streamRepo:       streamRepo,
@@ -369,6 +370,13 @@ func (h *StreamHandlers) JoinStream(w http.ResponseWriter, r *http.Request) {
 			ctx = middleware.SetErrorCode(ctx, ErrCodeInternal)
 			WriteError(w, ctx, http.StatusInternalServerError, ErrCodeInternal, "Internal server error")
 		}
+		return
+	}
+
+	// Check if stream is locked (only host can join locked streams)
+	if session.IsLocked && session.HostDID != userDID {
+		ctx = middleware.SetErrorCode(ctx, ErrCodeForbidden)
+		WriteError(w, ctx, http.StatusForbidden, ErrCodeForbidden, "Stream is locked - no new participants allowed")
 		return
 	}
 
@@ -897,7 +905,7 @@ func (h *StreamHandlers) MuteParticipant(w http.ResponseWriter, r *http.Request)
 	// Check if room service is available
 	if h.roomService == nil {
 		ctx = middleware.SetErrorCode(ctx, ErrCodeInternal)
-		WriteError(w, ctx, http.StatusServiceUnavailable, ErrCodeInternal, "Stream control operations are not available")
+		WriteError(w, ctx, http.StatusInternalServerError, ErrCodeInternal, "Stream control operations are not available")
 		return
 	}
 
@@ -917,7 +925,7 @@ func (h *StreamHandlers) MuteParticipant(w http.ResponseWriter, r *http.Request)
 	// Mute all audio tracks for the participant
 	var mutedTracks []string
 	for _, track := range participant.Tracks {
-		if track.Type.String() == "AUDIO" {
+		if track.Type == livekit.TrackType_AUDIO {
 			err = h.roomService.MuteParticipantTrack(ctx, session.RoomName, participantID, track.Sid, req.Muted)
 			if err != nil {
 				slog.ErrorContext(ctx, "failed to mute track",
@@ -1026,7 +1034,7 @@ func (h *StreamHandlers) KickParticipant(w http.ResponseWriter, r *http.Request)
 	// Check if room service is available
 	if h.roomService == nil {
 		ctx = middleware.SetErrorCode(ctx, ErrCodeInternal)
-		WriteError(w, ctx, http.StatusServiceUnavailable, ErrCodeInternal, "Stream control operations are not available")
+		WriteError(w, ctx, http.StatusInternalServerError, ErrCodeInternal, "Stream control operations are not available")
 		return
 	}
 

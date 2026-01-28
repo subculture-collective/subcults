@@ -37,6 +37,8 @@ type Session struct {
 	LeaveCount int `json:"leave_count"` // Total number of leave events
 
 	// Organizer controls
+	// Backed by DB columns `is_locked` and `featured_participant` on stream_sessions
+	// (see migrations/000022_add_stream_organizer_controls.up.sql).
 	IsLocked             bool    `json:"is_locked"`                        // When true, new participants cannot join
 	FeaturedParticipant  *string `json:"featured_participant,omitempty"`   // ParticipantID of featured/spotlighted speaker
 
