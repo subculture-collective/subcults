@@ -1,4 +1,5 @@
 // Package stream provides analytics models and computation for stream sessions.
+// All analytics are privacy-first, providing only aggregate data with no PII exposure.
 package stream
 
 import (
@@ -6,20 +7,25 @@ import (
 )
 
 // ParticipantEvent represents a single join or leave event by a participant.
+// These events are used to compute aggregate analytics while preserving privacy.
+// Individual participant identities are never exposed in analytics output.
 type ParticipantEvent struct {
 	ID              string    `json:"id"`
 	StreamSessionID string    `json:"stream_session_id"`
-	ParticipantDID  string    `json:"participant_did"`
-	EventType       string    `json:"event_type"` // "join" or "leave"
-	GeohashPrefix   *string   `json:"geohash_prefix,omitempty"` // 4-char prefix for privacy-safe geo distribution
+	ParticipantDID  string    `json:"participant_did"` // Used internally for deduplication, not exposed
+	EventType       string    `json:"event_type"`      // "join" or "leave"
+	GeohashPrefix   *string   `json:"geohash_prefix,omitempty"` // 4-char prefix for privacy-safe geo distribution (~20km)
 	OccurredAt      time.Time `json:"occurred_at"`
 }
 
 // Analytics represents computed analytics for a stream session.
-// All geographic data is aggregated to preserve privacy (no precise locations or PII).
+// All metrics are aggregates that preserve participant privacy:
+// - No individual participant identities are exposed
+// - Geographic data uses coarse 4-character geohash prefixes only
+// - Only summary statistics are provided
 type Analytics struct {
-	ID                          string             `json:"id"`
-	StreamSessionID             string             `json:"stream_session_id"`
+	ID              string `json:"id"`
+	StreamSessionID string `json:"stream_session_id"`
 	
 	// Core engagement metrics
 	PeakConcurrentListeners     int                `json:"peak_concurrent_listeners"`
