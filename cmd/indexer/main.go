@@ -134,15 +134,15 @@ func main() {
 	// Cancel client context
 	clientCancel()
 
-	// Wait for client to finish with timeout
+	// Wait for client to finish with longer timeout to account for drain
 	select {
 	case <-clientDone:
 		logger.Info("jetstream client stopped")
-	case <-time.After(5 * time.Second):
-		logger.Warn("jetstream client shutdown timeout")
+	case <-time.After(15 * time.Second):
+		logger.Warn("jetstream client shutdown timeout exceeded")
 	}
 
-	// Create context with timeout for shutdown
+	// Create context with timeout for metrics server shutdown
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
