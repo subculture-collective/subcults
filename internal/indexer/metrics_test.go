@@ -15,8 +15,8 @@ func TestNewMetrics(t *testing.T) {
 
 	// Verify all collectors are initialized
 	collectors := m.Collectors()
-	if len(collectors) != 9 {
-		t.Errorf("expected 9 collectors, got %d", len(collectors))
+	if len(collectors) != 12 {
+		t.Errorf("expected 12 collectors, got %d", len(collectors))
 	}
 }
 
@@ -36,15 +36,18 @@ func TestMetrics_Register(t *testing.T) {
 		}
 
 		expectedNames := map[string]bool{
-			MetricMessagesProcessed:      false,
-			MetricMessagesError:          false,
-			MetricUpserts:                false,
-			MetricTrustRecompute:         false,
-			MetricIngestLatency:          false,
-			MetricBackpressurePaused:     false,
-			MetricBackpressureResumed:    false,
-			MetricBackpressureDuration:   false,
-			MetricPendingMessages:        false,
+			MetricMessagesProcessed:    false,
+			MetricMessagesError:        false,
+			MetricUpserts:              false,
+			MetricTrustRecompute:       false,
+			MetricIngestLatency:        false,
+			MetricBackpressurePaused:   false,
+			MetricBackpressureResumed:  false,
+			MetricBackpressureDuration: false,
+			MetricPendingMessages:      false,
+			MetricProcessingLag:        false,
+			MetricReconnectionAttempts: false,
+			MetricDatabaseWritesFailed: false,
 		}
 
 		for _, family := range families {
@@ -347,5 +350,72 @@ func TestMetrics_SetPendingMessages(t *testing.T) {
 	val = getGaugeValue(m.pendingMessages)
 	if val != 50 {
 		t.Errorf("value after third set = %f, want 50", val)
+	}
+}
+
+func TestMetrics_SetProcessingLag(t *testing.T) {
+	m := NewMetrics()
+
+	// Initial value should be 0
+	initial := getGaugeValue(m.processingLag)
+	if initial != 0 {
+		t.Errorf("initial value = %f, want 0", initial)
+	}
+
+	// Set to 0.5 seconds
+	m.SetProcessingLag(0.5)
+	val := getGaugeValue(m.processingLag)
+	if val != 0.5 {
+		t.Errorf("value after set = %f, want 0.5", val)
+	}
+
+	// Set to 2.3 seconds
+	m.SetProcessingLag(2.3)
+	val = getGaugeValue(m.processingLag)
+	if val != 2.3 {
+		t.Errorf("value after second set = %f, want 2.3", val)
+	}
+
+	// Set to 0 (caught up)
+	m.SetProcessingLag(0)
+	val = getGaugeValue(m.processingLag)
+	if val != 0 {
+		t.Errorf("value after third set = %f, want 0", val)
+	}
+}
+
+func TestMetrics_IncReconnectionAttempts(t *testing.T) {
+	m := NewMetrics()
+
+	initial := getCounterValue(m.reconnectionAttempts)
+	if initial != 0 {
+		t.Errorf("initial value = %f, want 0", initial)
+	}
+
+	for i := 0; i < 15; i++ {
+		m.IncReconnectionAttempts()
+	}
+
+	final := getCounterValue(m.reconnectionAttempts)
+	if final != 15 {
+		t.Errorf("final value = %f, want 15", final)
+	}
+}
+
+func TestMetrics_IncDatabaseWritesFailed(t *testing.T) {
+	m := NewMetrics()
+
+	initial := getCounterValue(m.databaseWritesFailed)
+	if initial != 0 {
+		t.Errorf("initial value = %f, want 0", initial)
+	}
+
+	for i := 0; i < 20; i++ {
+		m.IncDatabaseWritesFailed()
+	}
+
+	final := getCounterValue(m.databaseWritesFailed)
+	if final != 20 {
+		t.Errorf("final value = %f, want 20", final)
 	}
 }

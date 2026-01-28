@@ -8,15 +8,18 @@ import (
 
 // Metrics names as constants for consistency.
 const (
-	MetricMessagesProcessed      = "indexer_messages_processed_total"
-	MetricMessagesError          = "indexer_messages_error_total"
-	MetricUpserts                = "indexer_upserts_total"
-	MetricTrustRecompute         = "indexer_trust_recompute_total"
-	MetricIngestLatency          = "indexer_ingest_latency_seconds"
-	MetricBackpressurePaused     = "indexer_backpressure_paused_total"
-	MetricBackpressureResumed    = "indexer_backpressure_resumed_total"
-	MetricBackpressureDuration   = "indexer_backpressure_pause_duration_seconds"
-	MetricPendingMessages        = "indexer_pending_messages"
+	MetricMessagesProcessed    = "indexer_messages_processed_total"
+	MetricMessagesError        = "indexer_messages_error_total"
+	MetricUpserts              = "indexer_upserts_total"
+	MetricTrustRecompute       = "indexer_trust_recompute_total"
+	MetricIngestLatency        = "indexer_ingest_latency_seconds"
+	MetricBackpressurePaused   = "indexer_backpressure_paused_total"
+	MetricBackpressureResumed  = "indexer_backpressure_resumed_total"
+	MetricBackpressureDuration = "indexer_backpressure_pause_duration_seconds"
+	MetricPendingMessages      = "indexer_pending_messages"
+	MetricProcessingLag        = "indexer_processing_lag_seconds"
+	MetricReconnectionAttempts = "indexer_reconnection_attempts_total"
+	MetricDatabaseWritesFailed = "indexer_database_writes_failed_total"
 )
 
 // Metrics contains Prometheus metrics for the indexer.
@@ -31,6 +34,9 @@ type Metrics struct {
 	backpressureResumed  prometheus.Counter
 	backpressureDuration prometheus.Histogram
 	pendingMessages      prometheus.Gauge
+	processingLag        prometheus.Gauge
+	reconnectionAttempts prometheus.Counter
+	databaseWritesFailed prometheus.Counter
 }
 
 // NewMetrics creates and returns a new Metrics instance with all collectors initialized.
@@ -75,6 +81,18 @@ func NewMetrics() *Metrics {
 			Name: MetricPendingMessages,
 			Help: "Current number of pending messages in the processing queue",
 		}),
+		processingLag: prometheus.NewGauge(prometheus.GaugeOpts{
+			Name: MetricProcessingLag,
+			Help: "Time difference in seconds between message timestamp and processing time",
+		}),
+		reconnectionAttempts: prometheus.NewCounter(prometheus.CounterOpts{
+			Name: MetricReconnectionAttempts,
+			Help: "Total number of reconnection attempts to Jetstream",
+		}),
+		databaseWritesFailed: prometheus.NewCounter(prometheus.CounterOpts{
+			Name: MetricDatabaseWritesFailed,
+			Help: "Total number of failed database write operations",
+		}),
 	}
 }
 
@@ -91,6 +109,9 @@ func (m *Metrics) Register(reg prometheus.Registerer) error {
 		m.backpressureResumed,
 		m.backpressureDuration,
 		m.pendingMessages,
+		m.processingLag,
+		m.reconnectionAttempts,
+		m.databaseWritesFailed,
 	}
 
 	for _, c := range collectors {
@@ -146,6 +167,21 @@ func (m *Metrics) SetPendingMessages(count int) {
 	m.pendingMessages.Set(float64(count))
 }
 
+// SetProcessingLag sets the current processing lag in seconds.
+func (m *Metrics) SetProcessingLag(seconds float64) {
+	m.processingLag.Set(seconds)
+}
+
+// IncReconnectionAttempts increments the reconnection attempts counter.
+func (m *Metrics) IncReconnectionAttempts() {
+	m.reconnectionAttempts.Inc()
+}
+
+// IncDatabaseWritesFailed increments the database writes failed counter.
+func (m *Metrics) IncDatabaseWritesFailed() {
+	m.databaseWritesFailed.Inc()
+}
+
 // Collectors returns all Prometheus collectors for testing.
 func (m *Metrics) Collectors() []prometheus.Collector {
 	return []prometheus.Collector{
@@ -158,5 +194,8 @@ func (m *Metrics) Collectors() []prometheus.Collector {
 		m.backpressureResumed,
 		m.backpressureDuration,
 		m.pendingMessages,
+		m.processingLag,
+		m.reconnectionAttempts,
+		m.databaseWritesFailed,
 	}
 }
