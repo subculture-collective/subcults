@@ -242,7 +242,6 @@ func TestCreateStream_BothSceneAndEvent(t *testing.T) {
 	}
 }
 
-
 // TestCreateStream_Forbidden_NotSceneOwner tests permission check for scene ownership.
 func TestCreateStream_Forbidden_NotSceneOwner(t *testing.T) {
 	streamRepo := stream.NewInMemorySessionRepository()
@@ -487,332 +486,330 @@ func TestEndStream_Idempotent(t *testing.T) {
 
 // TestJoinStream_Success tests successful join event recording.
 func TestJoinStream_Success(t *testing.T) {
-streamRepo := stream.NewInMemorySessionRepository()
-sceneRepo := scene.NewInMemorySceneRepository()
-eventRepo := scene.NewInMemoryEventRepository()
-auditRepo := audit.NewInMemoryRepository()
-streamMetrics := stream.NewMetrics()
-handlers := NewStreamHandlers(streamRepo, sceneRepo, eventRepo, auditRepo, streamMetrics)
+	streamRepo := stream.NewInMemorySessionRepository()
+	sceneRepo := scene.NewInMemorySceneRepository()
+	eventRepo := scene.NewInMemoryEventRepository()
+	auditRepo := audit.NewInMemoryRepository()
+	streamMetrics := stream.NewMetrics()
+	handlers := NewStreamHandlers(streamRepo, sceneRepo, eventRepo, auditRepo, streamMetrics)
 
-// Create a scene and stream session first
-testScene := &scene.Scene{
-ID:            uuid.New().String(),
-Name:          "Test Scene",
-OwnerDID:      "did:plc:test123",
-CoarseGeohash: "dr5regw",
-CreatedAt:     &time.Time{},
-}
-if err := sceneRepo.Insert(testScene); err != nil {
-t.Fatalf("failed to insert scene: %v", err)
-}
+	// Create a scene and stream session first
+	testScene := &scene.Scene{
+		ID:            uuid.New().String(),
+		Name:          "Test Scene",
+		OwnerDID:      "did:plc:test123",
+		CoarseGeohash: "dr5regw",
+		CreatedAt:     &time.Time{},
+	}
+	if err := sceneRepo.Insert(testScene); err != nil {
+		t.Fatalf("failed to insert scene: %v", err)
+	}
 
-streamID, _, err := streamRepo.CreateStreamSession(ptrString(testScene.ID), nil, testScene.OwnerDID)
-if err != nil {
-t.Fatalf("failed to create stream: %v", err)
-}
+	streamID, _, err := streamRepo.CreateStreamSession(ptrString(testScene.ID), nil, testScene.OwnerDID)
+	if err != nil {
+		t.Fatalf("failed to create stream: %v", err)
+	}
 
-// Create join request with timing
-tokenTime := time.Now().Add(-2 * time.Second).Format(time.RFC3339)
-reqBody := map[string]interface{}{
-"token_issued_at": tokenTime,
-}
+	// Create join request with timing
+	tokenTime := time.Now().Add(-2 * time.Second).Format(time.RFC3339)
+	reqBody := map[string]interface{}{
+		"token_issued_at": tokenTime,
+	}
 
-body, err := json.Marshal(reqBody)
-if err != nil {
-t.Fatalf("failed to marshal request: %v", err)
-}
+	body, err := json.Marshal(reqBody)
+	if err != nil {
+		t.Fatalf("failed to marshal request: %v", err)
+	}
 
-req := httptest.NewRequest(http.MethodPost, "/streams/"+streamID+"/join", bytes.NewReader(body))
-req.Header.Set("Content-Type", "application/json")
+	req := httptest.NewRequest(http.MethodPost, "/streams/"+streamID+"/join", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
 
-// Add auth context
-ctx := middleware.SetUserDID(req.Context(), testScene.OwnerDID)
-req = req.WithContext(ctx)
+	// Add auth context
+	ctx := middleware.SetUserDID(req.Context(), testScene.OwnerDID)
+	req = req.WithContext(ctx)
 
-rr := httptest.NewRecorder()
-handlers.JoinStream(rr, req)
+	rr := httptest.NewRecorder()
+	handlers.JoinStream(rr, req)
 
-if rr.Code != http.StatusOK {
-t.Errorf("expected status 200, got %d: %s", rr.Code, rr.Body.String())
-}
+	if rr.Code != http.StatusOK {
+		t.Errorf("expected status 200, got %d: %s", rr.Code, rr.Body.String())
+	}
 
-// Verify response
-var resp map[string]interface{}
-if err := json.NewDecoder(rr.Body).Decode(&resp); err != nil {
-t.Fatalf("failed to decode response: %v", err)
-}
+	// Verify response
+	var resp map[string]interface{}
+	if err := json.NewDecoder(rr.Body).Decode(&resp); err != nil {
+		t.Fatalf("failed to decode response: %v", err)
+	}
 
-if resp["status"] != "joined" {
-t.Errorf("expected status 'joined', got %v", resp["status"])
-}
+	if resp["status"] != "joined" {
+		t.Errorf("expected status 'joined', got %v", resp["status"])
+	}
 
-if resp["join_count"] != float64(1) {
-t.Errorf("expected join_count 1, got %v", resp["join_count"])
-}
+	if resp["join_count"] != float64(1) {
+		t.Errorf("expected join_count 1, got %v", resp["join_count"])
+	}
 
-// Verify database was updated
-session, err := streamRepo.GetByID(streamID)
-if err != nil {
-t.Fatalf("failed to get session: %v", err)
-}
-if session.JoinCount != 1 {
-t.Errorf("expected JoinCount 1, got %d", session.JoinCount)
-}
+	// Verify database was updated
+	session, err := streamRepo.GetByID(streamID)
+	if err != nil {
+		t.Fatalf("failed to get session: %v", err)
+	}
+	if session.JoinCount != 1 {
+		t.Errorf("expected JoinCount 1, got %d", session.JoinCount)
+	}
 }
 
 // TestJoinStream_NotFound tests join request for non-existent stream.
 func TestJoinStream_NotFound(t *testing.T) {
-streamRepo := stream.NewInMemorySessionRepository()
-sceneRepo := scene.NewInMemorySceneRepository()
-eventRepo := scene.NewInMemoryEventRepository()
-auditRepo := audit.NewInMemoryRepository()
-streamMetrics := stream.NewMetrics()
-handlers := NewStreamHandlers(streamRepo, sceneRepo, eventRepo, auditRepo, streamMetrics)
+	streamRepo := stream.NewInMemorySessionRepository()
+	sceneRepo := scene.NewInMemorySceneRepository()
+	eventRepo := scene.NewInMemoryEventRepository()
+	auditRepo := audit.NewInMemoryRepository()
+	streamMetrics := stream.NewMetrics()
+	handlers := NewStreamHandlers(streamRepo, sceneRepo, eventRepo, auditRepo, streamMetrics)
 
-req := httptest.NewRequest(http.MethodPost, "/streams/nonexistent-id/join", nil)
-ctx := middleware.SetUserDID(req.Context(), "did:plc:test123")
-req = req.WithContext(ctx)
+	req := httptest.NewRequest(http.MethodPost, "/streams/nonexistent-id/join", nil)
+	ctx := middleware.SetUserDID(req.Context(), "did:plc:test123")
+	req = req.WithContext(ctx)
 
-rr := httptest.NewRecorder()
-handlers.JoinStream(rr, req)
+	rr := httptest.NewRecorder()
+	handlers.JoinStream(rr, req)
 
-if rr.Code != http.StatusNotFound {
-t.Errorf("expected status 404, got %d", rr.Code)
-}
+	if rr.Code != http.StatusNotFound {
+		t.Errorf("expected status 404, got %d", rr.Code)
+	}
 }
 
 // TestJoinStream_Unauthorized tests join request without auth.
 func TestJoinStream_Unauthorized(t *testing.T) {
-streamRepo := stream.NewInMemorySessionRepository()
-sceneRepo := scene.NewInMemorySceneRepository()
-eventRepo := scene.NewInMemoryEventRepository()
-auditRepo := audit.NewInMemoryRepository()
-streamMetrics := stream.NewMetrics()
-handlers := NewStreamHandlers(streamRepo, sceneRepo, eventRepo, auditRepo, streamMetrics)
+	streamRepo := stream.NewInMemorySessionRepository()
+	sceneRepo := scene.NewInMemorySceneRepository()
+	eventRepo := scene.NewInMemoryEventRepository()
+	auditRepo := audit.NewInMemoryRepository()
+	streamMetrics := stream.NewMetrics()
+	handlers := NewStreamHandlers(streamRepo, sceneRepo, eventRepo, auditRepo, streamMetrics)
 
-req := httptest.NewRequest(http.MethodPost, "/streams/some-id/join", nil)
-// No auth context
+	req := httptest.NewRequest(http.MethodPost, "/streams/some-id/join", nil)
+	// No auth context
 
-rr := httptest.NewRecorder()
-handlers.JoinStream(rr, req)
+	rr := httptest.NewRecorder()
+	handlers.JoinStream(rr, req)
 
-if rr.Code != http.StatusUnauthorized {
-t.Errorf("expected status 401, got %d", rr.Code)
-}
+	if rr.Code != http.StatusUnauthorized {
+		t.Errorf("expected status 401, got %d", rr.Code)
+	}
 }
 
 // TestLeaveStream_Success tests successful leave event recording.
 func TestLeaveStream_Success(t *testing.T) {
-streamRepo := stream.NewInMemorySessionRepository()
-sceneRepo := scene.NewInMemorySceneRepository()
-eventRepo := scene.NewInMemoryEventRepository()
-auditRepo := audit.NewInMemoryRepository()
-streamMetrics := stream.NewMetrics()
-handlers := NewStreamHandlers(streamRepo, sceneRepo, eventRepo, auditRepo, streamMetrics)
+	streamRepo := stream.NewInMemorySessionRepository()
+	sceneRepo := scene.NewInMemorySceneRepository()
+	eventRepo := scene.NewInMemoryEventRepository()
+	auditRepo := audit.NewInMemoryRepository()
+	streamMetrics := stream.NewMetrics()
+	handlers := NewStreamHandlers(streamRepo, sceneRepo, eventRepo, auditRepo, streamMetrics)
 
-// Create a scene and stream session first
-testScene := &scene.Scene{
-ID:            uuid.New().String(),
-Name:          "Test Scene",
-OwnerDID:      "did:plc:test123",
-CoarseGeohash: "dr5regw",
-CreatedAt:     &time.Time{},
-}
-if err := sceneRepo.Insert(testScene); err != nil {
-t.Fatalf("failed to insert scene: %v", err)
-}
+	// Create a scene and stream session first
+	testScene := &scene.Scene{
+		ID:            uuid.New().String(),
+		Name:          "Test Scene",
+		OwnerDID:      "did:plc:test123",
+		CoarseGeohash: "dr5regw",
+		CreatedAt:     &time.Time{},
+	}
+	if err := sceneRepo.Insert(testScene); err != nil {
+		t.Fatalf("failed to insert scene: %v", err)
+	}
 
-streamID, _, err := streamRepo.CreateStreamSession(ptrString(testScene.ID), nil, testScene.OwnerDID)
-if err != nil {
-t.Fatalf("failed to create stream: %v", err)
-}
+	streamID, _, err := streamRepo.CreateStreamSession(ptrString(testScene.ID), nil, testScene.OwnerDID)
+	if err != nil {
+		t.Fatalf("failed to create stream: %v", err)
+	}
 
-req := httptest.NewRequest(http.MethodPost, "/streams/"+streamID+"/leave", nil)
+	req := httptest.NewRequest(http.MethodPost, "/streams/"+streamID+"/leave", nil)
 
-// Add auth context
-ctx := middleware.SetUserDID(req.Context(), testScene.OwnerDID)
-req = req.WithContext(ctx)
+	// Add auth context
+	ctx := middleware.SetUserDID(req.Context(), testScene.OwnerDID)
+	req = req.WithContext(ctx)
 
-rr := httptest.NewRecorder()
-handlers.LeaveStream(rr, req)
+	rr := httptest.NewRecorder()
+	handlers.LeaveStream(rr, req)
 
-if rr.Code != http.StatusOK {
-t.Errorf("expected status 200, got %d: %s", rr.Code, rr.Body.String())
-}
+	if rr.Code != http.StatusOK {
+		t.Errorf("expected status 200, got %d: %s", rr.Code, rr.Body.String())
+	}
 
-// Verify response
-var resp map[string]interface{}
-if err := json.NewDecoder(rr.Body).Decode(&resp); err != nil {
-t.Fatalf("failed to decode response: %v", err)
-}
+	// Verify response
+	var resp map[string]interface{}
+	if err := json.NewDecoder(rr.Body).Decode(&resp); err != nil {
+		t.Fatalf("failed to decode response: %v", err)
+	}
 
-if resp["status"] != "left" {
-t.Errorf("expected status 'left', got %v", resp["status"])
-}
+	if resp["status"] != "left" {
+		t.Errorf("expected status 'left', got %v", resp["status"])
+	}
 
-if resp["leave_count"] != float64(1) {
-t.Errorf("expected leave_count 1, got %v", resp["leave_count"])
-}
+	if resp["leave_count"] != float64(1) {
+		t.Errorf("expected leave_count 1, got %v", resp["leave_count"])
+	}
 
-// Verify database was updated
-session, err := streamRepo.GetByID(streamID)
-if err != nil {
-t.Fatalf("failed to get session: %v", err)
-}
-if session.LeaveCount != 1 {
-t.Errorf("expected LeaveCount 1, got %d", session.LeaveCount)
-}
+	// Verify database was updated
+	session, err := streamRepo.GetByID(streamID)
+	if err != nil {
+		t.Fatalf("failed to get session: %v", err)
+	}
+	if session.LeaveCount != 1 {
+		t.Errorf("expected LeaveCount 1, got %d", session.LeaveCount)
+	}
 }
 
 // TestLeaveStream_NotFound tests leave request for non-existent stream.
 func TestLeaveStream_NotFound(t *testing.T) {
-streamRepo := stream.NewInMemorySessionRepository()
-sceneRepo := scene.NewInMemorySceneRepository()
-eventRepo := scene.NewInMemoryEventRepository()
-auditRepo := audit.NewInMemoryRepository()
-streamMetrics := stream.NewMetrics()
-handlers := NewStreamHandlers(streamRepo, sceneRepo, eventRepo, auditRepo, streamMetrics)
+	streamRepo := stream.NewInMemorySessionRepository()
+	sceneRepo := scene.NewInMemorySceneRepository()
+	eventRepo := scene.NewInMemoryEventRepository()
+	auditRepo := audit.NewInMemoryRepository()
+	streamMetrics := stream.NewMetrics()
+	handlers := NewStreamHandlers(streamRepo, sceneRepo, eventRepo, auditRepo, streamMetrics)
 
-req := httptest.NewRequest(http.MethodPost, "/streams/nonexistent-id/leave", nil)
-ctx := middleware.SetUserDID(req.Context(), "did:plc:test123")
-req = req.WithContext(ctx)
+	req := httptest.NewRequest(http.MethodPost, "/streams/nonexistent-id/leave", nil)
+	ctx := middleware.SetUserDID(req.Context(), "did:plc:test123")
+	req = req.WithContext(ctx)
 
-rr := httptest.NewRecorder()
-handlers.LeaveStream(rr, req)
+	rr := httptest.NewRecorder()
+	handlers.LeaveStream(rr, req)
 
-if rr.Code != http.StatusNotFound {
-t.Errorf("expected status 404, got %d", rr.Code)
-}
+	if rr.Code != http.StatusNotFound {
+		t.Errorf("expected status 404, got %d", rr.Code)
+	}
 }
 
 // TestJoinLeave_Multiple tests multiple join/leave events increment correctly.
 func TestJoinLeave_Multiple(t *testing.T) {
-streamRepo := stream.NewInMemorySessionRepository()
-sceneRepo := scene.NewInMemorySceneRepository()
-eventRepo := scene.NewInMemoryEventRepository()
-auditRepo := audit.NewInMemoryRepository()
-streamMetrics := stream.NewMetrics()
-handlers := NewStreamHandlers(streamRepo, sceneRepo, eventRepo, auditRepo, streamMetrics)
+	streamRepo := stream.NewInMemorySessionRepository()
+	sceneRepo := scene.NewInMemorySceneRepository()
+	eventRepo := scene.NewInMemoryEventRepository()
+	auditRepo := audit.NewInMemoryRepository()
+	streamMetrics := stream.NewMetrics()
+	handlers := NewStreamHandlers(streamRepo, sceneRepo, eventRepo, auditRepo, streamMetrics)
 
-// Create a scene and stream session first
-testScene := &scene.Scene{
-ID:            uuid.New().String(),
-Name:          "Test Scene",
-OwnerDID:      "did:plc:test123",
-CoarseGeohash: "dr5regw",
-CreatedAt:     &time.Time{},
-}
-if err := sceneRepo.Insert(testScene); err != nil {
-t.Fatalf("failed to insert scene: %v", err)
-}
+	// Create a scene and stream session first
+	testScene := &scene.Scene{
+		ID:            uuid.New().String(),
+		Name:          "Test Scene",
+		OwnerDID:      "did:plc:test123",
+		CoarseGeohash: "dr5regw",
+		CreatedAt:     &time.Time{},
+	}
+	if err := sceneRepo.Insert(testScene); err != nil {
+		t.Fatalf("failed to insert scene: %v", err)
+	}
 
-streamID, _, err := streamRepo.CreateStreamSession(ptrString(testScene.ID), nil, testScene.OwnerDID)
-if err != nil {
-t.Fatalf("failed to create stream: %v", err)
-}
+	streamID, _, err := streamRepo.CreateStreamSession(ptrString(testScene.ID), nil, testScene.OwnerDID)
+	if err != nil {
+		t.Fatalf("failed to create stream: %v", err)
+	}
 
-
-
-// Record 3 joins
-for i := 0; i < 3; i++ {
-req := httptest.NewRequest(http.MethodPost, "/streams/"+streamID+"/join", nil)
+	// Record 3 joins
+	for i := 0; i < 3; i++ {
+		req := httptest.NewRequest(http.MethodPost, "/streams/"+streamID+"/join", nil)
 		ctx := middleware.SetUserDID(req.Context(), testScene.OwnerDID)
 		req = req.WithContext(ctx)
-rr := httptest.NewRecorder()
-handlers.JoinStream(rr, req)
-if rr.Code != http.StatusOK {
-t.Fatalf("join %d failed: %d", i+1, rr.Code)
-}
-}
+		rr := httptest.NewRecorder()
+		handlers.JoinStream(rr, req)
+		if rr.Code != http.StatusOK {
+			t.Fatalf("join %d failed: %d", i+1, rr.Code)
+		}
+	}
 
-// Record 2 leaves
-for i := 0; i < 2; i++ {
-req := httptest.NewRequest(http.MethodPost, "/streams/"+streamID+"/leave", nil)
+	// Record 2 leaves
+	for i := 0; i < 2; i++ {
+		req := httptest.NewRequest(http.MethodPost, "/streams/"+streamID+"/leave", nil)
 		ctx := middleware.SetUserDID(req.Context(), testScene.OwnerDID)
 		req = req.WithContext(ctx)
-rr := httptest.NewRecorder()
-handlers.LeaveStream(rr, req)
-if rr.Code != http.StatusOK {
-t.Fatalf("leave %d failed: %d", i+1, rr.Code)
-}
-}
+		rr := httptest.NewRecorder()
+		handlers.LeaveStream(rr, req)
+		if rr.Code != http.StatusOK {
+			t.Fatalf("leave %d failed: %d", i+1, rr.Code)
+		}
+	}
 
-// Verify counts
-session, err := streamRepo.GetByID(streamID)
-if err != nil {
-t.Fatalf("failed to get session: %v", err)
-}
-if session.JoinCount != 3 {
-t.Errorf("expected JoinCount 3, got %d", session.JoinCount)
-}
-if session.LeaveCount != 2 {
-t.Errorf("expected LeaveCount 2, got %d", session.LeaveCount)
-}
+	// Verify counts
+	session, err := streamRepo.GetByID(streamID)
+	if err != nil {
+		t.Fatalf("failed to get session: %v", err)
+	}
+	if session.JoinCount != 3 {
+		t.Errorf("expected JoinCount 3, got %d", session.JoinCount)
+	}
+	if session.LeaveCount != 2 {
+		t.Errorf("expected LeaveCount 2, got %d", session.LeaveCount)
+	}
 }
 
 // TestJoinStream_WithNilMetrics tests that join/leave handlers work correctly when metrics collection is disabled.
 func TestJoinStream_WithNilMetrics(t *testing.T) {
-streamRepo := stream.NewInMemorySessionRepository()
-sceneRepo := scene.NewInMemorySceneRepository()
-eventRepo := scene.NewInMemoryEventRepository()
-auditRepo := audit.NewInMemoryRepository()
-// Pass nil for metrics to test the nil check path
-handlers := NewStreamHandlers(streamRepo, sceneRepo, eventRepo, auditRepo, nil)
+	streamRepo := stream.NewInMemorySessionRepository()
+	sceneRepo := scene.NewInMemorySceneRepository()
+	eventRepo := scene.NewInMemoryEventRepository()
+	auditRepo := audit.NewInMemoryRepository()
+	// Pass nil for metrics to test the nil check path
+	handlers := NewStreamHandlers(streamRepo, sceneRepo, eventRepo, auditRepo, nil)
 
-// Create a scene and stream session first
-testScene := &scene.Scene{
-ID:            uuid.New().String(),
-Name:          "Test Scene",
-OwnerDID:      "did:plc:test123",
-CoarseGeohash: "dr5regw",
-CreatedAt:     &time.Time{},
-}
-if err := sceneRepo.Insert(testScene); err != nil {
-t.Fatalf("failed to insert scene: %v", err)
-}
+	// Create a scene and stream session first
+	testScene := &scene.Scene{
+		ID:            uuid.New().String(),
+		Name:          "Test Scene",
+		OwnerDID:      "did:plc:test123",
+		CoarseGeohash: "dr5regw",
+		CreatedAt:     &time.Time{},
+	}
+	if err := sceneRepo.Insert(testScene); err != nil {
+		t.Fatalf("failed to insert scene: %v", err)
+	}
 
-streamID, _, err := streamRepo.CreateStreamSession(ptrString(testScene.ID), nil, testScene.OwnerDID)
-if err != nil {
-t.Fatalf("failed to create stream: %v", err)
-}
+	streamID, _, err := streamRepo.CreateStreamSession(ptrString(testScene.ID), nil, testScene.OwnerDID)
+	if err != nil {
+		t.Fatalf("failed to create stream: %v", err)
+	}
 
-// Test join with nil metrics
-joinReq := httptest.NewRequest(http.MethodPost, "/streams/"+streamID+"/join", nil)
-joinCtx := middleware.SetUserDID(joinReq.Context(), testScene.OwnerDID)
-joinReq = joinReq.WithContext(joinCtx)
-joinRR := httptest.NewRecorder()
-handlers.JoinStream(joinRR, joinReq)
+	// Test join with nil metrics
+	joinReq := httptest.NewRequest(http.MethodPost, "/streams/"+streamID+"/join", nil)
+	joinCtx := middleware.SetUserDID(joinReq.Context(), testScene.OwnerDID)
+	joinReq = joinReq.WithContext(joinCtx)
+	joinRR := httptest.NewRecorder()
+	handlers.JoinStream(joinRR, joinReq)
 
-if joinRR.Code != http.StatusOK {
-t.Errorf("join failed with nil metrics: expected status 200, got %d: %s", joinRR.Code, joinRR.Body.String())
-}
+	if joinRR.Code != http.StatusOK {
+		t.Errorf("join failed with nil metrics: expected status 200, got %d: %s", joinRR.Code, joinRR.Body.String())
+	}
 
-// Verify database was updated despite nil metrics
-session, err := streamRepo.GetByID(streamID)
-if err != nil {
-t.Fatalf("failed to get session: %v", err)
-}
-if session.JoinCount != 1 {
-t.Errorf("expected JoinCount 1, got %d", session.JoinCount)
-}
+	// Verify database was updated despite nil metrics
+	session, err := streamRepo.GetByID(streamID)
+	if err != nil {
+		t.Fatalf("failed to get session: %v", err)
+	}
+	if session.JoinCount != 1 {
+		t.Errorf("expected JoinCount 1, got %d", session.JoinCount)
+	}
 
-// Test leave with nil metrics
-leaveReq := httptest.NewRequest(http.MethodPost, "/streams/"+streamID+"/leave", nil)
-leaveCtx := middleware.SetUserDID(leaveReq.Context(), testScene.OwnerDID)
-leaveReq = leaveReq.WithContext(leaveCtx)
-leaveRR := httptest.NewRecorder()
-handlers.LeaveStream(leaveRR, leaveReq)
+	// Test leave with nil metrics
+	leaveReq := httptest.NewRequest(http.MethodPost, "/streams/"+streamID+"/leave", nil)
+	leaveCtx := middleware.SetUserDID(leaveReq.Context(), testScene.OwnerDID)
+	leaveReq = leaveReq.WithContext(leaveCtx)
+	leaveRR := httptest.NewRecorder()
+	handlers.LeaveStream(leaveRR, leaveReq)
 
-if leaveRR.Code != http.StatusOK {
-t.Errorf("leave failed with nil metrics: expected status 200, got %d: %s", leaveRR.Code, leaveRR.Body.String())
-}
+	if leaveRR.Code != http.StatusOK {
+		t.Errorf("leave failed with nil metrics: expected status 200, got %d: %s", leaveRR.Code, leaveRR.Body.String())
+	}
 
-// Verify leave count was updated
-session, err = streamRepo.GetByID(streamID)
-if err != nil {
-t.Fatalf("failed to get session: %v", err)
-}
-if session.LeaveCount != 1 {
-t.Errorf("expected LeaveCount 1, got %d", session.LeaveCount)
-}
+	// Verify leave count was updated
+	session, err = streamRepo.GetByID(streamID)
+	if err != nil {
+		t.Fatalf("failed to get session: %v", err)
+	}
+	if session.LeaveCount != 1 {
+		t.Errorf("expected LeaveCount 1, got %d", session.LeaveCount)
+	}
 }

@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach} from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { renderHook, waitFor, act } from '@testing-library/react';
 import { useClusteredData, boundsToBox } from './useClusteredData';
 import type { Scene, Event } from '../types/scene';
@@ -18,7 +18,7 @@ describe('boundsToBox', () => {
     } as LngLatBounds;
 
     const result = boundsToBox(mockBounds);
-    
+
     expect(result).toEqual({
       north: 37.8,
       south: 37.7,
@@ -56,7 +56,7 @@ describe('useClusteredData', () => {
 
   it('initializes with empty data', () => {
     const { result } = renderHook(() => useClusteredData(null, { debounceMs: 50 }));
-    
+
     expect(result.current.data).toEqual({
       type: 'FeatureCollection',
       features: [],
@@ -67,9 +67,11 @@ describe('useClusteredData', () => {
 
   it('does not fetch without bbox by default', async () => {
     renderHook(() => useClusteredData(null, { debounceMs: 50 }));
-    
-    await new Promise(resolve => setTimeout(resolve, 100));
-    
+
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 100));
+    });
+
     expect(mockFetch).not.toHaveBeenCalled();
   });
 
@@ -85,7 +87,7 @@ describe('useClusteredData', () => {
       });
 
     const { result } = renderHook(() => useClusteredData(null, { debounceMs: 50 }));
-    
+
     const bbox = {
       north: 37.8,
       south: 37.7,
@@ -97,9 +99,12 @@ describe('useClusteredData', () => {
       result.current.updateBBox(bbox);
     });
 
-    await waitFor(() => {
-      expect(mockFetch).toHaveBeenCalledTimes(2);
-    }, { timeout: 3000 });
+    await waitFor(
+      () => {
+        expect(mockFetch).toHaveBeenCalledTimes(2);
+      },
+      { timeout: 3000 }
+    );
 
     expect(mockFetch).toHaveBeenCalledWith(
       expect.stringContaining('/api/scenes?'),
@@ -110,9 +115,12 @@ describe('useClusteredData', () => {
       expect.objectContaining({ signal: expect.any(AbortSignal) })
     );
 
-    await waitFor(() => {
-      expect(result.current.loading).toBe(false);
-    }, { timeout: 3000 });
+    await waitFor(
+      () => {
+        expect(result.current.loading).toBe(false);
+      },
+      { timeout: 3000 }
+    );
 
     expect(result.current.data.features).toHaveLength(2);
     expect(result.current.error).toBeNull();
@@ -130,7 +138,7 @@ describe('useClusteredData', () => {
       });
 
     const { result } = renderHook(() => useClusteredData(null, { debounceMs: 50 }));
-    
+
     act(() => {
       result.current.updateBBox({
         north: 37.8,
@@ -140,14 +148,17 @@ describe('useClusteredData', () => {
       });
     });
 
-    await waitFor(() => {
-      expect(result.current.data.features).toHaveLength(2);
-    }, { timeout: 3000 });
-    
+    await waitFor(
+      () => {
+        expect(result.current.data.features).toHaveLength(2);
+      },
+      { timeout: 3000 }
+    );
+
     const features = result.current.data.features;
-    const sceneFeature = features.find(f => f.properties.type === 'scene');
-    const eventFeature = features.find(f => f.properties.type === 'event');
-    
+    const sceneFeature = features.find((f) => f.properties.type === 'scene');
+    const eventFeature = features.find((f) => f.properties.type === 'event');
+
     expect(sceneFeature?.properties.id).toBe('scene1');
     expect(eventFeature?.properties.id).toBe('event1');
   });
@@ -156,7 +167,7 @@ describe('useClusteredData', () => {
     mockFetch.mockRejectedValueOnce(new Error('Network error'));
 
     const { result } = renderHook(() => useClusteredData(null, { debounceMs: 50 }));
-    
+
     act(() => {
       result.current.updateBBox({
         north: 37.8,
@@ -166,9 +177,12 @@ describe('useClusteredData', () => {
       });
     });
 
-    await waitFor(() => {
-      expect(result.current.error).toBe('Network error');
-    }, { timeout: 3000 });
+    await waitFor(
+      () => {
+        expect(result.current.error).toBe('Network error');
+      },
+      { timeout: 3000 }
+    );
 
     expect(result.current.data.features).toHaveLength(0);
   });
@@ -181,7 +195,7 @@ describe('useClusteredData', () => {
     });
 
     const { result } = renderHook(() => useClusteredData(null, { debounceMs: 50 }));
-    
+
     act(() => {
       result.current.updateBBox({
         north: 37.8,
@@ -191,9 +205,12 @@ describe('useClusteredData', () => {
       });
     });
 
-    await waitFor(() => {
-      expect(result.current.error).toContain('Failed to fetch scenes');
-    }, { timeout: 3000 });
+    await waitFor(
+      () => {
+        expect(result.current.error).toContain('Failed to fetch scenes');
+      },
+      { timeout: 3000 }
+    );
   });
 
   it('uses custom API URL from options', async () => {
@@ -207,10 +224,10 @@ describe('useClusteredData', () => {
         json: async () => [],
       });
 
-    const { result } = renderHook(() => 
+    const { result } = renderHook(() =>
       useClusteredData(null, { apiUrl: 'https://custom-api.com', debounceMs: 50 })
     );
-    
+
     act(() => {
       result.current.updateBBox({
         north: 37.8,
@@ -220,12 +237,15 @@ describe('useClusteredData', () => {
       });
     });
 
-    await waitFor(() => {
-      expect(mockFetch).toHaveBeenCalledWith(
-        expect.stringContaining('https://custom-api.com/scenes'),
-        expect.any(Object)
-      );
-    }, { timeout: 3000 });
+    await waitFor(
+      () => {
+        expect(mockFetch).toHaveBeenCalledWith(
+          expect.stringContaining('https://custom-api.com/scenes'),
+          expect.any(Object)
+        );
+      },
+      { timeout: 3000 }
+    );
   });
 
   it('supports manual refetch', async () => {
@@ -248,7 +268,7 @@ describe('useClusteredData', () => {
       });
 
     const { result } = renderHook(() => useClusteredData(null, { debounceMs: 50 }));
-    
+
     act(() => {
       result.current.updateBBox({
         north: 37.8,
@@ -258,9 +278,12 @@ describe('useClusteredData', () => {
       });
     });
 
-    await waitFor(() => {
-      expect(mockFetch).toHaveBeenCalledTimes(2);
-    }, { timeout: 3000 });
+    await waitFor(
+      () => {
+        expect(mockFetch).toHaveBeenCalledTimes(2);
+      },
+      { timeout: 3000 }
+    );
 
     expect(result.current.data.features).toHaveLength(0);
 
@@ -269,9 +292,12 @@ describe('useClusteredData', () => {
       result.current.refetch();
     });
 
-    await waitFor(() => {
-      expect(result.current.data.features).toHaveLength(1);
-    }, { timeout: 3000 });
+    await waitFor(
+      () => {
+        expect(result.current.data.features).toHaveLength(1);
+      },
+      { timeout: 3000 }
+    );
   });
 
   it('clears data when bbox is set to null', async () => {
@@ -286,7 +312,7 @@ describe('useClusteredData', () => {
       });
 
     const { result } = renderHook(() => useClusteredData(null, { debounceMs: 50 }));
-    
+
     act(() => {
       result.current.updateBBox({
         north: 37.8,
@@ -296,17 +322,23 @@ describe('useClusteredData', () => {
       });
     });
 
-    await waitFor(() => {
-      expect(result.current.data.features).toHaveLength(1);
-    }, { timeout: 3000 });
+    await waitFor(
+      () => {
+        expect(result.current.data.features).toHaveLength(1);
+      },
+      { timeout: 3000 }
+    );
 
     act(() => {
       result.current.updateBBox(null);
     });
-    
+
     // Wait for debounce and data to clear
-    await waitFor(() => {
-      expect(result.current.data.features).toHaveLength(0);
-    }, { timeout: 3000 });
+    await waitFor(
+      () => {
+        expect(result.current.data.features).toHaveLength(0);
+      },
+      { timeout: 3000 }
+    );
   });
 });

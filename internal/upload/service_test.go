@@ -129,7 +129,7 @@ func TestValidateFileSize(t *testing.T) {
 // TestGenerateObjectKey tests object key generation.
 func TestGenerateObjectKey(t *testing.T) {
 	postID := "post123"
-	
+
 	tests := []struct {
 		name        string
 		contentType string
@@ -181,14 +181,14 @@ func TestGenerateObjectKey(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			key, err := GenerateObjectKey(tt.contentType, tt.postID)
-			
+
 			if tt.expectError {
 				if err == nil {
 					t.Errorf("expected error, got nil")
 				}
 				return
 			}
-			
+
 			if err != nil {
 				t.Errorf("unexpected error: %v", err)
 				return
@@ -338,7 +338,7 @@ func TestGenerateSignedURL(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			ctx := context.Background()
-			
+
 			// For tests that should fail validation, we can check without needing actual S3 client
 			if tt.expectError {
 				// Test validation directly
@@ -363,12 +363,12 @@ func TestGenerateSignedURL(t *testing.T) {
 				if err := service.ValidateFileSize(tt.request.SizeBytes); err != nil {
 					t.Errorf("unexpected size validation error: %v", err)
 				}
-				
+
 				// Note: Full GenerateSignedURL test would require mocking the S3 client
 				// which is beyond the scope of this initial implementation
 				// In production, you'd use a mock S3 presigner or integration tests with a test bucket
 			}
-			
+
 			// Skip actual URL generation in unit tests since it requires real S3 client
 			_ = ctx
 		})
@@ -450,7 +450,7 @@ func TestNewService(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			service, err := NewService(tt.config)
-			
+
 			if tt.expectError {
 				if err == nil {
 					t.Errorf("expected error, got nil")
@@ -460,17 +460,17 @@ func TestNewService(t *testing.T) {
 				}
 				return
 			}
-			
+
 			if err != nil {
 				t.Errorf("unexpected error: %v", err)
 				return
 			}
-			
+
 			if service == nil {
 				t.Errorf("expected service to be non-nil")
 				return
 			}
-			
+
 			// Check defaults were applied
 			if service.maxSizeBytes != int64(tt.config.MaxSizeMB)*1024*1024 && tt.config.MaxSizeMB > 0 {
 				t.Errorf("expected max size %d, got %d", tt.config.MaxSizeMB*1024*1024, service.maxSizeBytes)

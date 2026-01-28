@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { render, waitFor } from '@testing-library/react';
+import { render, waitFor, act } from '@testing-library/react';
 import { MapView, type MapViewHandle } from './MapView';
 import { createRef } from 'react';
 
@@ -47,21 +47,21 @@ describe('MapView', () => {
   beforeEach(() => {
     // Set environment variable for API key
     import.meta.env.VITE_MAPTILER_API_KEY = 'test-api-key';
-    
+
     // Mock ResizeObserver
     mockResizeObserver = {
       observe: vi.fn(),
       disconnect: vi.fn(),
       unobserve: vi.fn(),
     };
-    
+
     class MockResizeObserver {
       constructor() {
         return mockResizeObserver;
       }
     }
     (globalThis as any).ResizeObserver = MockResizeObserver;
-    
+
     // Clear all mocks
     mockMapInstance.addSource.mockClear();
     mockMapInstance.addLayer.mockClear();
@@ -86,7 +86,7 @@ describe('MapView', () => {
 
   it('initializes MapLibre map with MapTiler style', async () => {
     render(<MapView />);
-    
+
     await waitFor(() => {
       expect(mockMapInstance.on).toHaveBeenCalled();
     });
@@ -105,9 +105,9 @@ describe('MapView', () => {
   it('shows error message when API key is missing', () => {
     // Clear the API key
     delete import.meta.env.VITE_MAPTILER_API_KEY;
-    
+
     const { getByTestId, getByText } = render(<MapView />);
-    
+
     // Should show error container instead of map
     const errorContainer = getByTestId('map-error');
     expect(errorContainer).toBeDefined();
@@ -118,7 +118,7 @@ describe('MapView', () => {
   it('sets up ResizeObserver and observes container', async () => {
     const { getByTestId } = render(<MapView />);
     const container = getByTestId('map-container');
-    
+
     await waitFor(() => {
       expect(mockResizeObserver.observe).toHaveBeenCalledWith(container);
     });
@@ -126,11 +126,11 @@ describe('MapView', () => {
 
   it('calls map.resize() when ResizeObserver callback is triggered', async () => {
     render(<MapView />);
-    
+
     await waitFor(() => {
       expect(mockMapInstance.on).toHaveBeenCalled();
     });
-    
+
     // Verify that resize method exists and can be called
     // The ResizeObserver callback would call this in real usage
     if (mockMapInstance.resize) {
@@ -142,7 +142,7 @@ describe('MapView', () => {
   it('exposes getMap() method via ref', async () => {
     const ref = createRef<MapViewHandle>();
     render(<MapView ref={ref} />);
-    
+
     await waitFor(() => {
       expect(ref.current).not.toBeNull();
     });
@@ -154,7 +154,7 @@ describe('MapView', () => {
   it('exposes flyTo() method via ref', async () => {
     const ref = createRef<MapViewHandle>();
     render(<MapView ref={ref} />);
-    
+
     await waitFor(() => {
       expect(ref.current).not.toBeNull();
     });
@@ -171,7 +171,7 @@ describe('MapView', () => {
   it('exposes getBounds() method via ref', async () => {
     const ref = createRef<MapViewHandle>();
     render(<MapView ref={ref} />);
-    
+
     await waitFor(() => {
       expect(ref.current).not.toBeNull();
     });
@@ -183,16 +183,18 @@ describe('MapView', () => {
   it('calls onLoad callback when map loads', async () => {
     const onLoad = vi.fn();
     render(<MapView onLoad={onLoad} />);
-    
+
     await waitFor(() => {
       expect(mockMapInstance.on).toHaveBeenCalled();
     });
 
-    // Simulate map load event
+    // Simulate map load event - wrap in act to handle state updates
     const onCall = mockMapInstance.on.mock.calls.find((call: any) => call[0] === 'load');
     expect(onCall).toBeDefined();
     const loadHandler = onCall[1];
-    loadHandler();
+    act(() => {
+      loadHandler();
+    });
 
     await waitFor(() => {
       expect(onLoad).toHaveBeenCalledWith(mockMapInstance);
@@ -201,15 +203,17 @@ describe('MapView', () => {
 
   it('adds placeholder source and layer on load', async () => {
     render(<MapView />);
-    
+
     await waitFor(() => {
       expect(mockMapInstance.on).toHaveBeenCalled();
     });
 
-    // Simulate map load event
+    // Simulate map load event - wrap in act
     const onCall = mockMapInstance.on.mock.calls.find((call: any) => call[0] === 'load');
     const loadHandler = onCall[1];
-    loadHandler();
+    act(() => {
+      loadHandler();
+    });
 
     await waitFor(() => {
       expect(mockMapInstance.addSource).toHaveBeenCalledWith(
@@ -231,11 +235,11 @@ describe('MapView', () => {
 
   it('cleans up map instance on unmount', async () => {
     const { unmount } = render(<MapView />);
-    
+
     await waitFor(() => {
       expect(mockMapInstance.on).toHaveBeenCalled();
     });
-    
+
     unmount();
 
     expect(mockMapInstance.remove).toHaveBeenCalled();
@@ -243,11 +247,11 @@ describe('MapView', () => {
 
   it('disconnects ResizeObserver on unmount', async () => {
     const { unmount } = render(<MapView />);
-    
+
     await waitFor(() => {
       expect(mockMapInstance.on).toHaveBeenCalled();
     });
-    
+
     unmount();
 
     // Verify component unmounted without errors
@@ -261,7 +265,7 @@ describe('MapView', () => {
     };
 
     render(<MapView />);
-    
+
     expect(mockGetCurrentPosition).not.toHaveBeenCalled();
   });
 
@@ -278,13 +282,8 @@ describe('MapView', () => {
     };
 
     const onGeolocationSuccess = vi.fn();
-    render(
-      <MapView
-        enableGeolocation={true}
-        onGeolocationSuccess={onGeolocationSuccess}
-      />
-    );
-    
+    render(<MapView enableGeolocation={true} onGeolocationSuccess={onGeolocationSuccess} />);
+
     await waitFor(() => {
       expect(mockGetCurrentPosition).toHaveBeenCalled();
     });
@@ -305,13 +304,8 @@ describe('MapView', () => {
     };
 
     const onGeolocationError = vi.fn();
-    render(
-      <MapView
-        enableGeolocation={true}
-        onGeolocationError={onGeolocationError}
-      />
-    );
-    
+    render(<MapView enableGeolocation={true} onGeolocationError={onGeolocationError} />);
+
     await waitFor(() => {
       expect(onGeolocationError).toHaveBeenCalledWith(mockError);
     });
@@ -320,17 +314,19 @@ describe('MapView', () => {
   it('sets data-map-loaded attribute when map loads', async () => {
     const { getByTestId } = render(<MapView />);
     const container = getByTestId('map-container');
-    
+
     expect(container.getAttribute('data-map-loaded')).toBe('false');
 
     await waitFor(() => {
       expect(mockMapInstance.on).toHaveBeenCalled();
     });
 
-    // Simulate map load event
+    // Simulate map load event - wrap in act
     const onCall = mockMapInstance.on.mock.calls.find((call: any) => call[0] === 'load');
     const loadHandler = onCall[1];
-    loadHandler();
+    act(() => {
+      loadHandler();
+    });
 
     await waitFor(() => {
       expect(container.getAttribute('data-map-loaded')).toBe('true');

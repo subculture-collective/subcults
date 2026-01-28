@@ -45,7 +45,7 @@ func (c *StripeClient) CreateConnectAccount() (*stripe.Account, error) {
 	params := &stripe.AccountParams{
 		Type: stripe.String(string(stripe.AccountTypeExpress)),
 	}
-	
+
 	return account.New(params)
 }
 
@@ -57,7 +57,7 @@ func (c *StripeClient) CreateAccountLink(accountID, returnURL, refreshURL string
 		RefreshURL: stripe.String(refreshURL),
 		Type:       stripe.String("account_onboarding"),
 	}
-	
+
 	return accountlink.New(params)
 }
 

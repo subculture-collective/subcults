@@ -80,7 +80,7 @@ func (h *StreamHandlers) CreateStream(w http.ResponseWriter, r *http.Request) {
 	// Validate that exactly one of scene_id or event_id is provided
 	sceneIDProvided := req.SceneID != nil && strings.TrimSpace(*req.SceneID) != ""
 	eventIDProvided := req.EventID != nil && strings.TrimSpace(*req.EventID) != ""
-	
+
 	if sceneIDProvided == eventIDProvided { // both true or both false
 		ctx = middleware.SetErrorCode(ctx, ErrCodeValidation)
 		WriteError(w, ctx, http.StatusBadRequest, ErrCodeValidation, "Exactly one of scene_id or event_id must be provided")

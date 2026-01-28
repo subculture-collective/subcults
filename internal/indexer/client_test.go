@@ -2,6 +2,7 @@ package indexer
 
 import (
 	"context"
+	"io"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
@@ -13,6 +14,11 @@ import (
 
 	"github.com/gorilla/websocket"
 )
+
+// newTestLogger creates a logger that discards all output to reduce test noise
+func newTestLogger() *slog.Logger {
+	return slog.New(slog.NewTextHandler(io.Discard, nil))
+}
 
 func TestClient_NewClient_ValidConfig(t *testing.T) {
 	config := DefaultConfig("wss://jetstream.example.com")
@@ -55,10 +61,10 @@ func TestClient_NewClient_InvalidConfig(t *testing.T) {
 
 // mockServer creates a test WebSocket server that can be controlled for testing.
 type mockServer struct {
-	server      *httptest.Server
-	upgrader    websocket.Upgrader
-	mu          sync.Mutex
-	connections []*websocket.Conn
+	server       *httptest.Server
+	upgrader     websocket.Upgrader
+	mu           sync.Mutex
+	connections  []*websocket.Conn
 	messagesSent int32
 	closeAfterN  int32 // Close connection after N messages sent
 }
@@ -142,7 +148,7 @@ func TestClient_Connect_Success(t *testing.T) {
 		return nil
 	}
 
-	client, err := NewClient(config, handler, slog.Default())
+	client, err := NewClient(config, handler, newTestLogger())
 	if err != nil {
 		t.Fatalf("NewClient() error = %v", err)
 	}
@@ -179,7 +185,7 @@ func TestClient_Reconnect_AfterForcedClose(t *testing.T) {
 		JitterFactor: 0,
 	}
 
-	client, err := NewClient(config, nil, slog.Default())
+	client, err := NewClient(config, nil, newTestLogger())
 	if err != nil {
 		t.Fatalf("NewClient() error = %v", err)
 	}
@@ -209,7 +215,7 @@ func TestClient_BackoffDelayWithinMaxWindow(t *testing.T) {
 		JitterFactor: 0, // No jitter for predictable timing
 	}
 
-	client, err := NewClient(config, nil, slog.Default())
+	client, err := NewClient(config, nil, newTestLogger())
 	if err != nil {
 		t.Fatalf("NewClient() error = %v", err)
 	}
@@ -244,13 +250,13 @@ func TestClient_ComputeBackoff(t *testing.T) {
 		attempt  int64
 		expected time.Duration
 	}{
-		{attempt: 0, expected: 100 * time.Millisecond},  // 100ms * 2^0
-		{attempt: 1, expected: 200 * time.Millisecond},  // 100ms * 2^1
-		{attempt: 2, expected: 400 * time.Millisecond},  // 100ms * 2^2
-		{attempt: 3, expected: 800 * time.Millisecond},  // 100ms * 2^3
-		{attempt: 4, expected: 1 * time.Second},         // Capped at max
-		{attempt: 5, expected: 1 * time.Second},         // Still capped
-		{attempt: 10, expected: 1 * time.Second},        // Still capped
+		{attempt: 0, expected: 100 * time.Millisecond}, // 100ms * 2^0
+		{attempt: 1, expected: 200 * time.Millisecond}, // 100ms * 2^1
+		{attempt: 2, expected: 400 * time.Millisecond}, // 100ms * 2^2
+		{attempt: 3, expected: 800 * time.Millisecond}, // 100ms * 2^3
+		{attempt: 4, expected: 1 * time.Second},        // Capped at max
+		{attempt: 5, expected: 1 * time.Second},        // Still capped
+		{attempt: 10, expected: 1 * time.Second},       // Still capped
 	}
 
 	for _, tt := range tests {
@@ -297,7 +303,7 @@ func TestClient_ContextCancellation(t *testing.T) {
 		JitterFactor: 0,
 	}
 
-	client, err := NewClient(config, nil, slog.Default())
+	client, err := NewClient(config, nil, newTestLogger())
 	if err != nil {
 		t.Fatalf("NewClient() error = %v", err)
 	}
@@ -337,7 +343,7 @@ func TestClient_IsConnected(t *testing.T) {
 		JitterFactor: 0,
 	}
 
-	client, err := NewClient(config, nil, slog.Default())
+	client, err := NewClient(config, nil, newTestLogger())
 	if err != nil {
 		t.Fatalf("NewClient() error = %v", err)
 	}
@@ -381,7 +387,7 @@ func TestClient_ConnectionFailure_TriggersBackoff(t *testing.T) {
 		JitterFactor: 0,
 	}
 
-	client, err := NewClient(config, nil, slog.Default())
+	client, err := NewClient(config, nil, newTestLogger())
 	if err != nil {
 		t.Fatalf("NewClient() error = %v", err)
 	}

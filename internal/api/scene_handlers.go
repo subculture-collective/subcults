@@ -32,27 +32,27 @@ var sceneNamePattern = regexp.MustCompile(`^[A-Za-z0-9 _\-\.]+$`)
 
 // CreateSceneRequest represents the request body for creating a scene.
 type CreateSceneRequest struct {
-	Name          string           `json:"name"`
-	Description   string           `json:"description,omitempty"`
-	OwnerDID      string           `json:"owner_did"`
-	AllowPrecise  bool             `json:"allow_precise"`
-	PrecisePoint  *scene.Point     `json:"precise_point,omitempty"`
-	CoarseGeohash string           `json:"coarse_geohash"`
-	Tags          []string         `json:"tags,omitempty"`
-	Visibility    string           `json:"visibility,omitempty"`
-	Palette       *scene.Palette   `json:"palette,omitempty"`
+	Name          string         `json:"name"`
+	Description   string         `json:"description,omitempty"`
+	OwnerDID      string         `json:"owner_did"`
+	AllowPrecise  bool           `json:"allow_precise"`
+	PrecisePoint  *scene.Point   `json:"precise_point,omitempty"`
+	CoarseGeohash string         `json:"coarse_geohash"`
+	Tags          []string       `json:"tags,omitempty"`
+	Visibility    string         `json:"visibility,omitempty"`
+	Palette       *scene.Palette `json:"palette,omitempty"`
 }
 
 // UpdateSceneRequest represents the request body for updating a scene.
 // Only includes mutable fields (owner is immutable).
 type UpdateSceneRequest struct {
-	Name         *string          `json:"name,omitempty"`
-	Description  *string          `json:"description,omitempty"`
-	Tags         []string         `json:"tags,omitempty"`
-	Visibility   *string          `json:"visibility,omitempty"`
-	Palette      *scene.Palette   `json:"palette,omitempty"`
-	AllowPrecise *bool            `json:"allow_precise,omitempty"`
-	PrecisePoint *scene.Point     `json:"precise_point,omitempty"`
+	Name         *string        `json:"name,omitempty"`
+	Description  *string        `json:"description,omitempty"`
+	Tags         []string       `json:"tags,omitempty"`
+	Visibility   *string        `json:"visibility,omitempty"`
+	Palette      *scene.Palette `json:"palette,omitempty"`
+	AllowPrecise *bool          `json:"allow_precise,omitempty"`
+	PrecisePoint *scene.Point   `json:"precise_point,omitempty"`
 }
 
 // UpdateScenePaletteRequest represents the request body for updating scene palette.
@@ -81,7 +81,7 @@ func NewSceneHandlers(repo scene.SceneRepository, membershipRepo membership.Memb
 func validateSceneName(name string) string {
 	// Trim whitespace first
 	trimmed := strings.TrimSpace(name)
-	
+
 	if len(trimmed) < MinSceneNameLength {
 		return "scene name must be at least 3 characters"
 	}
@@ -273,8 +273,8 @@ func (h *SceneHandlers) GetScene(w http.ResponseWriter, r *http.Request) {
 	if !canAccess {
 		// Use uniform error message - same as "not found" to prevent enumeration
 		// Log at debug level only to avoid leaking information
-		slog.DebugContext(r.Context(), "scene access denied", 
-			"scene_id", sceneID, 
+		slog.DebugContext(r.Context(), "scene access denied",
+			"scene_id", sceneID,
 			"visibility", foundScene.Visibility,
 			"requester_did", requesterDID,
 			"is_owner", foundScene.IsOwner(requesterDID))
@@ -316,7 +316,7 @@ func (h *SceneHandlers) canAccessScene(ctx context.Context, s *scene.Scene, requ
 		if requesterDID == "" {
 			return false, nil
 		}
-		
+
 		// Check if requester is an active member
 		m, err := h.membershipRepo.GetBySceneAndUser(s.ID, requesterDID)
 		if err != nil {
@@ -326,7 +326,7 @@ func (h *SceneHandlers) canAccessScene(ctx context.Context, s *scene.Scene, requ
 			}
 			return false, err
 		}
-		
+
 		// Only active members can access
 		return m.Status == "active", nil
 
@@ -385,7 +385,7 @@ func (h *SceneHandlers) UpdateScene(w http.ResponseWriter, r *http.Request) {
 		}
 		// Sanitize name after validation
 		newName = sanitizeSceneName(newName)
-		
+
 		// Check for duplicate name (excluding current scene)
 		exists, err := h.repo.ExistsByOwnerAndName(existingScene.OwnerDID, newName, sceneID)
 		if err != nil {
@@ -586,7 +586,7 @@ func (h *SceneHandlers) UpdateScenePalette(w http.ResponseWriter, r *http.Reques
 	if err != nil {
 		ctx := middleware.SetErrorCode(r.Context(), ErrCodeInvalidPalette)
 		if ratio > 0 {
-			msg := fmt.Sprintf("Insufficient contrast between text and background colors (got %s:1, need 4.5:1 minimum for WCAG AA)", 
+			msg := fmt.Sprintf("Insufficient contrast between text and background colors (got %s:1, need 4.5:1 minimum for WCAG AA)",
 				formatRatio(ratio))
 			WriteError(w, ctx, http.StatusBadRequest, ErrCodeInvalidPalette, msg)
 		} else {
@@ -632,16 +632,16 @@ func formatRatio(ratio float64) string {
 // OwnedSceneSummary represents a summary of a scene owned by the user.
 // Used for the dashboard endpoint to provide key metrics without heavy fields.
 type OwnedSceneSummary struct {
-	ID              string         `json:"id"`
-	Name            string         `json:"name"`
-	Description     string         `json:"description,omitempty"`
-	CoarseGeohash   string         `json:"coarse_geohash"`
-	Tags            []string       `json:"tags,omitempty"`
-	Visibility      string         `json:"visibility"`
-	CreatedAt       *time.Time     `json:"created_at,omitempty"`
-	UpdatedAt       *time.Time     `json:"updated_at,omitempty"`
-	MembersCount    int            `json:"members_count"`
-	HasActiveStream bool           `json:"has_active_stream"`
+	ID              string     `json:"id"`
+	Name            string     `json:"name"`
+	Description     string     `json:"description,omitempty"`
+	CoarseGeohash   string     `json:"coarse_geohash"`
+	Tags            []string   `json:"tags,omitempty"`
+	Visibility      string     `json:"visibility"`
+	CreatedAt       *time.Time `json:"created_at,omitempty"`
+	UpdatedAt       *time.Time `json:"updated_at,omitempty"`
+	MembersCount    int        `json:"members_count"`
+	HasActiveStream bool       `json:"has_active_stream"`
 }
 
 // ListOwnedScenes handles GET /scenes/owned - lists all scenes owned by the authenticated user.
@@ -710,7 +710,7 @@ func (h *SceneHandlers) ListOwnedScenes(w http.ResponseWriter, r *http.Request) 
 			CreatedAt:       sc.CreatedAt,
 			UpdatedAt:       sc.UpdatedAt,
 			MembersCount:    membershipCounts[sc.ID], // Defaults to 0 if not in map
-			HasActiveStream: activeStreams[sc.ID],     // Defaults to false if not in map
+			HasActiveStream: activeStreams[sc.ID],    // Defaults to false if not in map
 		}
 		summaries = append(summaries, summary)
 	}

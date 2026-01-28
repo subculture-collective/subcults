@@ -152,7 +152,7 @@ func TestCreateOrUpdateRSVP_Idempotent(t *testing.T) {
 	// First RSVP with "going"
 	reqBody := RSVPRequest{Status: "going"}
 	body, _ := json.Marshal(reqBody)
-	
+
 	// First request
 	req1 := httptest.NewRequest("POST", "/events/event-1/rsvp", bytes.NewReader(body))
 	req1.Header.Set("Content-Type", "application/json")

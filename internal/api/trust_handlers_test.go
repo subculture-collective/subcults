@@ -38,7 +38,7 @@ func TestGetTrustScore_Success(t *testing.T) {
 	dataSource.AddMembership(trust.Membership{
 		SceneID:     "scene-123",
 		UserDID:     "did:plc:user1",
-		Role:        "admin",
+		Role:        "owner",
 		TrustWeight: 0.8,
 	})
 	dataSource.AddMembership(trust.Membership{
@@ -98,9 +98,9 @@ func TestGetTrustScore_Success(t *testing.T) {
 			t.Errorf("expected average_membership_trust_weight 0.7, got %f", response.Breakdown.AverageMembershipTrustWeight)
 		}
 
-		// Average role multiplier should be (2.0 + 1.0) / 2 = 1.5
-		if response.Breakdown.RoleMultiplierAggregate != 1.5 {
-			t.Errorf("expected role_multiplier_aggregate 1.5, got %f", response.Breakdown.RoleMultiplierAggregate)
+		// Average role multiplier should be (1.0 + 0.5) / 2 = 0.75
+		if response.Breakdown.RoleMultiplierAggregate != 0.75 {
+			t.Errorf("expected role_multiplier_aggregate 0.75, got %f", response.Breakdown.RoleMultiplierAggregate)
 		}
 	}
 
@@ -255,9 +255,11 @@ func TestGetTrustScore_NoStoredScore(t *testing.T) {
 		t.Fatalf("failed to decode response: %v", err)
 	}
 
-	// Should compute score on the fly: 1.0 (no alliances) * avg(0.5 * 1.0 role mult) = 0.5
-	if response.TrustScore != 0.5 {
-		t.Errorf("expected trust_score 0.5, got %f", response.TrustScore)
+	// Should compute score on the fly:
+	// 1.0 (no alliances factor) * avg(TrustWeight * RoleMultiplier)
+	// = 1.0 * avg(0.5 * 0.5) = 1.0 * 0.25 = 0.25
+	if response.TrustScore != 0.25 {
+		t.Errorf("expected trust_score 0.25, got %f", response.TrustScore)
 	}
 
 	// Last updated should be empty when no stored score

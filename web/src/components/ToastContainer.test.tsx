@@ -4,7 +4,7 @@
  */
 
 import { describe, it, expect, beforeEach } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, act } from '@testing-library/react';
 import { userEvent } from '@testing-library/user-event';
 import { ToastContainer } from './ToastContainer';
 import { useToastStore } from '../stores/toastStore';
@@ -67,7 +67,13 @@ describe('ToastContainer', () => {
   it('hides dismiss button when dismissible is false', () => {
     useToastStore.setState({
       toasts: [
-        { id: '1', type: 'info', message: 'Non-dismissible toast', duration: 5000, dismissible: false },
+        {
+          id: '1',
+          type: 'info',
+          message: 'Non-dismissible toast',
+          duration: 5000,
+          dismissible: false,
+        },
       ],
     });
 
@@ -78,11 +84,9 @@ describe('ToastContainer', () => {
 
   it('removes toast when dismiss button is clicked', async () => {
     const user = userEvent.setup();
-    
+
     useToastStore.setState({
-      toasts: [
-        { id: '1', type: 'info', message: 'Test toast', duration: 5000, dismissible: true },
-      ],
+      toasts: [{ id: '1', type: 'info', message: 'Test toast', duration: 5000, dismissible: true }],
     });
 
     render(<ToastContainer />);
@@ -100,7 +104,13 @@ describe('ToastContainer', () => {
   it('has proper accessibility attributes', () => {
     useToastStore.setState({
       toasts: [
-        { id: '1', type: 'success', message: 'Accessible toast', duration: 5000, dismissible: true },
+        {
+          id: '1',
+          type: 'success',
+          message: 'Accessible toast',
+          duration: 5000,
+          dismissible: true,
+        },
       ],
     });
 
@@ -139,11 +149,13 @@ describe('ToastContainer', () => {
 
     expect(screen.queryByRole('status')).not.toBeInTheDocument();
 
-    // Add toast
-    useToastStore.setState({
-      toasts: [
-        { id: '1', type: 'success', message: 'Dynamic toast', duration: 5000, dismissible: true },
-      ],
+    // Add toast - wrap setState in act
+    act(() => {
+      useToastStore.setState({
+        toasts: [
+          { id: '1', type: 'success', message: 'Dynamic toast', duration: 5000, dismissible: true },
+        ],
+      });
     });
 
     rerender(<ToastContainer />);
@@ -155,9 +167,7 @@ describe('ToastContainer', () => {
 
   it('applies correct background colors for toast types', () => {
     useToastStore.setState({
-      toasts: [
-        { id: '1', type: 'success', message: 'Success', duration: 5000, dismissible: true },
-      ],
+      toasts: [{ id: '1', type: 'success', message: 'Success', duration: 5000, dismissible: true }],
     });
 
     render(<ToastContainer />);

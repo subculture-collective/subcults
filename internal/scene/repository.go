@@ -51,19 +51,19 @@ type SceneRepository interface {
 
 	// GetByRecordKey retrieves a scene by its AT Protocol record key.
 	GetByRecordKey(did, rkey string) (*Scene, error)
-	
+
 	// Delete soft-deletes a scene by setting deleted_at timestamp.
 	// Returns ErrSceneNotFound if scene doesn't exist or is already deleted.
 	Delete(id string) error
-	
+
 	// ExistsByOwnerAndName checks if a non-deleted scene with the given name
 	// exists for the specified owner. Used for duplicate name validation.
 	ExistsByOwnerAndName(ownerDID, name string, excludeID string) (bool, error)
-	
+
 	// ListByOwner retrieves all non-deleted scenes owned by the specified DID.
 	// Returns empty slice if no scenes found.
 	ListByOwner(ownerDID string) ([]*Scene, error)
-	
+
 	// SearchScenes searches for scenes with text matching, geo filtering, ranking, and pagination.
 	// Filters out deleted and hidden scenes, applies text search if query is provided,
 	// and ranks results by composite score (text + proximity + trust).
@@ -85,15 +85,15 @@ type SceneSearchOptions struct {
 
 // EventSearchOptions configures the search parameters for event queries.
 type EventSearchOptions struct {
-	MinLng      float64           // Bounding box min longitude
-	MinLat      float64           // Bounding box min latitude
-	MaxLng      float64           // Bounding box max longitude
-	MaxLat      float64           // Bounding box max latitude
-	From        time.Time         // Start of time window
-	To          time.Time         // End of time window
-	Query       string            // Text search query (optional)
-	Limit       int               // Max results per page
-	Cursor      string            // Pagination cursor
+	MinLng      float64            // Bounding box min longitude
+	MinLat      float64            // Bounding box min latitude
+	MaxLng      float64            // Bounding box max longitude
+	MaxLat      float64            // Bounding box max latitude
+	From        time.Time          // Start of time window
+	To          time.Time          // End of time window
+	Query       string             // Text search query (optional)
+	Limit       int                // Max results per page
+	Cursor      string             // Pagination cursor
 	TrustScores map[string]float64 // Map of sceneID -> trust score (optional, for ranking)
 }
 
@@ -118,7 +118,7 @@ type EventRepository interface {
 
 	// GetByRecordKey retrieves an event by its AT Protocol record key.
 	GetByRecordKey(did, rkey string) (*Event, error)
-	
+
 	// Cancel marks an event as cancelled with an optional reason.
 	// Sets status to "cancelled", stores cancelled_at timestamp, and cancellation_reason.
 	// Returns ErrEventNotFound if event doesn't exist.
@@ -154,7 +154,7 @@ type RSVPRepository interface {
 
 	// GetCountsByEvent returns aggregated RSVP counts by status for an event.
 	GetCountsByEvent(eventID string) (*RSVPCounts, error)
-	
+
 	// GetCountsForEvents returns a map of event IDs to their RSVP counts.
 	// This is a batch operation to avoid N+1 queries.
 	GetCountsForEvents(eventIDs []string) (map[string]*RSVPCounts, error)
@@ -266,7 +266,7 @@ func (r *InMemorySceneRepository) Upsert(scene *Scene) (*UpsertResult, error) {
 	if scene.RecordDID != nil && scene.RecordRKey != nil {
 		key := makeSceneKey(*scene.RecordDID, *scene.RecordRKey)
 		existingID, exists := r.keys[key]
-		
+
 		if exists {
 			// Update existing scene
 			sceneCopy.ID = existingID
@@ -622,7 +622,7 @@ func (r *InMemoryEventRepository) Upsert(event *Event) (*UpsertResult, error) {
 	if event.RecordDID != nil && event.RecordRKey != nil {
 		key := makeEventKey(*event.RecordDID, *event.RecordRKey)
 		existingID, exists := r.keys[key]
-		
+
 		if exists {
 			// Update existing event
 			eventCopy.ID = existingID
@@ -775,7 +775,7 @@ func (r *InMemoryEventRepository) SearchByBboxAndTime(minLng, minLat, maxLng, ma
 		for _, event := range results {
 			// Truncate event time to second precision for comparison
 			eventTime := event.StartsAt.Truncate(time.Second)
-			
+
 			// Skip events before cursor time
 			if eventTime.Before(cursorTime) {
 				continue
@@ -887,7 +887,7 @@ func (r *InMemoryEventRepository) SearchEvents(opts EventSearchOptions) ([]*Even
 		recencyWeight := CalculateRecencyWeight(event.StartsAt, now, windowSpan)
 		textMatchScore := CalculateTextMatchScore(event, opts.Query)
 		proximityScore := CalculateProximityScore(event, centerLat, centerLng)
-		
+
 		// Get trust score for the event's scene
 		trustScore := 0.0
 		if includeTrust {

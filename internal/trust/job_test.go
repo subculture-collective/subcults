@@ -37,7 +37,6 @@ func (s *slowDataSource) GetAlliancesByScene(sceneID string) ([]Alliance, error)
 	return s.ds.GetAlliancesByScene(sceneID)
 }
 
-
 func TestRecomputeJob_StartStop(t *testing.T) {
 	dataSource := NewInMemoryDataSource()
 	scoreStore := NewInMemoryScoreStore()

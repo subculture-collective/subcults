@@ -53,7 +53,6 @@
 // - not_found: Resource not found (404)
 // - bad_request: Malformed requests (400)
 // - auth_failed: Authentication required (401)
-//
 package api
 
 import (
@@ -75,7 +74,7 @@ import (
 // assertErrorResponse is a test helper that verifies error response structure and codes.
 func assertErrorResponse(t *testing.T, w *httptest.ResponseRecorder, wantStatus int, wantCode string) {
 	t.Helper()
-	
+
 	if w.Code != wantStatus {
 		t.Errorf("expected status %d, got %d: %s", wantStatus, w.Code, w.Body.String())
 	}
@@ -200,7 +199,7 @@ func TestCreateEvent_InvalidTimeWindow(t *testing.T) {
 			auditRepo := audit.NewInMemoryRepository()
 			rsvpRepo := scene.NewInMemoryRSVPRepository()
 			streamRepo := stream.NewInMemorySessionRepository()
-	handlers := NewEventHandlers(eventRepo, sceneRepo, auditRepo, rsvpRepo, streamRepo, nil)
+			handlers := NewEventHandlers(eventRepo, sceneRepo, auditRepo, rsvpRepo, streamRepo, nil)
 
 			// Create a scene first
 			testScene := &scene.Scene{
@@ -382,7 +381,7 @@ func TestCreateEvent_PrivacyEnforcement(t *testing.T) {
 	reqBody := CreateEventRequest{
 		SceneID:       testScene.ID,
 		Title:         "Private Event",
-		AllowPrecise:  false, // Privacy not consented
+		AllowPrecise:  false,                                     // Privacy not consented
 		PrecisePoint:  &scene.Point{Lat: 40.7128, Lng: -74.0060}, // Should be cleared
 		CoarseGeohash: "dr5regw",
 		StartsAt:      time.Now().Add(24 * time.Hour),
@@ -456,7 +455,7 @@ func TestCreateEvent_TitleValidation(t *testing.T) {
 			auditRepo := audit.NewInMemoryRepository()
 			rsvpRepo := scene.NewInMemoryRSVPRepository()
 			streamRepo := stream.NewInMemorySessionRepository()
-	handlers := NewEventHandlers(eventRepo, sceneRepo, auditRepo, rsvpRepo, streamRepo, nil)
+			handlers := NewEventHandlers(eventRepo, sceneRepo, auditRepo, rsvpRepo, streamRepo, nil)
 
 			// Create a scene first
 			testScene := &scene.Scene{
@@ -1741,4 +1740,3 @@ func TestEventValidation_ErrorStructure(t *testing.T) {
 		t.Errorf("expected error code '%s', got '%s'", ErrCodeValidation, errResp.Error.Code)
 	}
 }
-

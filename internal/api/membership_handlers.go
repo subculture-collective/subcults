@@ -158,7 +158,7 @@ func (h *MembershipHandlers) ApproveMembership(w http.ResponseWriter, r *http.Re
 		return
 	}
 	sceneID := pathParts[0]
-	
+
 	// URL decode the DID
 	targetUserDID, err := url.PathUnescape(pathParts[2])
 	if err != nil {
@@ -265,7 +265,7 @@ func (h *MembershipHandlers) RejectMembership(w http.ResponseWriter, r *http.Req
 		return
 	}
 	sceneID := pathParts[0]
-	
+
 	// URL decode the DID
 	targetUserDID, err := url.PathUnescape(pathParts[2])
 	if err != nil {

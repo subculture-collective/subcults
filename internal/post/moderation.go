@@ -63,11 +63,11 @@ type UserPreferences struct {
 // Returns a new slice containing only posts that should be visible to the user.
 //
 // Filtering rules:
-// - Posts with 'hidden' label are always excluded from public feeds/search
-// - Posts with 'nsfw' label are excluded unless user has ShowNSFW=true
-// - Posts with 'spam' or 'flagged' labels are excluded from search contexts
-//   (context parameter controls this; use includeModerated=false for search)
-// - Post owner always sees their own posts regardless of labels (requires viewerDID)
+//   - Posts with 'hidden' label are always excluded from public feeds/search
+//   - Posts with 'nsfw' label are excluded unless user has ShowNSFW=true
+//   - Posts with 'spam' or 'flagged' labels are excluded from search contexts
+//     (context parameter controls this; use includeModerated=false for search)
+//   - Post owner always sees their own posts regardless of labels (requires viewerDID)
 func FilterPostsForUser(posts []*Post, prefs *UserPreferences, viewerDID string, includeModerated bool) []*Post {
 	// Return empty slice for nil or empty input
 	if len(posts) == 0 {

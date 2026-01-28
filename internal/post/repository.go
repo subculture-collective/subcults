@@ -25,16 +25,16 @@ var (
 type Attachment struct {
 	// Legacy field for backward compatibility
 	URL string `json:"url,omitempty"`
-	
+
 	// New fields for enriched attachments
 	Key       string `json:"key,omitempty"`        // R2 object key (e.g., "posts/uuid/file.jpg")
 	Type      string `json:"type,omitempty"`       // MIME type (e.g., "image/jpeg")
 	SizeBytes int64  `json:"size_bytes,omitempty"` // File size in bytes
-	
+
 	// Image-specific metadata (populated for image/* types)
 	Width  *int `json:"width,omitempty"`  // Image width in pixels
 	Height *int `json:"height,omitempty"` // Image height in pixels
-	
+
 	// Audio-specific metadata (populated for audio/* types)
 	DurationSeconds *float64 `json:"duration_seconds,omitempty"` // Audio duration in seconds
 }
@@ -310,17 +310,17 @@ func (r *InMemoryPostRepository) ListByScene(sceneID string, limit int, cursor *
 		if post.DeletedAt != nil {
 			continue
 		}
-		
+
 		// Skip posts not in this scene
 		if post.SceneID == nil || *post.SceneID != sceneID {
 			continue
 		}
-		
+
 		// Skip hidden posts
 		if post.HasLabel(LabelHidden) {
 			continue
 		}
-		
+
 		// Apply cursor filter if provided
 		if cursor != nil {
 			// Skip posts that are newer or at/before the cursor position
@@ -331,7 +331,7 @@ func (r *InMemoryPostRepository) ListByScene(sceneID string, limit int, cursor *
 				continue
 			}
 		}
-		
+
 		candidates = append(candidates, post)
 	}
 
@@ -342,7 +342,7 @@ func (r *InMemoryPostRepository) ListByScene(sceneID string, limit int, cursor *
 	// Apply limit and determine next cursor
 	var results []*Post
 	var nextCursor *FeedCursor
-	
+
 	if len(candidates) > limit {
 		results = candidates[:limit]
 		// Next cursor points to the last returned post
@@ -378,17 +378,17 @@ func (r *InMemoryPostRepository) ListByEvent(eventID string, limit int, cursor *
 		if post.DeletedAt != nil {
 			continue
 		}
-		
+
 		// Skip posts not in this event
 		if post.EventID == nil || *post.EventID != eventID {
 			continue
 		}
-		
+
 		// Skip hidden posts
 		if post.HasLabel(LabelHidden) {
 			continue
 		}
-		
+
 		// Apply cursor filter if provided
 		if cursor != nil {
 			// Skip posts that are newer or at/before the cursor position
@@ -399,7 +399,7 @@ func (r *InMemoryPostRepository) ListByEvent(eventID string, limit int, cursor *
 				continue
 			}
 		}
-		
+
 		candidates = append(candidates, post)
 	}
 
@@ -409,7 +409,7 @@ func (r *InMemoryPostRepository) ListByEvent(eventID string, limit int, cursor *
 	// Apply limit and determine next cursor
 	var results []*Post
 	var nextCursor *FeedCursor
-	
+
 	if len(candidates) > limit {
 		results = candidates[:limit]
 		// Next cursor points to the last returned post

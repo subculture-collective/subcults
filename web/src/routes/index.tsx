@@ -35,90 +35,98 @@ const StreamingDemo = lazy(() =>
  * Router configuration
  * Routes are organized by access level and loading strategy
  */
-const router = createBrowserRouter([
+const router = createBrowserRouter(
+  [
+    {
+      path: '/',
+      element: <AppLayout />,
+      errorElement: (
+        <ErrorBoundary>
+          <NotFoundPage />
+        </ErrorBoundary>
+      ),
+      children: [
+        // Public routes
+        {
+          index: true,
+          element: <HomePage />,
+        },
+        {
+          path: 'scenes/:id',
+          element: <SceneDetailPage />,
+        },
+        {
+          path: 'events/:id',
+          element: <EventDetailPage />,
+        },
+        {
+          path: 'account/login',
+          element: <LoginPage />,
+        },
+        {
+          path: 'demo/streaming',
+          element: (
+            <Suspense fallback={<LoadingSkeleton />}>
+              <StreamingDemo />
+            </Suspense>
+          ),
+        },
+
+        // Protected routes (require authentication)
+        {
+          path: 'account',
+          element: (
+            <RequireAuth>
+              <AccountPage />
+            </RequireAuth>
+          ),
+        },
+        {
+          path: 'settings',
+          element: (
+            <RequireAuth>
+              <SettingsPage />
+            </RequireAuth>
+          ),
+        },
+        {
+          path: 'stream/:room',
+          element: (
+            <RequireAuth>
+              <Suspense fallback={<LoadingSkeleton />}>
+                <StreamPage />
+              </Suspense>
+            </RequireAuth>
+          ),
+        },
+
+        // Admin routes (require admin role)
+        {
+          path: 'admin',
+          element: (
+            <RequireAdmin>
+              <Suspense fallback={<LoadingSkeleton />}>
+                <AdminPage />
+              </Suspense>
+            </RequireAdmin>
+          ),
+        },
+
+        // 404 catch-all
+        {
+          path: '*',
+          element: <NotFoundPage />,
+        },
+      ],
+    },
+  ],
   {
-    path: '/',
-    element: <AppLayout />,
-    errorElement: (
-      <ErrorBoundary>
-        <NotFoundPage />
-      </ErrorBoundary>
-    ),
-    children: [
-      // Public routes
-      {
-        index: true,
-        element: <HomePage />,
-      },
-      {
-        path: 'scenes/:id',
-        element: <SceneDetailPage />,
-      },
-      {
-        path: 'events/:id',
-        element: <EventDetailPage />,
-      },
-      {
-        path: 'account/login',
-        element: <LoginPage />,
-      },
-      {
-        path: 'demo/streaming',
-        element: (
-          <Suspense fallback={<LoadingSkeleton />}>
-            <StreamingDemo />
-          </Suspense>
-        ),
-      },
-
-      // Protected routes (require authentication)
-      {
-        path: 'account',
-        element: (
-          <RequireAuth>
-            <AccountPage />
-          </RequireAuth>
-        ),
-      },
-      {
-        path: 'settings',
-        element: (
-          <RequireAuth>
-            <SettingsPage />
-          </RequireAuth>
-        ),
-      },
-      {
-        path: 'stream/:room',
-        element: (
-          <RequireAuth>
-            <Suspense fallback={<LoadingSkeleton />}>
-              <StreamPage />
-            </Suspense>
-          </RequireAuth>
-        ),
-      },
-
-      // Admin routes (require admin role)
-      {
-        path: 'admin',
-        element: (
-          <RequireAdmin>
-            <Suspense fallback={<LoadingSkeleton />}>
-              <AdminPage />
-            </Suspense>
-          </RequireAdmin>
-        ),
-      },
-
-      // 404 catch-all
-      {
-        path: '*',
-        element: <NotFoundPage />,
-      },
-    ],
-  },
-]);
+    future: {
+      v7_startTransition: true,
+      v7_relativeSplatPath: true,
+    },
+  }
+);
 
 /**
  * AppRouter Component

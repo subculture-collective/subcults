@@ -5,7 +5,7 @@
 
 import { describe, it, expect, beforeEach } from 'vitest';
 import { render, screen } from '@testing-library/react';
-import { MemoryRouter } from 'react-router-dom';
+import { createMemoryRouter, RouterProvider } from 'react-router-dom';
 import { AppLayout } from './AppLayout';
 import { authStore } from '../stores/authStore';
 
@@ -15,21 +15,43 @@ describe('AppLayout', () => {
   });
 
   it('renders header with logo', () => {
-    render(
-      <MemoryRouter>
-        <AppLayout />
-      </MemoryRouter>
+    const router = createMemoryRouter(
+      [
+        {
+          path: '/',
+          element: <AppLayout />,
+        },
+      ],
+      {
+        future: {
+          v7_startTransition: true,
+          v7_relativeSplatPath: true,
+        },
+      }
     );
+
+    render(<RouterProvider router={router} />);
 
     expect(screen.getByText('Subcults')).toBeInTheDocument();
   });
 
   it('renders skip-to-content link', () => {
-    render(
-      <MemoryRouter>
-        <AppLayout />
-      </MemoryRouter>
+    const router = createMemoryRouter(
+      [
+        {
+          path: '/',
+          element: <AppLayout />,
+        },
+      ],
+      {
+        future: {
+          v7_startTransition: true,
+          v7_relativeSplatPath: true,
+        },
+      }
     );
+
+    render(<RouterProvider router={router} />);
 
     const skipLink = screen.getByText('Skip to content');
     expect(skipLink).toBeInTheDocument();
@@ -37,11 +59,22 @@ describe('AppLayout', () => {
   });
 
   it('renders main content area with proper landmarks', () => {
-    const { container } = render(
-      <MemoryRouter>
-        <AppLayout />
-      </MemoryRouter>
+    const router = createMemoryRouter(
+      [
+        {
+          path: '/',
+          element: <AppLayout />,
+        },
+      ],
+      {
+        future: {
+          v7_startTransition: true,
+          v7_relativeSplatPath: true,
+        },
+      }
     );
+
+    const { container } = render(<RouterProvider router={router} />);
 
     // Check for semantic HTML elements
     expect(container.querySelector('header[role="banner"]')).toBeInTheDocument();
@@ -50,11 +83,22 @@ describe('AppLayout', () => {
   });
 
   it('shows login button when not authenticated', () => {
-    render(
-      <MemoryRouter>
-        <AppLayout />
-      </MemoryRouter>
+    const router = createMemoryRouter(
+      [
+        {
+          path: '/',
+          element: <AppLayout />,
+        },
+      ],
+      {
+        future: {
+          v7_startTransition: true,
+          v7_relativeSplatPath: true,
+        },
+      }
     );
+
+    render(<RouterProvider router={router} />);
 
     expect(screen.getByText('Login')).toBeInTheDocument();
   });
@@ -62,11 +106,22 @@ describe('AppLayout', () => {
   it('shows user info and logout when authenticated', () => {
     authStore.setUser({ did: 'did:example:test-user-12345', role: 'user' });
 
-    render(
-      <MemoryRouter>
-        <AppLayout />
-      </MemoryRouter>
+    const router = createMemoryRouter(
+      [
+        {
+          path: '/',
+          element: <AppLayout />,
+        },
+      ],
+      {
+        future: {
+          v7_startTransition: true,
+          v7_relativeSplatPath: true,
+        },
+      }
     );
+
+    render(<RouterProvider router={router} />);
 
     // DID is truncated with ellipsis in the UI
     expect(screen.getByText(/did:example:test-use/)).toBeInTheDocument();
@@ -76,11 +131,22 @@ describe('AppLayout', () => {
   it('shows admin link when user is admin', () => {
     authStore.setUser({ did: 'did:example:admin', role: 'admin' });
 
-    render(
-      <MemoryRouter>
-        <AppLayout />
-      </MemoryRouter>
+    const router = createMemoryRouter(
+      [
+        {
+          path: '/',
+          element: <AppLayout />,
+        },
+      ],
+      {
+        future: {
+          v7_startTransition: true,
+          v7_relativeSplatPath: true,
+        },
+      }
     );
+
+    render(<RouterProvider router={router} />);
 
     const adminLinks = screen.getAllByText('Admin');
     expect(adminLinks.length).toBeGreaterThan(0);
@@ -89,24 +155,44 @@ describe('AppLayout', () => {
   it('does not show admin link for regular users', () => {
     authStore.setUser({ did: 'did:example:user', role: 'user' });
 
-    render(
-      <MemoryRouter>
-        <AppLayout />
-      </MemoryRouter>
+    const router = createMemoryRouter(
+      [
+        {
+          path: '/',
+          element: <AppLayout />,
+        },
+      ],
+      {
+        future: {
+          v7_startTransition: true,
+          v7_relativeSplatPath: true,
+        },
+      }
     );
+
+    render(<RouterProvider router={router} />);
 
     expect(screen.queryByText('Admin')).not.toBeInTheDocument();
   });
 
   it('renders navigation with proper aria labels', () => {
-    render(
-      <MemoryRouter>
-        <AppLayout />
-      </MemoryRouter>
+    const router = createMemoryRouter(
+      [
+        {
+          path: '/',
+          element: <AppLayout />,
+        },
+      ],
+      {
+        future: {
+          v7_startTransition: true,
+          v7_relativeSplatPath: true,
+        },
+      }
     );
 
-    expect(
-      screen.getByRole('navigation', { name: 'Main navigation' })
-    ).toBeInTheDocument();
+    render(<RouterProvider router={router} />);
+
+    expect(screen.getByRole('navigation', { name: 'Main navigation' })).toBeInTheDocument();
   });
 });

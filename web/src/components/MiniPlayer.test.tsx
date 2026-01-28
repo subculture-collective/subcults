@@ -3,7 +3,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor, act } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MiniPlayer } from './MiniPlayer';
 import { useStreamingStore } from '../stores/streamingStore';
@@ -45,7 +45,7 @@ describe('MiniPlayer', () => {
       });
 
       render(<MiniPlayer />);
-      
+
       expect(screen.getByRole('region')).toBeInTheDocument();
     });
   });
@@ -60,14 +60,14 @@ describe('MiniPlayer', () => {
 
     it('should display room name', () => {
       render(<MiniPlayer />);
-      
+
       expect(screen.getByText('test-room')).toBeInTheDocument();
     });
 
     it('should display "Now Playing" label', () => {
       render(<MiniPlayer />);
-      
-      expect(screen.getByText('streaming.miniPlayer.nowPlaying')).toBeInTheDocument();
+
+      expect(screen.getByText('miniPlayer.nowPlaying')).toBeInTheDocument();
     });
   });
 
@@ -81,9 +81,9 @@ describe('MiniPlayer', () => {
 
     it('should render mute button', () => {
       render(<MiniPlayer />);
-      
+
       const muteButton = screen.getByRole('button', {
-        name: /streaming\.miniPlayer\.mute/i,
+        name: /miniPlayer\.mute/i,
       });
       expect(muteButton).toBeInTheDocument();
     });
@@ -93,16 +93,16 @@ describe('MiniPlayer', () => {
       useStreamingStore.setState({
         toggleMute,
       });
-      
+
       const user = userEvent.setup();
       render(<MiniPlayer />);
-      
+
       const muteButton = screen.getByRole('button', {
-        name: /streaming\.miniPlayer\.mute/i,
+        name: /miniPlayer\.mute/i,
       });
-      
+
       await user.click(muteButton);
-      
+
       expect(toggleMute).toHaveBeenCalledTimes(1);
     });
 
@@ -110,11 +110,11 @@ describe('MiniPlayer', () => {
       useStreamingStore.setState({
         isLocalMuted: true,
       });
-      
+
       render(<MiniPlayer />);
-      
+
       const muteButton = screen.getByRole('button', {
-        name: /streaming\.miniPlayer\.unmute/i,
+        name: /miniPlayer\.unmute/i,
       });
       expect(muteButton).toBeInTheDocument();
     });
@@ -124,12 +124,12 @@ describe('MiniPlayer', () => {
       useStreamingStore.setState({
         toggleMute,
       });
-      
+
       render(<MiniPlayer />);
-      
+
       const miniPlayer = screen.getByRole('region');
       fireEvent.keyDown(miniPlayer, { key: ' ' });
-      
+
       await waitFor(() => {
         expect(toggleMute).toHaveBeenCalled();
       });
@@ -147,9 +147,9 @@ describe('MiniPlayer', () => {
 
     it('should render volume button', () => {
       render(<MiniPlayer />);
-      
+
       const volumeButton = screen.getByRole('button', {
-        name: /streaming\.miniPlayer\.volumeControl/i,
+        name: /miniPlayer\.volumeControl/i,
       });
       expect(volumeButton).toBeInTheDocument();
     });
@@ -157,13 +157,13 @@ describe('MiniPlayer', () => {
     it('should show volume slider when volume button clicked', async () => {
       const user = userEvent.setup();
       render(<MiniPlayer />);
-      
+
       const volumeButton = screen.getByRole('button', {
-        name: /streaming\.miniPlayer\.volumeControl/i,
+        name: /miniPlayer\.volumeControl/i,
       });
-      
+
       await user.click(volumeButton);
-      
+
       const slider = screen.getByRole('slider');
       expect(slider).toBeInTheDocument();
     });
@@ -173,39 +173,39 @@ describe('MiniPlayer', () => {
       useStreamingStore.setState({
         setVolume,
       });
-      
+
       const user = userEvent.setup();
       render(<MiniPlayer />);
-      
+
       // Open volume slider
       const volumeButton = screen.getByRole('button', {
-        name: /streaming\.miniPlayer\.volumeControl/i,
+        name: /miniPlayer\.volumeControl/i,
       });
       await user.click(volumeButton);
-      
+
       // Change volume
       const slider = screen.getByRole('slider');
       fireEvent.change(slider, { target: { value: '50' } });
-      
+
       expect(setVolume).toHaveBeenCalledWith(50);
     });
 
     it('should close volume slider on escape key', async () => {
       const user = userEvent.setup();
       render(<MiniPlayer />);
-      
+
       // Open volume slider
       const volumeButton = screen.getByRole('button', {
-        name: /streaming\.miniPlayer\.volumeControl/i,
+        name: /miniPlayer\.volumeControl/i,
       });
       await user.click(volumeButton);
-      
+
       expect(screen.getByRole('slider')).toBeInTheDocument();
-      
+
       // Press escape
       const miniPlayer = screen.getByRole('region');
       fireEvent.keyDown(miniPlayer, { key: 'Escape' });
-      
+
       await waitFor(() => {
         expect(screen.queryByRole('slider')).not.toBeInTheDocument();
       });
@@ -213,11 +213,11 @@ describe('MiniPlayer', () => {
 
     it('should display correct volume icon based on level', () => {
       render(<MiniPlayer />);
-      
+
       const volumeButton = screen.getByRole('button', {
-        name: /streaming\.miniPlayer\.volumeControl/i,
+        name: /miniPlayer\.volumeControl/i,
       });
-      
+
       // Volume at 75 should show high volume icon
       expect(volumeButton.textContent).toContain('🔊');
     });
@@ -233,9 +233,9 @@ describe('MiniPlayer', () => {
 
     it('should render leave button', () => {
       render(<MiniPlayer />);
-      
+
       const leaveButton = screen.getByRole('button', {
-        name: /streaming\.miniPlayer\.leave/i,
+        name: /miniPlayer\.leave/i,
       });
       expect(leaveButton).toBeInTheDocument();
     });
@@ -245,16 +245,16 @@ describe('MiniPlayer', () => {
       useStreamingStore.setState({
         disconnect,
       });
-      
+
       const user = userEvent.setup();
       render(<MiniPlayer />);
-      
+
       const leaveButton = screen.getByRole('button', {
-        name: /streaming\.miniPlayer\.leave/i,
+        name: /miniPlayer\.leave/i,
       });
-      
+
       await user.click(leaveButton);
-      
+
       expect(disconnect).toHaveBeenCalledTimes(1);
     });
   });
@@ -269,23 +269,21 @@ describe('MiniPlayer', () => {
 
     it('should display connection quality indicator', () => {
       render(<MiniPlayer />);
-      
-      const indicator = screen.getByLabelText(
-        /streaming\.miniPlayer\.quality/i
-      );
+
+      const indicator = screen.getByLabelText(/miniPlayer\.quality/i);
       expect(indicator).toBeInTheDocument();
     });
 
     it('should change color based on connection quality', () => {
       const { rerender } = render(<MiniPlayer />);
-      
-      // Good quality
-      useStreamingStore.setState({ connectionQuality: 'good' });
+
+      // Good quality - wrap state update in act
+      act(() => {
+        useStreamingStore.setState({ connectionQuality: 'good' });
+      });
       rerender(<MiniPlayer />);
-      
-      const indicator = screen.getByLabelText(
-        /streaming\.miniPlayer\.quality\.good/i
-      );
+
+      const indicator = screen.getByLabelText(/miniPlayer\.quality\.good/i);
       expect(indicator).toHaveStyle({ backgroundColor: '#f59e0b' });
     });
   });
@@ -301,23 +299,20 @@ describe('MiniPlayer', () => {
 
     it('should have proper ARIA labels', () => {
       render(<MiniPlayer />);
-      
-      expect(screen.getByRole('region')).toHaveAttribute(
-        'aria-label',
-        'streaming.miniPlayer.label'
-      );
+
+      expect(screen.getByRole('region')).toHaveAttribute('aria-label', 'miniPlayer.label');
     });
 
     it('should have accessible volume slider', async () => {
       const user = userEvent.setup();
       render(<MiniPlayer />);
-      
+
       // Open volume slider
       const volumeButton = screen.getByRole('button', {
-        name: /streaming\.miniPlayer\.volumeControl/i,
+        name: /miniPlayer\.volumeControl/i,
       });
       await user.click(volumeButton);
-      
+
       const slider = screen.getByRole('slider');
       expect(slider).toHaveAttribute('aria-valuemin', '0');
       expect(slider).toHaveAttribute('aria-valuemax', '100');
@@ -327,10 +322,10 @@ describe('MiniPlayer', () => {
 
     it('should have keyboard navigation support', () => {
       render(<MiniPlayer />);
-      
+
       const miniPlayer = screen.getByRole('region');
       expect(miniPlayer).toBeInTheDocument();
-      
+
       // Test keyboard event handling
       fireEvent.keyDown(miniPlayer, { key: ' ' });
       // Should not throw
@@ -343,12 +338,12 @@ describe('MiniPlayer', () => {
         isConnected: true,
         roomName: 'test-room',
       });
-      
+
       const { rerender } = render(<MiniPlayer />);
-      
+
       // Simulate route change by rerendering
       rerender(<MiniPlayer />);
-      
+
       expect(screen.getByRole('region')).toBeInTheDocument();
       expect(screen.getByText('test-room')).toBeInTheDocument();
     });

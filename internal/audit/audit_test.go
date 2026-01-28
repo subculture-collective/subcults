@@ -56,7 +56,7 @@ func TestInMemoryRepository_LogAccess(t *testing.T) {
 	if log.CreatedAt.IsZero() {
 		t.Error("LogAccess() should set CreatedAt timestamp")
 	}
-	
+
 	// Verify timestamp is recent (within last 5 seconds)
 	if time.Since(log.CreatedAt) > 5*time.Second {
 		t.Error("LogAccess() CreatedAt should be recent")
@@ -243,18 +243,18 @@ func TestInMemoryRepository_QueryByUser_NoResults(t *testing.T) {
 
 func TestLogAccess_WithContext(t *testing.T) {
 	repo := NewInMemoryRepository()
-	
+
 	// Create a test HTTP request to set request ID properly through middleware
 	req := httptest.NewRequest(http.MethodGet, "/test", nil)
 	req.Header.Set(middleware.RequestIDHeader, "req-789")
-	
+
 	// Run through middleware to set request ID in context
 	var ctx context.Context
 	handler := middleware.RequestID(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		ctx = r.Context()
 	}))
 	handler.ServeHTTP(httptest.NewRecorder(), req)
-	
+
 	// Set user DID in context
 	ctx = middleware.SetUserDID(ctx, "did:web:test.com:user123")
 
@@ -299,7 +299,7 @@ func TestLogAccessFromRequest(t *testing.T) {
 	req.Header.Set("User-Agent", "TestAgent/1.0")
 	req.Header.Set(middleware.RequestIDHeader, "req-abc")
 	req.RemoteAddr = "192.168.1.100:12345"
-	
+
 	// Run through middleware to set request ID in context
 	handler := middleware.RequestID(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// Set user DID in context
@@ -346,7 +346,7 @@ func TestLogAccessFromRequest_WithXForwardedFor(t *testing.T) {
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/scenes/scene-123", nil)
 	req.Header.Set("X-Forwarded-For", "203.0.113.195, 198.51.100.178, 192.0.2.1")
 	req.RemoteAddr = "192.168.1.100:12345"
-	
+
 	ctx := middleware.SetUserDID(req.Context(), "did:web:test.com:user789")
 	req = req.WithContext(ctx)
 
@@ -378,7 +378,7 @@ func TestLogAccessFromRequest_WithEmptyXForwardedFor(t *testing.T) {
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/scenes/scene-456", nil)
 	req.Header.Set("X-Forwarded-For", "  ,  ")
 	req.RemoteAddr = "192.168.1.100:12345"
-	
+
 	ctx := middleware.SetUserDID(req.Context(), "did:web:test.com:user789")
 	req = req.WithContext(ctx)
 
@@ -410,7 +410,7 @@ func TestLogAccessFromRequest_WithXRealIP(t *testing.T) {
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/scenes/scene-789", nil)
 	req.Header.Set("X-Real-IP", "198.51.100.50")
 	req.RemoteAddr = "192.168.1.100:12345"
-	
+
 	ctx := middleware.SetUserDID(req.Context(), "did:web:test.com:user999")
 	req = req.WithContext(ctx)
 
@@ -442,7 +442,7 @@ func TestLogAccessFromRequest_WithXRealIPAndPort(t *testing.T) {
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/scenes/scene-890", nil)
 	req.Header.Set("X-Real-IP", "198.51.100.60:8080")
 	req.RemoteAddr = "192.168.1.100:12345"
-	
+
 	ctx := middleware.SetUserDID(req.Context(), "did:web:test.com:user1000")
 	req = req.WithContext(ctx)
 
@@ -474,7 +474,7 @@ func TestLogAccessFromRequest_WithXForwardedForAndPort(t *testing.T) {
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/scenes/scene-891", nil)
 	req.Header.Set("X-Forwarded-For", "203.0.113.200:9000, 198.51.100.178")
 	req.RemoteAddr = "192.168.1.100:12345"
-	
+
 	ctx := middleware.SetUserDID(req.Context(), "did:web:test.com:user1001")
 	req = req.WithContext(ctx)
 
@@ -501,7 +501,7 @@ func TestLogAccessFromRequest_WithXForwardedForAndPort(t *testing.T) {
 
 func TestInMemoryRepository_ThreadSafety(t *testing.T) {
 	repo := NewInMemoryRepository()
-	
+
 	// Run concurrent LogAccess operations
 	done := make(chan bool)
 	for i := 0; i < 10; i++ {
@@ -538,7 +538,7 @@ func TestInMemoryRepository_ThreadSafety(t *testing.T) {
 
 func TestLogAccess_NilRepository(t *testing.T) {
 	ctx := context.Background()
-	
+
 	err := LogAccess(ctx, nil, "scene", "scene-123", "access_precise_location")
 	if err != ErrNilRepository {
 		t.Errorf("LogAccess() with nil repo error = %v, want %v", err, ErrNilRepository)
@@ -547,7 +547,7 @@ func TestLogAccess_NilRepository(t *testing.T) {
 
 func TestLogAccessFromRequest_NilRepository(t *testing.T) {
 	req := httptest.NewRequest(http.MethodGet, "/test", nil)
-	
+
 	err := LogAccessFromRequest(req, nil, "scene", "scene-123", "access_precise_location")
 	if err != ErrNilRepository {
 		t.Errorf("LogAccessFromRequest() with nil repo error = %v, want %v", err, ErrNilRepository)
@@ -557,7 +557,7 @@ func TestLogAccessFromRequest_NilRepository(t *testing.T) {
 func TestLogAccess_EmptyEntityType(t *testing.T) {
 	repo := NewInMemoryRepository()
 	ctx := context.Background()
-	
+
 	err := LogAccess(ctx, repo, "", "scene-123", "access_precise_location")
 	if err != ErrInvalidEntityType {
 		t.Errorf("LogAccess() with empty entityType error = %v, want %v", err, ErrInvalidEntityType)
@@ -567,7 +567,7 @@ func TestLogAccess_EmptyEntityType(t *testing.T) {
 func TestLogAccess_InvalidEntityType(t *testing.T) {
 	repo := NewInMemoryRepository()
 	ctx := context.Background()
-	
+
 	err := LogAccess(ctx, repo, "invalid_type", "scene-123", "access_precise_location")
 	if err != ErrInvalidEntityType {
 		t.Errorf("LogAccess() with invalid entityType error = %v, want %v", err, ErrInvalidEntityType)
@@ -577,7 +577,7 @@ func TestLogAccess_InvalidEntityType(t *testing.T) {
 func TestLogAccess_EmptyEntityID(t *testing.T) {
 	repo := NewInMemoryRepository()
 	ctx := context.Background()
-	
+
 	err := LogAccess(ctx, repo, "scene", "", "access_precise_location")
 	if err != ErrInvalidEntityID {
 		t.Errorf("LogAccess() with empty entityID error = %v, want %v", err, ErrInvalidEntityID)
@@ -587,7 +587,7 @@ func TestLogAccess_EmptyEntityID(t *testing.T) {
 func TestLogAccess_EmptyAction(t *testing.T) {
 	repo := NewInMemoryRepository()
 	ctx := context.Background()
-	
+
 	err := LogAccess(ctx, repo, "scene", "scene-123", "")
 	if err != ErrInvalidAction {
 		t.Errorf("LogAccess() with empty action error = %v, want %v", err, ErrInvalidAction)
@@ -597,7 +597,7 @@ func TestLogAccess_EmptyAction(t *testing.T) {
 func TestLogAccess_InvalidAction(t *testing.T) {
 	repo := NewInMemoryRepository()
 	ctx := context.Background()
-	
+
 	err := LogAccess(ctx, repo, "scene", "scene-123", "invalid_action")
 	if err != ErrInvalidAction {
 		t.Errorf("LogAccess() with invalid action error = %v, want %v", err, ErrInvalidAction)
@@ -607,7 +607,7 @@ func TestLogAccess_InvalidAction(t *testing.T) {
 func TestLogAccessFromRequest_ValidationErrors(t *testing.T) {
 	repo := NewInMemoryRepository()
 	req := httptest.NewRequest(http.MethodGet, "/test", nil)
-	
+
 	tests := []struct {
 		name       string
 		entityType string
@@ -651,7 +651,7 @@ func TestLogAccessFromRequest_ValidationErrors(t *testing.T) {
 			wantErr:    ErrInvalidAction,
 		},
 	}
-	
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			err := LogAccessFromRequest(req, repo, tt.entityType, tt.entityID, tt.action)

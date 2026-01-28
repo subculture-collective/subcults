@@ -25,12 +25,7 @@ export class ApiClientError extends Error {
   public code: string;
   public retryCount: number;
 
-  constructor(
-    status: number,
-    code: string,
-    message: string,
-    retryCount: number = 0
-  ) {
+  constructor(status: number, code: string, message: string, retryCount: number = 0) {
     super(message);
     this.name = 'ApiClientError';
     this.status = status;
@@ -110,10 +105,10 @@ function calculateDelay(attempt: number): number {
     RETRY_CONFIG.initialDelay * Math.pow(2, attempt),
     RETRY_CONFIG.maxDelay
   );
-  
+
   // Add random jitter to prevent thundering herd
   const jitter = exponentialDelay * RETRY_CONFIG.jitterFactor * (Math.random() - 0.5) * 2;
-  
+
   return Math.max(0, exponentialDelay + jitter);
 }
 
@@ -121,7 +116,7 @@ function calculateDelay(attempt: number): number {
  * Sleep utility for retry delays
  */
 function sleep(ms: number): Promise<void> {
-  return new Promise(resolve => setTimeout(resolve, ms));
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 /**
@@ -152,20 +147,17 @@ class ApiClient {
    * Automatically adds Authorization header, handles 401 with token refresh,
    * implements retry logic for idempotent methods, and emits telemetry events
    */
-  async request<T>(
-    endpoint: string,
-    options: RequestConfig = {}
-  ): Promise<T> {
+  async request<T>(endpoint: string, options: RequestConfig = {}): Promise<T> {
     if (!this.config) {
       throw new Error('ApiClient not initialized. Call initialize() first.');
     }
 
-    const { 
-      skipAuth, 
-      skipRetry, 
+    const {
+      skipAuth,
+      skipRetry,
       timeout = DEFAULT_TIMEOUT,
       skipAutoRetry = false,
-      ...fetchOptions 
+      ...fetchOptions
     } = options;
 
     const method = fetchOptions.method?.toUpperCase() || 'GET';
@@ -237,11 +229,7 @@ class ApiClient {
           }
 
           // Determine if we should retry
-          const shouldRetryRequest = shouldRetry(
-            lastError.status,
-            method,
-            skipAutoRetry
-          );
+          const shouldRetryRequest = shouldRetry(lastError.status, method, skipAutoRetry);
 
           // Don't retry on last attempt
           if (!shouldRetryRequest || attempt === RETRY_CONFIG.maxAttempts - 1) {
@@ -292,14 +280,14 @@ class ApiClient {
     skipAuth: boolean | undefined,
     skipRetry: boolean | undefined,
     signal: AbortSignal
-  ): Promise<{ data: any; status: number }> {
+  ): Promise<{ data: Record<string, unknown> | string | object; status: number }> {
     if (!this.config) {
       throw new Error('ApiClient not initialized');
     }
 
     // Prepare headers
     const headers = new Headers(fetchOptions.headers);
-    
+
     // Add Authorization header if not skipped and token exists
     if (!skipAuth) {
       const token = this.config.getAccessToken();
@@ -353,7 +341,7 @@ class ApiClient {
 
     // Parse response
     const contentType = response.headers.get('content-type');
-    let data: any;
+    let data: Record<string, unknown> | string | object;
 
     if (contentType?.includes('application/json')) {
       data = await response.json();
@@ -401,7 +389,7 @@ class ApiClient {
 
     try {
       const newToken = await this.refreshPromise;
-      
+
       // Clear refresh promise on success or failure
       this.refreshPromise = null;
 
@@ -415,13 +403,13 @@ class ApiClient {
       // Catch any errors during refresh (network failures, etc.)
       // Log error for debugging while maintaining user experience
       console.warn('[apiClient] Token refresh failed:', error);
-      
+
       // Clear refresh promise on error
       this.refreshPromise = null;
-      
+
       // Notify the app of unauthorized state
       this.config.onUnauthorized();
-      
+
       return null;
     }
   }
@@ -431,7 +419,7 @@ class ApiClient {
    */
   private async parseError(response: Response): Promise<ApiError> {
     const contentType = response.headers.get('content-type');
-    
+
     if (contentType?.includes('application/json')) {
       try {
         const body = await response.json();
@@ -515,11 +503,7 @@ class ApiClient {
    * @returns Promise resolving to array of scenes matching the query
    * @note Results respect visibility settings and location privacy. Private scenes are excluded.
    */
-  async searchScenes(
-    query: string,
-    limit: number = 10,
-    signal?: AbortSignal
-  ): Promise<Scene[]> {
+  async searchScenes(query: string, limit: number = 10, signal?: AbortSignal): Promise<Scene[]> {
     return this.get(`/search/scenes?q=${encodeURIComponent(query)}&limit=${limit}`, {
       signal,
       skipAutoRetry: true, // Don't retry searches
@@ -534,11 +518,7 @@ class ApiClient {
    * @returns Promise resolving to array of events matching the query
    * @note Results respect visibility settings and location privacy. Private events are excluded.
    */
-  async searchEvents(
-    query: string,
-    limit: number = 10,
-    signal?: AbortSignal
-  ): Promise<Event[]> {
+  async searchEvents(query: string, limit: number = 10, signal?: AbortSignal): Promise<Event[]> {
     return this.get(`/search/events?q=${encodeURIComponent(query)}&limit=${limit}`, {
       signal,
       skipAutoRetry: true, // Don't retry searches
@@ -553,11 +533,7 @@ class ApiClient {
    * @returns Promise resolving to array of posts matching the query
    * @note Results respect visibility settings and location privacy. Private posts are excluded.
    */
-  async searchPosts(
-    query: string,
-    limit: number = 10,
-    signal?: AbortSignal
-  ): Promise<Post[]> {
+  async searchPosts(query: string, limit: number = 10, signal?: AbortSignal): Promise<Post[]> {
     return this.get(`/search/posts?q=${encodeURIComponent(query)}&limit=${limit}`, {
       signal,
       skipAutoRetry: true, // Don't retry searches

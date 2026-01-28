@@ -24,7 +24,7 @@ export interface UseEventsResult {
  * Provides derived data like upcoming events count
  */
 export function useEvents(options: UseEventsOptions = {}): UseEventsResult {
-  const { filterByScene, sortBy = 'name', includeLoading = false } = options;
+  const { filterByScene, includeLoading = false } = options;
 
   const cachedEvents = useEntityStore((state) => state.event.events);
 
@@ -34,7 +34,7 @@ export function useEvents(options: UseEventsOptions = {}): UseEventsResult {
       .filter((cached) => {
         // Skip loading entries unless explicitly requested
         if (!includeLoading && cached.metadata.loading) return false;
-        
+
         // Skip entries with errors or no data
         if (cached.metadata.error || !cached.data.id) return false;
 
@@ -77,7 +77,7 @@ export function useEvents(options: UseEventsOptions = {}): UseEventsResult {
  */
 export function useSceneEvents(sceneId: string | undefined): UseEventsResult {
   const result = useEvents({ filterByScene: sceneId });
-  
+
   // Return empty results if sceneId is undefined
   if (!sceneId) {
     return {
@@ -86,7 +86,7 @@ export function useSceneEvents(sceneId: string | undefined): UseEventsResult {
       loading: false,
     };
   }
-  
+
   return result;
 }
 

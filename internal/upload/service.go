@@ -53,21 +53,21 @@ type SignedURLResponse struct {
 
 // Service handles generating signed URLs for R2 uploads.
 type Service struct {
-	s3Client       *s3.Client
-	presignClient  *s3.PresignClient
-	bucketName     string
-	maxSizeBytes   int64
-	urlExpiry      time.Duration
-	timeNow        func() time.Time // For testability
+	s3Client      *s3.Client
+	presignClient *s3.PresignClient
+	bucketName    string
+	maxSizeBytes  int64
+	urlExpiry     time.Duration
+	timeNow       func() time.Time // For testability
 }
 
 // ServiceConfig holds configuration for the upload service.
 type ServiceConfig struct {
-	BucketName      string
-	AccessKeyID     string
-	SecretAccessKey string
-	Endpoint        string
-	MaxSizeMB       int
+	BucketName       string
+	AccessKeyID      string
+	SecretAccessKey  string
+	Endpoint         string
+	MaxSizeMB        int
 	URLExpiryMinutes int // Default: 5 minutes
 }
 
@@ -220,10 +220,10 @@ func (s *Service) GenerateSignedURL(ctx context.Context, req SignedURLRequest) (
 // GetS3Client returns the S3 client used by the service.
 // This can be used by other services that need to interact with R2.
 func (s *Service) GetS3Client() *s3.Client {
-return s.s3Client
+	return s.s3Client
 }
 
 // GetBucketName returns the bucket name used by the service.
 func (s *Service) GetBucketName() string {
-return s.bucketName
+	return s.bucketName
 }

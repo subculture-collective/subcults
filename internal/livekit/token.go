@@ -20,16 +20,16 @@ const (
 var (
 	// ErrInvalidExpiry is returned when token expiry is outside valid bounds.
 	ErrInvalidExpiry = errors.New("token expiry must be between 1 and 15 minutes")
-	
+
 	// ErrMissingAPIKey is returned when API key is empty.
 	ErrMissingAPIKey = errors.New("livekit API key is required")
-	
+
 	// ErrMissingAPISecret is returned when API secret is empty.
 	ErrMissingAPISecret = errors.New("livekit API secret is required")
-	
+
 	// ErrMissingRoomName is returned when room name is empty.
 	ErrMissingRoomName = errors.New("room name is required")
-	
+
 	// ErrMissingIdentity is returned when identity is empty.
 	ErrMissingIdentity = errors.New("participant identity is required")
 )
@@ -48,7 +48,7 @@ func NewTokenService(apiKey, apiSecret string) (*TokenService, error) {
 	if apiSecret == "" {
 		return nil, ErrMissingAPISecret
 	}
-	
+
 	return &TokenService{
 		apiKey:    apiKey,
 		apiSecret: apiSecret,
@@ -79,21 +79,21 @@ func (s *TokenService) GenerateToken(req *TokenRequest) (*TokenResponse, error) 
 	if req.Identity == "" {
 		return nil, ErrMissingIdentity
 	}
-	
+
 	// Use default expiry if not specified
 	expiry := req.Expiry
 	if expiry == 0 {
 		expiry = DefaultTokenExpiry
 	}
-	
+
 	// Validate expiry bounds
 	if expiry < MinTokenExpiry || expiry > MaxTokenExpiry {
 		return nil, ErrInvalidExpiry
 	}
-	
+
 	// Calculate expiration time
 	expiresAt := time.Now().Add(expiry)
-	
+
 	// Create LiveKit access token using the auth package
 	at := auth.NewAccessToken(s.apiKey, s.apiSecret)
 	at.SetIdentity(req.Identity)
@@ -102,7 +102,7 @@ func (s *TokenService) GenerateToken(req *TokenRequest) (*TokenResponse, error) 
 		Room:     req.RoomName,
 	})
 	at.SetValidFor(expiry)
-	
+
 	// Add metadata if provided
 	if req.Metadata != nil && len(req.Metadata) > 0 {
 		// Convert metadata map to string for the token
@@ -110,13 +110,13 @@ func (s *TokenService) GenerateToken(req *TokenRequest) (*TokenResponse, error) 
 		metadataStr := formatMetadata(req.Metadata)
 		at.SetMetadata(metadataStr)
 	}
-	
+
 	// Generate the signed JWT token
 	token, err := at.ToJWT()
 	if err != nil {
 		return nil, fmt.Errorf("failed to generate token: %w", err)
 	}
-	
+
 	return &TokenResponse{
 		Token:     token,
 		ExpiresAt: expiresAt.UTC(),

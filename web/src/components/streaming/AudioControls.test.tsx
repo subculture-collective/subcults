@@ -7,6 +7,13 @@ import { render, screen, fireEvent } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { AudioControls } from './AudioControls';
 
+// Mock i18next
+vi.mock('react-i18next', () => ({
+  useTranslation: () => ({
+    t: (key: string) => key,
+  }),
+}));
+
 describe('AudioControls', () => {
   const defaultProps = {
     isMuted: false,
@@ -19,7 +26,7 @@ describe('AudioControls', () => {
     render(<AudioControls {...defaultProps} />);
 
     const muteButton = screen.getByRole('button', {
-      name: /streaming\.audioControls\.mute/i,
+      name: /audioControls\.mute/i,
     });
     expect(muteButton).toBeInTheDocument();
     expect(muteButton).not.toBeDisabled();
@@ -29,7 +36,7 @@ describe('AudioControls', () => {
     render(<AudioControls {...defaultProps} isMuted={true} />);
 
     const muteButton = screen.getByRole('button', {
-      name: /streaming\.audioControls\.unmute/i,
+      name: /audioControls\.unmute/i,
     });
     expect(muteButton).toBeInTheDocument();
   });
@@ -41,7 +48,7 @@ describe('AudioControls', () => {
     render(<AudioControls {...defaultProps} onToggleMute={onToggleMute} />);
 
     const muteButton = screen.getByRole('button', {
-      name: /streaming\.audioControls\.mute/i,
+      name: /audioControls\.mute/i,
     });
     await user.click(muteButton);
 
@@ -51,7 +58,7 @@ describe('AudioControls', () => {
   it('renders volume control button', () => {
     render(<AudioControls {...defaultProps} />);
 
-    const volumeButton = screen.getByRole('button', { name: /streaming\.audioControls\.volumeControl/i });
+    const volumeButton = screen.getByRole('button', { name: /audioControls\.volumeControl/i });
     expect(volumeButton).toBeInTheDocument();
   });
 
@@ -60,7 +67,7 @@ describe('AudioControls', () => {
 
     render(<AudioControls {...defaultProps} />);
 
-    const volumeButton = screen.getByRole('button', { name: /streaming\.audioControls\.volumeControl/i });
+    const volumeButton = screen.getByRole('button', { name: /audioControls\.volumeControl/i });
     await user.click(volumeButton);
 
     const slider = screen.getByRole('slider', { name: /volume slider/i });
@@ -74,7 +81,7 @@ describe('AudioControls', () => {
     render(<AudioControls {...defaultProps} onVolumeChange={onVolumeChange} />);
 
     // Open volume slider
-    const volumeButton = screen.getByRole('button', { name: /streaming\.audioControls\.volumeControl/i });
+    const volumeButton = screen.getByRole('button', { name: /audioControls\.volumeControl/i });
     await user.click(volumeButton);
 
     // Change volume using fireEvent for React synthetic events
@@ -87,7 +94,7 @@ describe('AudioControls', () => {
   it('renders leave button', () => {
     render(<AudioControls {...defaultProps} />);
 
-    const leaveButton = screen.getByRole('button', { name: /streaming\.audioControls\.leaveRoom/i });
+    const leaveButton = screen.getByRole('button', { name: /audioControls\.leaveRoom/i });
     expect(leaveButton).toBeInTheDocument();
   });
 
@@ -97,7 +104,7 @@ describe('AudioControls', () => {
 
     render(<AudioControls {...defaultProps} onLeave={onLeave} />);
 
-    const leaveButton = screen.getByRole('button', { name: /streaming\.audioControls\.leaveRoom/i });
+    const leaveButton = screen.getByRole('button', { name: /audioControls\.leaveRoom/i });
     await user.click(leaveButton);
 
     expect(onLeave).toHaveBeenCalledTimes(1);
@@ -107,10 +114,10 @@ describe('AudioControls', () => {
     render(<AudioControls {...defaultProps} disabled={true} />);
 
     const muteButton = screen.getByRole('button', {
-      name: /streaming\.audioControls\.mute/i,
+      name: /audioControls\.mute/i,
     });
-    const volumeButton = screen.getByRole('button', { name: /streaming\.audioControls\.volumeControl/i });
-    const leaveButton = screen.getByRole('button', { name: /streaming\.audioControls\.leaveRoom/i });
+    const volumeButton = screen.getByRole('button', { name: /audioControls\.volumeControl/i });
+    const leaveButton = screen.getByRole('button', { name: /audioControls\.leaveRoom/i });
 
     expect(muteButton).toBeDisabled();
     expect(volumeButton).toBeDisabled();

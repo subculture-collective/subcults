@@ -8,11 +8,11 @@ import (
 
 // Metrics names as constants for consistency.
 const (
-	MetricMessagesProcessed  = "indexer_messages_processed_total"
-	MetricMessagesError      = "indexer_messages_error_total"
-	MetricUpserts            = "indexer_upserts_total"
-	MetricTrustRecompute     = "indexer_trust_recompute_total"
-	MetricIngestLatency      = "indexer_ingest_latency_seconds"
+	MetricMessagesProcessed = "indexer_messages_processed_total"
+	MetricMessagesError     = "indexer_messages_error_total"
+	MetricUpserts           = "indexer_upserts_total"
+	MetricTrustRecompute    = "indexer_trust_recompute_total"
+	MetricIngestLatency     = "indexer_ingest_latency_seconds"
 )
 
 // Metrics contains Prometheus metrics for the indexer.

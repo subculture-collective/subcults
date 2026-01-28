@@ -58,18 +58,17 @@ const RETRY_CONFIG = {
  * Assumes the timer will complete - safe because only used within try-catch blocks.
  */
 const sleep = (ms: number): Promise<void> => {
-  return new Promise(resolve => setTimeout(resolve, ms));
+  return new Promise((resolve) => setTimeout(resolve, ms));
 };
 
 /**
  * Refresh access token using refresh token (stored in httpOnly cookie)
  * Implements exponential backoff for transient failures
  */
-const refreshAccessToken = async (
-  retryCount = 0
-): Promise<string | null> => {
+const refreshAccessToken = async (retryCount = 0): Promise<string | null> => {
   try {
     // Call refresh endpoint (refresh token sent automatically via httpOnly cookie)
+    // In development, Vite's proxy forwards /api to localhost:8080
     const response = await fetch('/api/auth/refresh', {
       method: 'POST',
       credentials: 'include', // Include cookies
@@ -103,16 +102,16 @@ const refreshAccessToken = async (
     }
 
     const data = await response.json();
-    
+
     // Update access token in memory
     authState.accessToken = data.accessToken;
     authState.user = data.user;
     authState.isAuthenticated = true;
     authState.isAdmin = data.user.role === 'admin';
     authState.isLoading = false;
-    
+
     notifyListeners();
-    
+
     return data.accessToken;
   } catch (error) {
     // Retry on network errors
@@ -142,14 +141,14 @@ const handleUnauthorized = (): void => {
     isLoading: false,
     accessToken: null,
   };
-  
+
   notifyListeners();
-  
+
   // Broadcast logout to other tabs
   if (logoutChannel) {
     logoutChannel.postMessage({ type: 'logout' });
   }
-  
+
   // Redirect to login if not already there
   // Note: Uses window.location.href for forced logout (full page reload)
   // to ensure complete state cleanup, though this breaks SPA navigation
@@ -170,8 +169,12 @@ const notifyListeners = (): void => {
  * Separated to avoid circular dependency issues with module-level initialization.
  */
 const initializeApiClient = (): void => {
+  // In development, point to the API server running on port 8080
+  // In production, use relative path /api which will be proxied or served as a subpath
+  const baseURL = import.meta.env.DEV ? 'http://localhost:8080/api' : '/api';
+
   apiClient.initialize({
-    baseURL: '/api',
+    baseURL,
     getAccessToken: () => authState.accessToken,
     refreshToken: refreshAccessToken,
     onUnauthorized: handleUnauthorized,
@@ -196,7 +199,7 @@ if (logoutChannel) {
           accessToken: null,
         };
         notifyListeners();
-        
+
         // Redirect to login if not already there
         // Note: Uses window.location.href for forced logout (full page reload)
         // to ensure complete state cleanup, though this breaks SPA navigation
@@ -220,10 +223,10 @@ export const authStore = {
 
   /**
    * Set user and access token (called after successful login).
-   * 
+   *
    * Note: This replaces the previous setUser(user | null) signature.
    * To clear auth state, use logout() instead of setUser(null).
-   * 
+   *
    * @param user - The authenticated user object
    * @param accessToken - The access token received from login
    */
@@ -278,7 +281,7 @@ export const authStore = {
     try {
       // Try to refresh token to check if we have a valid session
       const token = await refreshAccessToken();
-      
+
       if (!token) {
         // No valid session
         authState.isLoading = false;

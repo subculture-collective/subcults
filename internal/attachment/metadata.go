@@ -109,7 +109,7 @@ func (s *MetadataService) EnrichAttachment(ctx context.Context, key string) (*po
 }
 
 // processImage fetches the image, strips EXIF, extracts dimensions, and re-uploads sanitized version.
-// 
+//
 // This method performs the following steps:
 // 1. Downloads image from R2
 // 2. Extracts dimensions from original image (preserves actual upload dimensions)
@@ -156,7 +156,7 @@ func (s *MetadataService) processImage(ctx context.Context, key string, attachme
 	// and avoids unnecessary format changes that could degrade quality
 	config := image.DefaultConfig()
 	config.OutputFormat = determineOutputFormat(attachment.Type, metadata.Type)
-	
+
 	sanitizedBytes, err := image.ProcessWithConfig(bytes.NewReader(imageBytes), config)
 	if err != nil {
 		return fmt.Errorf("failed to strip EXIF: %w", err)
@@ -195,7 +195,7 @@ func determineOutputFormat(contentType, bimgType string) string {
 	case "image/webp":
 		return "webp"
 	}
-	
+
 	// Fall back to bimg detected type
 	switch bimgType {
 	case "jpeg":
@@ -205,7 +205,7 @@ func determineOutputFormat(contentType, bimgType string) string {
 	case "webp":
 		return "webp"
 	}
-	
+
 	// Default to jpeg if we can't determine
 	return "jpeg"
 }

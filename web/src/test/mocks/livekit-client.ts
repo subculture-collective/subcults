@@ -10,6 +10,7 @@ export const mockRoom = {
   disconnect: vi.fn(),
   on: vi.fn(),
   off: vi.fn(),
+  removeAllListeners: vi.fn(),
   localParticipant: {
     setMicrophoneEnabled: vi.fn(),
     isMicrophoneEnabled: true,
@@ -21,7 +22,16 @@ export const mockRoom = {
   remoteParticipants: new Map(),
 };
 
-export const Room = vi.fn(() => mockRoom);
+// Use a class to properly mock the Room constructor
+export class Room {
+  connect = mockRoom.connect;
+  disconnect = mockRoom.disconnect;
+  on = mockRoom.on;
+  off = mockRoom.off;
+  removeAllListeners = mockRoom.removeAllListeners;
+  localParticipant = mockRoom.localParticipant;
+  remoteParticipants = mockRoom.remoteParticipants;
+}
 
 export const RoomEvent = {
   Connected: 'connected',

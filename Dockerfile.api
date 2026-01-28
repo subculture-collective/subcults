@@ -4,9 +4,9 @@
 # API Dockerfile - Multi-stage build for the Subcults API server
 # =============================================================================
 
-# Build arguments for cross-compilation
-ARG TARGETOS=linux
-ARG TARGETARCH=amd64
+# Build arguments for cross-compilation - Docker automatically sets these based on platform
+ARG TARGETOS
+ARG TARGETARCH
 
 # Build stage
 FROM golang:1.22-alpine AS builder

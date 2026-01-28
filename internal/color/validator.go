@@ -17,7 +17,7 @@ var hexColorPattern = regexp.MustCompile(`^#[0-9A-Fa-f]{6}$`)
 
 // Common validation errors
 var (
-	ErrInvalidHexFormat    = errors.New("invalid hex color format, expected #RRGGBB")
+	ErrInvalidHexFormat     = errors.New("invalid hex color format, expected #RRGGBB")
 	ErrInsufficientContrast = errors.New("insufficient contrast ratio, minimum 4.5:1 required for WCAG AA")
 )
 
@@ -31,12 +31,12 @@ func IsValidHexColor(color string) bool {
 func SanitizeColor(color string) string {
 	// HTML escape to prevent any script injection
 	sanitized := html.EscapeString(strings.TrimSpace(color))
-	
+
 	// Verify it's still a valid hex color after sanitization
 	if !IsValidHexColor(sanitized) {
 		return ""
 	}
-	
+
 	return sanitized
 }
 
@@ -59,26 +59,26 @@ func ParseHexColor(hexColor string) (RGB, error) {
 	if !IsValidHexColor(hexColor) {
 		return RGB{}, ErrInvalidHexFormat
 	}
-	
+
 	// Remove the # prefix
 	hexColor = strings.TrimPrefix(hexColor, "#")
-	
+
 	// Parse each component
 	r, err := strconv.ParseUint(hexColor[0:2], 16, 8)
 	if err != nil {
 		return RGB{}, fmt.Errorf("failed to parse red component: %w", err)
 	}
-	
+
 	g, err := strconv.ParseUint(hexColor[2:4], 16, 8)
 	if err != nil {
 		return RGB{}, fmt.Errorf("failed to parse green component: %w", err)
 	}
-	
+
 	b, err := strconv.ParseUint(hexColor[4:6], 16, 8)
 	if err != nil {
 		return RGB{}, fmt.Errorf("failed to parse blue component: %w", err)
 	}
-	
+
 	return RGB{R: uint8(r), G: uint8(g), B: uint8(b)}, nil
 }
 
@@ -90,7 +90,7 @@ func relativeLuminance(rgb RGB) float64 {
 	rsRGB := float64(rgb.R) / 255.0
 	gsRGB := float64(rgb.G) / 255.0
 	bsRGB := float64(rgb.B) / 255.0
-	
+
 	// Apply gamma correction
 	var r, g, b float64
 	if rsRGB <= 0.03928 {
@@ -98,19 +98,19 @@ func relativeLuminance(rgb RGB) float64 {
 	} else {
 		r = math.Pow((rsRGB+0.055)/1.055, 2.4)
 	}
-	
+
 	if gsRGB <= 0.03928 {
 		g = gsRGB / 12.92
 	} else {
 		g = math.Pow((gsRGB+0.055)/1.055, 2.4)
 	}
-	
+
 	if bsRGB <= 0.03928 {
 		b = bsRGB / 12.92
 	} else {
 		b = math.Pow((bsRGB+0.055)/1.055, 2.4)
 	}
-	
+
 	// Calculate luminance using ITU-R BT.709 coefficients
 	return 0.2126*r + 0.7152*g + 0.0722*b
 }
@@ -122,12 +122,12 @@ func relativeLuminance(rgb RGB) float64 {
 func ContrastRatio(color1, color2 RGB) float64 {
 	l1 := relativeLuminance(color1)
 	l2 := relativeLuminance(color2)
-	
+
 	// Ensure l1 is the lighter color
 	if l1 < l2 {
 		l1, l2 = l2, l1
 	}
-	
+
 	// Calculate contrast ratio
 	return (l1 + 0.05) / (l2 + 0.05)
 }
@@ -140,18 +140,18 @@ func ValidateContrast(textColor, bgColor string) (float64, error) {
 	if err != nil {
 		return 0, fmt.Errorf("invalid text color: %w", err)
 	}
-	
+
 	bgRGB, err := ParseHexColor(bgColor)
 	if err != nil {
 		return 0, fmt.Errorf("invalid background color: %w", err)
 	}
-	
+
 	ratio := ContrastRatio(textRGB, bgRGB)
-	
+
 	// WCAG AA requires 4.5:1 for normal text
 	if ratio < 4.5 {
 		return ratio, fmt.Errorf("%w: got %.2f:1", ErrInsufficientContrast, ratio)
 	}
-	
+
 	return ratio, nil
 }
