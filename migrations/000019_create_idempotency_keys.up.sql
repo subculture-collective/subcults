@@ -1,5 +1,14 @@
 -- Migration: Create idempotency_keys table for preventing duplicate payment operations
 -- Adds: idempotency_keys table for tracking idempotent requests
+--
+-- PRIVACY & DATA RETENTION:
+-- This table stores complete response bodies which may contain sensitive payment session data
+-- (session URLs, session IDs). Per the privacy-first approach:
+-- 1. Data retention: Keys are automatically cleaned up after 24 hours (see cleanup.go)
+-- 2. Access controls: Ensure proper database-level access controls on this table
+-- 3. Data minimization: Only successful (2xx) responses are cached
+-- 4. Purpose limitation: Data is used solely for idempotency checking
+-- 5. No cross-user data: Each key is specific to a single request/session
 
 -- ============================================
 -- Create idempotency_keys table

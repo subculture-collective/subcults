@@ -50,7 +50,9 @@ func (w *idempotencyResponseWriter) Write(b []byte) (int, error) {
 	// Always write to the actual response
 	n, err := w.ResponseWriter.Write(b)
 	// Also capture for idempotency storage
-	w.body.Write(b)
+	if _, bufErr := w.body.Write(b); bufErr != nil {
+		slog.Error("failed to buffer response body for idempotency", "error", bufErr)
+	}
 	return n, err
 }
 
@@ -120,6 +122,12 @@ func IdempotencyMiddleware(repo idempotency.Repository, routes map[string]bool) 
 			r = r.WithContext(ctx)
 			
 			// Check if key already exists
+			// Note: There is a potential race condition if two requests with the same
+			// idempotency key arrive simultaneously. Both may pass this check and execute
+			// the handler. The second Store() call will fail with ErrKeyExists, but the
+			// handler will have been called twice. This is acceptable for the in-memory
+			// implementation but should be addressed with proper locking (e.g., SELECT FOR UPDATE)
+			// or a distributed lock when switching to a Postgres-backed repository.
 			existing, err := repo.Get(key)
 			if err == nil {
 				// Key exists - return cached response
@@ -130,7 +138,13 @@ func IdempotencyMiddleware(repo idempotency.Repository, routes map[string]bool) 
 				
 				w.Header().Set("Content-Type", "application/json")
 				w.WriteHeader(existing.ResponseStatusCode)
-				io.WriteString(w, existing.ResponseBody)
+				if _, err := io.WriteString(w, existing.ResponseBody); err != nil {
+					slog.ErrorContext(ctx, "failed to write cached idempotent response",
+						"key", key,
+						"status", existing.ResponseStatusCode,
+						"error", err,
+					)
+				}
 				return
 			}
 			
@@ -154,6 +168,10 @@ func IdempotencyMiddleware(repo idempotency.Repository, routes map[string]bool) 
 				responseHash := idempotency.ComputeResponseHash(responseBody)
 				
 				// Store the idempotency key with cached response
+				// Note: PaymentID field is currently not populated by the middleware.
+				// This is a generic middleware that doesn't parse response bodies.
+				// PaymentID can be set by database-specific implementations or
+				// future enhancements that extract it from the JSON response.
 				record := &idempotency.IdempotencyKey{
 					Key:                key,
 					Method:             r.Method,
@@ -189,5 +207,11 @@ func writeJSONError(w http.ResponseWriter, ctx context.Context, status int, code
 	// Encode to JSON
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
-	json.NewEncoder(w).Encode(errorResp)
+	if err := json.NewEncoder(w).Encode(errorResp); err != nil {
+		slog.ErrorContext(ctx, "failed to encode JSON error response",
+			"status", status,
+			"code", code,
+			"error", err,
+		)
+	}
 }

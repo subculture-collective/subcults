@@ -9,6 +9,16 @@ import (
 )
 
 // Status constants for idempotency keys.
+//
+// StatusCompleted indicates that the request has finished and a stable response
+// has been persisted. This is the only status currently used by the Go code.
+//
+// StatusProcessing is reserved for future use when implementing proper concurrent
+// request handling for idempotent operations (e.g., marking a key as "processing"
+// while the first request is still in-flight to prevent the race condition described
+// in the middleware). It is already referenced in the database schema CHECK constraint,
+// so it must remain in sync with that constraint even if unused in the Go code.
+// Do not remove without updating the migrations.
 const (
 	StatusProcessing = "processing"
 	StatusCompleted  = "completed"
