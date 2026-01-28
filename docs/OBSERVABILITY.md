@@ -79,7 +79,18 @@ sum(rate(stream_join_latency_seconds_bucket{le="2.0"}[5m])) / sum(rate(stream_jo
 
 ### Indexer Metrics
 
-The Jetstream indexer exposes metrics at `/internal/indexer/metrics` (requires authentication).
+The Jetstream indexer exposes metrics at `/internal/indexer/metrics`.
+
+Authentication for this endpoint is optional and controlled by the `INTERNAL_AUTH_TOKEN` configuration:
+
+- If `INTERNAL_AUTH_TOKEN` is **not** set, `/internal/indexer/metrics` is exposed without authentication (intended for trusted internal networks only).
+- If `INTERNAL_AUTH_TOKEN` **is** set, all requests must include the following HTTP header:
+
+  ```http
+  X-Internal-Token: <INTERNAL_AUTH_TOKEN>
+  ```
+
+This header-based internal token is what `InternalAuthMiddleware` validates before allowing access to the indexer metrics.
 
 #### `indexer_messages_processed_total`
 

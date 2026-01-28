@@ -111,7 +111,6 @@ func main() {
 			metrics.SetProcessingLag(lag.Seconds())
 
 			logger.Debug("processing message",
-				slog.String("did", msg.DID),
 				slog.String("kind", msg.Kind),
 				slog.Duration("lag", lag))
 		}
@@ -127,8 +126,7 @@ func main() {
 		// if err := database.Write(record); err != nil {
 		//     metrics.IncDatabaseWritesFailed()
 		//     logger.Error("database write failed",
-		//         slog.String("error", err.Error()),
-		//         slog.String("did", msg.DID))
+		//         slog.String("error", err.Error()))
 		//     return err
 		// }
 		// metrics.IncUpserts()
