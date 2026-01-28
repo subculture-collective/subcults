@@ -93,11 +93,11 @@ func main() {
 	}
 
 	config := indexer.DefaultConfig(jetstreamURL)
-	
+
 	// Message handler (placeholder - will be replaced with actual record processing)
 	handler := func(messageType int, payload []byte) error {
 		start := time.Now()
-		
+
 		// Decode CBOR message to extract timestamp for lag calculation
 		msg, err := indexer.DecodeCBORMessage(payload)
 		if err != nil {
@@ -109,20 +109,20 @@ func main() {
 			messageTime := time.Unix(0, msg.TimeUS*1000) // Convert microseconds to nanoseconds
 			lag := time.Since(messageTime)
 			metrics.SetProcessingLag(lag.Seconds())
-			
+
 			logger.Debug("processing message",
 				slog.String("did", msg.DID),
 				slog.String("kind", msg.Kind),
 				slog.Duration("lag", lag))
 		}
-		
+
 		// TODO: Implement actual record filtering and database persistence
 		// For now, just increment the processed counter
 		metrics.IncMessagesProcessed()
-		
+
 		// Record ingestion latency
 		metrics.ObserveIngestLatency(time.Since(start).Seconds())
-		
+
 		// Example of how to track database failures:
 		// if err := database.Write(record); err != nil {
 		//     metrics.IncDatabaseWritesFailed()
@@ -132,7 +132,7 @@ func main() {
 		//     return err
 		// }
 		// metrics.IncUpserts()
-		
+
 		return nil
 	}
 

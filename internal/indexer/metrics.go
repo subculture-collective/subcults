@@ -8,18 +8,18 @@ import (
 
 // Metrics names as constants for consistency.
 const (
-	MetricMessagesProcessed      = "indexer_messages_processed_total"
-	MetricMessagesError          = "indexer_messages_error_total"
-	MetricUpserts                = "indexer_upserts_total"
-	MetricTrustRecompute         = "indexer_trust_recompute_total"
-	MetricIngestLatency          = "indexer_ingest_latency_seconds"
-	MetricBackpressurePaused     = "indexer_backpressure_paused_total"
-	MetricBackpressureResumed    = "indexer_backpressure_resumed_total"
-	MetricBackpressureDuration   = "indexer_backpressure_pause_duration_seconds"
-	MetricPendingMessages        = "indexer_pending_messages"
-	MetricProcessingLag          = "indexer_processing_lag_seconds"
-	MetricReconnectionAttempts   = "indexer_reconnection_attempts_total"
-	MetricDatabaseWritesFailed   = "indexer_database_writes_failed_total"
+	MetricMessagesProcessed    = "indexer_messages_processed_total"
+	MetricMessagesError        = "indexer_messages_error_total"
+	MetricUpserts              = "indexer_upserts_total"
+	MetricTrustRecompute       = "indexer_trust_recompute_total"
+	MetricIngestLatency        = "indexer_ingest_latency_seconds"
+	MetricBackpressurePaused   = "indexer_backpressure_paused_total"
+	MetricBackpressureResumed  = "indexer_backpressure_resumed_total"
+	MetricBackpressureDuration = "indexer_backpressure_pause_duration_seconds"
+	MetricPendingMessages      = "indexer_pending_messages"
+	MetricProcessingLag        = "indexer_processing_lag_seconds"
+	MetricReconnectionAttempts = "indexer_reconnection_attempts_total"
+	MetricDatabaseWritesFailed = "indexer_database_writes_failed_total"
 )
 
 // Metrics contains Prometheus metrics for the indexer.

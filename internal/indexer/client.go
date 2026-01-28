@@ -15,10 +15,10 @@ import (
 
 // Backpressure thresholds and limits.
 const (
-	BackpressurePauseThreshold  = 1000              // Pause consumption when pending > 1000
-	BackpressureResumeThreshold = 100               // Resume when pending < 100
-	MaxPauseDuration            = 30 * time.Second  // Max pause before warning
-	QueueBufferSize             = 2000              // Buffer size = 2x pause threshold
+	BackpressurePauseThreshold  = 1000             // Pause consumption when pending > 1000
+	BackpressureResumeThreshold = 100              // Resume when pending < 100
+	MaxPauseDuration            = 30 * time.Second // Max pause before warning
+	QueueBufferSize             = 2000             // Buffer size = 2x pause threshold
 )
 
 // MessageHandler is a callback function for processing incoming messages.
@@ -45,7 +45,7 @@ type Client struct {
 
 	// Message queue for backpressure handling
 	messageQueue chan queuedMessage
-	
+
 	// reconnectCount tracks consecutive reconnection attempts (atomic)
 	reconnectCount int64
 }
@@ -89,13 +89,13 @@ func (c *Client) Run(ctx context.Context) error {
 	// Start message processor goroutine
 	processorCtx, processorCancel := context.WithCancel(ctx)
 	defer processorCancel()
-	
+
 	processorDone := make(chan struct{})
 	go func() {
 		c.processMessages(processorCtx)
 		close(processorDone)
 	}()
-	
+
 	for {
 		select {
 		case <-ctx.Done():
@@ -109,12 +109,12 @@ func (c *Client) Run(ctx context.Context) error {
 		// Attempt to connect
 		if err := c.connect(ctx); err != nil {
 			attempt := atomic.LoadInt64(&c.reconnectCount) + 1
-			
+
 			// Record reconnection attempt metric
 			if c.metrics != nil {
 				c.metrics.IncReconnectionAttempts()
 			}
-			
+
 			c.logger.Warn("jetstream connection failed",
 				slog.String("error", err.Error()),
 				slog.Int64("attempt", attempt))
@@ -181,9 +181,9 @@ func (c *Client) readLoop(ctx context.Context) {
 		if c.metrics != nil {
 			c.metrics.SetPendingMessages(queueLen)
 		}
-		
+
 		c.mu.Lock()
-		
+
 		// Pause if queue exceeds threshold
 		if !c.isPaused && queueLen > BackpressurePauseThreshold {
 			c.isPaused = true
@@ -196,7 +196,7 @@ func (c *Client) readLoop(ctx context.Context) {
 				slog.Int("pending", queueLen),
 				slog.Int("threshold", BackpressurePauseThreshold))
 		}
-		
+
 		// Resume if queue drops below threshold
 		if c.isPaused && queueLen < BackpressureResumeThreshold {
 			var pauseDuration time.Duration
@@ -213,7 +213,7 @@ func (c *Client) readLoop(ctx context.Context) {
 				slog.Int("pending", queueLen),
 				slog.Duration("pause_duration", pauseDuration))
 		}
-		
+
 		// Check for excessive pause duration
 		if c.isPaused && c.pauseInitialized && time.Since(c.pauseStart) > MaxPauseDuration {
 			c.logger.Warn("backpressure: exceeded max pause duration",
@@ -223,10 +223,10 @@ func (c *Client) readLoop(ctx context.Context) {
 			// Reset pause start to avoid spamming warnings
 			c.pauseStart = time.Now()
 		}
-		
+
 		isPaused := c.isPaused
 		c.mu.Unlock()
-		
+
 		// If paused, wait a bit before checking again
 		if isPaused {
 			select {
@@ -331,7 +331,7 @@ func (c *Client) drainQueue() {
 	if remaining > 0 {
 		c.logger.Info("draining message queue", slog.Int("remaining", remaining))
 	}
-	
+
 	// Process remaining messages with timeout
 	timeout := time.After(5 * time.Second)
 	for {
