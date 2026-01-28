@@ -70,6 +70,11 @@ func (r *InMemoryAnalyticsRepository) GetParticipantEvents(streamSessionID strin
 	result := make([]*ParticipantEvent, len(events))
 	for i, e := range events {
 		eventCopy := *e
+		// Deep copy pointer fields to avoid sharing internal state
+		if e.GeohashPrefix != nil {
+			prefix := *e.GeohashPrefix
+			eventCopy.GeohashPrefix = &prefix
+		}
 		result[i] = &eventCopy
 	}
 
@@ -132,19 +137,30 @@ func (r *InMemoryAnalyticsRepository) ComputeAnalytics(streamSessionID string) (
 	geoDistribution := make(map[string]int)
 	totalJoins := 0
 
+	// Track unique participants per geohash for privacy-safe geographic distribution
+	geoParticipants := make(map[string]map[string]bool)
+
 	for _, event := range sortedEvents {
 		if event.EventType == "join" {
 			totalJoins++
-			concurrent++
-			if concurrent > peakConcurrent {
-				peakConcurrent = concurrent
+			
+			// Only increment concurrent count when this participant was not already joined
+			if _, alreadyJoined := participantJoinTimes[event.ParticipantDID]; !alreadyJoined {
+				concurrent++
+				if concurrent > peakConcurrent {
+					peakConcurrent = concurrent
+				}
 			}
 			uniqueParticipants[event.ParticipantDID] = true
 			participantJoinTimes[event.ParticipantDID] = event.OccurredAt
 
-			// Track geographic distribution (privacy-safe)
+			// Track geographic distribution (privacy-safe) - deduplicate by participant DID
 			if event.GeohashPrefix != nil && *event.GeohashPrefix != "" {
-				geoDistribution[*event.GeohashPrefix]++
+				prefix := *event.GeohashPrefix
+				if geoParticipants[prefix] == nil {
+					geoParticipants[prefix] = make(map[string]bool)
+				}
+				geoParticipants[prefix][event.ParticipantDID] = true
 			}
 		} else if event.EventType == "leave" {
 			concurrent--
@@ -161,6 +177,11 @@ func (r *InMemoryAnalyticsRepository) ComputeAnalytics(streamSessionID string) (
 				delete(participantJoinTimes, event.ParticipantDID) // Remove to handle re-joins
 			}
 		}
+	}
+
+	// Convert unique participants per geohash to counts
+	for prefix, participants := range geoParticipants {
+		geoDistribution[prefix] = len(participants)
 	}
 
 	// Calculate retention metrics

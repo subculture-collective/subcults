@@ -61,6 +61,6 @@ type AnalyticsRepository interface {
 	ComputeAnalytics(streamSessionID string) (*Analytics, error)
 	
 	// GetAnalytics retrieves the computed analytics for a stream session.
-	// Returns nil if analytics have not been computed yet.
+	// Returns ErrAnalyticsNotFound if analytics have not been computed yet.
 	GetAnalytics(streamSessionID string) (*Analytics, error)
 }
