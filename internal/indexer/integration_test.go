@@ -2,6 +2,7 @@ package indexer
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"sync"
@@ -382,7 +383,7 @@ func TestIntegration_GracefulShutdown(t *testing.T) {
 					DID:        "did:plc:test",
 					Operation:  "create",
 					Collection: CollectionScene,
-					RKey:       "scene" + string(rune(i)),
+					RKey:       fmt.Sprintf("scene%d", i),
 					Record:     mustEncodeCBOR(t, map[string]interface{}{"name": "Scene"}),
 				},
 			}

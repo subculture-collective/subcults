@@ -106,6 +106,7 @@ func TestDuplicate_TrackingInMemory(t *testing.T) {
 	messages := []JetstreamMessage{
 		{
 			DID:    "did:plc:user1",
+			TimeUS: time.Now().UnixMicro(),
 			Kind:   "commit",
 			Commit: &AtProtoCommit{
 				DID:        "did:plc:user1",
@@ -117,6 +118,7 @@ func TestDuplicate_TrackingInMemory(t *testing.T) {
 		},
 		{
 			DID:    "did:plc:user1",
+			TimeUS: time.Now().UnixMicro(),
 			Kind:   "commit",
 			Commit: &AtProtoCommit{
 				DID:        "did:plc:user1",
@@ -128,6 +130,7 @@ func TestDuplicate_TrackingInMemory(t *testing.T) {
 		},
 		{
 			DID:    "did:plc:user2",
+			TimeUS: time.Now().UnixMicro(),
 			Kind:   "commit",
 			Commit: &AtProtoCommit{
 				DID:        "did:plc:user2",
@@ -139,6 +142,7 @@ func TestDuplicate_TrackingInMemory(t *testing.T) {
 		},
 		{
 			DID:    "did:plc:user1",
+			TimeUS: time.Now().UnixMicro(),
 			Kind:   "commit",
 			Commit: &AtProtoCommit{
 				DID:        "did:plc:user1",
@@ -228,6 +232,7 @@ func TestDuplicate_RaceConditions(t *testing.T) {
 
 				msg := JetstreamMessage{
 					DID:    did,
+					TimeUS: time.Now().UnixMicro(),
 					Kind:   "commit",
 					Commit: &AtProtoCommit{
 						DID:        did,
@@ -316,6 +321,7 @@ func TestDuplicate_DeleteOperations(t *testing.T) {
 		if op.operation == "delete" {
 			msg = JetstreamMessage{
 				DID:    did,
+				TimeUS: time.Now().UnixMicro(),
 				Kind:   "commit",
 				Commit: &AtProtoCommit{
 					DID:        did,
@@ -328,6 +334,7 @@ func TestDuplicate_DeleteOperations(t *testing.T) {
 		} else {
 			msg = JetstreamMessage{
 				DID:    did,
+				TimeUS: time.Now().UnixMicro(),
 				Kind:   "commit",
 				Commit: &AtProtoCommit{
 					DID:        did,
@@ -390,6 +397,7 @@ func TestTransactionAtomicity_SimulatedRollback(t *testing.T) {
 		{
 			msg: JetstreamMessage{
 				DID:    "did:plc:test",
+				TimeUS: time.Now().UnixMicro(),
 				Kind:   "commit",
 				Commit: &AtProtoCommit{
 					DID:        "did:plc:test",
@@ -404,6 +412,7 @@ func TestTransactionAtomicity_SimulatedRollback(t *testing.T) {
 		{
 			msg: JetstreamMessage{
 				DID:    "did:plc:test",
+				TimeUS: time.Now().UnixMicro(),
 				Kind:   "commit",
 				Commit: &AtProtoCommit{
 					DID:        "did:plc:test",
@@ -481,6 +490,7 @@ func TestTransactionAtomicity_AllOrNothing(t *testing.T) {
 	validBatch := []JetstreamMessage{
 		{
 			DID:    "did:plc:test1",
+			TimeUS: time.Now().UnixMicro(),
 			Kind:   "commit",
 			Commit: &AtProtoCommit{
 				DID:        "did:plc:test1",
@@ -492,6 +502,7 @@ func TestTransactionAtomicity_AllOrNothing(t *testing.T) {
 		},
 		{
 			DID:    "did:plc:test2",
+			TimeUS: time.Now().UnixMicro(),
 			Kind:   "commit",
 			Commit: &AtProtoCommit{
 				DID:        "did:plc:test2",
@@ -512,6 +523,7 @@ func TestTransactionAtomicity_AllOrNothing(t *testing.T) {
 	invalidBatch := []JetstreamMessage{
 		{
 			DID:    "did:plc:test3",
+			TimeUS: time.Now().UnixMicro(),
 			Kind:   "commit",
 			Commit: &AtProtoCommit{
 				DID:        "did:plc:test3",
@@ -523,6 +535,7 @@ func TestTransactionAtomicity_AllOrNothing(t *testing.T) {
 		},
 		{
 			DID:    "did:plc:test4",
+			TimeUS: time.Now().UnixMicro(),
 			Kind:   "commit",
 			Commit: &AtProtoCommit{
 				DID:        "did:plc:test4",
