@@ -109,6 +109,12 @@ func (c *Client) Run(ctx context.Context) error {
 		// Attempt to connect
 		if err := c.connect(ctx); err != nil {
 			attempt := atomic.LoadInt64(&c.reconnectCount) + 1
+			
+			// Record reconnection attempt metric
+			if c.metrics != nil {
+				c.metrics.IncReconnectionAttempts()
+			}
+			
 			c.logger.Warn("jetstream connection failed",
 				slog.String("error", err.Error()),
 				slog.Int64("attempt", attempt))
