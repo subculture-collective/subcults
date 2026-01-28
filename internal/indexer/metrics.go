@@ -8,21 +8,29 @@ import (
 
 // Metrics names as constants for consistency.
 const (
-	MetricMessagesProcessed = "indexer_messages_processed_total"
-	MetricMessagesError     = "indexer_messages_error_total"
-	MetricUpserts           = "indexer_upserts_total"
-	MetricTrustRecompute    = "indexer_trust_recompute_total"
-	MetricIngestLatency     = "indexer_ingest_latency_seconds"
+	MetricMessagesProcessed      = "indexer_messages_processed_total"
+	MetricMessagesError          = "indexer_messages_error_total"
+	MetricUpserts                = "indexer_upserts_total"
+	MetricTrustRecompute         = "indexer_trust_recompute_total"
+	MetricIngestLatency          = "indexer_ingest_latency_seconds"
+	MetricBackpressurePaused     = "indexer_backpressure_paused_total"
+	MetricBackpressureResumed    = "indexer_backpressure_resumed_total"
+	MetricBackpressureDuration   = "indexer_backpressure_pause_duration_seconds"
+	MetricPendingMessages        = "indexer_pending_messages"
 )
 
 // Metrics contains Prometheus metrics for the indexer.
 // All operations are thread-safe.
 type Metrics struct {
-	messagesProcessed prometheus.Counter
-	messagesError     prometheus.Counter
-	upserts           prometheus.Counter
-	trustRecompute    prometheus.Counter
-	ingestLatency     prometheus.Histogram
+	messagesProcessed    prometheus.Counter
+	messagesError        prometheus.Counter
+	upserts              prometheus.Counter
+	trustRecompute       prometheus.Counter
+	ingestLatency        prometheus.Histogram
+	backpressurePaused   prometheus.Counter
+	backpressureResumed  prometheus.Counter
+	backpressureDuration prometheus.Histogram
+	pendingMessages      prometheus.Gauge
 }
 
 // NewMetrics creates and returns a new Metrics instance with all collectors initialized.
@@ -50,6 +58,23 @@ func NewMetrics() *Metrics {
 			Help:    "Histogram of message ingestion latency in seconds",
 			Buckets: prometheus.DefBuckets,
 		}),
+		backpressurePaused: prometheus.NewCounter(prometheus.CounterOpts{
+			Name: MetricBackpressurePaused,
+			Help: "Total number of times backpressure caused message consumption to pause",
+		}),
+		backpressureResumed: prometheus.NewCounter(prometheus.CounterOpts{
+			Name: MetricBackpressureResumed,
+			Help: "Total number of times message consumption resumed after backpressure",
+		}),
+		backpressureDuration: prometheus.NewHistogram(prometheus.HistogramOpts{
+			Name:    MetricBackpressureDuration,
+			Help:    "Histogram of backpressure pause duration in seconds",
+			Buckets: []float64{0.1, 0.5, 1, 5, 10, 30, 60},
+		}),
+		pendingMessages: prometheus.NewGauge(prometheus.GaugeOpts{
+			Name: MetricPendingMessages,
+			Help: "Current number of pending messages in the processing queue",
+		}),
 	}
 }
 
@@ -62,6 +87,10 @@ func (m *Metrics) Register(reg prometheus.Registerer) error {
 		m.upserts,
 		m.trustRecompute,
 		m.ingestLatency,
+		m.backpressurePaused,
+		m.backpressureResumed,
+		m.backpressureDuration,
+		m.pendingMessages,
 	}
 
 	for _, c := range collectors {
@@ -97,6 +126,26 @@ func (m *Metrics) ObserveIngestLatency(seconds float64) {
 	m.ingestLatency.Observe(seconds)
 }
 
+// IncBackpressurePaused increments the backpressure paused counter.
+func (m *Metrics) IncBackpressurePaused() {
+	m.backpressurePaused.Inc()
+}
+
+// IncBackpressureResumed increments the backpressure resumed counter.
+func (m *Metrics) IncBackpressureResumed() {
+	m.backpressureResumed.Inc()
+}
+
+// ObserveBackpressureDuration records a backpressure pause duration sample.
+func (m *Metrics) ObserveBackpressureDuration(seconds float64) {
+	m.backpressureDuration.Observe(seconds)
+}
+
+// SetPendingMessages sets the current number of pending messages.
+func (m *Metrics) SetPendingMessages(count int) {
+	m.pendingMessages.Set(float64(count))
+}
+
 // Collectors returns all Prometheus collectors for testing.
 func (m *Metrics) Collectors() []prometheus.Collector {
 	return []prometheus.Collector{
@@ -105,5 +154,9 @@ func (m *Metrics) Collectors() []prometheus.Collector {
 		m.upserts,
 		m.trustRecompute,
 		m.ingestLatency,
+		m.backpressurePaused,
+		m.backpressureResumed,
+		m.backpressureDuration,
+		m.pendingMessages,
 	}
 }

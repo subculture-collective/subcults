@@ -15,8 +15,8 @@ func TestNewMetrics(t *testing.T) {
 
 	// Verify all collectors are initialized
 	collectors := m.Collectors()
-	if len(collectors) != 5 {
-		t.Errorf("expected 5 collectors, got %d", len(collectors))
+	if len(collectors) != 9 {
+		t.Errorf("expected 9 collectors, got %d", len(collectors))
 	}
 }
 
@@ -36,11 +36,15 @@ func TestMetrics_Register(t *testing.T) {
 		}
 
 		expectedNames := map[string]bool{
-			MetricMessagesProcessed: false,
-			MetricMessagesError:     false,
-			MetricUpserts:           false,
-			MetricTrustRecompute:    false,
-			MetricIngestLatency:     false,
+			MetricMessagesProcessed:      false,
+			MetricMessagesError:          false,
+			MetricUpserts:                false,
+			MetricTrustRecompute:         false,
+			MetricIngestLatency:          false,
+			MetricBackpressurePaused:     false,
+			MetricBackpressureResumed:    false,
+			MetricBackpressureDuration:   false,
+			MetricPendingMessages:        false,
 		}
 
 		for _, family := range families {
@@ -240,5 +244,108 @@ func TestMetrics_Concurrency(t *testing.T) {
 	expectedHistCount := uint64(10 * iterations)
 	if c := getHistogramSampleCount(m.ingestLatency); c != expectedHistCount {
 		t.Errorf("ingestLatency sample count = %d, want %d", c, expectedHistCount)
+	}
+}
+
+func TestMetrics_IncBackpressurePaused(t *testing.T) {
+	m := NewMetrics()
+
+	initial := getCounterValue(m.backpressurePaused)
+	if initial != 0 {
+		t.Errorf("initial value = %f, want 0", initial)
+	}
+
+	for i := 0; i < 10; i++ {
+		m.IncBackpressurePaused()
+	}
+
+	final := getCounterValue(m.backpressurePaused)
+	if final != 10 {
+		t.Errorf("final value = %f, want 10", final)
+	}
+}
+
+func TestMetrics_IncBackpressureResumed(t *testing.T) {
+	m := NewMetrics()
+
+	initial := getCounterValue(m.backpressureResumed)
+	if initial != 0 {
+		t.Errorf("initial value = %f, want 0", initial)
+	}
+
+	for i := 0; i < 8; i++ {
+		m.IncBackpressureResumed()
+	}
+
+	final := getCounterValue(m.backpressureResumed)
+	if final != 8 {
+		t.Errorf("final value = %f, want 8", final)
+	}
+}
+
+func TestMetrics_ObserveBackpressureDuration(t *testing.T) {
+	m := NewMetrics()
+
+	// Initial count should be 0
+	initial := getHistogramSampleCount(m.backpressureDuration)
+	if initial != 0 {
+		t.Errorf("initial sample count = %d, want 0", initial)
+	}
+
+	// Observe some durations
+	durations := []float64{0.5, 1.0, 5.0, 10.0, 30.0}
+	var expectedSum float64
+	for _, d := range durations {
+		m.ObserveBackpressureDuration(d)
+		expectedSum += d
+	}
+
+	finalCount := getHistogramSampleCount(m.backpressureDuration)
+	if finalCount != uint64(len(durations)) {
+		t.Errorf("final sample count = %d, want %d", finalCount, len(durations))
+	}
+
+	finalSum := getHistogramSampleSum(m.backpressureDuration)
+	if finalSum < expectedSum*0.99 || finalSum > expectedSum*1.01 {
+		t.Errorf("final sample sum = %f, want approximately %f", finalSum, expectedSum)
+	}
+}
+
+func getGaugeValue(g prometheus.Gauge) float64 {
+	var m dto.Metric
+	if err := g.(prometheus.Metric).Write(&m); err != nil {
+		return -1
+	}
+	return m.GetGauge().GetValue()
+}
+
+func TestMetrics_SetPendingMessages(t *testing.T) {
+	m := NewMetrics()
+
+	// Initial value should be 0
+	initial := getGaugeValue(m.pendingMessages)
+	if initial != 0 {
+		t.Errorf("initial value = %f, want 0", initial)
+	}
+
+	// Set to 500
+	m.SetPendingMessages(500)
+	val := getGaugeValue(m.pendingMessages)
+	if val != 500 {
+		t.Errorf("value after set = %f, want 500", val)
+	}
+
+	// Set to 1500
+	m.SetPendingMessages(1500)
+	val = getGaugeValue(m.pendingMessages)
+	if val != 1500 {
+		t.Errorf("value after second set = %f, want 1500", val)
+	}
+
+	// Set back to 50
+	m.SetPendingMessages(50)
+	val = getGaugeValue(m.pendingMessages)
+	if val != 50 {
+		t.Errorf("value after third set = %f, want 50", val)
 	}
 }
