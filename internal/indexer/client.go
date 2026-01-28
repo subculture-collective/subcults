@@ -18,6 +18,7 @@ const (
 	BackpressurePauseThreshold  = 1000              // Pause consumption when pending > 1000
 	BackpressureResumeThreshold = 100               // Resume when pending < 100
 	MaxPauseDuration            = 30 * time.Second  // Max pause before warning
+	QueueBufferSize             = 2000              // Buffer size = 2x pause threshold
 )
 
 // MessageHandler is a callback function for processing incoming messages.
@@ -76,7 +77,7 @@ func NewClientWithMetrics(config Config, handler MessageHandler, logger *slog.Lo
 		logger:       logger,
 		metrics:      metrics,
 		rng:          rand.New(rand.NewSource(time.Now().UnixNano())),
-		messageQueue: make(chan queuedMessage, BackpressurePauseThreshold*2), // Buffer for 2x pause threshold
+		messageQueue: make(chan queuedMessage, QueueBufferSize),
 	}, nil
 }
 
@@ -161,6 +162,7 @@ func (c *Client) connect(ctx context.Context) error {
 // Implements backpressure handling by pausing consumption when queue is full.
 func (c *Client) readLoop(ctx context.Context) {
 	var pauseStart time.Time
+	var pauseInitialized bool
 	
 	for {
 		select {
@@ -176,12 +178,12 @@ func (c *Client) readLoop(ctx context.Context) {
 		}
 		
 		c.mu.Lock()
-		wasPaused := c.isPaused
 		
 		// Pause if queue exceeds threshold
 		if !c.isPaused && queueLen > BackpressurePauseThreshold {
 			c.isPaused = true
 			pauseStart = time.Now()
+			pauseInitialized = true
 			if c.metrics != nil {
 				c.metrics.IncBackpressurePaused()
 			}
@@ -192,8 +194,12 @@ func (c *Client) readLoop(ctx context.Context) {
 		
 		// Resume if queue drops below threshold
 		if c.isPaused && queueLen < BackpressureResumeThreshold {
-			pauseDuration := time.Since(pauseStart)
+			var pauseDuration time.Duration
+			if pauseInitialized {
+				pauseDuration = time.Since(pauseStart)
+			}
 			c.isPaused = false
+			pauseInitialized = false
 			if c.metrics != nil {
 				c.metrics.IncBackpressureResumed()
 				c.metrics.ObserveBackpressureDuration(pauseDuration.Seconds())
@@ -204,7 +210,7 @@ func (c *Client) readLoop(ctx context.Context) {
 		}
 		
 		// Check for excessive pause duration
-		if c.isPaused && time.Since(pauseStart) > MaxPauseDuration {
+		if c.isPaused && pauseInitialized && time.Since(pauseStart) > MaxPauseDuration {
 			c.logger.Warn("backpressure: exceeded max pause duration",
 				slog.Int("pending", queueLen),
 				slog.Duration("pause_duration", time.Since(pauseStart)),
@@ -224,11 +230,6 @@ func (c *Client) readLoop(ctx context.Context) {
 			case <-time.After(100 * time.Millisecond):
 				continue
 			}
-		}
-		
-		// If we just resumed from pause, log transition
-		if wasPaused && !isPaused {
-			c.logger.Info("backpressure: consumption resumed")
 		}
 
 		// Get connection under lock to prevent race with close()
@@ -255,9 +256,11 @@ func (c *Client) readLoop(ctx context.Context) {
 		case c.messageQueue <- msg:
 			// Message queued successfully
 		case <-time.After(5 * time.Second):
-			// Queue is full and blocking for too long - this is a critical issue
-			c.logger.Error("backpressure: failed to queue message after timeout",
+			// Queue is full and blocking for too long - close connection to force reconnect
+			c.logger.Error("backpressure: failed to queue message after timeout, closing connection",
 				slog.Int("pending", len(c.messageQueue)))
+			c.close()
+			return
 		case <-ctx.Done():
 			return
 		}
@@ -274,6 +277,7 @@ func (c *Client) close() {
 		c.conn = nil
 	}
 	c.isConnected = false
+	c.isPaused = false // Reset pause state on close
 }
 
 // processMessages processes messages from the queue.
