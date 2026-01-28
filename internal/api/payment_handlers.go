@@ -298,15 +298,15 @@ func (h *PaymentHandlers) CreateCheckoutSession(w http.ResponseWriter, r *http.R
 	// Create provisional payment record
 	paymentRecord := &payment.PaymentRecord{
 		SessionID: session.ID,
-		Status:    payment.StatusPending,
 		Amount:    placeholderAmount,
 		Fee:       applicationFee,
+		Currency:  "usd", // Default currency
 		UserDID:   userDID,
 		SceneID:   req.SceneID,
 		EventID:   req.EventID,
 	}
 
-	if err := h.paymentRepo.Insert(paymentRecord); err != nil {
+	if err := h.paymentRepo.CreatePending(paymentRecord); err != nil {
 		slog.ErrorContext(ctx, "failed to insert payment record", "session_id", session.ID, "error", err)
 		// Not a critical failure; continue and return session URL
 	}
