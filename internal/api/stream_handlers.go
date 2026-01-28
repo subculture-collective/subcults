@@ -33,27 +33,30 @@ type StreamSessionResponse struct {
 
 // StreamHandlers holds dependencies for stream session HTTP handlers.
 type StreamHandlers struct {
-	streamRepo    stream.SessionRepository
-	sceneRepo     scene.SceneRepository
-	eventRepo     scene.EventRepository
-	auditRepo     audit.Repository
-	streamMetrics *stream.Metrics
+	streamRepo      stream.SessionRepository
+	analyticsRepo   stream.AnalyticsRepository
+	sceneRepo       scene.SceneRepository
+	eventRepo       scene.EventRepository
+	auditRepo       audit.Repository
+	streamMetrics   *stream.Metrics
 }
 
 // NewStreamHandlers creates a new StreamHandlers instance.
 func NewStreamHandlers(
 	streamRepo stream.SessionRepository,
+	analyticsRepo stream.AnalyticsRepository,
 	sceneRepo scene.SceneRepository,
 	eventRepo scene.EventRepository,
 	auditRepo audit.Repository,
 	streamMetrics *stream.Metrics,
 ) *StreamHandlers {
 	return &StreamHandlers{
-		streamRepo:    streamRepo,
-		sceneRepo:     sceneRepo,
-		eventRepo:     eventRepo,
-		auditRepo:     auditRepo,
-		streamMetrics: streamMetrics,
+		streamRepo:      streamRepo,
+		analyticsRepo:   analyticsRepo,
+		sceneRepo:       sceneRepo,
+		eventRepo:       eventRepo,
+		auditRepo:       auditRepo,
+		streamMetrics:   streamMetrics,
 	}
 }
 
@@ -256,6 +259,24 @@ func (h *StreamHandlers) EndStream(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Compute analytics for the ended stream
+	if h.analyticsRepo != nil {
+		_, err = h.analyticsRepo.ComputeAnalytics(streamID)
+		if err != nil {
+			// Log error but don't fail the request
+			slog.ErrorContext(ctx, "failed to compute stream analytics",
+				"error", err,
+				"stream_id", streamID,
+				"user_did", userDID,
+			)
+		} else {
+			slog.InfoContext(ctx, "computed stream analytics",
+				"stream_id", streamID,
+				"user_did", userDID,
+			)
+		}
+	}
+
 	// Log stream ending for audit
 	auditEntry := audit.LogEntry{
 		UserDID:    userDID,
@@ -301,7 +322,8 @@ func (h *StreamHandlers) isSceneOwner(ctx context.Context, sceneID, userDID stri
 
 // JoinStreamRequest represents the request body for recording a join event.
 type JoinStreamRequest struct {
-	TokenIssuedAt string `json:"token_issued_at"` // RFC3339 timestamp from token issuance
+	TokenIssuedAt string  `json:"token_issued_at"` // RFC3339 timestamp from token issuance
+	GeohashPrefix *string `json:"geohash_prefix,omitempty"` // Optional 4-char geohash for geographic tracking
 }
 
 // JoinStream handles POST /streams/{id}/join - records a join event and metrics.
@@ -359,6 +381,26 @@ func (h *StreamHandlers) JoinStream(w http.ResponseWriter, r *http.Request) {
 		ctx = middleware.SetErrorCode(ctx, ErrCodeInternal)
 		WriteError(w, ctx, http.StatusInternalServerError, ErrCodeInternal, "Failed to record join event")
 		return
+	}
+
+	// Record participant event for analytics
+	if h.analyticsRepo != nil {
+		// Validate and sanitize geohash prefix if provided
+		var geohashPrefix *string
+		if req.GeohashPrefix != nil && len(strings.TrimSpace(*req.GeohashPrefix)) >= 4 {
+			// Take only first 4 characters for privacy
+			prefix := strings.TrimSpace(*req.GeohashPrefix)[:4]
+			geohashPrefix = &prefix
+		}
+
+		if err := h.analyticsRepo.RecordParticipantEvent(streamID, userDID, "join", geohashPrefix); err != nil {
+			// Log error but don't fail the request
+			slog.ErrorContext(ctx, "failed to record participant join event",
+				"error", err,
+				"stream_id", streamID,
+				"user_did", userDID,
+			)
+		}
 	}
 
 	// Increment Prometheus counter
@@ -489,6 +531,18 @@ func (h *StreamHandlers) LeaveStream(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Record participant event for analytics
+	if h.analyticsRepo != nil {
+		if err := h.analyticsRepo.RecordParticipantEvent(streamID, userDID, "leave", nil); err != nil {
+			// Log error but don't fail the request
+			slog.ErrorContext(ctx, "failed to record participant leave event",
+				"error", err,
+				"stream_id", streamID,
+				"user_did", userDID,
+			)
+		}
+	}
+
 	// Increment Prometheus counter
 	if h.streamMetrics != nil {
 		h.streamMetrics.IncStreamLeaves()
@@ -537,5 +591,102 @@ func (h *StreamHandlers) LeaveStream(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 	if err := json.NewEncoder(w).Encode(response); err != nil {
 		slog.ErrorContext(ctx, "failed to encode leave response", "error", err)
+	}
+}
+
+// GetStreamAnalytics handles GET /streams/{id}/analytics - retrieves analytics for a stream session.
+// Only accessible by the stream host (scene/event owner).
+func (h *StreamHandlers) GetStreamAnalytics(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	// Extract user DID from context (set by auth middleware)
+	userDID := middleware.GetUserDID(ctx)
+	if userDID == "" {
+		ctx = middleware.SetErrorCode(ctx, ErrCodeAuthFailed)
+		WriteError(w, ctx, http.StatusUnauthorized, ErrCodeAuthFailed, "Authentication required")
+		return
+	}
+
+	// Extract stream ID from URL path
+	// Expected: /streams/{id}/analytics
+	pathParts := strings.Split(strings.TrimPrefix(r.URL.Path, "/streams/"), "/")
+	if len(pathParts) != 2 || pathParts[0] == "" || pathParts[1] != "analytics" {
+		ctx = middleware.SetErrorCode(ctx, ErrCodeBadRequest)
+		WriteError(w, ctx, http.StatusBadRequest, ErrCodeBadRequest, "Invalid URL path")
+		return
+	}
+	streamID := pathParts[0]
+
+	// Get the stream session to verify ownership
+	session, err := h.streamRepo.GetByID(streamID)
+	if err != nil {
+		if errors.Is(err, stream.ErrStreamNotFound) {
+			ctx = middleware.SetErrorCode(ctx, ErrCodeNotFound)
+			WriteError(w, ctx, http.StatusNotFound, ErrCodeNotFound, "Stream session not found")
+		} else {
+			slog.ErrorContext(ctx, "failed to get stream session", "error", err)
+			ctx = middleware.SetErrorCode(ctx, ErrCodeInternal)
+			WriteError(w, ctx, http.StatusInternalServerError, ErrCodeInternal, "Internal server error")
+		}
+		return
+	}
+
+	// Verify that the user is the stream host
+	if session.HostDID != userDID {
+		ctx = middleware.SetErrorCode(ctx, ErrCodeForbidden)
+		WriteError(w, ctx, http.StatusForbidden, ErrCodeForbidden, "You must be the stream host to view analytics")
+		return
+	}
+
+	// Check if analytics repository is available
+	if h.analyticsRepo == nil {
+		ctx = middleware.SetErrorCode(ctx, ErrCodeInternal)
+		WriteError(w, ctx, http.StatusInternalServerError, ErrCodeInternal, "Analytics not available")
+		return
+	}
+
+	// Get analytics
+	analytics, err := h.analyticsRepo.GetAnalytics(streamID)
+	if err != nil {
+		if errors.Is(err, stream.ErrAnalyticsNotFound) {
+			// Analytics not computed yet - check if stream has ended
+			if session.EndedAt == nil {
+				ctx = middleware.SetErrorCode(ctx, ErrCodeValidation)
+				WriteError(w, ctx, http.StatusBadRequest, ErrCodeValidation, "Analytics not available until stream ends")
+			} else {
+				ctx = middleware.SetErrorCode(ctx, ErrCodeNotFound)
+				WriteError(w, ctx, http.StatusNotFound, ErrCodeNotFound, "Analytics not yet computed for this stream")
+			}
+		} else {
+			slog.ErrorContext(ctx, "failed to get stream analytics", "error", err)
+			ctx = middleware.SetErrorCode(ctx, ErrCodeInternal)
+			WriteError(w, ctx, http.StatusInternalServerError, ErrCodeInternal, "Internal server error")
+		}
+		return
+	}
+
+	// Log analytics access for audit
+	auditEntry := audit.LogEntry{
+		UserDID:    userDID,
+		EntityType: "stream_analytics",
+		EntityID:   streamID,
+		Action:     "viewed",
+		RequestID:  middleware.GetRequestID(ctx),
+	}
+
+	if _, err := h.auditRepo.LogAccess(auditEntry); err != nil {
+		// Log error but don't fail the request
+		slog.ErrorContext(ctx, "failed to log analytics access",
+			"error", err,
+			"stream_id", streamID,
+			"user_did", userDID,
+		)
+	}
+
+	// Return analytics (no PII exposed - only aggregate data)
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	if err := json.NewEncoder(w).Encode(analytics); err != nil {
+		slog.ErrorContext(ctx, "failed to encode analytics response", "error", err)
 	}
 }
