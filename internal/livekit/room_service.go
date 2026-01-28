@@ -6,8 +6,8 @@ import (
 	"errors"
 	"fmt"
 
-	lksdk "github.com/livekit/server-sdk-go/v2"
 	"github.com/livekit/protocol/livekit"
+	lksdk "github.com/livekit/server-sdk-go/v2"
 )
 
 var (
@@ -31,7 +31,7 @@ func NewRoomService(url, apiKey, apiSecret string) *RoomService {
 	}
 
 	roomClient := lksdk.NewRoomServiceClient(url, apiKey, apiSecret)
-	
+
 	return &RoomService{
 		roomClient: roomClient,
 		apiKey:     apiKey,

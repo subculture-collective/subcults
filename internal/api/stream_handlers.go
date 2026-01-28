@@ -837,462 +837,462 @@ func (h *StreamHandlers) GetActiveParticipants(w http.ResponseWriter, r *http.Re
 
 // MuteParticipantRequest represents the request body for muting a participant.
 type MuteParticipantRequest struct {
-Muted bool `json:"muted"` // True to mute, false to unmute
+	Muted bool `json:"muted"` // True to mute, false to unmute
 }
 
 // MuteParticipant handles POST /streams/{stream_id}/participants/{participant_id}/mute
 // Mutes or unmutes a participant's audio in the stream.
 // Only the stream host (organizer) can perform this action.
 func (h *StreamHandlers) MuteParticipant(w http.ResponseWriter, r *http.Request) {
-ctx := r.Context()
+	ctx := r.Context()
 
-// Extract user DID from context (set by auth middleware)
-userDID := middleware.GetUserDID(ctx)
-if userDID == "" {
-ctx = middleware.SetErrorCode(ctx, ErrCodeAuthFailed)
-WriteError(w, ctx, http.StatusUnauthorized, ErrCodeAuthFailed, "Authentication required")
-return
-}
+	// Extract user DID from context (set by auth middleware)
+	userDID := middleware.GetUserDID(ctx)
+	if userDID == "" {
+		ctx = middleware.SetErrorCode(ctx, ErrCodeAuthFailed)
+		WriteError(w, ctx, http.StatusUnauthorized, ErrCodeAuthFailed, "Authentication required")
+		return
+	}
 
-// Extract stream ID and participant ID from URL path
-// Expected: /streams/{stream_id}/participants/{participant_id}/mute
-pathParts := strings.Split(strings.TrimPrefix(r.URL.Path, "/streams/"), "/")
-if len(pathParts) != 4 || pathParts[0] == "" || pathParts[1] != "participants" || pathParts[2] == "" || pathParts[3] != "mute" {
-ctx = middleware.SetErrorCode(ctx, ErrCodeBadRequest)
-WriteError(w, ctx, http.StatusBadRequest, ErrCodeBadRequest, "Invalid URL path")
-return
-}
-streamID := pathParts[0]
-participantID := pathParts[2]
+	// Extract stream ID and participant ID from URL path
+	// Expected: /streams/{stream_id}/participants/{participant_id}/mute
+	pathParts := strings.Split(strings.TrimPrefix(r.URL.Path, "/streams/"), "/")
+	if len(pathParts) != 4 || pathParts[0] == "" || pathParts[1] != "participants" || pathParts[2] == "" || pathParts[3] != "mute" {
+		ctx = middleware.SetErrorCode(ctx, ErrCodeBadRequest)
+		WriteError(w, ctx, http.StatusBadRequest, ErrCodeBadRequest, "Invalid URL path")
+		return
+	}
+	streamID := pathParts[0]
+	participantID := pathParts[2]
 
-// Get the stream session to verify ownership
-session, err := h.streamRepo.GetByID(streamID)
-if err != nil {
-if errors.Is(err, stream.ErrStreamNotFound) {
-ctx = middleware.SetErrorCode(ctx, ErrCodeNotFound)
-WriteError(w, ctx, http.StatusNotFound, ErrCodeNotFound, "Stream session not found")
-} else {
-slog.ErrorContext(ctx, "failed to get stream session", "error", err)
-ctx = middleware.SetErrorCode(ctx, ErrCodeInternal)
-WriteError(w, ctx, http.StatusInternalServerError, ErrCodeInternal, "Internal server error")
-}
-return
-}
+	// Get the stream session to verify ownership
+	session, err := h.streamRepo.GetByID(streamID)
+	if err != nil {
+		if errors.Is(err, stream.ErrStreamNotFound) {
+			ctx = middleware.SetErrorCode(ctx, ErrCodeNotFound)
+			WriteError(w, ctx, http.StatusNotFound, ErrCodeNotFound, "Stream session not found")
+		} else {
+			slog.ErrorContext(ctx, "failed to get stream session", "error", err)
+			ctx = middleware.SetErrorCode(ctx, ErrCodeInternal)
+			WriteError(w, ctx, http.StatusInternalServerError, ErrCodeInternal, "Internal server error")
+		}
+		return
+	}
 
-// Verify that the user is the stream host (organizer)
-if session.HostDID != userDID {
-ctx = middleware.SetErrorCode(ctx, ErrCodeForbidden)
-WriteError(w, ctx, http.StatusForbidden, ErrCodeForbidden, "Only the stream host can mute participants")
-return
-}
+	// Verify that the user is the stream host (organizer)
+	if session.HostDID != userDID {
+		ctx = middleware.SetErrorCode(ctx, ErrCodeForbidden)
+		WriteError(w, ctx, http.StatusForbidden, ErrCodeForbidden, "Only the stream host can mute participants")
+		return
+	}
 
-// Parse request body
-var req MuteParticipantRequest
-if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-ctx = middleware.SetErrorCode(ctx, ErrCodeBadRequest)
-WriteError(w, ctx, http.StatusBadRequest, ErrCodeBadRequest, "Invalid JSON in request body")
-return
-}
+	// Parse request body
+	var req MuteParticipantRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		ctx = middleware.SetErrorCode(ctx, ErrCodeBadRequest)
+		WriteError(w, ctx, http.StatusBadRequest, ErrCodeBadRequest, "Invalid JSON in request body")
+		return
+	}
 
-// Check if room service is available
-if h.roomService == nil {
-ctx = middleware.SetErrorCode(ctx, ErrCodeInternal)
-WriteError(w, ctx, http.StatusServiceUnavailable, ErrCodeInternal, "Stream control operations are not available")
-return
-}
+	// Check if room service is available
+	if h.roomService == nil {
+		ctx = middleware.SetErrorCode(ctx, ErrCodeInternal)
+		WriteError(w, ctx, http.StatusServiceUnavailable, ErrCodeInternal, "Stream control operations are not available")
+		return
+	}
 
-// Get participant info from LiveKit to find audio tracks
-participant, err := h.roomService.GetParticipant(ctx, session.RoomName, participantID)
-if err != nil {
-slog.ErrorContext(ctx, "failed to get participant from LiveKit",
-"error", err,
-"stream_id", streamID,
-"participant_id", participantID,
-)
-ctx = middleware.SetErrorCode(ctx, ErrCodeNotFound)
-WriteError(w, ctx, http.StatusNotFound, ErrCodeNotFound, "Participant not found in stream")
-return
-}
+	// Get participant info from LiveKit to find audio tracks
+	participant, err := h.roomService.GetParticipant(ctx, session.RoomName, participantID)
+	if err != nil {
+		slog.ErrorContext(ctx, "failed to get participant from LiveKit",
+			"error", err,
+			"stream_id", streamID,
+			"participant_id", participantID,
+		)
+		ctx = middleware.SetErrorCode(ctx, ErrCodeNotFound)
+		WriteError(w, ctx, http.StatusNotFound, ErrCodeNotFound, "Participant not found in stream")
+		return
+	}
 
-// Mute all audio tracks for the participant
-var mutedTracks []string
-for _, track := range participant.Tracks {
-if track.Type.String() == "AUDIO" {
-err = h.roomService.MuteParticipantTrack(ctx, session.RoomName, participantID, track.Sid, req.Muted)
-if err != nil {
-slog.ErrorContext(ctx, "failed to mute track",
-"error", err,
-"stream_id", streamID,
-"participant_id", participantID,
-"track_sid", track.Sid,
-)
-// Continue trying other tracks
-} else {
-mutedTracks = append(mutedTracks, track.Sid)
-}
-}
-}
+	// Mute all audio tracks for the participant
+	var mutedTracks []string
+	for _, track := range participant.Tracks {
+		if track.Type.String() == "AUDIO" {
+			err = h.roomService.MuteParticipantTrack(ctx, session.RoomName, participantID, track.Sid, req.Muted)
+			if err != nil {
+				slog.ErrorContext(ctx, "failed to mute track",
+					"error", err,
+					"stream_id", streamID,
+					"participant_id", participantID,
+					"track_sid", track.Sid,
+				)
+				// Continue trying other tracks
+			} else {
+				mutedTracks = append(mutedTracks, track.Sid)
+			}
+		}
+	}
 
-if len(mutedTracks) == 0 {
-slog.WarnContext(ctx, "no audio tracks found or muted",
-"stream_id", streamID,
-"participant_id", participantID,
-)
-}
+	if len(mutedTracks) == 0 {
+		slog.WarnContext(ctx, "no audio tracks found or muted",
+			"stream_id", streamID,
+			"participant_id", participantID,
+		)
+	}
 
-// Log action for audit
-action := "muted"
-if !req.Muted {
-action = "unmuted"
-}
-auditEntry := audit.LogEntry{
-UserDID:    userDID,
-EntityType: "stream_participant",
-EntityID:   streamID + ":" + participantID,
-Action:     action,
-RequestID:  middleware.GetRequestID(ctx),
-}
+	// Log action for audit
+	action := "muted"
+	if !req.Muted {
+		action = "unmuted"
+	}
+	auditEntry := audit.LogEntry{
+		UserDID:    userDID,
+		EntityType: "stream_participant",
+		EntityID:   streamID + ":" + participantID,
+		Action:     action,
+		RequestID:  middleware.GetRequestID(ctx),
+	}
 
-if _, err := h.auditRepo.LogAccess(auditEntry); err != nil {
-// Log error but don't fail the request
-slog.ErrorContext(ctx, "failed to log mute audit entry",
-"error", err,
-"stream_id", streamID,
-"participant_id", participantID,
-)
-}
+	if _, err := h.auditRepo.LogAccess(auditEntry); err != nil {
+		// Log error but don't fail the request
+		slog.ErrorContext(ctx, "failed to log mute audit entry",
+			"error", err,
+			"stream_id", streamID,
+			"participant_id", participantID,
+		)
+	}
 
-// Return success response
-response := map[string]interface{}{
-"stream_id":      streamID,
-"participant_id": participantID,
-"muted":          req.Muted,
-"tracks_muted":   len(mutedTracks),
-}
+	// Return success response
+	response := map[string]interface{}{
+		"stream_id":      streamID,
+		"participant_id": participantID,
+		"muted":          req.Muted,
+		"tracks_muted":   len(mutedTracks),
+	}
 
-w.Header().Set("Content-Type", "application/json")
-w.WriteHeader(http.StatusOK)
-if err := json.NewEncoder(w).Encode(response); err != nil {
-slog.ErrorContext(ctx, "failed to encode mute response", "error", err)
-}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	if err := json.NewEncoder(w).Encode(response); err != nil {
+		slog.ErrorContext(ctx, "failed to encode mute response", "error", err)
+	}
 }
 
 // KickParticipant handles POST /streams/{stream_id}/participants/{participant_id}/kick
 // Removes a participant from the stream.
 // Only the stream host (organizer) can perform this action.
 func (h *StreamHandlers) KickParticipant(w http.ResponseWriter, r *http.Request) {
-ctx := r.Context()
+	ctx := r.Context()
 
-// Extract user DID from context (set by auth middleware)
-userDID := middleware.GetUserDID(ctx)
-if userDID == "" {
-ctx = middleware.SetErrorCode(ctx, ErrCodeAuthFailed)
-WriteError(w, ctx, http.StatusUnauthorized, ErrCodeAuthFailed, "Authentication required")
-return
-}
+	// Extract user DID from context (set by auth middleware)
+	userDID := middleware.GetUserDID(ctx)
+	if userDID == "" {
+		ctx = middleware.SetErrorCode(ctx, ErrCodeAuthFailed)
+		WriteError(w, ctx, http.StatusUnauthorized, ErrCodeAuthFailed, "Authentication required")
+		return
+	}
 
-// Extract stream ID and participant ID from URL path
-// Expected: /streams/{stream_id}/participants/{participant_id}/kick
-pathParts := strings.Split(strings.TrimPrefix(r.URL.Path, "/streams/"), "/")
-if len(pathParts) != 4 || pathParts[0] == "" || pathParts[1] != "participants" || pathParts[2] == "" || pathParts[3] != "kick" {
-ctx = middleware.SetErrorCode(ctx, ErrCodeBadRequest)
-WriteError(w, ctx, http.StatusBadRequest, ErrCodeBadRequest, "Invalid URL path")
-return
-}
-streamID := pathParts[0]
-participantID := pathParts[2]
+	// Extract stream ID and participant ID from URL path
+	// Expected: /streams/{stream_id}/participants/{participant_id}/kick
+	pathParts := strings.Split(strings.TrimPrefix(r.URL.Path, "/streams/"), "/")
+	if len(pathParts) != 4 || pathParts[0] == "" || pathParts[1] != "participants" || pathParts[2] == "" || pathParts[3] != "kick" {
+		ctx = middleware.SetErrorCode(ctx, ErrCodeBadRequest)
+		WriteError(w, ctx, http.StatusBadRequest, ErrCodeBadRequest, "Invalid URL path")
+		return
+	}
+	streamID := pathParts[0]
+	participantID := pathParts[2]
 
-// Get the stream session to verify ownership
-session, err := h.streamRepo.GetByID(streamID)
-if err != nil {
-if errors.Is(err, stream.ErrStreamNotFound) {
-ctx = middleware.SetErrorCode(ctx, ErrCodeNotFound)
-WriteError(w, ctx, http.StatusNotFound, ErrCodeNotFound, "Stream session not found")
-} else {
-slog.ErrorContext(ctx, "failed to get stream session", "error", err)
-ctx = middleware.SetErrorCode(ctx, ErrCodeInternal)
-WriteError(w, ctx, http.StatusInternalServerError, ErrCodeInternal, "Internal server error")
-}
-return
-}
+	// Get the stream session to verify ownership
+	session, err := h.streamRepo.GetByID(streamID)
+	if err != nil {
+		if errors.Is(err, stream.ErrStreamNotFound) {
+			ctx = middleware.SetErrorCode(ctx, ErrCodeNotFound)
+			WriteError(w, ctx, http.StatusNotFound, ErrCodeNotFound, "Stream session not found")
+		} else {
+			slog.ErrorContext(ctx, "failed to get stream session", "error", err)
+			ctx = middleware.SetErrorCode(ctx, ErrCodeInternal)
+			WriteError(w, ctx, http.StatusInternalServerError, ErrCodeInternal, "Internal server error")
+		}
+		return
+	}
 
-// Verify that the user is the stream host (organizer)
-if session.HostDID != userDID {
-ctx = middleware.SetErrorCode(ctx, ErrCodeForbidden)
-WriteError(w, ctx, http.StatusForbidden, ErrCodeForbidden, "Only the stream host can kick participants")
-return
-}
+	// Verify that the user is the stream host (organizer)
+	if session.HostDID != userDID {
+		ctx = middleware.SetErrorCode(ctx, ErrCodeForbidden)
+		WriteError(w, ctx, http.StatusForbidden, ErrCodeForbidden, "Only the stream host can kick participants")
+		return
+	}
 
-// Check if room service is available
-if h.roomService == nil {
-ctx = middleware.SetErrorCode(ctx, ErrCodeInternal)
-WriteError(w, ctx, http.StatusServiceUnavailable, ErrCodeInternal, "Stream control operations are not available")
-return
-}
+	// Check if room service is available
+	if h.roomService == nil {
+		ctx = middleware.SetErrorCode(ctx, ErrCodeInternal)
+		WriteError(w, ctx, http.StatusServiceUnavailable, ErrCodeInternal, "Stream control operations are not available")
+		return
+	}
 
-// Remove participant from LiveKit room
-err = h.roomService.RemoveParticipant(ctx, session.RoomName, participantID)
-if err != nil {
-slog.ErrorContext(ctx, "failed to remove participant from LiveKit",
-"error", err,
-"stream_id", streamID,
-"participant_id", participantID,
-)
-ctx = middleware.SetErrorCode(ctx, ErrCodeInternal)
-WriteError(w, ctx, http.StatusInternalServerError, ErrCodeInternal, "Failed to remove participant from stream")
-return
-}
+	// Remove participant from LiveKit room
+	err = h.roomService.RemoveParticipant(ctx, session.RoomName, participantID)
+	if err != nil {
+		slog.ErrorContext(ctx, "failed to remove participant from LiveKit",
+			"error", err,
+			"stream_id", streamID,
+			"participant_id", participantID,
+		)
+		ctx = middleware.SetErrorCode(ctx, ErrCodeInternal)
+		WriteError(w, ctx, http.StatusInternalServerError, ErrCodeInternal, "Failed to remove participant from stream")
+		return
+	}
 
-// Log action for audit
-auditEntry := audit.LogEntry{
-UserDID:    userDID,
-EntityType: "stream_participant",
-EntityID:   streamID + ":" + participantID,
-Action:     "kicked",
-RequestID:  middleware.GetRequestID(ctx),
-}
+	// Log action for audit
+	auditEntry := audit.LogEntry{
+		UserDID:    userDID,
+		EntityType: "stream_participant",
+		EntityID:   streamID + ":" + participantID,
+		Action:     "kicked",
+		RequestID:  middleware.GetRequestID(ctx),
+	}
 
-if _, err := h.auditRepo.LogAccess(auditEntry); err != nil {
-// Log error but don't fail the request
-slog.ErrorContext(ctx, "failed to log kick audit entry",
-"error", err,
-"stream_id", streamID,
-"participant_id", participantID,
-)
-}
+	if _, err := h.auditRepo.LogAccess(auditEntry); err != nil {
+		// Log error but don't fail the request
+		slog.ErrorContext(ctx, "failed to log kick audit entry",
+			"error", err,
+			"stream_id", streamID,
+			"participant_id", participantID,
+		)
+	}
 
-// Return success response
-response := map[string]interface{}{
-"stream_id":      streamID,
-"participant_id": participantID,
-"status":         "kicked",
-}
+	// Return success response
+	response := map[string]interface{}{
+		"stream_id":      streamID,
+		"participant_id": participantID,
+		"status":         "kicked",
+	}
 
-w.Header().Set("Content-Type", "application/json")
-w.WriteHeader(http.StatusOK)
-if err := json.NewEncoder(w).Encode(response); err != nil {
-slog.ErrorContext(ctx, "failed to encode kick response", "error", err)
-}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	if err := json.NewEncoder(w).Encode(response); err != nil {
+		slog.ErrorContext(ctx, "failed to encode kick response", "error", err)
+	}
 }
 
 // SetFeaturedParticipantRequest represents the request body for setting a featured participant.
 type SetFeaturedParticipantRequest struct {
-ParticipantID *string `json:"participant_id"` // Participant ID to feature, or null to clear
+	ParticipantID *string `json:"participant_id"` // Participant ID to feature, or null to clear
 }
 
 // SetFeaturedParticipant handles PATCH /streams/{stream_id}/featured_participant
 // Sets or clears the featured (spotlighted) participant in the stream.
 // Only the stream host (organizer) can perform this action.
 func (h *StreamHandlers) SetFeaturedParticipant(w http.ResponseWriter, r *http.Request) {
-ctx := r.Context()
+	ctx := r.Context()
 
-// Extract user DID from context (set by auth middleware)
-userDID := middleware.GetUserDID(ctx)
-if userDID == "" {
-ctx = middleware.SetErrorCode(ctx, ErrCodeAuthFailed)
-WriteError(w, ctx, http.StatusUnauthorized, ErrCodeAuthFailed, "Authentication required")
-return
-}
+	// Extract user DID from context (set by auth middleware)
+	userDID := middleware.GetUserDID(ctx)
+	if userDID == "" {
+		ctx = middleware.SetErrorCode(ctx, ErrCodeAuthFailed)
+		WriteError(w, ctx, http.StatusUnauthorized, ErrCodeAuthFailed, "Authentication required")
+		return
+	}
 
-// Extract stream ID from URL path
-// Expected: /streams/{stream_id}/featured_participant
-pathParts := strings.Split(strings.TrimPrefix(r.URL.Path, "/streams/"), "/")
-if len(pathParts) != 2 || pathParts[0] == "" || pathParts[1] != "featured_participant" {
-ctx = middleware.SetErrorCode(ctx, ErrCodeBadRequest)
-WriteError(w, ctx, http.StatusBadRequest, ErrCodeBadRequest, "Invalid URL path")
-return
-}
-streamID := pathParts[0]
+	// Extract stream ID from URL path
+	// Expected: /streams/{stream_id}/featured_participant
+	pathParts := strings.Split(strings.TrimPrefix(r.URL.Path, "/streams/"), "/")
+	if len(pathParts) != 2 || pathParts[0] == "" || pathParts[1] != "featured_participant" {
+		ctx = middleware.SetErrorCode(ctx, ErrCodeBadRequest)
+		WriteError(w, ctx, http.StatusBadRequest, ErrCodeBadRequest, "Invalid URL path")
+		return
+	}
+	streamID := pathParts[0]
 
-// Get the stream session to verify ownership
-session, err := h.streamRepo.GetByID(streamID)
-if err != nil {
-if errors.Is(err, stream.ErrStreamNotFound) {
-ctx = middleware.SetErrorCode(ctx, ErrCodeNotFound)
-WriteError(w, ctx, http.StatusNotFound, ErrCodeNotFound, "Stream session not found")
-} else {
-slog.ErrorContext(ctx, "failed to get stream session", "error", err)
-ctx = middleware.SetErrorCode(ctx, ErrCodeInternal)
-WriteError(w, ctx, http.StatusInternalServerError, ErrCodeInternal, "Internal server error")
-}
-return
-}
+	// Get the stream session to verify ownership
+	session, err := h.streamRepo.GetByID(streamID)
+	if err != nil {
+		if errors.Is(err, stream.ErrStreamNotFound) {
+			ctx = middleware.SetErrorCode(ctx, ErrCodeNotFound)
+			WriteError(w, ctx, http.StatusNotFound, ErrCodeNotFound, "Stream session not found")
+		} else {
+			slog.ErrorContext(ctx, "failed to get stream session", "error", err)
+			ctx = middleware.SetErrorCode(ctx, ErrCodeInternal)
+			WriteError(w, ctx, http.StatusInternalServerError, ErrCodeInternal, "Internal server error")
+		}
+		return
+	}
 
-// Verify that the user is the stream host (organizer)
-if session.HostDID != userDID {
-ctx = middleware.SetErrorCode(ctx, ErrCodeForbidden)
-WriteError(w, ctx, http.StatusForbidden, ErrCodeForbidden, "Only the stream host can set featured participant")
-return
-}
+	// Verify that the user is the stream host (organizer)
+	if session.HostDID != userDID {
+		ctx = middleware.SetErrorCode(ctx, ErrCodeForbidden)
+		WriteError(w, ctx, http.StatusForbidden, ErrCodeForbidden, "Only the stream host can set featured participant")
+		return
+	}
 
-// Parse request body
-var req SetFeaturedParticipantRequest
-if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-ctx = middleware.SetErrorCode(ctx, ErrCodeBadRequest)
-WriteError(w, ctx, http.StatusBadRequest, ErrCodeBadRequest, "Invalid JSON in request body")
-return
-}
+	// Parse request body
+	var req SetFeaturedParticipantRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		ctx = middleware.SetErrorCode(ctx, ErrCodeBadRequest)
+		WriteError(w, ctx, http.StatusBadRequest, ErrCodeBadRequest, "Invalid JSON in request body")
+		return
+	}
 
-// If participant is being set (not cleared), optionally validate they exist in the room
-// This is a soft validation - we still update the database even if LiveKit validation fails
-if req.ParticipantID != nil && *req.ParticipantID != "" && h.roomService != nil {
-_, err := h.roomService.GetParticipant(ctx, session.RoomName, *req.ParticipantID)
-if err != nil {
-slog.WarnContext(ctx, "featured participant not found in LiveKit room",
-"error", err,
-"stream_id", streamID,
-"participant_id", *req.ParticipantID,
-)
-// Continue anyway - participant might join later
-}
-}
+	// If participant is being set (not cleared), optionally validate they exist in the room
+	// This is a soft validation - we still update the database even if LiveKit validation fails
+	if req.ParticipantID != nil && *req.ParticipantID != "" && h.roomService != nil {
+		_, err := h.roomService.GetParticipant(ctx, session.RoomName, *req.ParticipantID)
+		if err != nil {
+			slog.WarnContext(ctx, "featured participant not found in LiveKit room",
+				"error", err,
+				"stream_id", streamID,
+				"participant_id", *req.ParticipantID,
+			)
+			// Continue anyway - participant might join later
+		}
+	}
 
-// Update featured participant in database
-err = h.streamRepo.SetFeaturedParticipant(streamID, req.ParticipantID)
-if err != nil {
-slog.ErrorContext(ctx, "failed to set featured participant",
-"error", err,
-"stream_id", streamID,
-)
-ctx = middleware.SetErrorCode(ctx, ErrCodeInternal)
-WriteError(w, ctx, http.StatusInternalServerError, ErrCodeInternal, "Failed to set featured participant")
-return
-}
+	// Update featured participant in database
+	err = h.streamRepo.SetFeaturedParticipant(streamID, req.ParticipantID)
+	if err != nil {
+		slog.ErrorContext(ctx, "failed to set featured participant",
+			"error", err,
+			"stream_id", streamID,
+		)
+		ctx = middleware.SetErrorCode(ctx, ErrCodeInternal)
+		WriteError(w, ctx, http.StatusInternalServerError, ErrCodeInternal, "Failed to set featured participant")
+		return
+	}
 
-// Log action for audit
-action := "featured_participant_set"
-if req.ParticipantID == nil || *req.ParticipantID == "" {
-action = "featured_participant_cleared"
-}
-auditEntry := audit.LogEntry{
-UserDID:    userDID,
-EntityType: "stream_session",
-EntityID:   streamID,
-Action:     action,
-RequestID:  middleware.GetRequestID(ctx),
-}
+	// Log action for audit
+	action := "featured_participant_set"
+	if req.ParticipantID == nil || *req.ParticipantID == "" {
+		action = "featured_participant_cleared"
+	}
+	auditEntry := audit.LogEntry{
+		UserDID:    userDID,
+		EntityType: "stream_session",
+		EntityID:   streamID,
+		Action:     action,
+		RequestID:  middleware.GetRequestID(ctx),
+	}
 
-if _, err := h.auditRepo.LogAccess(auditEntry); err != nil {
-// Log error but don't fail the request
-slog.ErrorContext(ctx, "failed to log featured participant audit entry",
-"error", err,
-"stream_id", streamID,
-)
-}
+	if _, err := h.auditRepo.LogAccess(auditEntry); err != nil {
+		// Log error but don't fail the request
+		slog.ErrorContext(ctx, "failed to log featured participant audit entry",
+			"error", err,
+			"stream_id", streamID,
+		)
+	}
 
-// Return success response
-response := map[string]interface{}{
-"stream_id":            streamID,
-"featured_participant": req.ParticipantID,
-}
+	// Return success response
+	response := map[string]interface{}{
+		"stream_id":            streamID,
+		"featured_participant": req.ParticipantID,
+	}
 
-w.Header().Set("Content-Type", "application/json")
-w.WriteHeader(http.StatusOK)
-if err := json.NewEncoder(w).Encode(response); err != nil {
-slog.ErrorContext(ctx, "failed to encode featured participant response", "error", err)
-}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	if err := json.NewEncoder(w).Encode(response); err != nil {
+		slog.ErrorContext(ctx, "failed to encode featured participant response", "error", err)
+	}
 }
 
 // LockStreamRequest represents the request body for locking/unlocking a stream.
 type LockStreamRequest struct {
-Locked bool `json:"locked"` // True to lock, false to unlock
+	Locked bool `json:"locked"` // True to lock, false to unlock
 }
 
 // LockStream handles PATCH /streams/{stream_id}/lock
 // Locks or unlocks the stream to prevent new participants from joining.
 // Only the stream host (organizer) can perform this action.
 func (h *StreamHandlers) LockStream(w http.ResponseWriter, r *http.Request) {
-ctx := r.Context()
+	ctx := r.Context()
 
-// Extract user DID from context (set by auth middleware)
-userDID := middleware.GetUserDID(ctx)
-if userDID == "" {
-ctx = middleware.SetErrorCode(ctx, ErrCodeAuthFailed)
-WriteError(w, ctx, http.StatusUnauthorized, ErrCodeAuthFailed, "Authentication required")
-return
-}
+	// Extract user DID from context (set by auth middleware)
+	userDID := middleware.GetUserDID(ctx)
+	if userDID == "" {
+		ctx = middleware.SetErrorCode(ctx, ErrCodeAuthFailed)
+		WriteError(w, ctx, http.StatusUnauthorized, ErrCodeAuthFailed, "Authentication required")
+		return
+	}
 
-// Extract stream ID from URL path
-// Expected: /streams/{stream_id}/lock
-pathParts := strings.Split(strings.TrimPrefix(r.URL.Path, "/streams/"), "/")
-if len(pathParts) != 2 || pathParts[0] == "" || pathParts[1] != "lock" {
-ctx = middleware.SetErrorCode(ctx, ErrCodeBadRequest)
-WriteError(w, ctx, http.StatusBadRequest, ErrCodeBadRequest, "Invalid URL path")
-return
-}
-streamID := pathParts[0]
+	// Extract stream ID from URL path
+	// Expected: /streams/{stream_id}/lock
+	pathParts := strings.Split(strings.TrimPrefix(r.URL.Path, "/streams/"), "/")
+	if len(pathParts) != 2 || pathParts[0] == "" || pathParts[1] != "lock" {
+		ctx = middleware.SetErrorCode(ctx, ErrCodeBadRequest)
+		WriteError(w, ctx, http.StatusBadRequest, ErrCodeBadRequest, "Invalid URL path")
+		return
+	}
+	streamID := pathParts[0]
 
-// Get the stream session to verify ownership
-session, err := h.streamRepo.GetByID(streamID)
-if err != nil {
-if errors.Is(err, stream.ErrStreamNotFound) {
-ctx = middleware.SetErrorCode(ctx, ErrCodeNotFound)
-WriteError(w, ctx, http.StatusNotFound, ErrCodeNotFound, "Stream session not found")
-} else {
-slog.ErrorContext(ctx, "failed to get stream session", "error", err)
-ctx = middleware.SetErrorCode(ctx, ErrCodeInternal)
-WriteError(w, ctx, http.StatusInternalServerError, ErrCodeInternal, "Internal server error")
-}
-return
-}
+	// Get the stream session to verify ownership
+	session, err := h.streamRepo.GetByID(streamID)
+	if err != nil {
+		if errors.Is(err, stream.ErrStreamNotFound) {
+			ctx = middleware.SetErrorCode(ctx, ErrCodeNotFound)
+			WriteError(w, ctx, http.StatusNotFound, ErrCodeNotFound, "Stream session not found")
+		} else {
+			slog.ErrorContext(ctx, "failed to get stream session", "error", err)
+			ctx = middleware.SetErrorCode(ctx, ErrCodeInternal)
+			WriteError(w, ctx, http.StatusInternalServerError, ErrCodeInternal, "Internal server error")
+		}
+		return
+	}
 
-// Verify that the user is the stream host (organizer)
-if session.HostDID != userDID {
-ctx = middleware.SetErrorCode(ctx, ErrCodeForbidden)
-WriteError(w, ctx, http.StatusForbidden, ErrCodeForbidden, "Only the stream host can lock the stream")
-return
-}
+	// Verify that the user is the stream host (organizer)
+	if session.HostDID != userDID {
+		ctx = middleware.SetErrorCode(ctx, ErrCodeForbidden)
+		WriteError(w, ctx, http.StatusForbidden, ErrCodeForbidden, "Only the stream host can lock the stream")
+		return
+	}
 
-// Parse request body
-var req LockStreamRequest
-if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-ctx = middleware.SetErrorCode(ctx, ErrCodeBadRequest)
-WriteError(w, ctx, http.StatusBadRequest, ErrCodeBadRequest, "Invalid JSON in request body")
-return
-}
+	// Parse request body
+	var req LockStreamRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		ctx = middleware.SetErrorCode(ctx, ErrCodeBadRequest)
+		WriteError(w, ctx, http.StatusBadRequest, ErrCodeBadRequest, "Invalid JSON in request body")
+		return
+	}
 
-// Update lock status in database
-err = h.streamRepo.SetLockStatus(streamID, req.Locked)
-if err != nil {
-slog.ErrorContext(ctx, "failed to set lock status",
-"error", err,
-"stream_id", streamID,
-)
-ctx = middleware.SetErrorCode(ctx, ErrCodeInternal)
-WriteError(w, ctx, http.StatusInternalServerError, ErrCodeInternal, "Failed to update stream lock status")
-return
-}
+	// Update lock status in database
+	err = h.streamRepo.SetLockStatus(streamID, req.Locked)
+	if err != nil {
+		slog.ErrorContext(ctx, "failed to set lock status",
+			"error", err,
+			"stream_id", streamID,
+		)
+		ctx = middleware.SetErrorCode(ctx, ErrCodeInternal)
+		WriteError(w, ctx, http.StatusInternalServerError, ErrCodeInternal, "Failed to update stream lock status")
+		return
+	}
 
-// Log action for audit
-action := "locked"
-if !req.Locked {
-action = "unlocked"
-}
-auditEntry := audit.LogEntry{
-UserDID:    userDID,
-EntityType: "stream_session",
-EntityID:   streamID,
-Action:     action,
-RequestID:  middleware.GetRequestID(ctx),
-}
+	// Log action for audit
+	action := "locked"
+	if !req.Locked {
+		action = "unlocked"
+	}
+	auditEntry := audit.LogEntry{
+		UserDID:    userDID,
+		EntityType: "stream_session",
+		EntityID:   streamID,
+		Action:     action,
+		RequestID:  middleware.GetRequestID(ctx),
+	}
 
-if _, err := h.auditRepo.LogAccess(auditEntry); err != nil {
-// Log error but don't fail the request
-slog.ErrorContext(ctx, "failed to log lock audit entry",
-"error", err,
-"stream_id", streamID,
-)
-}
+	if _, err := h.auditRepo.LogAccess(auditEntry); err != nil {
+		// Log error but don't fail the request
+		slog.ErrorContext(ctx, "failed to log lock audit entry",
+			"error", err,
+			"stream_id", streamID,
+		)
+	}
 
-// Return success response
-response := map[string]interface{}{
-"stream_id": streamID,
-"locked":    req.Locked,
-}
+	// Return success response
+	response := map[string]interface{}{
+		"stream_id": streamID,
+		"locked":    req.Locked,
+	}
 
-w.Header().Set("Content-Type", "application/json")
-w.WriteHeader(http.StatusOK)
-if err := json.NewEncoder(w).Encode(response); err != nil {
-slog.ErrorContext(ctx, "failed to encode lock response", "error", err)
-}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	if err := json.NewEncoder(w).Encode(response); err != nil {
+		slog.ErrorContext(ctx, "failed to encode lock response", "error", err)
+	}
 }
