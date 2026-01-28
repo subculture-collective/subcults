@@ -25,12 +25,12 @@ func TestFullIntegration_404Handler(t *testing.T) {
 	})
 
 	tests := []struct {
-		name           string
-		path           string
-		wantStatus     int
-		wantErrorCode  string
-		wantMessage    string
-		wantIsError    bool
+		name          string
+		path          string
+		wantStatus    int
+		wantErrorCode string
+		wantMessage   string
+		wantIsError   bool
 	}{
 		{
 			name:        "root_path_succeeds",
@@ -120,9 +120,9 @@ func TestFullIntegration_WithMiddleware(t *testing.T) {
 	withMiddleware := middleware.RequestID(handler)
 
 	tests := []struct {
-		path           string
-		wantStatus     int
-		wantErrorCode  string
+		path          string
+		wantStatus    int
+		wantErrorCode string
 	}{
 		{"/validation", http.StatusBadRequest, ErrCodeValidation},
 		{"/auth", http.StatusUnauthorized, ErrCodeAuthFailed},

@@ -15,11 +15,7 @@ import {
 import { apiClient } from '../lib/api-client';
 import { useParticipantStore, normalizeIdentity } from '../stores/participantStore';
 import { useLatencyStore } from '../stores/latencyStore';
-import type {
-  AudioRoomState,
-  Participant,
-  ConnectionQuality,
-} from '../types/streaming';
+import type { AudioRoomState, Participant, ConnectionQuality } from '../types/streaming';
 
 /**
  * Hook options
@@ -64,12 +60,9 @@ function mapConnectionQuality(lkQuality: LKConnectionQuality): ConnectionQuality
 /**
  * Convert LiveKit participant to our Participant type
  */
-function convertParticipant(
-  participant: LKParticipant,
-  isLocal: boolean
-): Participant {
+function convertParticipant(participant: LKParticipant, isLocal: boolean): Participant {
   const audioTrack = participant.getTrackPublication(Track.Source.Microphone);
-  
+
   return {
     identity: participant.identity,
     name: participant.name || participant.identity,
@@ -89,7 +82,7 @@ export function useLiveAudio(
 ): UseLiveAudioResult {
   // Destructure options to avoid dependency on the entire object
   const { sceneId, eventId, onError } = options;
-  
+
   const [state, setState] = useState<AudioRoomState>({
     roomName: roomName || '',
     isConnected: false,
@@ -128,8 +121,9 @@ export function useLiveAudio(
     }
 
     // Sync state with store for component access
-    const remoteParticipants = store.getParticipantsArray()
-      .filter(p => p.identity !== store.localIdentity);
+    const remoteParticipants = store
+      .getParticipantsArray()
+      .filter((p) => p.identity !== store.localIdentity);
     const localPart = store.getLocalParticipant();
 
     setState((prev) => ({
@@ -142,38 +136,35 @@ export function useLiveAudio(
   /**
    * Schedule token refresh before expiry
    */
-  const scheduleTokenRefresh = useCallback(
-    async (expiresAt: string) => {
-      // Clear any existing refresh timeout
-      if (refreshTimeoutRef.current) {
-        clearTimeout(refreshTimeoutRef.current);
-        refreshTimeoutRef.current = null;
-      }
+  const scheduleTokenRefresh = useCallback(async (expiresAt: string) => {
+    // Clear any existing refresh timeout
+    if (refreshTimeoutRef.current) {
+      clearTimeout(refreshTimeoutRef.current);
+      refreshTimeoutRef.current = null;
+    }
 
-      const expiryTime = new Date(expiresAt).getTime();
-      tokenExpiryRef.current = expiryTime;
+    const expiryTime = new Date(expiresAt).getTime();
+    tokenExpiryRef.current = expiryTime;
 
-      const now = Date.now();
-      const timeUntilRefresh = expiryTime - now - TOKEN_REFRESH_THRESHOLD_MS;
+    const now = Date.now();
+    const timeUntilRefresh = expiryTime - now - TOKEN_REFRESH_THRESHOLD_MS;
 
-      // Only schedule if we have time before expiry
-      if (timeUntilRefresh > 0) {
-        refreshTimeoutRef.current = setTimeout(() => {
-          // Note: Token refresh in LiveKit 2.x requires reconnection
-          // For now, we'll let the connection expire and require manual rejoin
-          // TODO: Implement seamless reconnection with new token
-          console.info('LiveKit token will expire soon; manual rejoin required.');
-          
-          // Set a warning in state to notify user
-          setState((prev) => ({
-            ...prev,
-            error: 'Session will expire soon. Please rejoin if disconnected.',
-          }));
-        }, timeUntilRefresh);
-      }
-    },
-    [roomName, sceneId, eventId]
-  );
+    // Only schedule if we have time before expiry
+    if (timeUntilRefresh > 0) {
+      refreshTimeoutRef.current = setTimeout(() => {
+        // Note: Token refresh in LiveKit 2.x requires reconnection
+        // For now, we'll let the connection expire and require manual rejoin
+        // TODO: Implement seamless reconnection with new token
+        console.info('LiveKit token will expire soon; manual rejoin required.');
+
+        // Set a warning in state to notify user
+        setState((prev) => ({
+          ...prev,
+          error: 'Session will expire soon. Please rejoin if disconnected.',
+        }));
+      }, timeUntilRefresh);
+    }
+  }, []);
 
   /**
    * Connect to room
@@ -193,12 +184,8 @@ export function useLiveAudio(
 
     try {
       // Fetch token (t1: token received)
-      const { token, expires_at } = await apiClient.getLiveKitToken(
-        roomName,
-        sceneId,
-        eventId
-      );
-      
+      const { token, expires_at } = await apiClient.getLiveKitToken(roomName, sceneId, eventId);
+
       // Record token received timestamp
       latencyStore.recordTokenReceived();
 
@@ -213,16 +200,16 @@ export function useLiveAudio(
         store.addParticipant(converted);
         updateParticipants();
       });
-      
+
       room.on(RoomEvent.ParticipantDisconnected, (participant: LKParticipant) => {
         const store = useParticipantStore.getState();
         store.removeParticipant(participant.identity);
         updateParticipants();
       });
-      
+
       room.on(RoomEvent.LocalTrackPublished, updateParticipants);
       room.on(RoomEvent.LocalTrackUnpublished, updateParticipants);
-      
+
       room.on(RoomEvent.TrackMuted, (publication, participant: LKParticipant) => {
         if (publication.source === Track.Source.Microphone) {
           const store = useParticipantStore.getState();
@@ -230,7 +217,7 @@ export function useLiveAudio(
           updateParticipants();
         }
       });
-      
+
       room.on(RoomEvent.TrackUnmuted, (publication, participant: LKParticipant) => {
         if (publication.source === Track.Source.Microphone) {
           const store = useParticipantStore.getState();
@@ -238,29 +225,27 @@ export function useLiveAudio(
           updateParticipants();
         }
       });
-      
+
       room.on(RoomEvent.ActiveSpeakersChanged, (speakers: LKParticipant[]) => {
         const store = useParticipantStore.getState();
         // Get current speaking state
         const allParticipants = store.getParticipantsArray();
-        
+
         // Normalize LiveKit identities to match store participants
         // LiveKit may provide 'user:alice' while store has 'alice'
-        const speakerIdentities = new Set(
-          speakers.map(s => normalizeIdentity(s.identity))
-        );
-        
+        const speakerIdentities = new Set(speakers.map((s) => normalizeIdentity(s.identity)));
+
         // Only update participants whose speaking status changed
-        allParticipants.forEach(p => {
+        allParticipants.forEach((p) => {
           const shouldBeSpeaking = speakerIdentities.has(p.identity);
           if (p.isSpeaking !== shouldBeSpeaking) {
             store.updateParticipantSpeaking(p.identity, shouldBeSpeaking);
           }
         });
-        
+
         updateParticipants();
       });
-      
+
       // Track first audio subscription for latency measurement (t3)
       let firstAudioTracked = false;
       room.on(RoomEvent.TrackSubscribed, (track) => {
@@ -289,7 +274,7 @@ export function useLiveAudio(
           ...prev,
           isConnected: false,
           isConnecting: false,
-          error: isClientInitiated ? null : (reasonStr || null),
+          error: isClientInitiated ? null : reasonStr || null,
         }));
       });
 
@@ -300,13 +285,14 @@ export function useLiveAudio(
           ...prev,
           isConnected: false,
           isConnecting: false,
-          error: 'LiveKit WebSocket URL is not configured. Please set VITE_LIVEKIT_WS_URL in your environment.',
+          error:
+            'LiveKit WebSocket URL is not configured. Please set VITE_LIVEKIT_WS_URL in your environment.',
         }));
         return;
       }
-      
+
       await room.connect(wsUrl, token);
-      
+
       // Record room connected timestamp (t2)
       latencyStore.recordRoomConnected();
 
@@ -327,9 +313,8 @@ export function useLiveAudio(
       // Schedule token refresh
       scheduleTokenRefresh(expires_at);
     } catch (error) {
-      const errorMessage =
-        error instanceof Error ? error.message : 'Failed to connect to room';
-      
+      const errorMessage = error instanceof Error ? error.message : 'Failed to connect to room';
+
       setState((prev) => ({
         ...prev,
         isConnecting: false,
@@ -337,9 +322,7 @@ export function useLiveAudio(
       }));
 
       if (onError) {
-        onError(
-          error instanceof Error ? error : new Error(errorMessage)
-        );
+        onError(error instanceof Error ? error : new Error(errorMessage));
       }
 
       // Clean up on error
@@ -425,7 +408,9 @@ export function useLiveAudio(
             if (
               typeof (publication.audioTrack as { setVolume?: unknown }).setVolume === 'function'
             ) {
-              (publication.audioTrack as { setVolume: (volume: number) => void }).setVolume(normalizedVolume);
+              (publication.audioTrack as { setVolume: (volume: number) => void }).setVolume(
+                normalizedVolume
+              );
             }
           } catch (error) {
             console.warn('Volume control not supported:', error);

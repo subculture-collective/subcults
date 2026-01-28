@@ -205,7 +205,7 @@ func TestGenerateToken_ValidationErrors(t *testing.T) {
 func TestGenerateToken_DecodeAndVerify(t *testing.T) {
 	apiKey := "test-api-key"
 	apiSecret := "test-api-secret"
-	
+
 	svc, err := NewTokenService(apiKey, apiSecret)
 	if err != nil {
 		t.Fatalf("failed to create service: %v", err)

@@ -42,15 +42,15 @@ type UpdatePostRequest struct {
 
 // PostHandlers holds dependencies for post HTTP handlers.
 type PostHandlers struct {
-	repo           post.PostRepository
-	sceneRepo      scene.SceneRepository
-	membershipRepo membership.MembershipRepository
+	repo            post.PostRepository
+	sceneRepo       scene.SceneRepository
+	membershipRepo  membership.MembershipRepository
 	metadataService *attachment.MetadataService // Optional: for enriching attachment metadata
 }
 
 // NewPostHandlers creates a new PostHandlers instance.
 // metadataService is optional and can be nil if attachment enrichment is not configured.
-// 
+//
 // Note: This constructor was updated to include metadataService as a new parameter.
 // All existing callers have been updated. The service is optional (can be nil) to
 // maintain graceful degradation when R2 is not configured.
@@ -133,7 +133,7 @@ func (h *PostHandlers) CreatePost(w http.ResponseWriter, r *http.Request) {
 	for i, label := range req.Labels {
 		sanitizedLabels[i] = html.EscapeString(strings.TrimSpace(label))
 	}
-	
+
 	// Validate that all labels are allowed
 	if err := post.ValidateLabels(sanitizedLabels); err != nil {
 		ctx := middleware.SetErrorCode(r.Context(), ErrCodeValidation)
@@ -263,14 +263,14 @@ func (h *PostHandlers) UpdatePost(w http.ResponseWriter, r *http.Request) {
 		for i, label := range *req.Labels {
 			sanitizedLabels[i] = html.EscapeString(strings.TrimSpace(label))
 		}
-		
+
 		// Validate that all labels are allowed
 		if err := post.ValidateLabels(sanitizedLabels); err != nil {
 			ctx := middleware.SetErrorCode(r.Context(), ErrCodeValidation)
 			WriteError(w, ctx, http.StatusBadRequest, ErrCodeValidation, "Invalid moderation label")
 			return
 		}
-		
+
 		existingPost.Labels = sanitizedLabels
 	}
 
@@ -325,8 +325,8 @@ func (h *PostHandlers) DeletePost(w http.ResponseWriter, r *http.Request) {
 
 // FeedResponse represents the JSON response for feed endpoints.
 type FeedResponse struct {
-	Posts      []*post.Post      `json:"posts"`
-	NextCursor *post.FeedCursor  `json:"next_cursor,omitempty"`
+	Posts      []*post.Post     `json:"posts"`
+	NextCursor *post.FeedCursor `json:"next_cursor,omitempty"`
 }
 
 // parseCursor parses cursor from query parameter.
@@ -374,7 +374,7 @@ func (h *PostHandlers) canAccessScene(s *scene.Scene, requesterDID string) (bool
 		if requesterDID == "" {
 			return false, nil
 		}
-		
+
 		// Check if requester is an active member
 		m, err := h.membershipRepo.GetBySceneAndUser(s.ID, requesterDID)
 		if err != nil {
@@ -384,7 +384,7 @@ func (h *PostHandlers) canAccessScene(s *scene.Scene, requesterDID string) (bool
 			}
 			return false, err
 		}
-		
+
 		// Only active members can access
 		return m.Status == "active", nil
 
@@ -440,8 +440,8 @@ func (h *PostHandlers) GetSceneFeed(w http.ResponseWriter, r *http.Request) {
 
 	if !canAccess {
 		// Use uniform error message - same as "not found" to prevent enumeration
-		slog.DebugContext(r.Context(), "scene access denied", 
-			"scene_id", sceneID, 
+		slog.DebugContext(r.Context(), "scene access denied",
+			"scene_id", sceneID,
 			"visibility", foundScene.Visibility,
 			"requester_did", requesterDID,
 			"is_owner", foundScene.IsOwner(requesterDID))

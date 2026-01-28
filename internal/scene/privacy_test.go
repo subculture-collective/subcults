@@ -248,7 +248,7 @@ func TestPrivacy_ConsentRevocation(t *testing.T) {
 	updatedScene := &Scene{
 		ID:           "scene-consent-revoke",
 		Name:         "Scene With Revoked Consent",
-		AllowPrecise: false, // Consent revoked
+		AllowPrecise: false,                              // Consent revoked
 		PrecisePoint: &Point{Lat: 51.5074, Lng: -0.1278}, // Still present in input
 	}
 

@@ -76,7 +76,7 @@ describe('ApiClient', () => {
     it('refreshes token and retries on 401 response', async () => {
       const oldToken = 'old-token';
       const newToken = 'new-token';
-      
+
       mockGetAccessToken.mockReturnValue(oldToken);
       mockRefreshToken.mockResolvedValue(newToken);
 
@@ -142,7 +142,7 @@ describe('ApiClient', () => {
     it('deduplicates concurrent refresh requests', async () => {
       mockGetAccessToken.mockReturnValue('old-token');
       mockRefreshToken.mockImplementation(
-        () => new Promise(resolve => setTimeout(() => resolve('new-token'), 100))
+        () => new Promise((resolve) => setTimeout(() => resolve('new-token'), 100))
       );
 
       // All requests return 401
@@ -175,11 +175,7 @@ describe('ApiClient', () => {
         });
 
       // Make 3 concurrent requests
-      const requests = [
-        apiClient.get('/test1'),
-        apiClient.get('/test2'),
-        apiClient.get('/test3'),
-      ];
+      const requests = [apiClient.get('/test1'), apiClient.get('/test2'), apiClient.get('/test3')];
 
       await Promise.all(requests);
 
@@ -322,10 +318,10 @@ describe('ApiClient', () => {
         });
 
       const requestPromise = apiClient.get<{ data: string }>('/test');
-      
+
       // Run all timers (delays)
       await vi.runAllTimersAsync();
-      
+
       const result = await requestPromise;
 
       expect(global.fetch).toHaveBeenCalledTimes(3);
@@ -419,13 +415,18 @@ describe('ApiClient', () => {
       });
 
       const requestPromise = apiClient.get('/test');
-      await vi.runAllTimersAsync();
 
-      await expect(requestPromise).rejects.toMatchObject({
-        status: 500,
-        code: 'internal_error',
-        retryCount: 2, // 0, 1, 2 = 3 attempts
-      });
+      // Run timers and await the promise rejection together
+      const [result] = await Promise.allSettled([requestPromise, vi.runAllTimersAsync()]);
+
+      expect(result.status).toBe('rejected');
+      if (result.status === 'rejected') {
+        expect(result.reason).toMatchObject({
+          status: 500,
+          code: 'internal_error',
+          retryCount: 2, // 0, 1, 2 = 3 attempts
+        });
+      }
 
       expect(global.fetch).toHaveBeenCalledTimes(3); // Max 3 attempts
 
@@ -514,7 +515,7 @@ describe('ApiClient', () => {
     beforeEach(() => {
       mockGetAccessToken.mockReturnValue('token');
       mockOnTelemetry = vi.fn();
-      
+
       // Reinitialize with telemetry callback
       apiClient.initialize({
         baseURL: mockBaseURL,
@@ -536,7 +537,7 @@ describe('ApiClient', () => {
       await apiClient.get('/test');
 
       expect(mockOnTelemetry).toHaveBeenCalledTimes(2);
-      
+
       // First call: request event
       expect(mockOnTelemetry).toHaveBeenNthCalledWith(1, {
         type: 'api_request',

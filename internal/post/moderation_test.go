@@ -70,12 +70,12 @@ func TestFilterPostsForUser_Hidden(t *testing.T) {
 	otherDID := "did:example:bob"
 
 	tests := []struct {
-		name            string
-		post            *Post
-		prefs           *UserPreferences
-		viewerDID       string
+		name             string
+		post             *Post
+		prefs            *UserPreferences
+		viewerDID        string
 		includeModerated bool
-		want            bool
+		want             bool
 	}{
 		{
 			name: "hidden post excluded for public",
@@ -135,7 +135,7 @@ func TestFilterPostsForUser_Hidden(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			posts := []*Post{tt.post}
 			filtered := FilterPostsForUser(posts, tt.prefs, tt.viewerDID, tt.includeModerated)
-			
+
 			got := len(filtered) > 0
 			if got != tt.want {
 				t.Errorf("FilterPostsForUser() included=%v, want=%v", got, tt.want)
@@ -149,12 +149,12 @@ func TestFilterPostsForUser_NSFW(t *testing.T) {
 	otherDID := "did:example:bob"
 
 	tests := []struct {
-		name            string
-		post            *Post
-		prefs           *UserPreferences
-		viewerDID       string
+		name             string
+		post             *Post
+		prefs            *UserPreferences
+		viewerDID        string
 		includeModerated bool
-		want            bool
+		want             bool
 	}{
 		{
 			name: "nsfw post excluded when ShowNSFW is false",
@@ -214,7 +214,7 @@ func TestFilterPostsForUser_NSFW(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			posts := []*Post{tt.post}
 			filtered := FilterPostsForUser(posts, tt.prefs, tt.viewerDID, tt.includeModerated)
-			
+
 			got := len(filtered) > 0
 			if got != tt.want {
 				t.Errorf("FilterPostsForUser() included=%v, want=%v", got, tt.want)
@@ -228,12 +228,12 @@ func TestFilterPostsForUser_SpamAndFlagged(t *testing.T) {
 	otherDID := "did:example:bob"
 
 	tests := []struct {
-		name            string
-		post            *Post
-		prefs           *UserPreferences
-		viewerDID       string
+		name             string
+		post             *Post
+		prefs            *UserPreferences
+		viewerDID        string
 		includeModerated bool
-		want            bool
+		want             bool
 	}{
 		{
 			name: "spam post excluded from search (includeModerated=false)",
@@ -319,7 +319,7 @@ func TestFilterPostsForUser_SpamAndFlagged(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			posts := []*Post{tt.post}
 			filtered := FilterPostsForUser(posts, tt.prefs, tt.viewerDID, tt.includeModerated)
-			
+
 			got := len(filtered) > 0
 			if got != tt.want {
 				t.Errorf("FilterPostsForUser() included=%v, want=%v", got, tt.want)
@@ -333,12 +333,12 @@ func TestFilterPostsForUser_MultipleLabels(t *testing.T) {
 	otherDID := "did:example:bob"
 
 	tests := []struct {
-		name            string
-		post            *Post
-		prefs           *UserPreferences
-		viewerDID       string
+		name             string
+		post             *Post
+		prefs            *UserPreferences
+		viewerDID        string
 		includeModerated bool
-		want            bool
+		want             bool
 	}{
 		{
 			name: "hidden+nsfw post excluded (hidden takes precedence)",
@@ -398,7 +398,7 @@ func TestFilterPostsForUser_MultipleLabels(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			posts := []*Post{tt.post}
 			filtered := FilterPostsForUser(posts, tt.prefs, tt.viewerDID, tt.includeModerated)
-			
+
 			got := len(filtered) > 0
 			if got != tt.want {
 				t.Errorf("FilterPostsForUser() included=%v, want=%v", got, tt.want)
@@ -438,59 +438,59 @@ func TestFilterPostsForUser_MultiplePosts(t *testing.T) {
 	}
 
 	tests := []struct {
-		name            string
-		prefs           *UserPreferences
-		viewerDID       string
+		name             string
+		prefs            *UserPreferences
+		viewerDID        string
 		includeModerated bool
-		wantCount       int
-		wantIDs         []string
+		wantCount        int
+		wantIDs          []string
 	}{
 		{
-			name:            "public user in search context",
-			prefs:           &UserPreferences{ShowNSFW: false},
-			viewerDID:       "",
+			name:             "public user in search context",
+			prefs:            &UserPreferences{ShowNSFW: false},
+			viewerDID:        "",
 			includeModerated: false,
-			wantCount:       1,
-			wantIDs:         []string{"1"}, // Only public post
+			wantCount:        1,
+			wantIDs:          []string{"1"}, // Only public post
 		},
 		{
-			name:            "public user in feed context",
-			prefs:           &UserPreferences{ShowNSFW: false},
-			viewerDID:       "",
+			name:             "public user in feed context",
+			prefs:            &UserPreferences{ShowNSFW: false},
+			viewerDID:        "",
 			includeModerated: true,
-			wantCount:       2,
-			wantIDs:         []string{"1", "4"}, // Public and spam
+			wantCount:        2,
+			wantIDs:          []string{"1", "4"}, // Public and spam
 		},
 		{
-			name:            "nsfw user in search context",
-			prefs:           &UserPreferences{ShowNSFW: true},
-			viewerDID:       "",
+			name:             "nsfw user in search context",
+			prefs:            &UserPreferences{ShowNSFW: true},
+			viewerDID:        "",
 			includeModerated: false,
-			wantCount:       2,
-			wantIDs:         []string{"1", "3"}, // Public and NSFW
+			wantCount:        2,
+			wantIDs:          []string{"1", "3"}, // Public and NSFW
 		},
 		{
-			name:            "nsfw user in feed context",
-			prefs:           &UserPreferences{ShowNSFW: true},
-			viewerDID:       "",
+			name:             "nsfw user in feed context",
+			prefs:            &UserPreferences{ShowNSFW: true},
+			viewerDID:        "",
 			includeModerated: true,
-			wantCount:       3,
-			wantIDs:         []string{"1", "3", "4"}, // Public, NSFW, and spam
+			wantCount:        3,
+			wantIDs:          []string{"1", "3", "4"}, // Public, NSFW, and spam
 		},
 		{
-			name:            "owner sees all in search",
-			prefs:           &UserPreferences{ShowNSFW: false},
-			viewerDID:       authorDID,
+			name:             "owner sees all in search",
+			prefs:            &UserPreferences{ShowNSFW: false},
+			viewerDID:        authorDID,
 			includeModerated: false,
-			wantCount:       4,
-			wantIDs:         []string{"1", "2", "3", "4"}, // All posts
+			wantCount:        4,
+			wantIDs:          []string{"1", "2", "3", "4"}, // All posts
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			filtered := FilterPostsForUser(posts, tt.prefs, tt.viewerDID, tt.includeModerated)
-			
+
 			if len(filtered) != tt.wantCount {
 				t.Errorf("FilterPostsForUser() returned %d posts, want %d", len(filtered), tt.wantCount)
 			}

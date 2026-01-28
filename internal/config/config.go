@@ -32,9 +32,9 @@ type Config struct {
 	LiveKitAPISecret string `koanf:"livekit_api_secret"`
 
 	// Stripe
-	StripeAPIKey              string `koanf:"stripe_api_key"`
-	StripeWebhookSecret       string `koanf:"stripe_webhook_secret"`
-	StripeOnboardingReturnURL string `koanf:"stripe_onboarding_return_url"`
+	StripeAPIKey               string `koanf:"stripe_api_key"`
+	StripeWebhookSecret        string `koanf:"stripe_webhook_secret"`
+	StripeOnboardingReturnURL  string `koanf:"stripe_onboarding_return_url"`
 	StripeOnboardingRefreshURL string `koanf:"stripe_onboarding_refresh_url"`
 
 	// MapTiler
@@ -128,25 +128,25 @@ func Load(configFilePath string) (*Config, []error) {
 
 	// Build config struct, with env vars taking precedence over file values
 	cfg := &Config{
-		Port:                port,
-		Env:                 getEnvOrDefaultMulti([]string{"SUBCULT_ENV", "ENV", "GO_ENV"}, k.String("env"), DefaultEnv),
-		DatabaseURL:         getEnvOrKoanf("DATABASE_URL", k, "database_url"),
-		JWTSecret:           getEnvOrKoanf("JWT_SECRET", k, "jwt_secret"),
-		LiveKitURL:          getEnvOrKoanf("LIVEKIT_URL", k, "livekit_url"),
-		LiveKitAPIKey:       getEnvOrKoanf("LIVEKIT_API_KEY", k, "livekit_api_key"),
-		LiveKitAPISecret:    getEnvOrKoanf("LIVEKIT_API_SECRET", k, "livekit_api_secret"),
-		StripeAPIKey:              getEnvOrKoanf("STRIPE_API_KEY", k, "stripe_api_key"),
-		StripeWebhookSecret:       getEnvOrKoanf("STRIPE_WEBHOOK_SECRET", k, "stripe_webhook_secret"),
+		Port:                       port,
+		Env:                        getEnvOrDefaultMulti([]string{"SUBCULT_ENV", "ENV", "GO_ENV"}, k.String("env"), DefaultEnv),
+		DatabaseURL:                getEnvOrKoanf("DATABASE_URL", k, "database_url"),
+		JWTSecret:                  getEnvOrKoanf("JWT_SECRET", k, "jwt_secret"),
+		LiveKitURL:                 getEnvOrKoanf("LIVEKIT_URL", k, "livekit_url"),
+		LiveKitAPIKey:              getEnvOrKoanf("LIVEKIT_API_KEY", k, "livekit_api_key"),
+		LiveKitAPISecret:           getEnvOrKoanf("LIVEKIT_API_SECRET", k, "livekit_api_secret"),
+		StripeAPIKey:               getEnvOrKoanf("STRIPE_API_KEY", k, "stripe_api_key"),
+		StripeWebhookSecret:        getEnvOrKoanf("STRIPE_WEBHOOK_SECRET", k, "stripe_webhook_secret"),
 		StripeOnboardingReturnURL:  getEnvOrKoanf("STRIPE_ONBOARDING_RETURN_URL", k, "stripe_onboarding_return_url"),
 		StripeOnboardingRefreshURL: getEnvOrKoanf("STRIPE_ONBOARDING_REFRESH_URL", k, "stripe_onboarding_refresh_url"),
-		MapTilerAPIKey:            getEnvOrKoanf("MAPTILER_API_KEY", k, "maptiler_api_key"),
-		JetstreamURL:        getEnvOrKoanf("JETSTREAM_URL", k, "jetstream_url"),
-		R2BucketName:        getEnvOrKoanf("R2_BUCKET_NAME", k, "r2_bucket_name"),
-		R2AccessKeyID:       getEnvOrKoanf("R2_ACCESS_KEY_ID", k, "r2_access_key_id"),
-		R2SecretAccessKey:   getEnvOrKoanf("R2_SECRET_ACCESS_KEY", k, "r2_secret_access_key"),
-		R2Endpoint:          getEnvOrKoanf("R2_ENDPOINT", k, "r2_endpoint"),
-		R2MaxUploadSizeMB:   maxUploadSize,
-		RankTrustEnabled:    rankTrustEnabled,
+		MapTilerAPIKey:             getEnvOrKoanf("MAPTILER_API_KEY", k, "maptiler_api_key"),
+		JetstreamURL:               getEnvOrKoanf("JETSTREAM_URL", k, "jetstream_url"),
+		R2BucketName:               getEnvOrKoanf("R2_BUCKET_NAME", k, "r2_bucket_name"),
+		R2AccessKeyID:              getEnvOrKoanf("R2_ACCESS_KEY_ID", k, "r2_access_key_id"),
+		R2SecretAccessKey:          getEnvOrKoanf("R2_SECRET_ACCESS_KEY", k, "r2_secret_access_key"),
+		R2Endpoint:                 getEnvOrKoanf("R2_ENDPOINT", k, "r2_endpoint"),
+		R2MaxUploadSizeMB:          maxUploadSize,
+		RankTrustEnabled:           rankTrustEnabled,
 	}
 
 	// Validate and collect errors
@@ -287,25 +287,25 @@ func (c *Config) Validate() []error {
 // All secrets are masked to prevent accidental exposure.
 func (c *Config) LogSummary() map[string]string {
 	return map[string]string{
-		"port":                  fmt.Sprintf("%d", c.Port),
-		"env":                   c.Env,
-		"database_url":          maskDatabaseURL(c.DatabaseURL),
-		"jwt_secret":            maskSecret(c.JWTSecret),
-		"livekit_url":           c.LiveKitURL,
-		"livekit_api_key":       maskSecret(c.LiveKitAPIKey),
-		"livekit_api_secret":    maskSecret(c.LiveKitAPISecret),
-		"stripe_api_key":                 maskStripeKey(c.StripeAPIKey),
-		"stripe_webhook_secret":          maskSecret(c.StripeWebhookSecret),
-		"stripe_onboarding_return_url":   c.StripeOnboardingReturnURL,
-		"stripe_onboarding_refresh_url":  c.StripeOnboardingRefreshURL,
-		"maptiler_api_key":               maskSecret(c.MapTilerAPIKey),
-		"jetstream_url":         c.JetstreamURL,
-		"r2_bucket_name":        c.R2BucketName,
-		"r2_access_key_id":      maskSecret(c.R2AccessKeyID),
-		"r2_secret_access_key":  maskSecret(c.R2SecretAccessKey),
-		"r2_endpoint":           c.R2Endpoint,
-		"r2_max_upload_size_mb": fmt.Sprintf("%d", c.R2MaxUploadSizeMB),
-		"rank_trust_enabled":    fmt.Sprintf("%t", c.RankTrustEnabled),
+		"port":                          fmt.Sprintf("%d", c.Port),
+		"env":                           c.Env,
+		"database_url":                  maskDatabaseURL(c.DatabaseURL),
+		"jwt_secret":                    maskSecret(c.JWTSecret),
+		"livekit_url":                   c.LiveKitURL,
+		"livekit_api_key":               maskSecret(c.LiveKitAPIKey),
+		"livekit_api_secret":            maskSecret(c.LiveKitAPISecret),
+		"stripe_api_key":                maskStripeKey(c.StripeAPIKey),
+		"stripe_webhook_secret":         maskSecret(c.StripeWebhookSecret),
+		"stripe_onboarding_return_url":  c.StripeOnboardingReturnURL,
+		"stripe_onboarding_refresh_url": c.StripeOnboardingRefreshURL,
+		"maptiler_api_key":              maskSecret(c.MapTilerAPIKey),
+		"jetstream_url":                 c.JetstreamURL,
+		"r2_bucket_name":                c.R2BucketName,
+		"r2_access_key_id":              maskSecret(c.R2AccessKeyID),
+		"r2_secret_access_key":          maskSecret(c.R2SecretAccessKey),
+		"r2_endpoint":                   c.R2Endpoint,
+		"r2_max_upload_size_mb":         fmt.Sprintf("%d", c.R2MaxUploadSizeMB),
+		"rank_trust_enabled":            fmt.Sprintf("%t", c.RankTrustEnabled),
 	}
 }
 

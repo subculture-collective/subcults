@@ -157,7 +157,7 @@ func (h *LiveKitHandlers) IssueToken(w http.ResponseWriter, r *http.Request) {
 
 // generateParticipantID creates a deterministic participant identity from a user DID.
 // Format: user-{stable-identifier}
-// 
+//
 // Note: This generates a stable identity based on the user's DID, ensuring that
 // the same user always gets the same participant ID. This is important for LiveKit's
 // room management, where participants with the same identity are treated as the same user,
@@ -170,11 +170,11 @@ func (h *LiveKitHandlers) IssueToken(w http.ResponseWriter, r *http.Request) {
 func generateParticipantID(did string) string {
 	// DIDs have format: did:method:identifier (e.g., did:plc:abc123...)
 	// We'll use the identifier part to create a stable ID
-	
+
 	// Split on colons and take the last part (the identifier)
 	parts := strings.Split(did, ":")
 	var identifier string
-	
+
 	if len(parts) >= 3 {
 		// Use the identifier portion (last part)
 		identifier = parts[len(parts)-1]
@@ -182,13 +182,13 @@ func generateParticipantID(did string) string {
 		// Fallback: if DID format is unexpected, use the whole DID
 		identifier = did
 	}
-	
+
 	// Ensure identifier is safe for LiveKit (alphanumeric, hyphens, underscores)
 	// and truncate to reasonable length (max 48 chars to keep total under 64)
 	maxLen := 48
 	if len(identifier) > maxLen {
 		identifier = identifier[:maxLen]
 	}
-	
+
 	return fmt.Sprintf("user-%s", identifier)
 }

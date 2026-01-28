@@ -69,17 +69,17 @@ func (r *InMemoryRepository) QueryByEntity(entityType, entityID string, limit in
 	defer r.mu.RUnlock()
 
 	var results []*AuditLog
-	
+
 	// Iterate in reverse order (newest first)
 	for i := len(r.order) - 1; i >= 0; i-- {
 		id := r.order[i]
 		log := r.logs[id]
-		
+
 		if log.EntityType == entityType && log.EntityID == entityID {
 			// Create a copy to prevent external modification
 			logCopy := *log
 			results = append(results, &logCopy)
-			
+
 			if limit > 0 && len(results) >= limit {
 				break
 			}
@@ -95,17 +95,17 @@ func (r *InMemoryRepository) QueryByUser(userDID string, limit int) ([]*AuditLog
 	defer r.mu.RUnlock()
 
 	var results []*AuditLog
-	
+
 	// Iterate in reverse order (newest first)
 	for i := len(r.order) - 1; i >= 0; i-- {
 		id := r.order[i]
 		log := r.logs[id]
-		
+
 		if log.UserDID == userDID {
 			// Create a copy to prevent external modification
 			logCopy := *log
 			results = append(results, &logCopy)
-			
+
 			if limit > 0 && len(results) >= limit {
 				break
 			}

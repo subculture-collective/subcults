@@ -5,7 +5,8 @@
 
 import { describe, it, expect, beforeEach } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
-import { MemoryRouter, Routes, Route, useLocation } from 'react-router-dom';
+import { RouterProvider, useLocation } from 'react-router-dom';
+import { createMemoryRouter } from 'react-router-dom';
 import { RequireAuth } from '../guards/RequireAuth';
 import { RequireAdmin } from '../guards/RequireAdmin';
 import { authStore } from '../stores/authStore';
@@ -38,21 +39,31 @@ describe('Route Guards', () => {
 
   describe('RequireAuth', () => {
     it('redirects to login when not authenticated', async () => {
-      render(
-        <MemoryRouter initialEntries={['/protected']}>
-          <Routes>
-            <Route path="/account/login" element={<MockLoginPage />} />
-            <Route
-              path="/protected"
-              element={
-                <RequireAuth>
-                  <MockProtectedPage />
-                </RequireAuth>
-              }
-            />
-          </Routes>
-        </MemoryRouter>
+      const router = createMemoryRouter(
+        [
+          {
+            path: '/account/login',
+            element: <MockLoginPage />,
+          },
+          {
+            path: '/protected',
+            element: (
+              <RequireAuth>
+                <MockProtectedPage />
+              </RequireAuth>
+            ),
+          },
+        ],
+        {
+          initialEntries: ['/protected'],
+          future: {
+            v7_startTransition: true,
+            v7_relativeSplatPath: true,
+          },
+        }
       );
+
+      render(<RouterProvider router={router} />);
 
       await waitFor(() => {
         expect(screen.getByText('Login Page')).toBeInTheDocument();
@@ -60,21 +71,31 @@ describe('Route Guards', () => {
     });
 
     it('preserves return URL when redirecting to login', async () => {
-      render(
-        <MemoryRouter initialEntries={['/protected']}>
-          <Routes>
-            <Route path="/account/login" element={<MockLoginPage />} />
-            <Route
-              path="/protected"
-              element={
-                <RequireAuth>
-                  <MockProtectedPage />
-                </RequireAuth>
-              }
-            />
-          </Routes>
-        </MemoryRouter>
+      const router = createMemoryRouter(
+        [
+          {
+            path: '/account/login',
+            element: <MockLoginPage />,
+          },
+          {
+            path: '/protected',
+            element: (
+              <RequireAuth>
+                <MockProtectedPage />
+              </RequireAuth>
+            ),
+          },
+        ],
+        {
+          initialEntries: ['/protected'],
+          future: {
+            v7_startTransition: true,
+            v7_relativeSplatPath: true,
+          },
+        }
       );
+
+      render(<RouterProvider router={router} />);
 
       await waitFor(() => {
         expect(screen.getByText('Login Page')).toBeInTheDocument();
@@ -85,21 +106,31 @@ describe('Route Guards', () => {
     it('renders protected content when authenticated', async () => {
       authStore.setUser({ did: 'did:test:user', role: 'user' });
 
-      render(
-        <MemoryRouter initialEntries={['/protected']}>
-          <Routes>
-            <Route path="/account/login" element={<MockLoginPage />} />
-            <Route
-              path="/protected"
-              element={
-                <RequireAuth>
-                  <MockProtectedPage />
-                </RequireAuth>
-              }
-            />
-          </Routes>
-        </MemoryRouter>
+      const router = createMemoryRouter(
+        [
+          {
+            path: '/account/login',
+            element: <MockLoginPage />,
+          },
+          {
+            path: '/protected',
+            element: (
+              <RequireAuth>
+                <MockProtectedPage />
+              </RequireAuth>
+            ),
+          },
+        ],
+        {
+          initialEntries: ['/protected'],
+          future: {
+            v7_startTransition: true,
+            v7_relativeSplatPath: true,
+          },
+        }
       );
+
+      render(<RouterProvider router={router} />);
 
       await waitFor(() => {
         expect(screen.getByText('Protected Page')).toBeInTheDocument();
@@ -109,22 +140,35 @@ describe('Route Guards', () => {
 
   describe('RequireAdmin', () => {
     it('redirects to login when not authenticated', async () => {
-      render(
-        <MemoryRouter initialEntries={['/admin']}>
-          <Routes>
-            <Route path="/account/login" element={<MockLoginPage />} />
-            <Route path="/" element={<MockPublicPage />} />
-            <Route
-              path="/admin"
-              element={
-                <RequireAdmin>
-                  <MockAdminPage />
-                </RequireAdmin>
-              }
-            />
-          </Routes>
-        </MemoryRouter>
+      const router = createMemoryRouter(
+        [
+          {
+            path: '/account/login',
+            element: <MockLoginPage />,
+          },
+          {
+            path: '/',
+            element: <MockPublicPage />,
+          },
+          {
+            path: '/admin',
+            element: (
+              <RequireAdmin>
+                <MockAdminPage />
+              </RequireAdmin>
+            ),
+          },
+        ],
+        {
+          initialEntries: ['/admin'],
+          future: {
+            v7_startTransition: true,
+            v7_relativeSplatPath: true,
+          },
+        }
       );
+
+      render(<RouterProvider router={router} />);
 
       await waitFor(() => {
         expect(screen.getByText('Login Page')).toBeInTheDocument();
@@ -134,22 +178,35 @@ describe('Route Guards', () => {
     it('redirects to home when authenticated but not admin', async () => {
       authStore.setUser({ did: 'did:test:user', role: 'user' });
 
-      render(
-        <MemoryRouter initialEntries={['/admin']}>
-          <Routes>
-            <Route path="/account/login" element={<MockLoginPage />} />
-            <Route path="/" element={<MockPublicPage />} />
-            <Route
-              path="/admin"
-              element={
-                <RequireAdmin>
-                  <MockAdminPage />
-                </RequireAdmin>
-              }
-            />
-          </Routes>
-        </MemoryRouter>
+      const router = createMemoryRouter(
+        [
+          {
+            path: '/account/login',
+            element: <MockLoginPage />,
+          },
+          {
+            path: '/',
+            element: <MockPublicPage />,
+          },
+          {
+            path: '/admin',
+            element: (
+              <RequireAdmin>
+                <MockAdminPage />
+              </RequireAdmin>
+            ),
+          },
+        ],
+        {
+          initialEntries: ['/admin'],
+          future: {
+            v7_startTransition: true,
+            v7_relativeSplatPath: true,
+          },
+        }
       );
+
+      render(<RouterProvider router={router} />);
 
       await waitFor(() => {
         expect(screen.getByText('Public Page')).toBeInTheDocument();
@@ -159,22 +216,35 @@ describe('Route Guards', () => {
     it('renders admin content when authenticated as admin', async () => {
       authStore.setUser({ did: 'did:test:admin', role: 'admin' });
 
-      render(
-        <MemoryRouter initialEntries={['/admin']}>
-          <Routes>
-            <Route path="/account/login" element={<MockLoginPage />} />
-            <Route path="/" element={<MockPublicPage />} />
-            <Route
-              path="/admin"
-              element={
-                <RequireAdmin>
-                  <MockAdminPage />
-                </RequireAdmin>
-              }
-            />
-          </Routes>
-        </MemoryRouter>
+      const router = createMemoryRouter(
+        [
+          {
+            path: '/account/login',
+            element: <MockLoginPage />,
+          },
+          {
+            path: '/',
+            element: <MockPublicPage />,
+          },
+          {
+            path: '/admin',
+            element: (
+              <RequireAdmin>
+                <MockAdminPage />
+              </RequireAdmin>
+            ),
+          },
+        ],
+        {
+          initialEntries: ['/admin'],
+          future: {
+            v7_startTransition: true,
+            v7_relativeSplatPath: true,
+          },
+        }
       );
+
+      render(<RouterProvider router={router} />);
 
       await waitFor(() => {
         expect(screen.getByText('Admin Page')).toBeInTheDocument();

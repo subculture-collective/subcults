@@ -8,9 +8,10 @@ import { ErrorLogger, redactSensitiveData, type ErrorLogPayload } from './error-
 
 describe('redactSensitiveData', () => {
   it('redacts JWT tokens', () => {
-    const text = 'Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0.dozjgNryP4J3jVmNHl0w5N_XgL0n3I9PlFUP0THsR8U';
+    const text =
+      'Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0.dozjgNryP4J3jVmNHl0w5N_XgL0n3I9PlFUP0THsR8U';
     const redacted = redactSensitiveData(text);
-    
+
     expect(redacted).toContain('[REDACTED]');
     expect(redacted).not.toContain('eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9');
   });
@@ -18,7 +19,7 @@ describe('redactSensitiveData', () => {
   it('redacts email addresses', () => {
     const text = 'User email: user@example.com found in error';
     const redacted = redactSensitiveData(text);
-    
+
     expect(redacted).toContain('[REDACTED]');
     expect(redacted).not.toContain('user@example.com');
   });
@@ -26,7 +27,7 @@ describe('redactSensitiveData', () => {
   it('redacts DID identifiers', () => {
     const text = 'User DID: did:plc:abc123xyz';
     const redacted = redactSensitiveData(text);
-    
+
     expect(redacted).toContain('[REDACTED]');
     expect(redacted).not.toContain('did:plc:abc123xyz');
   });
@@ -34,7 +35,7 @@ describe('redactSensitiveData', () => {
   it('redacts Authorization headers', () => {
     const text = 'Authorization: Bearer token123456';
     const redacted = redactSensitiveData(text);
-    
+
     expect(redacted).toContain('[REDACTED]');
     expect(redacted).not.toContain('token123456');
   });
@@ -43,7 +44,7 @@ describe('redactSensitiveData', () => {
     // Test with a realistic 40+ character token (using 'test' prefix to avoid false positives)
     const text = 'API Key: test_live_abcdefghijklmnopqrstuvwxyz1234567890ABCDEFGH';
     const redacted = redactSensitiveData(text);
-    
+
     expect(redacted).toContain('[REDACTED]');
     expect(redacted).not.toContain('test_live_abcdefghijklmnopqrstuvwxyz1234567890ABCDEFGH');
   });
@@ -51,7 +52,7 @@ describe('redactSensitiveData', () => {
   it('redacts API keys with common prefixes', () => {
     const text = 'API key: api_live_1234567890abcdefghijklmn and key_test_abcdef1234567890';
     const redacted = redactSensitiveData(text);
-    
+
     expect(redacted).toContain('[REDACTED]');
     expect(redacted).not.toContain('api_live_1234567890abcdefghijklmn');
     expect(redacted).not.toContain('key_test_abcdef1234567890');
@@ -61,7 +62,7 @@ describe('redactSensitiveData', () => {
     // SHA256 hashes and UUIDs should not be overly aggressive
     const text = 'Error in function calculateHash with result abc123def456';
     const redacted = redactSensitiveData(text);
-    
+
     // Short strings should not be redacted
     expect(redacted).toBe(text);
   });
@@ -69,7 +70,7 @@ describe('redactSensitiveData', () => {
   it('preserves non-sensitive text', () => {
     const text = 'Regular error message without PII';
     const redacted = redactSensitiveData(text);
-    
+
     expect(redacted).toBe(text);
   });
 
@@ -78,9 +79,10 @@ describe('redactSensitiveData', () => {
   });
 
   it('handles multiple sensitive patterns in one string', () => {
-    const text = 'Error with email user@test.com and DID did:plc:123 and token eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIn0.SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c';
+    const text =
+      'Error with email user@test.com and DID did:plc:123 and token eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIn0.SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c';
     const redacted = redactSensitiveData(text);
-    
+
     expect(redacted).not.toContain('user@test.com');
     expect(redacted).not.toContain('did:plc:123');
     expect(redacted).not.toContain('eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9');
@@ -95,7 +97,7 @@ describe('ErrorLogger', () => {
   beforeEach(() => {
     // Clear sessionStorage
     sessionStorage.clear();
-    
+
     // Mock fetch
     fetchMock = vi.fn().mockResolvedValue({ ok: true });
     global.fetch = fetchMock;
@@ -113,18 +115,20 @@ describe('ErrorLogger', () => {
   describe('initialization', () => {
     it('creates a session ID on first use', () => {
       logger = new ErrorLogger();
-      
+
       const sessionId = sessionStorage.getItem('subcults-session-id');
       expect(sessionId).toBeTruthy();
-      expect(sessionId).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i);
+      expect(sessionId).toMatch(
+        /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
+      );
     });
 
     it('reuses existing session ID', () => {
       const existingId = 'existing-session-id';
       sessionStorage.setItem('subcults-session-id', existingId);
-      
+
       logger = new ErrorLogger();
-      
+
       const sessionId = sessionStorage.getItem('subcults-session-id');
       expect(sessionId).toBe(existingId);
     });
@@ -135,7 +139,7 @@ describe('ErrorLogger', () => {
         endpoint: '/custom/endpoint',
         consoleLogging: false,
       });
-      
+
       // Configuration is applied (tested indirectly through behavior)
       expect(logger).toBeTruthy();
     });
@@ -148,7 +152,7 @@ describe('ErrorLogger', () => {
 
     it('sends error payload to backend', async () => {
       const error = new Error('Test error message');
-      
+
       await logger.logError(error);
 
       expect(fetchMock).toHaveBeenCalledTimes(1);
@@ -165,7 +169,7 @@ describe('ErrorLogger', () => {
       const error = new Error('Test error');
       error.name = 'TestError';
       error.stack = 'Error: Test error\n    at TestFunction (test.ts:10:5)';
-      
+
       await logger.logError(error);
 
       const call = fetchMock.mock.calls[0];
@@ -184,7 +188,7 @@ describe('ErrorLogger', () => {
 
     it('redacts sensitive data from error message', async () => {
       const error = new Error('Error with email user@test.com in message');
-      
+
       await logger.logError(error);
 
       const call = fetchMock.mock.calls[0];
@@ -196,8 +200,8 @@ describe('ErrorLogger', () => {
 
     it('excludes query parameters from URL to prevent PII leakage', async () => {
       // Mock window.location
-      delete (window as any).location;
-      (window as any).location = {
+      delete (window as unknown as { location?: unknown }).location;
+      (window as unknown as { location: unknown }).location = {
         pathname: '/scenes/123',
         hash: '#section',
         href: '/scenes/123?token=secret&email=user@test.com#section',
@@ -218,7 +222,7 @@ describe('ErrorLogger', () => {
     it('redacts sensitive data from stack trace', async () => {
       const error = new Error('Test error');
       error.stack = 'Error with DID did:plc:abc123\n    at test.ts:10:5';
-      
+
       await logger.logError(error);
 
       const call = fetchMock.mock.calls[0];
@@ -233,7 +237,7 @@ describe('ErrorLogger', () => {
       const errorInfo = {
         componentStack: '\n    at ErrorComponent (ErrorComponent.tsx:10)',
       };
-      
+
       await logger.logError(error, errorInfo);
 
       const call = fetchMock.mock.calls[0];
@@ -248,7 +252,7 @@ describe('ErrorLogger', () => {
       const errorInfo = {
         componentStack: '\n    at Component with email user@test.com',
       };
-      
+
       await logger.logError(error, errorInfo);
 
       const call = fetchMock.mock.calls[0];
@@ -260,18 +264,18 @@ describe('ErrorLogger', () => {
 
     it('handles fetch errors gracefully', async () => {
       fetchMock.mockRejectedValueOnce(new Error('Network error'));
-      
+
       const error = new Error('Test error');
-      
+
       // Should not throw
       await expect(logger.logError(error)).resolves.toBeUndefined();
     });
 
     it('handles non-ok responses gracefully', async () => {
       fetchMock.mockResolvedValueOnce({ ok: false, status: 500 });
-      
+
       const error = new Error('Test error');
-      
+
       // Should not throw
       await expect(logger.logError(error)).resolves.toBeUndefined();
     });
@@ -279,7 +283,7 @@ describe('ErrorLogger', () => {
 
   describe('rate limiting', () => {
     beforeEach(() => {
-      logger = new ErrorLogger({ 
+      logger = new ErrorLogger({
         maxErrorsPerMinute: 3,
         consoleLogging: false,
       });
@@ -307,7 +311,7 @@ describe('ErrorLogger', () => {
       await logger.logError(new Error('Error 1'));
       await logger.logError(new Error('Error 2'));
       await logger.logError(new Error('Error 3'));
-      
+
       expect(logger.getErrorCount()).toBe(3);
 
       // Advance time by 1 minute
@@ -322,7 +326,7 @@ describe('ErrorLogger', () => {
 
     it('continues resetting error count on interval', async () => {
       await logger.logError(new Error('Error 1'));
-      
+
       expect(logger.getErrorCount()).toBe(1);
 
       // First reset
@@ -351,7 +355,7 @@ describe('ErrorLogger', () => {
 
       // Advance time - should not reset
       vi.advanceTimersByTime(60000);
-      
+
       // Cannot check count after destroy, but test doesn't throw
       expect(true).toBe(true);
     });
@@ -359,25 +363,22 @@ describe('ErrorLogger', () => {
 
   describe('custom configuration', () => {
     it('uses custom endpoint', async () => {
-      logger = new ErrorLogger({ 
+      logger = new ErrorLogger({
         endpoint: '/custom/error/endpoint',
         consoleLogging: false,
       });
-      
+
       await logger.logError(new Error('Test error'));
 
-      expect(fetchMock).toHaveBeenCalledWith(
-        '/custom/error/endpoint',
-        expect.any(Object)
-      );
+      expect(fetchMock).toHaveBeenCalledWith('/custom/error/endpoint', expect.any(Object));
     });
 
     it('respects custom rate limit', async () => {
-      logger = new ErrorLogger({ 
+      logger = new ErrorLogger({
         maxErrorsPerMinute: 2,
         consoleLogging: false,
       });
-      
+
       await logger.logError(new Error('Error 1'));
       await logger.logError(new Error('Error 2'));
       await logger.logError(new Error('Error 3')); // Should be dropped

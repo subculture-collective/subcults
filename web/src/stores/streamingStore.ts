@@ -41,15 +41,15 @@ interface StreamingState {
   isConnecting: boolean;
   error: string | null;
   connectionQuality: ConnectionQuality;
-  
+
   // Audio state
   volume: number;
   isLocalMuted: boolean; // Local microphone mute state (whether others can hear you)
-  
+
   // Reconnection state
   reconnectAttempts: number;
   isReconnecting: boolean;
-  
+
   // Room metadata
   sceneId?: string;
   eventId?: string;
@@ -62,18 +62,18 @@ interface StreamingActions {
   // Connection management
   connect: (roomName: string, sceneId?: string, eventId?: string) => Promise<void>;
   disconnect: () => void;
-  
+
   // Audio controls
   setVolume: (volume: number) => void;
   toggleMute: () => Promise<void>;
-  
+
   // Internal state management
   setConnectionQuality: (quality: ConnectionQuality) => void;
   setError: (error: string | null) => void;
-  
+
   // Reconnection
   scheduleReconnect: () => void;
-  
+
   // Initialization
   initialize: () => void;
 }
@@ -128,12 +128,9 @@ function mapConnectionQuality(lkQuality: LKConnectionQuality): ConnectionQuality
 /**
  * Convert LiveKit participant to our Participant type
  */
-function convertParticipant(
-  participant: LKParticipant,
-  isLocal: boolean
-): Participant {
+function convertParticipant(participant: LKParticipant, isLocal: boolean): Participant {
   const audioTrack = participant.getTrackPublication(Track.Source.Microphone);
-  
+
   return {
     identity: participant.identity,
     name: participant.name || participant.identity,
@@ -172,18 +169,15 @@ const roomsWithVolumeHandlers = new WeakSet<Room>();
 /**
  * Apply volume to all audio tracks for a given participant.
  */
-function applyVolumeToParticipant(
-  participant: LKParticipant,
-  normalizedVolume: number
-) {
+function applyVolumeToParticipant(participant: LKParticipant, normalizedVolume: number) {
   participant.audioTrackPublications.forEach((publication) => {
     if (publication.audioTrack) {
       try {
         // Type guard for setVolume method
-        if (
-          typeof (publication.audioTrack as { setVolume?: unknown }).setVolume === 'function'
-        ) {
-          (publication.audioTrack as { setVolume: (volume: number) => void }).setVolume(normalizedVolume);
+        if (typeof (publication.audioTrack as { setVolume?: unknown }).setVolume === 'function') {
+          (publication.audioTrack as { setVolume: (volume: number) => void }).setVolume(
+            normalizedVolume
+          );
         }
       } catch (error) {
         console.warn('Volume control not supported:', error);
@@ -210,15 +204,16 @@ function applyVolumeToRoom(room: Room, volume: number): void {
       applyVolumeToParticipant(participant, effectiveVolume);
     });
 
-    room.on(RoomEvent.TrackSubscribed, (_track, publication, participant: LKParticipant) => {
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    room.on(RoomEvent.TrackSubscribed, (_track, publication, _participant: LKParticipant) => {
       if (publication.audioTrack) {
         const state = useStreamingStore.getState();
         const effectiveVolume = state.volume / 100;
         try {
-          if (
-            typeof (publication.audioTrack as { setVolume?: unknown }).setVolume === 'function'
-          ) {
-            (publication.audioTrack as { setVolume: (volume: number) => void }).setVolume(effectiveVolume);
+          if (typeof (publication.audioTrack as { setVolume?: unknown }).setVolume === 'function') {
+            (publication.audioTrack as { setVolume: (volume: number) => void }).setVolume(
+              effectiveVolume
+            );
           }
         } catch (error) {
           console.warn('Volume control not supported:', error);
@@ -251,11 +246,11 @@ export const useStreamingStore = create<StreamingStore>((set, get) => ({
 
   /**
    * Initialize the store (call on app startup)
-   * Note: Volume is already initialized from getInitialVolume() above
+   * Re-reads volume from localStorage in case it was set after store creation
    */
   initialize: () => {
-    // Currently no additional initialization needed
-    // Volume is already loaded during store creation
+    const storedVolume = getInitialVolume();
+    set({ volume: storedVolume });
   },
 
   /**
@@ -263,17 +258,17 @@ export const useStreamingStore = create<StreamingStore>((set, get) => ({
    */
   connect: async (roomName: string, sceneId?: string, eventId?: string) => {
     const state = get();
-    
+
     // Don't reconnect if already connected to same room
     if (state.isConnected && state.roomName === roomName) {
       return;
     }
-    
+
     // Disconnect from any existing connection
     if (state.room) {
       state.disconnect();
     }
-    
+
     // Reset latency tracking for new join attempt
     const latencyStore = useLatencyStore.getState();
     latencyStore.resetLatency();
@@ -281,9 +276,9 @@ export const useStreamingStore = create<StreamingStore>((set, get) => ({
       ...prev,
       lastLatency: null,
     }));
-    
-    set({ 
-      isConnecting: true, 
+
+    set({
+      isConnecting: true,
       error: null,
       roomName,
       sceneId,
@@ -293,18 +288,14 @@ export const useStreamingStore = create<StreamingStore>((set, get) => ({
 
     try {
       // Fetch token (t1: token received)
-      const { token } = await apiClient.getLiveKitToken(
-        roomName,
-        sceneId,
-        eventId
-      );
+      const { token } = await apiClient.getLiveKitToken(roomName, sceneId, eventId);
 
       // Record token received timestamp
       latencyStore.recordTokenReceived();
 
       // Create room
       const room = new Room();
-      
+
       // Set up connection quality monitoring
       room.on(RoomEvent.ConnectionQualityChanged, (quality: LKConnectionQuality) => {
         get().setConnectionQuality(mapConnectionQuality(quality));
@@ -314,11 +305,11 @@ export const useStreamingStore = create<StreamingStore>((set, get) => ({
       room.on(RoomEvent.Disconnected, (reason?: DisconnectReason) => {
         const state = get();
         const isClientInitiated = reason === DisconnectReason.CLIENT_INITIATED;
-        
+
         if (!isClientInitiated) {
           // Unexpected disconnect - attempt reconnection
           console.warn('Unexpected disconnect:', reason);
-          set({ 
+          set({
             isConnected: false,
             error: 'Connection lost. Attempting to reconnect...',
           });
@@ -341,21 +332,21 @@ export const useStreamingStore = create<StreamingStore>((set, get) => ({
         participantStore.addParticipant(converted);
         updateParticipants(room);
       });
-      
+
       room.on(RoomEvent.ParticipantDisconnected, (participant: LKParticipant) => {
         const participantStore = useParticipantStore.getState();
         participantStore.removeParticipant(participant.identity);
         updateParticipants(room);
       });
-      
+
       room.on(RoomEvent.LocalTrackPublished, () => {
         updateParticipants(room);
       });
-      
+
       room.on(RoomEvent.LocalTrackUnpublished, () => {
         updateParticipants(room);
       });
-      
+
       room.on(RoomEvent.TrackMuted, (publication, participant: LKParticipant) => {
         if (publication.source === Track.Source.Microphone) {
           const participantStore = useParticipantStore.getState();
@@ -363,7 +354,7 @@ export const useStreamingStore = create<StreamingStore>((set, get) => ({
           updateParticipants(room);
         }
       });
-      
+
       room.on(RoomEvent.TrackUnmuted, (publication, participant: LKParticipant) => {
         if (publication.source === Track.Source.Microphone) {
           const participantStore = useParticipantStore.getState();
@@ -371,28 +362,26 @@ export const useStreamingStore = create<StreamingStore>((set, get) => ({
           updateParticipants(room);
         }
       });
-      
+
       room.on(RoomEvent.ActiveSpeakersChanged, (speakers: LKParticipant[]) => {
         const participantStore = useParticipantStore.getState();
         // Get current speaking state
         const allParticipants = participantStore.getParticipantsArray();
-        
+
         // Normalize LiveKit identities to match store participants
-        const speakerIdentities = new Set(
-          speakers.map(s => normalizeIdentity(s.identity))
-        );
-        
+        const speakerIdentities = new Set(speakers.map((s) => normalizeIdentity(s.identity)));
+
         // Only update participants whose speaking status changed
-        allParticipants.forEach(p => {
+        allParticipants.forEach((p) => {
           const shouldBeSpeaking = speakerIdentities.has(p.identity);
           if (p.isSpeaking !== shouldBeSpeaking) {
             participantStore.updateParticipantSpeaking(p.identity, shouldBeSpeaking);
           }
         });
-        
+
         updateParticipants(room);
       });
-      
+
       // Track first audio subscription for latency measurement (t3)
       let firstAudioTracked = false;
       room.on(RoomEvent.TrackSubscribed, (track) => {
@@ -409,7 +398,7 @@ export const useStreamingStore = create<StreamingStore>((set, get) => ({
       if (!wsUrl || typeof wsUrl !== 'string' || wsUrl.trim() === '') {
         throw new Error('LiveKit WebSocket URL is not configured');
       }
-      
+
       await room.connect(wsUrl, token);
 
       // Record room connected timestamp (t2)
@@ -438,7 +427,7 @@ export const useStreamingStore = create<StreamingStore>((set, get) => ({
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Failed to connect to room';
       console.error('Connection error:', errorMessage);
-      
+
       set({
         isConnecting: false,
         error: errorMessage,
@@ -454,7 +443,7 @@ export const useStreamingStore = create<StreamingStore>((set, get) => ({
    */
   disconnect: () => {
     const { room } = get();
-    
+
     if (room) {
       room.removeAllListeners();
       room.disconnect();
@@ -484,13 +473,13 @@ export const useStreamingStore = create<StreamingStore>((set, get) => ({
   setVolume: (volume: number) => {
     // Clamp volume
     const clampedVolume = Math.max(0, Math.min(100, volume));
-    
+
     // Persist to localStorage
     persistVolume(clampedVolume);
-    
+
     // Update state
     set({ volume: clampedVolume });
-    
+
     // Apply to current room
     const { room } = get();
     if (room) {
@@ -543,7 +532,7 @@ export const useStreamingStore = create<StreamingStore>((set, get) => ({
    */
   scheduleReconnect: () => {
     const state = get();
-    
+
     // Check if we've exceeded max attempts
     if (state.reconnectAttempts >= MAX_RECONNECT_ATTEMPTS) {
       set({
@@ -560,7 +549,7 @@ export const useStreamingStore = create<StreamingStore>((set, get) => ({
       MAX_RECONNECT_DELAY
     );
 
-    set({ 
+    set({
       isReconnecting: true,
       reconnectAttempts: state.reconnectAttempts + 1,
     });
@@ -569,51 +558,61 @@ export const useStreamingStore = create<StreamingStore>((set, get) => ({
 
     setTimeout(() => {
       const currentState = get();
-      
+
       // Only reconnect if still disconnected and have room info
       if (!currentState.isConnected && currentState.roomName) {
         console.info(`Attempting reconnection (attempt ${currentState.reconnectAttempts})`);
-        currentState.connect(
-          currentState.roomName,
-          currentState.sceneId,
-          currentState.eventId
-        );
+        currentState.connect(currentState.roomName, currentState.sceneId, currentState.eventId);
       }
     }, delay);
   },
 }));
 
 /**
- * Hook for streaming connection state (optimized selectors)
+ * Individual streaming state selectors - use primitives to avoid infinite loops
+ */
+export const useStreamingIsConnected = () => useStreamingStore((state) => state.isConnected);
+export const useStreamingIsConnecting = () => useStreamingStore((state) => state.isConnecting);
+export const useStreamingRoomName = () => useStreamingStore((state) => state.roomName);
+export const useStreamingError = () => useStreamingStore((state) => state.error);
+export const useStreamingConnectionQuality = () =>
+  useStreamingStore((state) => state.connectionQuality);
+export const useStreamingVolume = () => useStreamingStore((state) => state.volume);
+export const useStreamingIsLocalMuted = () => useStreamingStore((state) => state.isLocalMuted);
+export const useStreamingSetVolume = () => useStreamingStore((state) => state.setVolume);
+export const useStreamingToggleMute = () => useStreamingStore((state) => state.toggleMute);
+export const useStreamingConnect = () => useStreamingStore((state) => state.connect);
+export const useStreamingDisconnect = () => useStreamingStore((state) => state.disconnect);
+
+/**
+ * @deprecated Use individual selectors instead (useStreamingIsConnected, etc.)
+ * Kept for backwards compatibility - will cause re-renders on any state change
  */
 export function useStreamingConnection() {
-  return useStreamingStore((state) => ({
-    isConnected: state.isConnected,
-    isConnecting: state.isConnecting,
-    roomName: state.roomName,
-    error: state.error,
-    connectionQuality: state.connectionQuality,
-  }));
+  const isConnected = useStreamingIsConnected();
+  const isConnecting = useStreamingIsConnecting();
+  const roomName = useStreamingRoomName();
+  const error = useStreamingError();
+  const connectionQuality = useStreamingConnectionQuality();
+  return { isConnected, isConnecting, roomName, error, connectionQuality };
 }
 
 /**
- * Hook for streaming audio controls (optimized selectors)
+ * @deprecated Use individual selectors instead (useStreamingVolume, etc.)
  */
 export function useStreamingAudio() {
-  return useStreamingStore((state) => ({
-    volume: state.volume,
-    isLocalMuted: state.isLocalMuted,
-    setVolume: state.setVolume,
-    toggleMute: state.toggleMute,
-  }));
+  const volume = useStreamingVolume();
+  const isLocalMuted = useStreamingIsLocalMuted();
+  const setVolume = useStreamingSetVolume();
+  const toggleMute = useStreamingToggleMute();
+  return { volume, isLocalMuted, setVolume, toggleMute };
 }
 
 /**
- * Hook for streaming actions (stable references)
+ * @deprecated Use individual selectors instead (useStreamingConnect, etc.)
  */
 export function useStreamingActions() {
-  return useStreamingStore((state) => ({
-    connect: state.connect,
-    disconnect: state.disconnect,
-  }));
+  const connect = useStreamingConnect();
+  const disconnect = useStreamingDisconnect();
+  return { connect, disconnect };
 }

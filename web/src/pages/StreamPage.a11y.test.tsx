@@ -10,6 +10,13 @@ import { StreamPage } from './StreamPage';
 import { expectNoA11yViolations } from '../test/a11y-helpers';
 import * as streamingStore from '../stores/streamingStore';
 
+// Mock i18next
+vi.mock('react-i18next', () => ({
+  useTranslation: () => ({
+    t: (key: string) => key,
+  }),
+}));
+
 // Mock streaming components
 vi.mock('../components/streaming', () => ({
   JoinStreamButton: vi.fn(({ onJoin, isConnecting }) => (
@@ -18,7 +25,11 @@ vi.mock('../components/streaming', () => ({
     </button>
   )),
   ParticipantList: vi.fn(() => <div role="list">Participants</div>),
-  AudioControls: vi.fn(() => <div role="group" aria-label="Audio controls">Controls</div>),
+  AudioControls: vi.fn(() => (
+    <div role="group" aria-label="Audio controls">
+      Controls
+    </div>
+  )),
   ConnectionIndicator: vi.fn(() => <div role="status">Connection Status</div>),
 }));
 
@@ -89,7 +100,7 @@ describe('StreamPage - Accessibility', () => {
 
     const h1 = container.querySelector('h1');
     expect(h1).toBeInTheDocument();
-    expect(h1?.textContent).toContain('streaming.streamPage.streamRoom');
+    expect(h1?.textContent).toContain('streamPage.streamRoom');
   });
 
   it('should use alert role for error messages', () => {
@@ -137,6 +148,6 @@ describe('StreamPage - Accessibility', () => {
       </MemoryRouter>
     );
 
-    expect(getByText(/streaming.streamPage.invalidRoom/)).toBeInTheDocument();
+    expect(getByText(/streamPage.invalidRoom/)).toBeInTheDocument();
   });
 });

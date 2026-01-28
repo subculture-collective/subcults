@@ -16,10 +16,10 @@ const (
 
 // Configuration errors.
 var (
-	ErrEmptyURL       = errors.New("jetstream URL cannot be empty")
-	ErrInvalidDelay   = errors.New("base delay must be positive")
+	ErrEmptyURL        = errors.New("jetstream URL cannot be empty")
+	ErrInvalidDelay    = errors.New("base delay must be positive")
 	ErrInvalidMaxDelay = errors.New("max delay must be >= base delay")
-	ErrInvalidJitter  = errors.New("jitter factor must be between 0 and 1")
+	ErrInvalidJitter   = errors.New("jitter factor must be between 0 and 1")
 )
 
 // Config holds configuration for the Jetstream WebSocket client.

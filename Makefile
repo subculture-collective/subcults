@@ -1,5 +1,5 @@
 .PHONY: help build build-api build-frontend test lint clean tidy verify fmt \
-	migrate-up migrate-down compose-up compose-down
+	migrate-up migrate-down compose-up compose-down logs dev dev-api dev-frontend dev-indexer
 
 # Default target
 .DEFAULT_GOAL := help
@@ -67,11 +67,11 @@ fmt:
 
 ## migrate-up: Apply all pending database migrations
 migrate-up:
-	@./scripts/migrate.sh up
+	@set -a && . ./configs/dev.env && set +a && ./scripts/migrate.sh up
 
 ## migrate-down: Rollback the last database migration
 migrate-down:
-	@./scripts/migrate.sh down 1
+	@set -a && . ./configs/dev.env && set +a && ./scripts/migrate.sh down 1
 
 ## compose-up: Start all services with Docker Compose
 compose-up:
@@ -82,3 +82,44 @@ compose-up:
 compose-down:
 	@test -f $(DOCKER_COMPOSE_FILE) || (echo "Error: $(DOCKER_COMPOSE_FILE) not found" && exit 1)
 	docker compose -f $(DOCKER_COMPOSE_FILE) down
+
+## dev: Run API and frontend development servers (requires: compose-up, database migrations)
+dev:
+	@echo "Starting development servers..."
+	@echo "Ensure you've run 'make compose-up' and 'make migrate-up' first"
+	@trap 'kill %1 %2' EXIT; \
+	make dev-api & \
+	make dev-frontend & \
+	wait
+
+## dev-api: Run API server with hot reload (requires: compose-up, migrations)
+dev-api:
+	@set -a && . ./configs/dev.env && set +a && \
+	echo "Starting API server on http://$$HOST:$$PORT (from configs/dev.env)" && \
+	go run ./cmd/api
+
+## dev-frontend: Run frontend development server
+dev-frontend:
+	@echo "Starting frontend dev server..."
+	@cd web && npm run dev
+
+## dev-indexer: Run Jetstream indexer (requires: compose-up, migrations)
+dev-indexer:
+	@set -a && . ./configs/dev.env && set +a && \
+	echo "Starting Jetstream indexer..." && \
+	go run ./cmd/indexer
+
+## logs: Stream Docker Compose logs from all services
+logs:
+	@test -f $(DOCKER_COMPOSE_FILE) || (echo "Error: $(DOCKER_COMPOSE_FILE) not found" && exit 1)
+	docker compose -f $(DOCKER_COMPOSE_FILE) logs -f
+
+## logs-api: Stream logs from API service only
+logs-api:
+	@test -f $(DOCKER_COMPOSE_FILE) || (echo "Error: $(DOCKER_COMPOSE_FILE) not found" && exit 1)
+	docker compose -f $(DOCKER_COMPOSE_FILE) logs -f api
+
+## logs-postgres: Stream logs from PostgreSQL service only
+logs-postgres:
+	@test -f $(DOCKER_COMPOSE_FILE) || (echo "Error: $(DOCKER_COMPOSE_FILE) not found" && exit 1)
+	docker compose -f $(DOCKER_COMPOSE_FILE) logs -f postgres

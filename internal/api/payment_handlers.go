@@ -14,10 +14,10 @@ import (
 
 // PaymentHandlers holds dependencies for payment-related HTTP handlers.
 type PaymentHandlers struct {
-	sceneRepo     scene.SceneRepository
-	stripeClient  payment.Client
-	returnURL     string
-	refreshURL    string
+	sceneRepo    scene.SceneRepository
+	stripeClient payment.Client
+	returnURL    string
+	refreshURL   string
 }
 
 // NewPaymentHandlers creates a new PaymentHandlers instance.
@@ -129,7 +129,7 @@ func (h *PaymentHandlers) OnboardScene(w http.ResponseWriter, r *http.Request) {
 	// Return onboarding URL and expiry
 	// Stripe account links typically expire in 30 minutes
 	expiresAt := time.Now().Add(30 * time.Minute).Format(time.RFC3339)
-	
+
 	response := OnboardSceneResponse{
 		URL:       link.URL,
 		ExpiresAt: expiresAt,

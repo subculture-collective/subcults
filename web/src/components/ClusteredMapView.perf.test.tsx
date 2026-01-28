@@ -1,6 +1,4 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { render, waitFor } from '@testing-library/react';
-import { ClusteredMapView } from './ClusteredMapView';
 import type { Scene, Event } from '../types/scene';
 
 /**
@@ -10,7 +8,7 @@ import type { Scene, Event } from '../types/scene';
  */
 function generateMockScenes(count: number, precisePct: number = 50): Scene[] {
   const scenes: Scene[] = [];
-  
+
   // Generate scenes clustered around SF Bay Area
   const baseLat = 37.7749;
   const baseLng = -122.4194;
@@ -19,8 +17,8 @@ function generateMockScenes(count: number, precisePct: number = 50): Scene[] {
   for (let i = 0; i < count; i++) {
     const lat = baseLat + (Math.random() - 0.5) * spread;
     const lng = baseLng + (Math.random() - 0.5) * spread;
-    const allowPrecise = (i % 100) < precisePct;
-    
+    const allowPrecise = i % 100 < precisePct;
+
     scenes.push({
       id: `scene-${i}`,
       name: `Scene ${i}`,
@@ -43,7 +41,7 @@ function generateMockScenes(count: number, precisePct: number = 50): Scene[] {
  */
 function generateMockEvents(count: number, precisePct: number = 33): Event[] {
   const events: Event[] = [];
-  
+
   const baseLat = 37.7749;
   const baseLng = -122.4194;
   const spread = 1.0;
@@ -51,8 +49,8 @@ function generateMockEvents(count: number, precisePct: number = 33): Event[] {
   for (let i = 0; i < count; i++) {
     const lat = baseLat + (Math.random() - 0.5) * spread;
     const lng = baseLng + (Math.random() - 0.5) * spread;
-    const allowPrecise = (i % 100) < precisePct;
-    
+    const allowPrecise = i % 100 < precisePct;
+
     events.push({
       id: `event-${i}`,
       scene_id: `scene-${i % 100}`,
@@ -78,8 +76,6 @@ function scenesEventsToGeoJSON(scenes: Scene[], events: Event[]) {
 }
 
 describe('ClusteredMapView Performance', () => {
-  let mockUpdateBBox: ReturnType<typeof vi.fn>;
-  let mockMapInstance: any;
   let performanceEntries: PerformanceEntry[] = [];
 
   beforeEach(() => {
@@ -102,30 +98,8 @@ describe('ClusteredMapView Performance', () => {
     });
 
     vi.spyOn(performance, 'getEntriesByName').mockImplementation((name: string) => {
-      return performanceEntries.filter(e => e.name === name);
+      return performanceEntries.filter((e) => e.name === name);
     });
-
-    mockUpdateBBox = vi.fn();
-
-    // Mock map instance with necessary methods
-    mockMapInstance = {
-      addSource: vi.fn(),
-      addLayer: vi.fn(),
-      removeSource: vi.fn(),
-      removeLayer: vi.fn(),
-      getSource: vi.fn(),
-      getLayer: vi.fn(),
-      on: vi.fn(),
-      getBounds: vi.fn(() => ({
-        getNorth: () => 37.8,
-        getSouth: () => 37.7,
-        getEast: () => -122.4,
-        getWest: () => -122.5,
-      })),
-      getCanvas: vi.fn(() => ({
-        style: { cursor: '' },
-      })),
-    };
   });
 
   afterEach(() => {
@@ -140,8 +114,8 @@ describe('ClusteredMapView Performance', () => {
     expect(events).toHaveLength(2500);
 
     // Verify privacy distribution
-    const preciseScenesCount = scenes.filter(s => s.allow_precise).length;
-    const preciseEventsCount = events.filter(e => e.allow_precise).length;
+    const preciseScenesCount = scenes.filter((s) => s.allow_precise).length;
+    const preciseEventsCount = events.filter((e) => e.allow_precise).length;
 
     expect(preciseScenesCount).toBeGreaterThan(1000);
     expect(preciseScenesCount).toBeLessThan(1500);
@@ -149,8 +123,8 @@ describe('ClusteredMapView Performance', () => {
     expect(preciseEventsCount).toBeLessThan(900);
 
     // Verify all entities have coarse_geohash for privacy fallback
-    expect(scenes.every(s => s.coarse_geohash)).toBe(true);
-    expect(events.every(e => e.coarse_geohash)).toBe(true);
+    expect(scenes.every((s) => s.coarse_geohash)).toBe(true);
+    expect(events.every((e) => e.coarse_geohash)).toBe(true);
   });
 
   it('converts large dataset to GeoJSON efficiently', () => {
@@ -163,7 +137,7 @@ describe('ClusteredMapView Performance', () => {
 
     expect(geojson.features).toHaveLength(5000);
     expect(elapsed).toBeLessThan(150); // Target: <150ms for 5k points
-    
+
     console.log(`[Performance] GeoJSON conversion: ${elapsed.toFixed(2)}ms for 5000 points`);
   });
 
@@ -177,7 +151,7 @@ describe('ClusteredMapView Performance', () => {
 
     expect(geojson.features).toHaveLength(10000);
     expect(elapsed).toBeLessThan(300); // Target: <300ms for 10k points
-    
+
     console.log(`[Performance] GeoJSON conversion: ${elapsed.toFixed(2)}ms for 10000 points`);
   });
 
@@ -188,12 +162,12 @@ describe('ClusteredMapView Performance', () => {
     // - data-fetch-{id}-start/end track API calls
     // - geojson-build tracks conversion time
     // - source-update tracks MapLibre updates
-    
+
     // Verify performance API is available
     expect(typeof performance.mark).toBe('function');
     expect(typeof performance.measure).toBe('function');
     expect(typeof performance.getEntriesByName).toBe('function');
-    
+
     console.log('[Performance] Performance API instrumentation verified');
   });
 
@@ -202,8 +176,8 @@ describe('ClusteredMapView Performance', () => {
     // These values are optimized for balance between performance and UX
     const expectedConfig = {
       cluster: true,
-      clusterRadius: 50,    // Pixels - affects grouping density
-      clusterMaxZoom: 14,   // Zoom level where clustering stops
+      clusterRadius: 50, // Pixels - affects grouping density
+      clusterMaxZoom: 14, // Zoom level where clustering stops
     };
 
     // Configuration is set in ClusteredMapView.tsx line ~162-167
@@ -211,7 +185,7 @@ describe('ClusteredMapView Performance', () => {
     expect(expectedConfig.cluster).toBe(true);
     expect(expectedConfig.clusterRadius).toBe(50);
     expect(expectedConfig.clusterMaxZoom).toBe(14);
-    
+
     console.log('[Performance] Cluster config verified:', expectedConfig);
   });
 });

@@ -2,10 +2,17 @@
  * ParticipantList Component Tests
  */
 
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import { ParticipantList } from './ParticipantList';
 import type { Participant } from '../../types/streaming';
+
+// Mock i18next
+vi.mock('react-i18next', () => ({
+  useTranslation: () => ({
+    t: (key: string) => key,
+  }),
+}));
 
 describe('ParticipantList', () => {
   const mockLocalParticipant: Participant = {
@@ -36,42 +43,27 @@ describe('ParticipantList', () => {
   it('renders empty state when no participants', () => {
     render(<ParticipantList participants={[]} localParticipant={null} />);
 
-    expect(screen.getByText(/streaming\.participantList\.empty/i)).toBeInTheDocument();
+    expect(screen.getByText(/participantList\.empty/i)).toBeInTheDocument();
   });
 
   it('renders local participant with "You" label', () => {
-    render(
-      <ParticipantList
-        participants={[]}
-        localParticipant={mockLocalParticipant}
-      />
-    );
+    render(<ParticipantList participants={[]} localParticipant={mockLocalParticipant} />);
 
     expect(screen.getByText(/local user/i)).toBeInTheDocument();
-    expect(screen.getByText(/streaming\.participantList\.you/i)).toBeInTheDocument();
+    expect(screen.getByText(/participantList\.you/i)).toBeInTheDocument();
   });
 
   it('renders remote participants', () => {
-    render(
-      <ParticipantList
-        participants={mockRemoteParticipants}
-        localParticipant={null}
-      />
-    );
+    render(<ParticipantList participants={mockRemoteParticipants} localParticipant={null} />);
 
     expect(screen.getByText(/remote user 1/i)).toBeInTheDocument();
     expect(screen.getByText(/remote user 2/i)).toBeInTheDocument();
   });
 
   it('shows speaking indicator for speaking participants', () => {
-    render(
-      <ParticipantList
-        participants={mockRemoteParticipants}
-        localParticipant={null}
-      />
-    );
+    render(<ParticipantList participants={mockRemoteParticipants} localParticipant={null} />);
 
-    expect(screen.getByText(/streaming\.participantList\.speaking/i)).toBeInTheDocument();
+    expect(screen.getByText(/participantList\.speaking/i)).toBeInTheDocument();
   });
 
   it('shows mute indicators', () => {
@@ -98,6 +90,6 @@ describe('ParticipantList', () => {
     const listItems = screen.getAllByRole('listitem');
     // First item should be local participant
     expect(listItems[0]).toHaveTextContent(/local user/i);
-    expect(listItems[0]).toHaveTextContent(/streaming\.participantList\.you/i);
+    expect(listItems[0]).toHaveTextContent(/participantList\.you/i);
   });
 });

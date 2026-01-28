@@ -223,7 +223,7 @@ func TestMetrics_Concurrency(t *testing.T) {
 	}
 
 	expected := float64(10 * iterations)
-	
+
 	if v := getCounterValue(m.messagesProcessed); v != expected {
 		t.Errorf("messagesProcessed = %f, want %f", v, expected)
 	}

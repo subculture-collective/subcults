@@ -252,32 +252,50 @@ func TestSearchEvents_WithActiveStreams(t *testing.T) {
 		t.Fatalf("expected 3 events, got %d", len(response.Events))
 	}
 
-	// Verify event 0 has active stream
-	if response.Events[0].ActiveStream == nil {
-		t.Error("expected event 0 to have active stream")
+	// Build a map of event ID to response index for easier verification
+	eventIDToResponse := make(map[string]*EventWithRSVPCounts)
+	for i := range response.Events {
+		eventIDToResponse[response.Events[i].ID] = response.Events[i]
+	}
+
+	// Verify event 0 (Event A with stream) has active stream
+	event0Response := eventIDToResponse[events[0].ID]
+	if event0Response == nil {
+		t.Fatal("event 0 not found in response")
+	}
+	if event0Response.ActiveStream == nil {
+		t.Error("expected event 0 (Event A) to have active stream")
 	} else {
-		if response.Events[0].ActiveStream.StreamSessionID != streamID0 {
-			t.Errorf("event 0: expected stream_session_id '%s', got '%s'", streamID0, response.Events[0].ActiveStream.StreamSessionID)
+		if event0Response.ActiveStream.StreamSessionID != streamID0 {
+			t.Errorf("event 0: expected stream_session_id '%s', got '%s'", streamID0, event0Response.ActiveStream.StreamSessionID)
 		}
-		if response.Events[0].ActiveStream.RoomName != roomName0 {
-			t.Errorf("event 0: expected room_name '%s', got '%s'", roomName0, response.Events[0].ActiveStream.RoomName)
+		if event0Response.ActiveStream.RoomName != roomName0 {
+			t.Errorf("event 0: expected room_name '%s', got '%s'", roomName0, event0Response.ActiveStream.RoomName)
 		}
 	}
 
-	// Verify event 1 has no active stream
-	if response.Events[1].ActiveStream != nil {
-		t.Errorf("expected event 1 to have no active stream, got %+v", response.Events[1].ActiveStream)
+	// Verify event 1 (Event B without stream) has no active stream
+	event1Response := eventIDToResponse[events[1].ID]
+	if event1Response == nil {
+		t.Fatal("event 1 not found in response")
+	}
+	if event1Response.ActiveStream != nil {
+		t.Errorf("expected event 1 (Event B) to have no active stream, got %+v", event1Response.ActiveStream)
 	}
 
-	// Verify event 2 has active stream
-	if response.Events[2].ActiveStream == nil {
-		t.Error("expected event 2 to have active stream")
+	// Verify event 2 (Event C with stream) has active stream
+	event2Response := eventIDToResponse[events[2].ID]
+	if event2Response == nil {
+		t.Fatal("event 2 not found in response")
+	}
+	if event2Response.ActiveStream == nil {
+		t.Error("expected event 2 (Event C) to have active stream")
 	} else {
-		if response.Events[2].ActiveStream.StreamSessionID != streamID2 {
-			t.Errorf("event 2: expected stream_session_id '%s', got '%s'", streamID2, response.Events[2].ActiveStream.StreamSessionID)
+		if event2Response.ActiveStream.StreamSessionID != streamID2 {
+			t.Errorf("event 2: expected stream_session_id '%s', got '%s'", streamID2, event2Response.ActiveStream.StreamSessionID)
 		}
-		if response.Events[2].ActiveStream.RoomName != roomName2 {
-			t.Errorf("event 2: expected room_name '%s', got '%s'", roomName2, response.Events[2].ActiveStream.RoomName)
+		if event2Response.ActiveStream.RoomName != roomName2 {
+			t.Errorf("event 2: expected room_name '%s', got '%s'", roomName2, event2Response.ActiveStream.RoomName)
 		}
 	}
 }

@@ -428,153 +428,153 @@ func TestMembershipRepository_ListByScene(t *testing.T) {
 }
 
 func TestMembershipRepository_CountByScenes(t *testing.T) {
-repo := NewInMemoryMembershipRepository()
+	repo := NewInMemoryMembershipRepository()
 
-// Create memberships for different scenes
-scene1 := "scene-1"
-scene2 := "scene-2"
-scene3 := "scene-3"
+	// Create memberships for different scenes
+	scene1 := "scene-1"
+	scene2 := "scene-2"
+	scene3 := "scene-3"
 
-// Scene 1: 2 active, 1 pending
-m1 := &Membership{ID: "m1", SceneID: scene1, UserDID: "user1", Role: "member", TrustWeight: 0.5, Status: "active"}
-m2 := &Membership{ID: "m2", SceneID: scene1, UserDID: "user2", Role: "member", TrustWeight: 0.5, Status: "active"}
-m3 := &Membership{ID: "m3", SceneID: scene1, UserDID: "user3", Role: "member", TrustWeight: 0.5, Status: "pending"}
+	// Scene 1: 2 active, 1 pending
+	m1 := &Membership{ID: "m1", SceneID: scene1, UserDID: "user1", Role: "member", TrustWeight: 0.5, Status: "active"}
+	m2 := &Membership{ID: "m2", SceneID: scene1, UserDID: "user2", Role: "member", TrustWeight: 0.5, Status: "active"}
+	m3 := &Membership{ID: "m3", SceneID: scene1, UserDID: "user3", Role: "member", TrustWeight: 0.5, Status: "pending"}
 
-// Scene 2: 1 active
-m4 := &Membership{ID: "m4", SceneID: scene2, UserDID: "user4", Role: "member", TrustWeight: 0.5, Status: "active"}
+	// Scene 2: 1 active
+	m4 := &Membership{ID: "m4", SceneID: scene2, UserDID: "user4", Role: "member", TrustWeight: 0.5, Status: "active"}
 
-// Scene 3: no memberships
+	// Scene 3: no memberships
 
-for _, m := range []*Membership{m1, m2, m3, m4} {
-if _, err := repo.Upsert(m); err != nil {
-t.Fatalf("Upsert failed: %v", err)
-}
-}
+	for _, m := range []*Membership{m1, m2, m3, m4} {
+		if _, err := repo.Upsert(m); err != nil {
+			t.Fatalf("Upsert failed: %v", err)
+		}
+	}
 
-// Test: Count active memberships for all scenes
-counts, err := repo.CountByScenes([]string{scene1, scene2, scene3}, "active")
-if err != nil {
-t.Fatalf("CountByScenes failed: %v", err)
-}
+	// Test: Count active memberships for all scenes
+	counts, err := repo.CountByScenes([]string{scene1, scene2, scene3}, "active")
+	if err != nil {
+		t.Fatalf("CountByScenes failed: %v", err)
+	}
 
-if counts[scene1] != 2 {
-t.Errorf("Expected 2 active members for scene1, got %d", counts[scene1])
-}
-if counts[scene2] != 1 {
-t.Errorf("Expected 1 active member for scene2, got %d", counts[scene2])
-}
-if counts[scene3] != 0 {
-t.Errorf("Expected 0 active members for scene3, got %d", counts[scene3])
-}
+	if counts[scene1] != 2 {
+		t.Errorf("Expected 2 active members for scene1, got %d", counts[scene1])
+	}
+	if counts[scene2] != 1 {
+		t.Errorf("Expected 1 active member for scene2, got %d", counts[scene2])
+	}
+	if counts[scene3] != 0 {
+		t.Errorf("Expected 0 active members for scene3, got %d", counts[scene3])
+	}
 
-// Test: Count all memberships (including pending)
-allCounts, err := repo.CountByScenes([]string{scene1, scene2}, "")
-if err != nil {
-t.Fatalf("CountByScenes failed: %v", err)
-}
+	// Test: Count all memberships (including pending)
+	allCounts, err := repo.CountByScenes([]string{scene1, scene2}, "")
+	if err != nil {
+		t.Fatalf("CountByScenes failed: %v", err)
+	}
 
-if allCounts[scene1] != 3 {
-t.Errorf("Expected 3 total members for scene1, got %d", allCounts[scene1])
-}
-if allCounts[scene2] != 1 {
-t.Errorf("Expected 1 total member for scene2, got %d", allCounts[scene2])
-}
+	if allCounts[scene1] != 3 {
+		t.Errorf("Expected 3 total members for scene1, got %d", allCounts[scene1])
+	}
+	if allCounts[scene2] != 1 {
+		t.Errorf("Expected 1 total member for scene2, got %d", allCounts[scene2])
+	}
 }
 
 func TestMembershipRepository_CountByScenes_EmptyInput(t *testing.T) {
-repo := NewInMemoryMembershipRepository()
+	repo := NewInMemoryMembershipRepository()
 
-counts, err := repo.CountByScenes([]string{}, "active")
-if err != nil {
-t.Fatalf("CountByScenes failed: %v", err)
-}
+	counts, err := repo.CountByScenes([]string{}, "active")
+	if err != nil {
+		t.Fatalf("CountByScenes failed: %v", err)
+	}
 
-if len(counts) != 0 {
-t.Errorf("Expected empty map, got %d entries", len(counts))
-}
+	if len(counts) != 0 {
+		t.Errorf("Expected empty map, got %d entries", len(counts))
+	}
 }
 
 func TestMembershipRepository_UpdateRole(t *testing.T) {
-repo := NewInMemoryMembershipRepository()
+	repo := NewInMemoryMembershipRepository()
 
-// Create a membership
-m := &Membership{
-ID:          "test-id",
-SceneID:     "scene-1",
-UserDID:     "user1",
-Role:        "member",
-TrustWeight: 0.5,
-Status:      "active",
-}
+	// Create a membership
+	m := &Membership{
+		ID:          "test-id",
+		SceneID:     "scene-1",
+		UserDID:     "user1",
+		Role:        "member",
+		TrustWeight: 0.5,
+		Status:      "active",
+	}
 
-result, err := repo.Upsert(m)
-if err != nil {
-t.Fatalf("Upsert failed: %v", err)
-}
+	result, err := repo.Upsert(m)
+	if err != nil {
+		t.Fatalf("Upsert failed: %v", err)
+	}
 
-// Update role to curator
-err = repo.UpdateRole(result.ID, "curator")
-if err != nil {
-t.Fatalf("UpdateRole failed: %v", err)
-}
+	// Update role to curator
+	err = repo.UpdateRole(result.ID, "curator")
+	if err != nil {
+		t.Fatalf("UpdateRole failed: %v", err)
+	}
 
-// Verify the role was updated
-updated, err := repo.GetByID(result.ID)
-if err != nil {
-t.Fatalf("GetByID failed: %v", err)
-}
+	// Verify the role was updated
+	updated, err := repo.GetByID(result.ID)
+	if err != nil {
+		t.Fatalf("GetByID failed: %v", err)
+	}
 
-if updated.Role != "curator" {
-t.Errorf("Expected role 'curator', got %q", updated.Role)
-}
+	if updated.Role != "curator" {
+		t.Errorf("Expected role 'curator', got %q", updated.Role)
+	}
 
-// Try invalid role
-err = repo.UpdateRole(result.ID, "invalid_role")
-if err == nil {
-t.Error("Expected error for invalid role, got nil")
-}
+	// Try invalid role
+	err = repo.UpdateRole(result.ID, "invalid_role")
+	if err == nil {
+		t.Error("Expected error for invalid role, got nil")
+	}
 
-// Try non-existent membership
-err = repo.UpdateRole("non-existent-id", "owner")
-if err == nil {
-t.Error("Expected error for non-existent membership, got nil")
-}
+	// Try non-existent membership
+	err = repo.UpdateRole("non-existent-id", "owner")
+	if err == nil {
+		t.Error("Expected error for non-existent membership, got nil")
+	}
 }
 
 func TestMembership_EffectiveWeight(t *testing.T) {
-tests := []struct {
-name     string
-role     string
-trustWeight float64
-want     float64
-}{
-{
-name:        "owner with full trust",
-role:        "owner",
-trustWeight: 1.0,
-want:        1.0,
-},
-{
-name:        "curator with 0.8 trust",
-role:        "curator",
-trustWeight: 0.8,
-want:        0.64,
-},
-{
-name:        "member with 0.5 trust",
-role:        "member",
-trustWeight: 0.5,
-want:        0.25,
-},
-{
-name:        "guest with full trust",
-role:        "guest",
-trustWeight: 1.0,
-want:        0.3,
-},
-}
+	tests := []struct {
+		name        string
+		role        string
+		trustWeight float64
+		want        float64
+	}{
+		{
+			name:        "owner with full trust",
+			role:        "owner",
+			trustWeight: 1.0,
+			want:        1.0,
+		},
+		{
+			name:        "curator with 0.8 trust",
+			role:        "curator",
+			trustWeight: 0.8,
+			want:        0.64,
+		},
+		{
+			name:        "member with 0.5 trust",
+			role:        "member",
+			trustWeight: 0.5,
+			want:        0.25,
+		},
+		{
+			name:        "guest with full trust",
+			role:        "guest",
+			trustWeight: 1.0,
+			want:        0.3,
+		},
+	}
 
-for _, tt := range tests {
+	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			m := &Membership{
 				Role:        tt.role,
@@ -589,81 +589,81 @@ for _, tt := range tests {
 }
 
 func TestMembership_Validate(t *testing.T) {
-tests := []struct {
-name        string
-membership  *Membership
-expectError bool
-}{
-{
-name: "valid membership",
-membership: &Membership{
-Role:        "member",
-TrustWeight: 0.5,
-},
-expectError: false,
-},
-{
-name: "invalid role",
-membership: &Membership{
-Role:        "invalid",
-TrustWeight: 0.5,
-},
-expectError: true,
-},
-{
-name: "invalid trust weight too high",
-membership: &Membership{
-Role:        "member",
-TrustWeight: 1.5,
-},
-expectError: true,
-},
-{
-name: "invalid trust weight negative",
-membership: &Membership{
-Role:        "member",
-TrustWeight: -0.1,
-},
-expectError: true,
-},
-}
+	tests := []struct {
+		name        string
+		membership  *Membership
+		expectError bool
+	}{
+		{
+			name: "valid membership",
+			membership: &Membership{
+				Role:        "member",
+				TrustWeight: 0.5,
+			},
+			expectError: false,
+		},
+		{
+			name: "invalid role",
+			membership: &Membership{
+				Role:        "invalid",
+				TrustWeight: 0.5,
+			},
+			expectError: true,
+		},
+		{
+			name: "invalid trust weight too high",
+			membership: &Membership{
+				Role:        "member",
+				TrustWeight: 1.5,
+			},
+			expectError: true,
+		},
+		{
+			name: "invalid trust weight negative",
+			membership: &Membership{
+				Role:        "member",
+				TrustWeight: -0.1,
+			},
+			expectError: true,
+		},
+	}
 
-for _, tt := range tests {
-t.Run(tt.name, func(t *testing.T) {
-err := tt.membership.Validate()
-if (err != nil) != tt.expectError {
-t.Errorf("Validate() error = %v, expectError = %v", err, tt.expectError)
-}
-})
-}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := tt.membership.Validate()
+			if (err != nil) != tt.expectError {
+				t.Errorf("Validate() error = %v, expectError = %v", err, tt.expectError)
+			}
+		})
+	}
 }
 
 func TestMembershipRepository_Upsert_ValidationError(t *testing.T) {
-repo := NewInMemoryMembershipRepository()
+	repo := NewInMemoryMembershipRepository()
 
-// Test invalid role
-m1 := &Membership{
-SceneID:     "scene-1",
-UserDID:     "user1",
-Role:        "invalid_role",
-TrustWeight: 0.5,
-Status:      "active",
-}
-_, err := repo.Upsert(m1)
-if err == nil {
-t.Error("Expected validation error for invalid role, got nil")
-}
+	// Test invalid role
+	m1 := &Membership{
+		SceneID:     "scene-1",
+		UserDID:     "user1",
+		Role:        "invalid_role",
+		TrustWeight: 0.5,
+		Status:      "active",
+	}
+	_, err := repo.Upsert(m1)
+	if err == nil {
+		t.Error("Expected validation error for invalid role, got nil")
+	}
 
-// Test invalid trust weight
-m2 := &Membership{
-SceneID:     "scene-1",
-UserDID:     "user1",
-Role:        "member",
-TrustWeight: 1.5,
-Status:      "active",
-}
-_, err = repo.Upsert(m2)
-if err == nil {
-t.Error("Expected validation error for invalid trust weight, got nil")
-}
+	// Test invalid trust weight
+	m2 := &Membership{
+		SceneID:     "scene-1",
+		UserDID:     "user1",
+		Role:        "member",
+		TrustWeight: 1.5,
+		Status:      "active",
+	}
+	_, err = repo.Upsert(m2)
+	if err == nil {
+		t.Error("Expected validation error for invalid trust weight, got nil")
+	}
 }

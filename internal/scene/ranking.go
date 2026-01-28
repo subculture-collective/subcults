@@ -41,7 +41,7 @@ var DefaultEventRankingWeights = EventRankingWeights{
 
 // CalculateRecencyWeight computes the time recency weight for an event.
 // Formula: 1 - ((event_start - now) / window_span) clamped to [0, 1]
-// 
+//
 // Parameters:
 //   - eventStart: The start time of the event
 //   - now: Current time (reference point)
@@ -55,7 +55,7 @@ func CalculateRecencyWeight(eventStart time.Time, now time.Time, windowSpan time
 
 	// Calculate time difference from now to event start
 	timeDiff := eventStart.Sub(now)
-	
+
 	// If event is in the past or happening now, it's maximally recent
 	if timeDiff <= 0 {
 		return 1.0
@@ -63,7 +63,7 @@ func CalculateRecencyWeight(eventStart time.Time, now time.Time, windowSpan time
 
 	// Calculate weight: 1 - (timeDiff / windowSpan)
 	weight := 1.0 - (float64(timeDiff) / float64(windowSpan))
-	
+
 	// Clamp to [0, 1] range
 	if weight < 0.0 {
 		return 0.0
@@ -71,7 +71,7 @@ func CalculateRecencyWeight(eventStart time.Time, now time.Time, windowSpan time
 	if weight > 1.0 {
 		return 1.0
 	}
-	
+
 	return weight
 }
 
@@ -83,26 +83,26 @@ func CalculateTextMatchScore(event *Event, query string) float64 {
 	if query == "" {
 		return 1.0 // No query means all events match equally
 	}
-	
+
 	queryLower := strings.ToLower(query)
-	
+
 	// Check title
 	if strings.Contains(strings.ToLower(event.Title), queryLower) {
 		return 1.0
 	}
-	
+
 	// Check description
 	if strings.Contains(strings.ToLower(event.Description), queryLower) {
 		return 0.8 // Slightly lower weight for description match
 	}
-	
+
 	// Check tags
 	for _, tag := range event.Tags {
 		if strings.Contains(strings.ToLower(tag), queryLower) {
 			return 0.6 // Lower weight for tag match
 		}
 	}
-	
+
 	return 0.0 // No match
 }
 
@@ -114,18 +114,18 @@ func CalculateProximityScore(event *Event, centerLat, centerLng float64) float64
 	if event.PrecisePoint == nil {
 		return 0.5 // Default score if no location
 	}
-	
+
 	// Calculate simple Euclidean distance (not great circle, but good enough for in-memory)
 	// For production with PostGIS, use ST_Distance with proper geodesic calculations
 	latDiff := event.PrecisePoint.Lat - centerLat
 	lngDiff := event.PrecisePoint.Lng - centerLng
 	distance := math.Sqrt(latDiff*latDiff + lngDiff*lngDiff)
-	
+
 	// Normalize distance to [0, 1] range
 	// Use a simple decay function: 1 / (1 + distance)
 	// This gives 1.0 for distance=0, 0.5 for distance=1, etc.
 	score := 1.0 / (1.0 + distance)
-	
+
 	return score
 }
 
@@ -142,11 +142,11 @@ func CalculateCompositeScore(
 	score := (recencyWeight * weights.Recency) +
 		(textMatchScore * weights.TextMatch) +
 		(proximityScore * weights.Proximity)
-	
+
 	if includeTrust {
 		score += trustScore * weights.Trust
 	}
-	
+
 	return score
 }
 
@@ -163,16 +163,16 @@ func CalculateCompositeScore(
 // Note: When trust ranking is disabled via feature flag, trust weight is effectively 0,
 // resulting in a maximum possible score of 0.85 (not 1.0).
 type SceneRankingWeights struct {
-TextMatch float64 // Text match weight (default: 0.6)
-Proximity float64 // Proximity/geo weight (default: 0.25)
-Trust     float64 // Trust score weight (default: 0.15)
+	TextMatch float64 // Text match weight (default: 0.6)
+	Proximity float64 // Proximity/geo weight (default: 0.25)
+	Trust     float64 // Trust score weight (default: 0.15)
 }
 
 // DefaultSceneRankingWeights returns the default ranking weights for scene search.
 var DefaultSceneRankingWeights = SceneRankingWeights{
-TextMatch: 0.6,
-Proximity: 0.25,
-Trust:     0.15,
+	TextMatch: 0.6,
+	Proximity: 0.25,
+	Trust:     0.15,
 }
 
 // CalculateSceneTextMatchScore computes a simple text match score based on query presence.
@@ -180,30 +180,30 @@ Trust:     0.15,
 // For in-memory implementation, we use simple case-insensitive substring matching.
 // In a real PostGIS implementation, this would use ts_rank with tsvector.
 func CalculateSceneTextMatchScore(scene *Scene, query string) float64 {
-if query == "" {
-return 1.0 // No query means all scenes match equally
-}
+	if query == "" {
+		return 1.0 // No query means all scenes match equally
+	}
 
-queryLower := strings.ToLower(query)
+	queryLower := strings.ToLower(query)
 
-// Check name (highest weight)
-if strings.Contains(strings.ToLower(scene.Name), queryLower) {
-return 1.0
-}
+	// Check name (highest weight)
+	if strings.Contains(strings.ToLower(scene.Name), queryLower) {
+		return 1.0
+	}
 
-// Check description (medium weight)
-if strings.Contains(strings.ToLower(scene.Description), queryLower) {
-return 0.7
-}
+	// Check description (medium weight)
+	if strings.Contains(strings.ToLower(scene.Description), queryLower) {
+		return 0.7
+	}
 
-// Check tags (lower weight)
-for _, tag := range scene.Tags {
-if strings.Contains(strings.ToLower(tag), queryLower) {
-return 0.5
-}
-}
+	// Check tags (lower weight)
+	for _, tag := range scene.Tags {
+		if strings.Contains(strings.ToLower(tag), queryLower) {
+			return 0.5
+		}
+	}
 
-return 0.0 // No match
+	return 0.0 // No match
 }
 
 // CalculateSceneProximityScore computes a distance-based proximity score for a scene.
@@ -211,75 +211,75 @@ return 0.0 // No match
 // For simplicity in in-memory implementation, we use the center of the bbox as reference.
 // In a real PostGIS implementation, this would use ST_Distance with proper geo calculations.
 func CalculateSceneProximityScore(scene *Scene, centerLat, centerLng float64) float64 {
-if scene.PrecisePoint == nil {
-return 0.5 // Default score if no location
-}
+	if scene.PrecisePoint == nil {
+		return 0.5 // Default score if no location
+	}
 
-// Calculate simple Euclidean distance (not great circle, but good enough for in-memory)
-// For production with PostGIS, use ST_Distance with proper geodesic calculations
-latDiff := scene.PrecisePoint.Lat - centerLat
-lngDiff := scene.PrecisePoint.Lng - centerLng
-distance := math.Sqrt(latDiff*latDiff + lngDiff*lngDiff)
+	// Calculate simple Euclidean distance (not great circle, but good enough for in-memory)
+	// For production with PostGIS, use ST_Distance with proper geodesic calculations
+	latDiff := scene.PrecisePoint.Lat - centerLat
+	lngDiff := scene.PrecisePoint.Lng - centerLng
+	distance := math.Sqrt(latDiff*latDiff + lngDiff*lngDiff)
 
-// Normalize distance to [0, 1] range
-// Use a simple decay function: 1 / (1 + distance)
-// This gives 1.0 for distance=0, 0.5 for distance=1, etc.
-score := 1.0 / (1.0 + distance)
+	// Normalize distance to [0, 1] range
+	// Use a simple decay function: 1 / (1 + distance)
+	// This gives 1.0 for distance=0, 0.5 for distance=1, etc.
+	score := 1.0 / (1.0 + distance)
 
-return score
+	return score
 }
 
 // CalculateSceneCompositeScore computes the final composite ranking score for a scene.
 // Combines text match, proximity, and optional trust scores using configured weights.
 func CalculateSceneCompositeScore(
-textMatchScore float64,
-proximityScore float64,
-trustScore float64,
-weights SceneRankingWeights,
-includeTrust bool,
+	textMatchScore float64,
+	proximityScore float64,
+	trustScore float64,
+	weights SceneRankingWeights,
+	includeTrust bool,
 ) float64 {
-score := (textMatchScore * weights.TextMatch) +
-(proximityScore * weights.Proximity)
+	score := (textMatchScore * weights.TextMatch) +
+		(proximityScore * weights.Proximity)
 
-if includeTrust {
-score += trustScore * weights.Trust
-}
+	if includeTrust {
+		score += trustScore * weights.Trust
+	}
 
-return score
+	return score
 }
 
 // SceneCursor represents the pagination cursor for scene search results.
 type SceneCursor struct {
-Score float64 `json:"score"` // Composite score of last scene
-ID    string  `json:"id"`    // Scene ID for stable ordering
+	Score float64 `json:"score"` // Composite score of last scene
+	ID    string  `json:"id"`    // Scene ID for stable ordering
 }
 
 // EncodeSceneCursor encodes a cursor to a base64 string for pagination.
 func EncodeSceneCursor(score float64, id string) string {
-cursor := SceneCursor{
-Score: score,
-ID:    id,
-}
-data, _ := json.Marshal(cursor)
-return base64.URLEncoding.EncodeToString(data)
+	cursor := SceneCursor{
+		Score: score,
+		ID:    id,
+	}
+	data, _ := json.Marshal(cursor)
+	return base64.URLEncoding.EncodeToString(data)
 }
 
 // DecodeSceneCursor decodes a base64 cursor string back to SceneCursor.
 // Returns error if cursor is invalid or cannot be decoded.
 func DecodeSceneCursor(encoded string) (*SceneCursor, error) {
-if encoded == "" {
-return nil, nil
-}
+	if encoded == "" {
+		return nil, nil
+	}
 
-data, err := base64.URLEncoding.DecodeString(encoded)
-if err != nil {
-return nil, fmt.Errorf("invalid cursor encoding: %w", err)
-}
+	data, err := base64.URLEncoding.DecodeString(encoded)
+	if err != nil {
+		return nil, fmt.Errorf("invalid cursor encoding: %w", err)
+	}
 
-var cursor SceneCursor
-if err := json.Unmarshal(data, &cursor); err != nil {
-return nil, fmt.Errorf("invalid cursor format: %w", err)
-}
+	var cursor SceneCursor
+	if err := json.Unmarshal(data, &cursor); err != nil {
+		return nil, fmt.Errorf("invalid cursor format: %w", err)
+	}
 
-return &cursor, nil
+	return &cursor, nil
 }

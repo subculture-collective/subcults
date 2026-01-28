@@ -58,7 +58,7 @@ func validateLogEntry(entityType, entityID, action string) error {
 	if action == "" {
 		return ErrInvalidAction
 	}
-	
+
 	// Validate against whitelists if the values are not in the allowed sets
 	if !ValidEntityTypes[entityType] {
 		return ErrInvalidEntityType
@@ -66,7 +66,7 @@ func validateLogEntry(entityType, entityID, action string) error {
 	if !ValidActions[action] {
 		return ErrInvalidAction
 	}
-	
+
 	return nil
 }
 
@@ -93,7 +93,7 @@ func extractIPAddress(r *http.Request) string {
 			return host
 		}
 	}
-	
+
 	// Check X-Real-IP header
 	if xri := r.Header.Get("X-Real-IP"); xri != "" {
 		xri = strings.TrimSpace(xri)
@@ -105,7 +105,7 @@ func extractIPAddress(r *http.Request) string {
 		}
 		return host
 	}
-	
+
 	// Fall back to RemoteAddr (strip port properly for both IPv4 and IPv6)
 	host, _, err := net.SplitHostPort(r.RemoteAddr)
 	if err != nil {
@@ -128,11 +128,11 @@ func LogAccess(ctx context.Context, repo Repository, entityType, entityID, actio
 	if repo == nil {
 		return ErrNilRepository
 	}
-	
+
 	if err := validateLogEntry(entityType, entityID, action); err != nil {
 		return err
 	}
-	
+
 	entry := LogEntry{
 		UserDID:    middleware.GetUserDID(ctx),
 		EntityType: entityType,
@@ -160,7 +160,7 @@ func LogAccessFromRequest(r *http.Request, repo Repository, entityType, entityID
 	if repo == nil {
 		return ErrNilRepository
 	}
-	
+
 	if err := validateLogEntry(entityType, entityID, action); err != nil {
 		return err
 	}

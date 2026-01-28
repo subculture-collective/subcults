@@ -326,8 +326,13 @@ func TestSearchPosts_MissingQuery(t *testing.T) {
 		t.Fatalf("failed to decode error response: %v", err)
 	}
 
-	if errResp["error_code"] != ErrCodeValidation {
-		t.Errorf("expected error_code %s, got %v", ErrCodeValidation, errResp["error_code"])
+	// Response format: {"error": {"code": "validation_error", "message": "..."}}
+	errorObj, ok := errResp["error"].(map[string]interface{})
+	if !ok {
+		t.Fatalf("expected error object in response, got %v", errResp)
+	}
+	if errorObj["code"] != ErrCodeValidation {
+		t.Errorf("expected error code %s, got %v", ErrCodeValidation, errorObj["code"])
 	}
 }
 

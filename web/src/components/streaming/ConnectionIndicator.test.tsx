@@ -2,9 +2,16 @@
  * ConnectionIndicator Component Tests
  */
 
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import { ConnectionIndicator } from './ConnectionIndicator';
+
+// Mock i18next
+vi.mock('react-i18next', () => ({
+  useTranslation: () => ({
+    t: (key: string) => key,
+  }),
+}));
 
 describe('ConnectionIndicator', () => {
   it('renders excellent quality', () => {
@@ -12,8 +19,8 @@ describe('ConnectionIndicator', () => {
 
     const status = screen.getByRole('status');
     expect(status).toHaveAttribute('aria-label');
-    expect(status.getAttribute('aria-label')).toMatch(/streaming\.connectionIndicator/i);
-    expect(screen.getByText(/streaming\.connectionIndicator\.excellent/i)).toBeInTheDocument();
+    expect(status.getAttribute('aria-label')).toMatch(/connectionIndicator/i);
+    expect(screen.getByText(/connectionIndicator\.excellent/i)).toBeInTheDocument();
   });
 
   it('renders good quality', () => {
@@ -21,8 +28,8 @@ describe('ConnectionIndicator', () => {
 
     const status = screen.getByRole('status');
     expect(status).toHaveAttribute('aria-label');
-    expect(status.getAttribute('aria-label')).toMatch(/streaming\.connectionIndicator/i);
-    expect(screen.getByText(/streaming\.connectionIndicator\.good/i)).toBeInTheDocument();
+    expect(status.getAttribute('aria-label')).toMatch(/connectionIndicator/i);
+    expect(screen.getByText(/connectionIndicator\.good/i)).toBeInTheDocument();
   });
 
   it('renders poor quality', () => {
@@ -30,8 +37,8 @@ describe('ConnectionIndicator', () => {
 
     const status = screen.getByRole('status');
     expect(status).toHaveAttribute('aria-label');
-    expect(status.getAttribute('aria-label')).toMatch(/streaming\.connectionIndicator/i);
-    expect(screen.getByText(/streaming\.connectionIndicator\.poor/i)).toBeInTheDocument();
+    expect(status.getAttribute('aria-label')).toMatch(/connectionIndicator/i);
+    expect(screen.getByText(/connectionIndicator\.poor/i)).toBeInTheDocument();
   });
 
   it('renders unknown quality', () => {
@@ -39,14 +46,14 @@ describe('ConnectionIndicator', () => {
 
     const status = screen.getByRole('status');
     expect(status).toHaveAttribute('aria-label');
-    expect(status.getAttribute('aria-label')).toMatch(/streaming\.connectionIndicator/i);
-    expect(screen.getByText(/streaming\.connectionIndicator\.unknown/i)).toBeInTheDocument();
+    expect(status.getAttribute('aria-label')).toMatch(/connectionIndicator/i);
+    expect(screen.getByText(/connectionIndicator\.unknown/i)).toBeInTheDocument();
   });
 
   it('hides label when showLabel is false', () => {
     render(<ConnectionIndicator quality="excellent" showLabel={false} />);
 
-    expect(screen.queryByText(/streaming\.connectionIndicator\.excellent/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/connectionIndicator\.excellent/i)).not.toBeInTheDocument();
     // Status role should still be present
     expect(screen.getByRole('status')).toBeInTheDocument();
   });
@@ -54,7 +61,7 @@ describe('ConnectionIndicator', () => {
   it('shows label by default', () => {
     render(<ConnectionIndicator quality="good" />);
 
-    expect(screen.getByText(/streaming\.connectionIndicator\.good/i)).toBeInTheDocument();
+    expect(screen.getByText(/connectionIndicator\.good/i)).toBeInTheDocument();
   });
 
   it('renders signal bars', () => {

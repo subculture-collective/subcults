@@ -306,7 +306,7 @@ func TestListByScene_TieBreaking(t *testing.T) {
 		repo.mu.Lock()
 		repo.posts[retrievedPost.ID].CreatedAt = now
 		repo.mu.Unlock()
-		
+
 		postIDs = append(postIDs, post.ID)
 	}
 
@@ -410,7 +410,7 @@ func TestCursorIntegrity_DeletedPostAfterCursor(t *testing.T) {
 		repo.mu.Lock()
 		repo.posts[post.ID].CreatedAt = now.Add(-time.Duration(i) * time.Hour)
 		repo.mu.Unlock()
-		
+
 		postIDs = append(postIDs, post.ID)
 	}
 
@@ -504,7 +504,7 @@ func TestCursorIntegrity_HiddenPostAfterCursor(t *testing.T) {
 		repo.mu.Lock()
 		repo.posts[post.ID].CreatedAt = now.Add(-time.Duration(i) * time.Hour)
 		repo.mu.Unlock()
-		
+
 		postIDs = append(postIDs, post.ID)
 	}
 
@@ -723,7 +723,7 @@ func TestCursorIntegrity_MultipleMutations(t *testing.T) {
 		repo.mu.Lock()
 		repo.posts[post.ID].CreatedAt = now.Add(-time.Duration(i) * time.Hour)
 		repo.mu.Unlock()
-		
+
 		postIDs = append(postIDs, post.ID)
 	}
 
@@ -865,7 +865,7 @@ func TestCursorIntegrity_EventFeedDeletedPost(t *testing.T) {
 		repo.mu.Lock()
 		repo.posts[post.ID].CreatedAt = now.Add(-time.Duration(i) * time.Hour)
 		repo.mu.Unlock()
-		
+
 		postIDs = append(postIDs, post.ID)
 	}
 
@@ -951,7 +951,7 @@ func TestCursorIntegrity_IdenticalTimestampsPagination(t *testing.T) {
 		repo.mu.Lock()
 		repo.posts[post.ID].CreatedAt = now
 		repo.mu.Unlock()
-		
+
 		postIDs = append(postIDs, post.ID)
 	}
 

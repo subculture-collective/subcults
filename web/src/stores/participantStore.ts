@@ -29,10 +29,10 @@ export interface CachedParticipant {
 interface ParticipantState {
   // Participants keyed by identity
   participants: Record<string, CachedParticipant>;
-  
+
   // Local participant identity (for quick lookup)
   localIdentity: string | null;
-  
+
   // Pending mute updates (for debouncing)
   pendingMuteUpdates: Record<string, NodeJS.Timeout>;
 }
@@ -43,28 +43,28 @@ interface ParticipantState {
 interface ParticipantActions {
   // Add or update a participant
   addParticipant: (participant: Participant) => void;
-  
+
   // Remove a participant
   removeParticipant: (identity: string) => void;
-  
+
   // Update participant mute status (debounced)
   updateParticipantMute: (identity: string, isMuted: boolean) => void;
-  
+
   // Update participant speaking status (immediate)
   updateParticipantSpeaking: (identity: string, isSpeaking: boolean) => void;
-  
+
   // Set local participant identity
   setLocalIdentity: (identity: string | null) => void;
-  
+
   // Clear all participants
   clearParticipants: () => void;
-  
+
   // Get all participants as array
   getParticipantsArray: () => Participant[];
-  
+
   // Get specific participant
   getParticipant: (identity: string) => Participant | null;
-  
+
   // Get local participant
   getLocalParticipant: () => Participant | null;
 }
@@ -111,7 +111,7 @@ export const useParticipantStore = create<ParticipantStore>((set, get) => ({
   // Add or update participant
   addParticipant: (participant: Participant) => {
     const normalizedIdentity = normalizeIdentity(participant.identity);
-    
+
     set((state) => ({
       participants: {
         ...state.participants,
@@ -129,7 +129,7 @@ export const useParticipantStore = create<ParticipantStore>((set, get) => ({
   // Remove participant
   removeParticipant: (identity: string) => {
     const normalizedIdentity = normalizeIdentity(identity);
-    
+
     set((state) => {
       // Cancel any pending mute updates
       const pendingTimeout = state.pendingMuteUpdates[normalizedIdentity];
@@ -137,8 +137,11 @@ export const useParticipantStore = create<ParticipantStore>((set, get) => ({
         clearTimeout(pendingTimeout);
       }
 
-      const { [normalizedIdentity]: removed, ...remainingParticipants } = state.participants;
-      const { [normalizedIdentity]: removedTimeout, ...remainingTimeouts } = state.pendingMuteUpdates;
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+      const { [normalizedIdentity]: _removed, ...remainingParticipants } = state.participants;
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+      const { [normalizedIdentity]: _removedTimeout, ...remainingTimeouts } =
+        state.pendingMuteUpdates;
 
       return {
         participants: remainingParticipants,
@@ -153,7 +156,7 @@ export const useParticipantStore = create<ParticipantStore>((set, get) => ({
   updateParticipantMute: (identity: string, isMuted: boolean) => {
     const normalizedIdentity = normalizeIdentity(identity);
     const state = get();
-    
+
     // Cancel any existing pending update for this participant
     const existingTimeout = state.pendingMuteUpdates[normalizedIdentity];
     if (existingTimeout) {
@@ -167,7 +170,8 @@ export const useParticipantStore = create<ParticipantStore>((set, get) => ({
         if (!cached) return state;
 
         // Remove timeout from pending updates
-        const { [normalizedIdentity]: removed, ...remainingTimeouts } = state.pendingMuteUpdates;
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
+        const { [normalizedIdentity]: _removed, ...remainingTimeouts } = state.pendingMuteUpdates;
 
         return {
           participants: {
@@ -200,7 +204,7 @@ export const useParticipantStore = create<ParticipantStore>((set, get) => ({
   // Update participant speaking status (immediate, no debounce)
   updateParticipantSpeaking: (identity: string, isSpeaking: boolean) => {
     const normalizedIdentity = normalizeIdentity(identity);
-    
+
     set((state) => {
       const cached = state.participants[normalizedIdentity];
       if (!cached) return state;
@@ -235,7 +239,7 @@ export const useParticipantStore = create<ParticipantStore>((set, get) => ({
   // Clear all participants
   clearParticipants: () => {
     const state = get();
-    
+
     // Cancel all pending mute updates
     Object.values(state.pendingMuteUpdates).forEach((timeout) => {
       if (timeout) clearTimeout(timeout);
@@ -273,15 +277,12 @@ export const useParticipantStore = create<ParticipantStore>((set, get) => ({
  * Hook to get all participants (remote only, excludes local)
  */
 export function useParticipants(): Participant[] {
-  return useParticipantStore(
-    (state) => {
-      const localIdentity = state.localIdentity;
-      return Object.values(state.participants)
-        .filter((cached) => cached.data.identity !== localIdentity)
-        .map((cached) => cached.data);
-    },
-    shallow
-  );
+  return useParticipantStore((state) => {
+    const localIdentity = state.localIdentity;
+    return Object.values(state.participants)
+      .filter((cached) => cached.data.identity !== localIdentity)
+      .map((cached) => cached.data);
+  }, shallow);
 }
 
 /**

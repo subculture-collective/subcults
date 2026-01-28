@@ -14,7 +14,7 @@ type AuditLog struct {
 	EntityID   string
 	Action     string
 	CreatedAt  time.Time
-	
+
 	// Optional metadata
 	RequestID string
 	IPAddress string
@@ -27,7 +27,7 @@ type LogEntry struct {
 	EntityType string
 	EntityID   string
 	Action     string
-	
+
 	// Optional metadata
 	RequestID string
 	IPAddress string

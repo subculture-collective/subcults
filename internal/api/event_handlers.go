@@ -28,28 +28,28 @@ const (
 
 // CreateEventRequest represents the request body for creating an event.
 type CreateEventRequest struct {
-	SceneID       string         `json:"scene_id"`
-	Title         string         `json:"title"`
-	Description   string         `json:"description,omitempty"`
-	AllowPrecise  bool           `json:"allow_precise"`
-	PrecisePoint  *scene.Point   `json:"precise_point,omitempty"`
-	CoarseGeohash string         `json:"coarse_geohash"`
-	Tags          []string       `json:"tags,omitempty"`
-	StartsAt      time.Time      `json:"starts_at"`
-	EndsAt        *time.Time     `json:"ends_at,omitempty"`
+	SceneID       string       `json:"scene_id"`
+	Title         string       `json:"title"`
+	Description   string       `json:"description,omitempty"`
+	AllowPrecise  bool         `json:"allow_precise"`
+	PrecisePoint  *scene.Point `json:"precise_point,omitempty"`
+	CoarseGeohash string       `json:"coarse_geohash"`
+	Tags          []string     `json:"tags,omitempty"`
+	StartsAt      time.Time    `json:"starts_at"`
+	EndsAt        *time.Time   `json:"ends_at,omitempty"`
 }
 
 // UpdateEventRequest represents the request body for updating an event.
 // Only includes mutable fields (scene_id is immutable).
 type UpdateEventRequest struct {
-	Title         *string        `json:"title,omitempty"`
-	Description   *string        `json:"description,omitempty"`
-	Tags          []string       `json:"tags,omitempty"`
-	AllowPrecise  *bool          `json:"allow_precise,omitempty"`
-	PrecisePoint  *scene.Point   `json:"precise_point,omitempty"`
-	CoarseGeohash *string        `json:"coarse_geohash,omitempty"`
-	StartsAt      *time.Time     `json:"starts_at,omitempty"`
-	EndsAt        *time.Time     `json:"ends_at,omitempty"`
+	Title         *string      `json:"title,omitempty"`
+	Description   *string      `json:"description,omitempty"`
+	Tags          []string     `json:"tags,omitempty"`
+	AllowPrecise  *bool        `json:"allow_precise,omitempty"`
+	PrecisePoint  *scene.Point `json:"precise_point,omitempty"`
+	CoarseGeohash *string      `json:"coarse_geohash,omitempty"`
+	StartsAt      *time.Time   `json:"starts_at,omitempty"`
+	EndsAt        *time.Time   `json:"ends_at,omitempty"`
 }
 
 // CancelEventRequest represents the request body for cancelling an event.
@@ -95,7 +95,7 @@ func NewEventHandlers(eventRepo scene.EventRepository, sceneRepo scene.SceneRepo
 // EventWithRSVPCounts represents an event with aggregated RSVP counts and active stream info.
 type EventWithRSVPCounts struct {
 	*scene.Event
-	RSVPCounts   *scene.RSVPCounts       `json:"rsvp_counts"`
+	RSVPCounts   *scene.RSVPCounts        `json:"rsvp_counts"`
 	ActiveStream *stream.ActiveStreamInfo `json:"active_stream,omitempty"`
 }
 
@@ -104,7 +104,7 @@ type EventWithRSVPCounts struct {
 func validateEventTitle(title string) string {
 	// Trim whitespace first
 	trimmed := strings.TrimSpace(title)
-	
+
 	if len(trimmed) < MinEventTitleLength {
 		return fmt.Sprintf("event title must be at least %d characters", MinEventTitleLength)
 	}
@@ -596,7 +596,7 @@ type SearchEventsResponse struct {
 func (h *EventHandlers) SearchEvents(w http.ResponseWriter, r *http.Request) {
 	// Parse query parameters
 	query := r.URL.Query()
-	
+
 	// Parse bbox (format: minLng,minLat,maxLng,maxLat)
 	bboxStr := query.Get("bbox")
 	if bboxStr == "" {
@@ -604,18 +604,18 @@ func (h *EventHandlers) SearchEvents(w http.ResponseWriter, r *http.Request) {
 		WriteError(w, ctx, http.StatusBadRequest, ErrCodeValidation, "bbox parameter is required")
 		return
 	}
-	
+
 	bboxParts := strings.Split(bboxStr, ",")
 	if len(bboxParts) != 4 {
 		ctx := middleware.SetErrorCode(r.Context(), ErrCodeValidation)
 		WriteError(w, ctx, http.StatusBadRequest, ErrCodeValidation, "bbox must be in format: minLng,minLat,maxLng,maxLat")
 		return
 	}
-	
+
 	// Parse and validate bbox coordinates
 	var minLng, minLat, maxLng, maxLat float64
 	var err error
-	
+
 	if minLng, err = parseFloat(bboxParts[0], "minLng"); err != nil {
 		ctx := middleware.SetErrorCode(r.Context(), ErrCodeValidation)
 		WriteError(w, ctx, http.StatusBadRequest, ErrCodeValidation, err.Error())
@@ -636,7 +636,7 @@ func (h *EventHandlers) SearchEvents(w http.ResponseWriter, r *http.Request) {
 		WriteError(w, ctx, http.StatusBadRequest, ErrCodeValidation, err.Error())
 		return
 	}
-	
+
 	// Validate bbox ranges
 	if minLng < -180 || minLng > 180 || maxLng < -180 || maxLng > 180 {
 		ctx := middleware.SetErrorCode(r.Context(), ErrCodeValidation)
@@ -658,38 +658,38 @@ func (h *EventHandlers) SearchEvents(w http.ResponseWriter, r *http.Request) {
 		WriteError(w, ctx, http.StatusBadRequest, ErrCodeValidation, "minLat must be less than maxLat")
 		return
 	}
-	
+
 	// Parse time range
 	fromStr := query.Get("from")
 	toStr := query.Get("to")
-	
+
 	if fromStr == "" || toStr == "" {
 		ctx := middleware.SetErrorCode(r.Context(), ErrCodeValidation)
 		WriteError(w, ctx, http.StatusBadRequest, ErrCodeValidation, "both 'from' and 'to' parameters are required")
 		return
 	}
-	
+
 	from, err := time.Parse(time.RFC3339, fromStr)
 	if err != nil {
 		ctx := middleware.SetErrorCode(r.Context(), ErrCodeValidation)
 		WriteError(w, ctx, http.StatusBadRequest, ErrCodeValidation, "invalid 'from' timestamp, must be RFC3339 format")
 		return
 	}
-	
+
 	to, err := time.Parse(time.RFC3339, toStr)
 	if err != nil {
 		ctx := middleware.SetErrorCode(r.Context(), ErrCodeValidation)
 		WriteError(w, ctx, http.StatusBadRequest, ErrCodeValidation, "invalid 'to' timestamp, must be RFC3339 format")
 		return
 	}
-	
+
 	// Validate time range
 	if !from.Before(to) {
 		ctx := middleware.SetErrorCode(r.Context(), ErrCodeInvalidTimeRange)
 		WriteError(w, ctx, http.StatusBadRequest, ErrCodeInvalidTimeRange, "'from' must be before 'to'")
 		return
 	}
-	
+
 	// Validate max window length (30 days)
 	maxWindow := 30 * 24 * time.Hour
 	if to.Sub(from) > maxWindow {
@@ -697,10 +697,10 @@ func (h *EventHandlers) SearchEvents(w http.ResponseWriter, r *http.Request) {
 		WriteError(w, ctx, http.StatusBadRequest, ErrCodeValidation, "time window cannot exceed 30 days")
 		return
 	}
-	
+
 	// Parse optional text search query
 	searchQuery := query.Get("q")
-	
+
 	// Parse pagination parameters
 	limitStr := query.Get("limit")
 	limit := 50 // default limit
@@ -713,9 +713,9 @@ func (h *EventHandlers) SearchEvents(w http.ResponseWriter, r *http.Request) {
 		}
 		limit = parsedLimit
 	}
-	
+
 	cursor := query.Get("cursor")
-	
+
 	// Build trust scores map if trust ranking is enabled and store is available
 	var trustScores map[string]float64
 	if h.trustScoreStore != nil {
@@ -723,7 +723,7 @@ func (h *EventHandlers) SearchEvents(w http.ResponseWriter, r *http.Request) {
 		// In a production implementation, we might want to batch-fetch or cache these
 		trustScores = make(map[string]float64)
 	}
-	
+
 	// Search events with new SearchEvents method
 	events, nextCursor, err := h.eventRepo.SearchEvents(scene.EventSearchOptions{
 		MinLng:      minLng,
@@ -743,14 +743,14 @@ func (h *EventHandlers) SearchEvents(w http.ResponseWriter, r *http.Request) {
 		WriteError(w, ctx, http.StatusInternalServerError, ErrCodeInternal, "Failed to search events")
 		return
 	}
-	
+
 	// Collect unique scene IDs for trust score fetching
 	if h.trustScoreStore != nil && len(events) > 0 {
 		sceneIDs := make(map[string]bool)
 		for _, event := range events {
 			sceneIDs[event.SceneID] = true
 		}
-		
+
 		// Fetch trust scores for all scenes
 		for sceneID := range sceneIDs {
 			score, err := h.trustScoreStore.GetScore(sceneID)
@@ -763,7 +763,7 @@ func (h *EventHandlers) SearchEvents(w http.ResponseWriter, r *http.Request) {
 				trustScores[sceneID] = score.Score
 			}
 		}
-		
+
 		// If we got trust scores, re-run the search with them
 		if len(trustScores) > 0 {
 			events, nextCursor, err = h.eventRepo.SearchEvents(scene.EventSearchOptions{
@@ -786,13 +786,13 @@ func (h *EventHandlers) SearchEvents(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 	}
-	
+
 	// Batch fetch active streams to avoid N+1 queries
 	eventIDs := make([]string, len(events))
 	for i, event := range events {
 		eventIDs[i] = event.ID
 	}
-	
+
 	activeStreamsMap, err := h.streamRepo.GetActiveStreamsForEvents(eventIDs)
 	if err != nil {
 		slog.ErrorContext(r.Context(), "failed to get active streams", "error", err)
@@ -800,7 +800,7 @@ func (h *EventHandlers) SearchEvents(w http.ResponseWriter, r *http.Request) {
 		WriteError(w, ctx, http.StatusInternalServerError, ErrCodeInternal, "Failed to retrieve active streams")
 		return
 	}
-	
+
 	// Batch fetch RSVP counts to avoid N+1 queries
 	rsvpCountsMap, err := h.rsvpRepo.GetCountsForEvents(eventIDs)
 	if err != nil {
@@ -809,7 +809,7 @@ func (h *EventHandlers) SearchEvents(w http.ResponseWriter, r *http.Request) {
 		WriteError(w, ctx, http.StatusInternalServerError, ErrCodeInternal, "Failed to retrieve RSVP counts")
 		return
 	}
-	
+
 	// Build response with events, RSVP counts, and active streams
 	eventsWithData := make([]*EventWithRSVPCounts, len(events))
 	for i, event := range events {
@@ -819,13 +819,13 @@ func (h *EventHandlers) SearchEvents(w http.ResponseWriter, r *http.Request) {
 			ActiveStream: activeStreamsMap[event.ID], // nil if no active stream
 		}
 	}
-	
+
 	// Return response
 	response := SearchEventsResponse{
 		Events:     eventsWithData,
 		NextCursor: nextCursor,
 	}
-	
+
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 	if err := json.NewEncoder(w).Encode(response); err != nil {

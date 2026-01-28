@@ -35,11 +35,11 @@ func TestIssueToken_Success(t *testing.T) {
 
 	req := httptest.NewRequest(http.MethodPost, "/livekit/token", bytes.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
-	
+
 	// Set user DID in context (simulating auth middleware)
 	ctx := middleware.SetUserDID(req.Context(), "did:plc:test123")
 	req = req.WithContext(ctx)
-	
+
 	w := httptest.NewRecorder()
 
 	// Execute
@@ -419,7 +419,7 @@ func TestGenerateParticipantID(t *testing.T) {
 			// Verify different DIDs produce different IDs (when not truncated)
 			differentDID := tt.did + "x"
 			result3 := generateParticipantID(differentDID)
-			
+
 			// Only check if they're different when the change would be preserved after truncation
 			// For long identifiers that get truncated, the extra 'x' might be cut off
 			if len(strings.Split(tt.did, ":")[len(strings.Split(tt.did, ":"))-1]) < 48 {

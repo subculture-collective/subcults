@@ -216,14 +216,14 @@ func TestContrastRatio(t *testing.T) {
 	}{
 		{
 			name:   "black on white - maximum contrast",
-			color1: RGB{R: 0, G: 0, B: 0},     // black
+			color1: RGB{R: 0, G: 0, B: 0},       // black
 			color2: RGB{R: 255, G: 255, B: 255}, // white
 			want:   21.0,
 		},
 		{
 			name:   "white on black - same as black on white",
 			color1: RGB{R: 255, G: 255, B: 255}, // white
-			color2: RGB{R: 0, G: 0, B: 0},     // black
+			color2: RGB{R: 0, G: 0, B: 0},       // black
 			want:   21.0,
 		},
 		{
@@ -234,16 +234,16 @@ func TestContrastRatio(t *testing.T) {
 		},
 		{
 			name:   "dark blue on white - should pass WCAG AA",
-			color1: RGB{R: 0, G: 0, B: 139},   // dark blue
+			color1: RGB{R: 0, G: 0, B: 139},     // dark blue
 			color2: RGB{R: 255, G: 255, B: 255}, // white
-			want:   15.3, // approximate
+			want:   15.3,                        // approximate
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			got := ContrastRatio(tt.color1, tt.color2)
-			
+
 			// Allow small floating point differences
 			if math.Abs(got-tt.want) > 0.1 {
 				t.Errorf("ContrastRatio() = %.2f, want %.2f", got, tt.want)

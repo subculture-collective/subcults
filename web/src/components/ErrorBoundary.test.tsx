@@ -82,7 +82,7 @@ describe('ErrorBoundary', () => {
 
   it('reloads page when reload button is clicked', async () => {
     const user = userEvent.setup();
-    
+
     // Mock window.location.reload using Object.defineProperty
     const reloadMock = vi.fn();
     Object.defineProperty(window, 'location', {
@@ -104,12 +104,11 @@ describe('ErrorBoundary', () => {
 
   it('opens email client when report button is clicked', async () => {
     const user = userEvent.setup();
-    
+
     // Mock window.location.href setter
     let capturedHref = '';
     Object.defineProperty(window, 'location', {
       value: {
-        href: '',
         get href() {
           return capturedHref;
         },
@@ -119,7 +118,7 @@ describe('ErrorBoundary', () => {
       },
       writable: true,
     });
-    
+
     render(
       <ErrorBoundary>
         <ThrowError shouldThrow={true} />

@@ -4,7 +4,7 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { SessionReplay, ReplayEventType, type ReplayEvent } from './session-replay';
+import { SessionReplay, ReplayEventType } from './session-replay';
 
 describe('SessionReplay', () => {
   let replay: SessionReplay;
@@ -13,7 +13,7 @@ describe('SessionReplay', () => {
   beforeEach(() => {
     // Clear localStorage
     localStorage.clear();
-    
+
     // Default: user is NOT opted in
     isOptedIn = vi.fn(() => false);
 
@@ -84,8 +84,8 @@ describe('SessionReplay', () => {
 
       const events = replay.getAndClearBuffer();
       expect(events.length).toBeGreaterThan(0);
-      
-      const clickEvent = events.find(e => e.type === ReplayEventType.Click);
+
+      const clickEvent = events.find((e) => e.type === ReplayEventType.Click);
       expect(clickEvent).toBeDefined();
       expect(clickEvent?.data.element).toMatchObject({
         tagName: 'button',
@@ -106,8 +106,8 @@ describe('SessionReplay', () => {
       button.dispatchEvent(clickEvent);
 
       const events = replay.getAndClearBuffer();
-      const click = events.find(e => e.type === ReplayEventType.Click);
-      
+      const click = events.find((e) => e.type === ReplayEventType.Click);
+
       expect(click).toBeDefined();
       expect(click?.data.x).toBe(100);
       expect(click?.data.y).toBe(200);
@@ -121,8 +121,8 @@ describe('SessionReplay', () => {
       button.click();
 
       const events = replay.getAndClearBuffer();
-      const click = events.find(e => e.type === ReplayEventType.Click);
-      
+      const click = events.find((e) => e.type === ReplayEventType.Click);
+
       // Should not include text content
       expect(JSON.stringify(click)).not.toContain('Sensitive Button Text');
     });
@@ -142,8 +142,8 @@ describe('SessionReplay', () => {
       }
 
       const events = replay.getAndClearBuffer();
-      const clicks = events.filter(e => e.type === ReplayEventType.Click);
-      
+      const clicks = events.filter((e) => e.type === ReplayEventType.Click);
+
       expect(clicks.length).toBe(0);
     });
   });
@@ -161,8 +161,8 @@ describe('SessionReplay', () => {
       window.dispatchEvent(popstateEvent);
 
       const events = replay.getAndClearBuffer();
-      const navEvent = events.find(e => e.type === ReplayEventType.Navigation);
-      
+      const navEvent = events.find((e) => e.type === ReplayEventType.Navigation);
+
       expect(navEvent).toBeDefined();
       expect(navEvent?.data.url).toBe(window.location.pathname);
     });
@@ -173,8 +173,8 @@ describe('SessionReplay', () => {
       window.dispatchEvent(popstateEvent);
 
       const events = replay.getAndClearBuffer();
-      const navEvent = events.find(e => e.type === ReplayEventType.Navigation);
-      
+      const navEvent = events.find((e) => e.type === ReplayEventType.Navigation);
+
       expect(navEvent?.data.url).not.toContain('?');
       expect(navEvent?.data.url).not.toContain('#');
     });
@@ -199,8 +199,8 @@ describe('SessionReplay', () => {
       }
 
       const events = replay.getAndClearBuffer();
-      const scrollEvents = events.filter(e => e.type === ReplayEventType.Scroll);
-      
+      const scrollEvents = events.filter((e) => e.type === ReplayEventType.Scroll);
+
       // Should have at least one scroll event (10% sample rate)
       expect(scrollEvents.length).toBeGreaterThan(0);
     });
@@ -216,8 +216,8 @@ describe('SessionReplay', () => {
       }
 
       const events = replay.getAndClearBuffer();
-      const scrollEvent = events.find(e => e.type === ReplayEventType.Scroll);
-      
+      const scrollEvent = events.find((e) => e.type === ReplayEventType.Scroll);
+
       if (scrollEvent) {
         expect(scrollEvent.data.x).toBe(150);
         expect(scrollEvent.data.y).toBe(300);
@@ -238,11 +238,11 @@ describe('SessionReplay', () => {
       document.body.appendChild(div);
 
       // Wait for mutation observer to process
-      await new Promise(resolve => setTimeout(resolve, 50));
+      await new Promise((resolve) => setTimeout(resolve, 50));
 
       const events = replay.getAndClearBuffer();
-      const mutationEvents = events.filter(e => e.type === ReplayEventType.DOMChange);
-      
+      const mutationEvents = events.filter((e) => e.type === ReplayEventType.DOMChange);
+
       expect(mutationEvents.length).toBeGreaterThan(0);
     });
 
@@ -255,11 +255,11 @@ describe('SessionReplay', () => {
       }
       document.body.appendChild(fragment);
 
-      await new Promise(resolve => setTimeout(resolve, 50));
+      await new Promise((resolve) => setTimeout(resolve, 50));
 
       const events = replay.getAndClearBuffer();
-      const mutationEvent = events.find(e => e.type === ReplayEventType.DOMChange);
-      
+      const mutationEvent = events.find((e) => e.type === ReplayEventType.DOMChange);
+
       if (mutationEvent && mutationEvent.data.mutations) {
         const mutations = mutationEvent.data.mutations as unknown[];
         // Should limit to 5 mutations max
@@ -279,11 +279,11 @@ describe('SessionReplay', () => {
         document.body.appendChild(div);
       }
 
-      await new Promise(resolve => setTimeout(resolve, 50));
+      await new Promise((resolve) => setTimeout(resolve, 50));
 
       const events = replay.getAndClearBuffer();
-      const mutationEvents = events.filter(e => e.type === ReplayEventType.DOMChange);
-      
+      const mutationEvents = events.filter((e) => e.type === ReplayEventType.DOMChange);
+
       expect(mutationEvents.length).toBe(0);
     });
   });
@@ -294,10 +294,13 @@ describe('SessionReplay', () => {
     });
 
     it('maintains ring buffer (drops oldest events when full)', () => {
-      replay = new SessionReplay({ 
-        maxBufferSize: 5,
-        clickSampleRate: 1.0,
-      }, isOptedIn);
+      replay = new SessionReplay(
+        {
+          maxBufferSize: 5,
+          clickSampleRate: 1.0,
+        },
+        isOptedIn
+      );
       replay.start();
 
       const button = document.createElement('button');
@@ -309,7 +312,7 @@ describe('SessionReplay', () => {
       }
 
       const events = replay.getAndClearBuffer();
-      
+
       // Should only have last 5 events
       expect(events.length).toBeLessThanOrEqual(5);
     });
@@ -344,17 +347,20 @@ describe('SessionReplay', () => {
     });
 
     it('stops recording when buffer reaches 90% capacity (performance threshold)', async () => {
-      replay = new SessionReplay({ 
-        maxBufferSize: 10,
-        domMutationSampleRate: 1.0,
-        performanceMonitoring: true,
-      }, isOptedIn);
+      replay = new SessionReplay(
+        {
+          maxBufferSize: 10,
+          domMutationSampleRate: 1.0,
+          performanceMonitoring: true,
+        },
+        isOptedIn
+      );
       replay.start();
 
       // Fill buffer to 90% (9 events)
       const button = document.createElement('button');
       document.body.appendChild(button);
-      
+
       for (let i = 0; i < 9; i++) {
         button.click();
       }
@@ -365,7 +371,7 @@ describe('SessionReplay', () => {
       const div = document.createElement('div');
       document.body.appendChild(div);
 
-      await new Promise(resolve => setTimeout(resolve, 50));
+      await new Promise((resolve) => setTimeout(resolve, 50));
 
       // Buffer should not have grown significantly beyond threshold
       expect(replay.getBufferSize()).toBeLessThanOrEqual(11);
@@ -404,7 +410,7 @@ describe('SessionReplay', () => {
       replay.start();
       replay.start();
       replay.start();
-      
+
       expect(replay.isActive()).toBe(true);
     });
   });
@@ -446,8 +452,8 @@ describe('SessionReplay', () => {
       button.click();
 
       const events = replay.getAndClearBuffer();
-      
-      events.forEach(event => {
+
+      events.forEach((event) => {
         expect(event.timestamp).toBeTypeOf('number');
         expect(event.timestamp).toBeGreaterThan(0);
       });
@@ -459,8 +465,8 @@ describe('SessionReplay', () => {
       button.click();
 
       const events = replay.getAndClearBuffer();
-      
-      events.forEach(event => {
+
+      events.forEach((event) => {
         expect(event.type).toBeDefined();
         expect(Object.values(ReplayEventType)).toContain(event.type);
       });
@@ -472,8 +478,8 @@ describe('SessionReplay', () => {
       button.click();
 
       const events = replay.getAndClearBuffer();
-      
-      events.forEach(event => {
+
+      events.forEach((event) => {
         expect(event.data).toBeTypeOf('object');
       });
     });

@@ -18,21 +18,21 @@ var (
 
 // Session represents a LiveKit audio room streaming session.
 type Session struct {
-	ID               string    `json:"id"`
-	SceneID          *string   `json:"scene_id,omitempty"`
-	EventID          *string   `json:"event_id,omitempty"`
-	RoomName         string    `json:"room_name"`
-	HostDID          string    `json:"host_did"`
-	ParticipantCount int       `json:"participant_count"`
-	
+	ID               string  `json:"id"`
+	SceneID          *string `json:"scene_id,omitempty"`
+	EventID          *string `json:"event_id,omitempty"`
+	RoomName         string  `json:"room_name"`
+	HostDID          string  `json:"host_did"`
+	ParticipantCount int     `json:"participant_count"`
+
 	// AT Protocol record tracking
 	RecordDID  *string `json:"record_did,omitempty"`
 	RecordRKey *string `json:"record_rkey,omitempty"`
-	
+
 	// Analytics tracking for historical queries
 	JoinCount  int `json:"join_count"`  // Total number of join events
 	LeaveCount int `json:"leave_count"` // Total number of leave events
-	
+
 	StartedAt time.Time  `json:"started_at"`
 	EndedAt   *time.Time `json:"ended_at,omitempty"`
 }
@@ -62,36 +62,36 @@ type SessionRepository interface {
 
 	// GetByRecordKey retrieves a session by its AT Protocol record key.
 	GetByRecordKey(did, rkey string) (*Session, error)
-	
+
 	// CreateStreamSession creates a new stream session with automatic room naming and UUID generation.
 	// One of sceneID or eventID must be provided. Returns the session ID and room name.
 	CreateStreamSession(sceneID *string, eventID *string, hostDID string) (id string, roomName string, err error)
-	
+
 	// EndStreamSession marks a stream session as ended by setting ended_at timestamp.
 	// Returns ErrStreamNotFound if session doesn't exist.
 	// Idempotent: returns nil if session is already ended.
 	EndStreamSession(id string) error
-	
+
 	// RecordJoin increments the join count for a stream session.
 	// Returns ErrStreamNotFound if session doesn't exist.
 	RecordJoin(id string) error
-	
+
 	// RecordLeave increments the leave count for a stream session.
 	// Returns ErrStreamNotFound if session doesn't exist.
 	RecordLeave(id string) error
-	
+
 	// HasActiveStreamForScene checks if there's an active stream (ended_at IS NULL) for the given scene.
 	HasActiveStreamForScene(sceneID string) (bool, error)
-	
+
 	// HasActiveStreamsForScenes returns a map of scene IDs to their active stream status.
 	// Returns true for scenes with at least one active stream (ended_at IS NULL).
 	// This is a batch operation to avoid N+1 queries.
 	HasActiveStreamsForScenes(sceneIDs []string) (map[string]bool, error)
-	
+
 	// GetActiveStreamForEvent retrieves the active stream (ended_at IS NULL) for a given event.
 	// Returns nil if no active stream exists for the event.
 	GetActiveStreamForEvent(eventID string) (*ActiveStreamInfo, error)
-	
+
 	// GetActiveStreamsForEvents returns a map of event IDs to their active stream info.
 	// Only includes events with active streams (ended_at IS NULL).
 	// This is a batch operation to avoid N+1 queries.
@@ -134,7 +134,7 @@ func (r *InMemorySessionRepository) Upsert(session *Session) (*UpsertResult, err
 	if session.RecordDID != nil && session.RecordRKey != nil {
 		key := makeKey(*session.RecordDID, *session.RecordRKey)
 		existingID, exists := r.keys[key]
-		
+
 		if exists {
 			// Update existing session
 			existing := r.sessions[existingID]
@@ -154,7 +154,7 @@ func (r *InMemorySessionRepository) Upsert(session *Session) (*UpsertResult, err
 			if session.StartedAt.IsZero() {
 				session.StartedAt = now
 			}
-			
+
 			sessionCopy := *session
 			r.sessions[session.ID] = &sessionCopy
 			r.keys[key] = session.ID
@@ -168,7 +168,7 @@ func (r *InMemorySessionRepository) Upsert(session *Session) (*UpsertResult, err
 		if session.StartedAt.IsZero() {
 			session.StartedAt = now
 		}
-		
+
 		sessionCopy := *session
 		r.sessions[newID] = &sessionCopy
 		inserted = true
@@ -272,7 +272,7 @@ func (r *InMemorySessionRepository) CreateStreamSession(sceneID *string, eventID
 	// Generate room name using naming convention: scene-{sceneId}-{timestamp} or event-{eventId}-{timestamp}
 	now := time.Now()
 	timestamp := now.Unix()
-	
+
 	if sceneID != nil && *sceneID != "" {
 		roomName = fmt.Sprintf("scene-%s-%d", *sceneID, timestamp)
 	} else {

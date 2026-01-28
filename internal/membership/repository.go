@@ -18,17 +18,17 @@ var (
 
 // Membership represents a user's participation in a scene.
 type Membership struct {
-	ID        string  `json:"id"`
-	SceneID   string  `json:"scene_id"`
-	UserDID   string  `json:"user_did"`
-	Role      string  `json:"role"`
-	Status    string  `json:"status"`
+	ID          string  `json:"id"`
+	SceneID     string  `json:"scene_id"`
+	UserDID     string  `json:"user_did"`
+	Role        string  `json:"role"`
+	Status      string  `json:"status"`
 	TrustWeight float64 `json:"trust_weight"`
-	
+
 	// AT Protocol record tracking
 	RecordDID  *string `json:"record_did,omitempty"`
 	RecordRKey *string `json:"record_rkey,omitempty"`
-	
+
 	Since     time.Time `json:"since"`
 	CreatedAt time.Time `json:"created_at"`
 	UpdatedAt time.Time `json:"updated_at"`
@@ -107,7 +107,7 @@ type MembershipRepository interface {
 	// ListByScene retrieves all memberships for a scene, optionally filtered by status.
 	// If status is empty, returns all memberships regardless of status.
 	ListByScene(sceneID, status string) ([]*Membership, error)
-	
+
 	// CountByScenes returns a map of scene IDs to their membership counts.
 	// Only counts memberships matching the specified status (empty string matches all).
 	// This is a batch operation to avoid N+1 queries.
@@ -155,7 +155,7 @@ func (r *InMemoryMembershipRepository) Upsert(membership *Membership) (*UpsertRe
 	if membership.RecordDID != nil && membership.RecordRKey != nil {
 		key := makeKey(*membership.RecordDID, *membership.RecordRKey)
 		existingID, exists := r.keys[key]
-		
+
 		if exists {
 			// Update existing membership
 			existing := r.memberships[existingID]
@@ -177,7 +177,7 @@ func (r *InMemoryMembershipRepository) Upsert(membership *Membership) (*UpsertRe
 			}
 			membership.CreatedAt = now
 			membership.UpdatedAt = now
-			
+
 			membershipCopy := *membership
 			r.memberships[membership.ID] = &membershipCopy
 			r.keys[key] = membership.ID
@@ -193,7 +193,7 @@ func (r *InMemoryMembershipRepository) Upsert(membership *Membership) (*UpsertRe
 		}
 		membership.CreatedAt = now
 		membership.UpdatedAt = now
-		
+
 		membershipCopy := *membership
 		r.memberships[newID] = &membershipCopy
 		inserted = true

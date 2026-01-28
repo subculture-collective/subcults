@@ -3,7 +3,7 @@
  */
 
 import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest';
-import { renderHook, waitFor } from '@testing-library/react';
+import { renderHook, waitFor, act } from '@testing-library/react';
 import { useScene } from './useScene';
 import { useEntityStore, TTL_CONFIG } from '../stores/entityStore';
 import { Scene } from '../types/scene';
@@ -119,7 +119,9 @@ describe('useScene', () => {
 
     const { result } = renderHook(() => useScene('scene-1'));
 
-    await result.current.refetch();
+    await act(async () => {
+      await result.current.refetch();
+    });
 
     expect(apiClientModule.apiClient.get).toHaveBeenCalledWith('/scenes/scene-1');
   });
