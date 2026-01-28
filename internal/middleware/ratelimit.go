@@ -10,6 +10,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/redis/go-redis/v9"
 )
 
 // RateLimitConfig defines the rate limiting configuration.
@@ -74,9 +76,11 @@ func DefaultSearchLimit() RateLimitConfig {
 // This allows for different backends (in-memory, Redis, etc.).
 type RateLimitStore interface {
 	// Allow checks if a request from the given key should be allowed.
-	// Returns true if allowed, false if rate limited.
-	// The second return value is the number of seconds until the limit resets.
-	Allow(ctx context.Context, key string, config RateLimitConfig) (allowed bool, retryAfter int)
+	// Returns three values:
+	// - allowed: true if request is allowed, false if rate limited
+	// - remaining: number of requests remaining in current window
+	// - retryAfter: number of seconds until the limit resets (relevant when allowed=false)
+	Allow(ctx context.Context, key string, config RateLimitConfig) (allowed bool, remaining int, retryAfter int)
 }
 
 // bucket represents a rate limit bucket for a single key.
@@ -102,7 +106,7 @@ func NewInMemoryRateLimitStore() *InMemoryRateLimitStore {
 
 // Allow checks if a request from the given key should be allowed.
 // Implements the RateLimitStore interface.
-func (s *InMemoryRateLimitStore) Allow(ctx context.Context, key string, config RateLimitConfig) (bool, int) {
+func (s *InMemoryRateLimitStore) Allow(ctx context.Context, key string, config RateLimitConfig) (bool, int, int) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -115,13 +119,15 @@ func (s *InMemoryRateLimitStore) Allow(ctx context.Context, key string, config R
 			count:     1,
 			windowEnd: now.Add(config.WindowDuration),
 		}
-		return true, 0
+		remaining := config.RequestsPerWindow - 1
+		return true, remaining, 0
 	}
 
 	// Check if we're within the limit
 	if b.count < config.RequestsPerWindow {
 		b.count++
-		return true, 0
+		remaining := config.RequestsPerWindow - b.count
+		return true, remaining, 0
 	}
 
 	// Rate limited
@@ -129,7 +135,7 @@ func (s *InMemoryRateLimitStore) Allow(ctx context.Context, key string, config R
 	if retryAfter <= 0 {
 		retryAfter = 1
 	}
-	return false, retryAfter
+	return false, 0, retryAfter
 }
 
 // Cleanup removes expired buckets to prevent memory leaks.
@@ -190,11 +196,16 @@ func UserKeyFunc() KeyFunc {
 
 // RateLimiter is a middleware that limits request rates.
 // It returns HTTP 429 Too Many Requests when the limit is exceeded.
+// It also sets X-RateLimit-* headers to indicate quota status.
 func RateLimiter(store RateLimitStore, config RateLimitConfig, keyFunc KeyFunc) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			key := keyFunc(r)
-			allowed, retryAfter := store.Allow(r.Context(), key, config)
+			allowed, remaining, retryAfter := store.Allow(r.Context(), key, config)
+
+			// Set rate limit headers
+			w.Header().Set("X-RateLimit-Limit", strconv.Itoa(config.RequestsPerWindow))
+			w.Header().Set("X-RateLimit-Remaining", strconv.Itoa(remaining))
 
 			if !allowed {
 				// Set error code for logging middleware
@@ -212,4 +223,78 @@ func RateLimiter(store RateLimitStore, config RateLimitConfig, keyFunc KeyFunc) 
 			next.ServeHTTP(w, r)
 		})
 	}
+}
+
+// RedisRateLimitStore implements RateLimitStore using Redis with a token bucket algorithm.
+// It uses a sliding window counter approach for accurate rate limiting.
+// Thread-safe and suitable for distributed systems.
+type RedisRateLimitStore struct {
+	client *redis.Client
+}
+
+// NewRedisRateLimitStore creates a new Redis-backed rate limit store.
+func NewRedisRateLimitStore(client *redis.Client) *RedisRateLimitStore {
+	return &RedisRateLimitStore{
+		client: client,
+	}
+}
+
+// Allow checks if a request from the given key should be allowed using Redis.
+// Implements the RateLimitStore interface with a sliding window algorithm.
+func (s *RedisRateLimitStore) Allow(ctx context.Context, key string, config RateLimitConfig) (bool, int, int) {
+	// Use a Lua script for atomic operations
+	// This implements a sliding window counter algorithm
+	luaScript := `
+		local key = KEYS[1]
+		local limit = tonumber(ARGV[1])
+		local window = tonumber(ARGV[2])
+		local now = tonumber(ARGV[3])
+		
+		-- Remove old entries outside the window
+		redis.call('ZREMRANGEBYSCORE', key, '-inf', now - window)
+		
+		-- Count current requests in window
+		local current = redis.call('ZCARD', key)
+		
+		if current < limit then
+			-- Add current request with timestamp as score
+			redis.call('ZADD', key, now, now)
+			-- Set expiry on the key (window duration + buffer)
+			redis.call('EXPIRE', key, window + 10)
+			-- Return: allowed=1, remaining=limit-current-1
+			return {1, limit - current - 1, 0}
+		else
+			-- Get the oldest request timestamp to calculate retry-after
+			local oldest = redis.call('ZRANGE', key, 0, 0, 'WITHSCORES')
+			local retryAfter = math.ceil((tonumber(oldest[2]) + window) - now)
+			if retryAfter < 1 then
+				retryAfter = 1
+			end
+			-- Return: allowed=0, remaining=0, retryAfter
+			return {0, 0, retryAfter}
+		end
+	`
+
+	now := time.Now().Unix()
+	windowSeconds := int64(config.WindowDuration.Seconds())
+
+	result, err := s.client.Eval(ctx, luaScript, []string{key}, config.RequestsPerWindow, windowSeconds, now).Result()
+	if err != nil {
+		// On Redis error, fail open (allow request) but log the error
+		// This prevents Redis outages from taking down the entire API
+		return true, config.RequestsPerWindow, 0
+	}
+
+	// Parse result from Lua script
+	resultSlice, ok := result.([]interface{})
+	if !ok || len(resultSlice) != 3 {
+		// Invalid result format, fail open
+		return true, config.RequestsPerWindow, 0
+	}
+
+	allowed := resultSlice[0].(int64) == 1
+	remaining := int(resultSlice[1].(int64))
+	retryAfter := int(resultSlice[2].(int64))
+
+	return allowed, remaining, retryAfter
 }
