@@ -93,6 +93,9 @@ type FilterResult struct {
 	Valid      bool            // Whether the record passed validation
 	Collection string          // The collection type (e.g., "app.subcult.scene")
 	Record     json.RawMessage // The validated record JSON
+	DID        string          // Decentralized identifier of the record owner (from CBOR parsing)
+	RKey       string          // Record key (from CBOR parsing)
+	Operation  string          // Operation type: create, update, delete (from CBOR parsing)
 	Error      error           // Validation error, if any
 }
 
@@ -125,6 +128,59 @@ func (f *RecordFilter) Filter(collection string, payload []byte) FilterResult {
 
 	result.Valid = true
 	result.Record = payload
+	return result
+}
+
+// FilterCBOR processes a CBOR-encoded AT Protocol message from Jetstream.
+// It parses the CBOR, extracts the record, validates it, and returns a FilterResult.
+// This is the primary method for processing real Jetstream messages.
+func (f *RecordFilter) FilterCBOR(cborData []byte) FilterResult {
+	f.metrics.incProcessed()
+
+	result := FilterResult{}
+
+	// Parse CBOR message
+	parsed, err := ParseRecord(cborData)
+	if err != nil {
+		result.Matched = false
+		result.Valid = false
+		result.Error = err
+		return result
+	}
+
+	// Populate result with parsed data
+	result.DID = parsed.DID
+	result.Collection = parsed.Collection
+	result.RKey = parsed.RKey
+	result.Operation = parsed.Operation
+
+	// Check if collection matches our lexicon namespace
+	if !MatchesLexicon(parsed.Collection) {
+		result.Matched = false
+		result.Error = ErrNonMatchingLexicon
+		return result
+	}
+
+	result.Matched = true
+	f.metrics.incMatched()
+
+	// For delete operations, no validation needed
+	if parsed.Operation == "delete" {
+		result.Valid = true
+		result.Record = nil
+		return result
+	}
+
+	// Validate the record payload
+	if err := f.validateRecord(parsed.Collection, parsed.Record); err != nil {
+		result.Valid = false
+		result.Error = err
+		f.metrics.incDiscarded()
+		return result
+	}
+
+	result.Valid = true
+	result.Record = parsed.Record
 	return result
 }
 
