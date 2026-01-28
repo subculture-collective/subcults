@@ -16,6 +16,7 @@ import (
 
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
+	"github.com/redis/go-redis/v9"
 
 	"github.com/onnwee/subcults/internal/api"
 	"github.com/onnwee/subcults/internal/attachment"
@@ -101,6 +102,57 @@ func main() {
 		os.Exit(1)
 	}
 	logger.Info("stream metrics registered")
+
+	// Initialize rate limiting metrics
+	rateLimitMetrics := middleware.NewMetrics()
+	if err := rateLimitMetrics.Register(promRegistry); err != nil {
+		logger.Error("failed to register rate limit metrics", "error", err)
+		os.Exit(1)
+	}
+	logger.Info("rate limit metrics registered")
+
+	// Initialize rate limiting
+	// Check if Redis URL is configured for distributed rate limiting
+	redisURL := os.Getenv("REDIS_URL")
+	var rateLimitStore middleware.RateLimitStore
+	var redisClient *redis.Client
+	if redisURL != "" {
+		// Use Redis for distributed rate limiting
+		opt, err := redis.ParseURL(redisURL)
+		if err != nil {
+			logger.Error("failed to parse Redis URL", "error", err)
+			os.Exit(1)
+		}
+		redisClient = redis.NewClient(opt)
+		
+		// Test connection
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		if err := redisClient.Ping(ctx).Err(); err != nil {
+			logger.Error("failed to connect to Redis", "error", err)
+			os.Exit(1)
+		}
+		
+		rateLimitStore = middleware.NewRedisRateLimitStoreWithMetrics(redisClient, rateLimitMetrics)
+		logger.Info("rate limiting initialized with Redis backend")
+	} else {
+		// Use in-memory rate limiting for single-instance deployments
+		inMemStore := middleware.NewInMemoryRateLimitStore()
+		rateLimitStore = inMemStore
+		
+		// Start periodic cleanup to prevent unbounded memory growth from expired buckets
+		cleanupInterval := 5 * time.Minute // Clean up every 5 minutes
+		go func() {
+			ticker := time.NewTicker(cleanupInterval)
+			defer ticker.Stop()
+			for range ticker.C {
+				inMemStore.Cleanup()
+				logger.Debug("cleaned up expired rate limit buckets")
+			}
+		}()
+		
+		logger.Warn("rate limiting initialized with in-memory backend (not suitable for distributed deployments)")
+	}
 
 	// Initialize LiveKit token service
 	// Get credentials from environment variables
@@ -274,14 +326,38 @@ func main() {
 	trustHandlers := api.NewTrustHandlers(sceneRepo, trustDataSource, trustScoreStore, trustDirtyTracker)
 	searchHandlers := api.NewSearchHandlers(sceneRepo, postRepo, trustStoreAdapter)
 
+	// Define rate limit configurations per endpoint
+	searchLimit := middleware.RateLimitConfig{
+		RequestsPerWindow: 100,
+		WindowDuration:    time.Minute,
+	}
+	streamJoinLimit := middleware.RateLimitConfig{
+		RequestsPerWindow: 10,
+		WindowDuration:    time.Minute,
+	}
+	eventCreationLimit := middleware.RateLimitConfig{
+		RequestsPerWindow: 5,
+		WindowDuration:    time.Hour,
+	}
+	generalLimit := middleware.RateLimitConfig{
+		RequestsPerWindow: 1000,
+		WindowDuration:    time.Minute,
+	}
+
 	// Create HTTP server with routes
 	mux := http.NewServeMux()
 
-	// Event routes
+	// Event routes (event creation has rate limiting: 5 req/hour per user)
+	eventCreationHandler := middleware.RateLimiter(rateLimitStore, eventCreationLimit, middleware.UserKeyFunc(), rateLimitMetrics)(
+		http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			eventHandlers.CreateEvent(w, r)
+		}),
+	)
+	
 	mux.HandleFunc("/events", func(w http.ResponseWriter, r *http.Request) {
 		switch r.Method {
 		case http.MethodPost:
-			eventHandlers.CreateEvent(w, r)
+			eventCreationHandler.ServeHTTP(w, r)
 		default:
 			ctx := middleware.SetErrorCode(r.Context(), api.ErrCodeBadRequest)
 			api.WriteError(w, ctx, http.StatusMethodNotAllowed, api.ErrCodeBadRequest, "Method not allowed")
@@ -347,36 +423,50 @@ func main() {
 		api.WriteError(w, ctx, http.StatusNotFound, api.ErrCodeNotFound, "The requested resource was not found")
 	})
 
-	// Search endpoints
-	mux.HandleFunc("/search/events", func(w http.ResponseWriter, r *http.Request) {
-		switch r.Method {
-		case http.MethodGet:
-			eventHandlers.SearchEvents(w, r)
-		default:
-			ctx := middleware.SetErrorCode(r.Context(), api.ErrCodeBadRequest)
-			api.WriteError(w, ctx, http.StatusMethodNotAllowed, api.ErrCodeBadRequest, "Method not allowed")
-		}
-	})
+	// Search endpoints (with rate limiting: 100 req/min per user)
+	searchEventsHandler := middleware.RateLimiter(rateLimitStore, searchLimit, middleware.UserKeyFunc(), rateLimitMetrics)(
+		http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			switch r.Method {
+			case http.MethodGet:
+				eventHandlers.SearchEvents(w, r)
+			default:
+				ctx := middleware.SetErrorCode(r.Context(), api.ErrCodeBadRequest)
+				api.WriteError(w, ctx, http.StatusMethodNotAllowed, api.ErrCodeBadRequest, "Method not allowed")
+			}
+		}),
+	)
+	mux.Handle("/search/events", searchEventsHandler)
 
-	mux.HandleFunc("/search/scenes", func(w http.ResponseWriter, r *http.Request) {
-		switch r.Method {
-		case http.MethodGet:
-			searchHandlers.SearchScenes(w, r)
-		default:
-			ctx := middleware.SetErrorCode(r.Context(), api.ErrCodeBadRequest)
-			api.WriteError(w, ctx, http.StatusMethodNotAllowed, api.ErrCodeBadRequest, "Method not allowed")
-		}
-	})
+	searchScenesHandler := middleware.RateLimiter(rateLimitStore, searchLimit, middleware.UserKeyFunc(), rateLimitMetrics)(
+		http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			switch r.Method {
+			case http.MethodGet:
+				searchHandlers.SearchScenes(w, r)
+			default:
+				ctx := middleware.SetErrorCode(r.Context(), api.ErrCodeBadRequest)
+				api.WriteError(w, ctx, http.StatusMethodNotAllowed, api.ErrCodeBadRequest, "Method not allowed")
+			}
+		}),
+	)
+	mux.Handle("/search/scenes", searchScenesHandler)
 
-	mux.HandleFunc("/search/posts", func(w http.ResponseWriter, r *http.Request) {
-		switch r.Method {
-		case http.MethodGet:
-			searchHandlers.SearchPosts(w, r)
-		default:
-			ctx := middleware.SetErrorCode(r.Context(), api.ErrCodeBadRequest)
-			api.WriteError(w, ctx, http.StatusMethodNotAllowed, api.ErrCodeBadRequest, "Method not allowed")
-		}
-	})
+	searchPostsHandler := middleware.RateLimiter(rateLimitStore, searchLimit, middleware.UserKeyFunc(), rateLimitMetrics)(
+		http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			switch r.Method {
+			case http.MethodGet:
+				searchHandlers.SearchPosts(w, r)
+			default:
+				ctx := middleware.SetErrorCode(r.Context(), api.ErrCodeBadRequest)
+				api.WriteError(w, ctx, http.StatusMethodNotAllowed, api.ErrCodeBadRequest, "Method not allowed")
+			}
+		}),
+	)
+	mux.Handle("/search/posts", searchPostsHandler)
+
+	// Stream join handler (with rate limiting: 10 req/min per user)
+	streamJoinHandler := middleware.RateLimiter(rateLimitStore, streamJoinLimit, middleware.UserKeyFunc(), rateLimitMetrics)(
+		http.HandlerFunc(streamHandlers.JoinStream),
+	)
 
 	// LiveKit token endpoint (if configured)
 	if livekitHandlers != nil {
@@ -416,9 +506,9 @@ func main() {
 			return
 		}
 
-		// Check if this is a join request: /streams/{id}/join
+		// Check if this is a join request: /streams/{id}/join (with rate limiting: 10 req/min per user)
 		if len(pathParts) == 2 && pathParts[0] != "" && pathParts[1] == "join" && r.Method == http.MethodPost {
-			streamHandlers.JoinStream(w, r)
+			streamJoinHandler.ServeHTTP(w, r)
 			return
 		}
 
@@ -601,8 +691,13 @@ func main() {
 		}
 	})
 
-	// Apply middleware: RequestID -> Logging
-	handler := middleware.RequestID(middleware.Logging(logger)(mux))
+	// Apply middleware: General rate limiting (1000 req/min per IP) -> RequestID -> Logging
+	// Rate limiting is applied first to protect all endpoints by default
+	handler := middleware.RateLimiter(rateLimitStore, generalLimit, middleware.IPKeyFunc(), rateLimitMetrics)(
+		middleware.RequestID(
+			middleware.Logging(logger)(mux),
+		),
+	)
 
 	server := &http.Server{
 		Addr:         ":" + port,
@@ -635,6 +730,15 @@ func main() {
 	if err := server.Shutdown(ctx); err != nil {
 		logger.Error("server forced to shutdown", "error", err)
 		os.Exit(1)
+	}
+
+	// Close Redis client if it was initialized
+	if redisClient != nil {
+		if err := redisClient.Close(); err != nil {
+			logger.Error("failed to close Redis client", "error", err)
+		} else {
+			logger.Info("Redis client closed")
+		}
 	}
 
 	logger.Info("server stopped")

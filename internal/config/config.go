@@ -51,6 +51,9 @@ type Config struct {
 	R2Endpoint        string `koanf:"r2_endpoint"`
 	R2MaxUploadSizeMB int    `koanf:"r2_max_upload_size_mb"` // Default: 15MB
 
+	// Redis (Rate Limiting)
+	RedisURL string `koanf:"redis_url"` // Optional: Redis connection URL for distributed rate limiting
+
 	// Feature Flags
 	RankTrustEnabled bool `koanf:"rank_trust_enabled"` // Enable trust-weighted ranking in search/feed
 }
@@ -164,6 +167,7 @@ func Load(configFilePath string) (*Config, []error) {
 		R2SecretAccessKey:   getEnvOrKoanf("R2_SECRET_ACCESS_KEY", k, "r2_secret_access_key"),
 		R2Endpoint:          getEnvOrKoanf("R2_ENDPOINT", k, "r2_endpoint"),
 		R2MaxUploadSizeMB:   maxUploadSize,
+		RedisURL:            getEnvOrKoanf("REDIS_URL", k, "redis_url"),
 		RankTrustEnabled:    rankTrustEnabled,
 	}
 
@@ -323,6 +327,7 @@ func (c *Config) LogSummary() map[string]string {
 		"r2_secret_access_key":          maskSecret(c.R2SecretAccessKey),
 		"r2_endpoint":                   c.R2Endpoint,
 		"r2_max_upload_size_mb":         fmt.Sprintf("%d", c.R2MaxUploadSizeMB),
+		"redis_url":                     maskDatabaseURL(c.RedisURL),
 		"rank_trust_enabled":            fmt.Sprintf("%t", c.RankTrustEnabled),
 	}
 }

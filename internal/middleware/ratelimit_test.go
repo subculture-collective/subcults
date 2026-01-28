@@ -51,7 +51,7 @@ func TestInMemoryRateLimitStore_Allow(t *testing.T) {
 			ctx := context.Background()
 
 			for i := 0; i < tt.requestCount; i++ {
-				allowed, _ := store.Allow(ctx, "test-key", config)
+				allowed, _, _ := store.Allow(ctx, "test-key", config)
 				if allowed != tt.wantAllowed[i] {
 					t.Errorf("request %d: got allowed=%v, want %v", i+1, allowed, tt.wantAllowed[i])
 				}
@@ -69,18 +69,24 @@ func TestInMemoryRateLimitStore_RetryAfter(t *testing.T) {
 	ctx := context.Background()
 
 	// First request should be allowed
-	allowed, retryAfter := store.Allow(ctx, "test-key", config)
+	allowed, remaining, retryAfter := store.Allow(ctx, "test-key", config)
 	if !allowed {
 		t.Error("first request should be allowed")
+	}
+	if remaining != 0 {
+		t.Errorf("first request remaining should be 0 (limit=1), got %d", remaining)
 	}
 	if retryAfter != 0 {
 		t.Errorf("first request retryAfter should be 0, got %d", retryAfter)
 	}
 
 	// Second request should be blocked with retryAfter
-	allowed, retryAfter = store.Allow(ctx, "test-key", config)
+	allowed, remaining, retryAfter = store.Allow(ctx, "test-key", config)
 	if allowed {
 		t.Error("second request should be blocked")
+	}
+	if remaining != 0 {
+		t.Errorf("second request remaining should be 0 when blocked, got %d", remaining)
 	}
 	if retryAfter <= 0 || retryAfter > 10 {
 		t.Errorf("retryAfter should be between 1 and 10, got %d", retryAfter)
@@ -96,16 +102,16 @@ func TestInMemoryRateLimitStore_DifferentKeys(t *testing.T) {
 	ctx := context.Background()
 
 	// Each key gets its own bucket
-	allowed1, _ := store.Allow(ctx, "key1", config)
-	allowed2, _ := store.Allow(ctx, "key2", config)
+	allowed1, _, _ := store.Allow(ctx, "key1", config)
+	allowed2, _, _ := store.Allow(ctx, "key2", config)
 
 	if !allowed1 || !allowed2 {
 		t.Error("different keys should each be allowed their own requests")
 	}
 
 	// Now both should be blocked
-	blocked1, _ := store.Allow(ctx, "key1", config)
-	blocked2, _ := store.Allow(ctx, "key2", config)
+	blocked1, _, _ := store.Allow(ctx, "key1", config)
+	blocked2, _, _ := store.Allow(ctx, "key2", config)
 
 	if blocked1 || blocked2 {
 		t.Error("both keys should now be blocked")
@@ -121,13 +127,13 @@ func TestInMemoryRateLimitStore_WindowExpiry(t *testing.T) {
 	ctx := context.Background()
 
 	// Use up the limit
-	allowed, _ := store.Allow(ctx, "test-key", config)
+	allowed, _, _ := store.Allow(ctx, "test-key", config)
 	if !allowed {
 		t.Error("first request should be allowed")
 	}
 
 	// Should be blocked
-	allowed, _ = store.Allow(ctx, "test-key", config)
+	allowed, _, _ = store.Allow(ctx, "test-key", config)
 	if allowed {
 		t.Error("second request should be blocked")
 	}
@@ -136,7 +142,7 @@ func TestInMemoryRateLimitStore_WindowExpiry(t *testing.T) {
 	time.Sleep(60 * time.Millisecond)
 
 	// Should be allowed again
-	allowed, _ = store.Allow(ctx, "test-key", config)
+	allowed, _, _ = store.Allow(ctx, "test-key", config)
 	if !allowed {
 		t.Error("request after window expiry should be allowed")
 	}
@@ -159,7 +165,7 @@ func TestInMemoryRateLimitStore_Concurrency(t *testing.T) {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			allowed, _ := store.Allow(ctx, "concurrent-key", config)
+			allowed, _, _ := store.Allow(ctx, "concurrent-key", config)
 			if allowed {
 				mu.Lock()
 				allowedCount++
@@ -185,12 +191,12 @@ func TestInMemoryRateLimitStore_Cleanup(t *testing.T) {
 	ctx := context.Background()
 
 	// Create some buckets and use up their limits
-	_, _ = store.Allow(ctx, "key1", config)
-	_, _ = store.Allow(ctx, "key2", config)
+	_, _, _ = store.Allow(ctx, "key1", config)
+	_, _, _ = store.Allow(ctx, "key2", config)
 
 	// Verify they are blocked (limits used up)
-	allowed1, _ := store.Allow(ctx, "key1", config)
-	allowed2, _ := store.Allow(ctx, "key2", config)
+	allowed1, _, _ := store.Allow(ctx, "key1", config)
+	allowed2, _, _ := store.Allow(ctx, "key2", config)
 	if allowed1 || allowed2 {
 		t.Error("requests should be blocked before cleanup")
 	}
@@ -202,8 +208,8 @@ func TestInMemoryRateLimitStore_Cleanup(t *testing.T) {
 	store.Cleanup()
 
 	// After cleanup, new requests should be allowed (buckets were removed)
-	allowed1, _ = store.Allow(ctx, "key1", config)
-	allowed2, _ = store.Allow(ctx, "key2", config)
+	allowed1, _, _ = store.Allow(ctx, "key1", config)
+	allowed2, _, _ = store.Allow(ctx, "key2", config)
 	if !allowed1 || !allowed2 {
 		t.Errorf("expected new requests to be allowed after cleanup, got allowed1=%v allowed2=%v", allowed1, allowed2)
 	}
@@ -350,7 +356,7 @@ func TestRateLimiter_AllowsNormalTraffic(t *testing.T) {
 		WindowDuration:    time.Minute,
 	}
 
-	handler := RateLimiter(store, config, IPKeyFunc())(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	handler := RateLimiter(store, config, IPKeyFunc(), nil)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write([]byte("OK"))
 	}))
@@ -376,7 +382,7 @@ func TestRateLimiter_BlocksExcessiveTraffic(t *testing.T) {
 		WindowDuration:    time.Minute,
 	}
 
-	handler := RateLimiter(store, config, IPKeyFunc())(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	handler := RateLimiter(store, config, IPKeyFunc(), nil)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	}))
 
@@ -407,7 +413,7 @@ func TestRateLimiter_ReturnsRetryAfterHeader(t *testing.T) {
 		WindowDuration:    30 * time.Second,
 	}
 
-	handler := RateLimiter(store, config, IPKeyFunc())(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	handler := RateLimiter(store, config, IPKeyFunc(), nil)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	}))
 
@@ -468,7 +474,7 @@ func TestRateLimiter_DifferentClientsIndependent(t *testing.T) {
 		WindowDuration:    time.Minute,
 	}
 
-	handler := RateLimiter(store, config, IPKeyFunc())(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	handler := RateLimiter(store, config, IPKeyFunc(), nil)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	}))
 
@@ -513,7 +519,7 @@ func TestRateLimiter_BurstSimulation(t *testing.T) {
 		WindowDuration:    time.Minute,
 	}
 
-	handler := RateLimiter(store, config, IPKeyFunc())(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	handler := RateLimiter(store, config, IPKeyFunc(), nil)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	}))
 
@@ -549,7 +555,7 @@ func TestRateLimiter_WindowResetsAllowsNewRequests(t *testing.T) {
 		WindowDuration:    50 * time.Millisecond,
 	}
 
-	handler := RateLimiter(store, config, IPKeyFunc())(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	handler := RateLimiter(store, config, IPKeyFunc(), nil)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	}))
 
