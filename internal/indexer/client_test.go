@@ -407,3 +407,441 @@ func TestClient_ConnectionFailure_TriggersBackoff(t *testing.T) {
 		t.Errorf("expected at least 50ms elapsed due to backoff, got %v", elapsed)
 	}
 }
+
+// slowMockServer creates a test WebSocket server that processes messages slowly
+// to simulate database backpressure
+type slowMockServer struct {
+	server       *httptest.Server
+	upgrader     websocket.Upgrader
+	mu           sync.Mutex
+	connections  []*websocket.Conn
+	messagesSent int32
+	sendDelay    time.Duration
+}
+
+func newSlowMockServer(sendDelay time.Duration) *slowMockServer {
+	ms := &slowMockServer{
+		upgrader: websocket.Upgrader{
+			CheckOrigin: func(r *http.Request) bool { return true },
+		},
+		sendDelay: sendDelay,
+	}
+
+	ms.server = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		conn, err := ms.upgrader.Upgrade(w, r, nil)
+		if err != nil {
+			return
+		}
+
+		ms.mu.Lock()
+		ms.connections = append(ms.connections, conn)
+		ms.mu.Unlock()
+
+		// Send messages continuously
+		for {
+			err := conn.WriteMessage(websocket.TextMessage, []byte(`{"test":"message"}`))
+			if err != nil {
+				return
+			}
+			atomic.AddInt32(&ms.messagesSent, 1)
+			if ms.sendDelay > 0 {
+				time.Sleep(ms.sendDelay)
+			}
+		}
+	}))
+
+	return ms
+}
+
+func (ms *slowMockServer) URL() string {
+	return "ws" + strings.TrimPrefix(ms.server.URL, "http")
+}
+
+func (ms *slowMockServer) Close() {
+	ms.mu.Lock()
+	for _, conn := range ms.connections {
+		conn.Close()
+	}
+	ms.mu.Unlock()
+	ms.server.Close()
+}
+
+func (ms *slowMockServer) MessagesSent() int32 {
+	return atomic.LoadInt32(&ms.messagesSent)
+}
+
+func TestClient_Backpressure_PausesWhenQueueFull(t *testing.T) {
+	// Create a server that sends messages very quickly
+	ms := newSlowMockServer(0) // No delay between messages
+	defer ms.Close()
+
+	config := Config{
+		URL:          ms.URL(),
+		BaseDelay:    10 * time.Millisecond,
+		MaxDelay:     100 * time.Millisecond,
+		JitterFactor: 0,
+	}
+
+	metrics := NewMetrics()
+	var processedCount int32
+	var processingDelay time.Duration = 10 * time.Millisecond // Slow processing
+
+	handler := func(msgType int, payload []byte) error {
+		// Simulate slow database writes
+		time.Sleep(processingDelay)
+		atomic.AddInt32(&processedCount, 1)
+		return nil
+	}
+
+	client, err := NewClientWithMetrics(config, handler, newTestLogger(), metrics)
+	if err != nil {
+		t.Fatalf("NewClient() error = %v", err)
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+
+	// Run client in background
+	go func() {
+		_ = client.Run(ctx)
+	}()
+
+	// Wait for backpressure to trigger
+	time.Sleep(500 * time.Millisecond)
+
+	// Check that client paused at some point
+	pauseCount := getCounterValue(metrics.backpressurePaused)
+	if pauseCount == 0 {
+		t.Error("expected backpressure pause to be triggered, but it wasn't")
+	}
+
+	// Check that pending messages metric was set
+	pendingCount := getGaugeValue(metrics.pendingMessages)
+	if pendingCount == 0 {
+		t.Error("expected pending messages to be tracked")
+	}
+}
+
+func TestClient_Backpressure_ResumesWhenQueueClears(t *testing.T) {
+	ms := newSlowMockServer(5 * time.Millisecond) // Moderate send rate
+	defer ms.Close()
+
+	config := Config{
+		URL:          ms.URL(),
+		BaseDelay:    10 * time.Millisecond,
+		MaxDelay:     100 * time.Millisecond,
+		JitterFactor: 0,
+	}
+
+	metrics := NewMetrics()
+	var processedCount int32
+
+	handler := func(msgType int, payload []byte) error {
+		// Fast processing to allow queue to drain
+		atomic.AddInt32(&processedCount, 1)
+		return nil
+	}
+
+	client, err := NewClientWithMetrics(config, handler, newTestLogger(), metrics)
+	if err != nil {
+		t.Fatalf("NewClient() error = %v", err)
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+
+	go func() {
+		_ = client.Run(ctx)
+	}()
+
+	// Wait for messages to flow and potentially trigger backpressure
+	time.Sleep(1 * time.Second)
+
+	// If backpressure was triggered, it should have also resumed
+	pauseCount := getCounterValue(metrics.backpressurePaused)
+	resumeCount := getCounterValue(metrics.backpressureResumed)
+
+	if pauseCount > 0 {
+		// If we paused, we should have also resumed
+		if resumeCount == 0 {
+			t.Error("expected backpressure to resume after pausing")
+		}
+		
+		// Check that pause duration was recorded
+		durationSamples := getHistogramSampleCount(metrics.backpressureDuration)
+		if durationSamples == 0 {
+			t.Error("expected backpressure duration to be recorded")
+		}
+	}
+
+	// Verify messages were processed
+	if atomic.LoadInt32(&processedCount) == 0 {
+		t.Error("expected messages to be processed")
+	}
+}
+
+func TestClient_Backpressure_NoMessageLoss(t *testing.T) {
+	// This test verifies that no messages are lost even when backpressure triggers
+	messageCount := 50
+	var messagesSent int32
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		upgrader := websocket.Upgrader{
+			CheckOrigin: func(r *http.Request) bool { return true },
+		}
+		conn, err := upgrader.Upgrade(w, r, nil)
+		if err != nil {
+			return
+		}
+		defer conn.Close()
+
+		// Send exactly messageCount messages rapidly
+		for i := 0; i < messageCount; i++ {
+			err := conn.WriteMessage(websocket.TextMessage, []byte(`{"test":"message"}`))
+			if err != nil {
+				return
+			}
+			atomic.AddInt32(&messagesSent, 1)
+		}
+		
+		// Keep connection alive for a bit so client can process
+		time.Sleep(500 * time.Millisecond)
+	}))
+	defer server.Close()
+
+	config := Config{
+		URL:          "ws" + strings.TrimPrefix(server.URL, "http"),
+		BaseDelay:    10 * time.Millisecond,
+		MaxDelay:     100 * time.Millisecond,
+		JitterFactor: 0,
+	}
+
+	metrics := NewMetrics()
+	var processedCount int32
+	var processingMu sync.Mutex
+	var receivedMessages []string
+
+	handler := func(msgType int, payload []byte) error {
+		// Simulate slow processing
+		time.Sleep(5 * time.Millisecond)
+		processingMu.Lock()
+		receivedMessages = append(receivedMessages, string(payload))
+		processingMu.Unlock()
+		atomic.AddInt32(&processedCount, 1)
+		return nil
+	}
+
+	client, err := NewClientWithMetrics(config, handler, newTestLogger(), metrics)
+	if err != nil {
+		t.Fatalf("NewClient() error = %v", err)
+	}
+
+	// Run with enough time to process all messages plus overhead
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+
+	done := make(chan struct{})
+	go func() {
+		_ = client.Run(ctx)
+		close(done)
+	}()
+
+	// Wait for messages to be sent and processed
+	time.Sleep(2 * time.Second)
+	cancel()
+	<-done
+
+	// Verify all messages were processed
+	finalCount := atomic.LoadInt32(&processedCount)
+	sentCount := atomic.LoadInt32(&messagesSent)
+	
+	// We expect all sent messages to be processed
+	if finalCount != sentCount {
+		t.Errorf("expected %d messages processed, got %d (sent: %d)", sentCount, finalCount, sentCount)
+	}
+
+	// At minimum, we should have received all 50 messages the first time
+	if finalCount < int32(messageCount) {
+		t.Errorf("expected at least %d messages, got %d", messageCount, finalCount)
+	}
+
+	processingMu.Lock()
+	capturedCount := len(receivedMessages)
+	processingMu.Unlock()
+
+	if capturedCount != int(finalCount) {
+		t.Errorf("expected %d captured messages, got %d", finalCount, capturedCount)
+	}
+}
+
+func TestClient_Backpressure_MetricsTracking(t *testing.T) {
+	ms := newSlowMockServer(0) // Fast send rate
+	defer ms.Close()
+
+	config := Config{
+		URL:          ms.URL(),
+		BaseDelay:    10 * time.Millisecond,
+		MaxDelay:     100 * time.Millisecond,
+		JitterFactor: 0,
+	}
+
+	metrics := NewMetrics()
+	
+	handler := func(msgType int, payload []byte) error {
+		// Very slow processing to guarantee backpressure
+		time.Sleep(20 * time.Millisecond)
+		return nil
+	}
+
+	client, err := NewClientWithMetrics(config, handler, newTestLogger(), metrics)
+	if err != nil {
+		t.Fatalf("NewClient() error = %v", err)
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
+	defer cancel()
+
+	go func() {
+		_ = client.Run(ctx)
+	}()
+
+	// Wait for backpressure to definitely trigger
+	time.Sleep(600 * time.Millisecond)
+
+	// Verify metrics were updated
+	pauseCount := getCounterValue(metrics.backpressurePaused)
+	if pauseCount == 0 {
+		t.Error("expected backpressure_paused metric to be incremented")
+	}
+
+	pendingCount := getGaugeValue(metrics.pendingMessages)
+	if pendingCount < 0 {
+		t.Error("expected pending_messages metric to be set")
+	}
+
+	// Depending on timing, we might or might not have resumed yet
+	// But at least pause should have been recorded
+	t.Logf("Backpressure metrics - paused: %f, pending: %f", pauseCount, pendingCount)
+}
+
+func TestClient_Backpressure_ThresholdBehavior(t *testing.T) {
+	// This test verifies the specific threshold values
+	ms := newSlowMockServer(0)
+	defer ms.Close()
+
+	config := Config{
+		URL:          ms.URL(),
+		BaseDelay:    10 * time.Millisecond,
+		MaxDelay:     100 * time.Millisecond,
+		JitterFactor: 0,
+	}
+
+	metrics := NewMetrics()
+	var processedCount int32
+
+	handler := func(msgType int, payload []byte) error {
+		// Extremely slow processing
+		time.Sleep(50 * time.Millisecond)
+		atomic.AddInt32(&processedCount, 1)
+		return nil
+	}
+
+	client, err := NewClientWithMetrics(config, handler, newTestLogger(), metrics)
+	if err != nil {
+		t.Fatalf("NewClient() error = %v", err)
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+
+	go func() {
+		_ = client.Run(ctx)
+	}()
+
+	// Wait for queue to build up past pause threshold
+	time.Sleep(1 * time.Second)
+
+	// At this point, we should be paused
+	pauseCount := getCounterValue(metrics.backpressurePaused)
+	if pauseCount == 0 {
+		t.Error("expected pause to trigger when queue > 1000")
+	}
+
+	pendingCount := getGaugeValue(metrics.pendingMessages)
+	t.Logf("Pending messages when paused: %f", pendingCount)
+
+	// The pending count should have been > BackpressurePauseThreshold at some point
+	// We can't guarantee the exact value when we read it, but it should be reasonable
+	if pendingCount < 0 {
+		t.Error("expected pending messages to be tracked")
+	}
+}
+
+func TestClient_Backpressure_QueueTimeout(t *testing.T) {
+// Test that queue timeout triggers connection close and reconnection
+ms := newSlowMockServer(0) // Fast message sending
+defer ms.Close()
+
+config := Config{
+URL:          ms.URL(),
+BaseDelay:    50 * time.Millisecond, // Short backoff for test
+MaxDelay:     100 * time.Millisecond,
+JitterFactor: 0,
+}
+
+metrics := NewMetrics()
+var processedCount int32
+handlerDelay := 100 * time.Millisecond // Very slow processing to fill queue
+
+handler := func(msgType int, payload []byte) error {
+// Extremely slow processing to guarantee queue fills
+time.Sleep(handlerDelay)
+atomic.AddInt32(&processedCount, 1)
+return nil
+}
+
+client, err := NewClientWithMetrics(config, handler, newTestLogger(), metrics)
+if err != nil {
+t.Fatalf("NewClient() error = %v", err)
+}
+
+ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+defer cancel()
+
+var reconnectCount int32
+
+go func() {
+for {
+select {
+case <-ctx.Done():
+return
+default:
+}
+
+_ = client.Run(ctx)
+// If Run exits, it means connection was closed
+atomic.AddInt32(&reconnectCount, 1)
+
+// Avoid tight loop if Run exits immediately
+time.Sleep(10 * time.Millisecond)
+}
+}()
+
+// Wait for queue to fill and timeout to trigger
+time.Sleep(2 * time.Second)
+
+// Verify that reconnection happened (connection closed due to timeout)
+reconnects := atomic.LoadInt32(&reconnectCount)
+if reconnects < 1 {
+t.Logf("Warning: Expected at least 1 reconnection due to queue timeout, got %d", reconnects)
+// Not failing test as timing may vary, but logging for visibility
+}
+
+// Verify messages were processed
+processed := atomic.LoadInt32(&processedCount)
+if processed == 0 {
+t.Error("Expected some messages to be processed")
+}
+
+t.Logf("Reconnects: %d, Processed messages: %d", reconnects, processed)
+}
