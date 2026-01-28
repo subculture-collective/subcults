@@ -15,11 +15,11 @@ import (
 
 // PaymentHandlers holds dependencies for payment-related HTTP handlers.
 type PaymentHandlers struct {
-	sceneRepo           scene.SceneRepository
-	paymentRepo         payment.PaymentRepository
-	stripeClient        payment.Client
-	returnURL           string
-	refreshURL          string
+	sceneRepo             scene.SceneRepository
+	paymentRepo           payment.PaymentRepository
+	stripeClient          payment.Client
+	returnURL             string
+	refreshURL            string
 	applicationFeePercent float64
 }
 
@@ -33,11 +33,11 @@ func NewPaymentHandlers(
 	applicationFeePercent float64,
 ) *PaymentHandlers {
 	return &PaymentHandlers{
-		sceneRepo:           sceneRepo,
-		paymentRepo:         paymentRepo,
-		stripeClient:        stripeClient,
-		returnURL:           returnURL,
-		refreshURL:          refreshURL,
+		sceneRepo:             sceneRepo,
+		paymentRepo:           paymentRepo,
+		stripeClient:          stripeClient,
+		returnURL:             returnURL,
+		refreshURL:            refreshURL,
 		applicationFeePercent: applicationFeePercent,
 	}
 }
@@ -151,11 +151,11 @@ func (h *PaymentHandlers) OnboardScene(w http.ResponseWriter, r *http.Request) {
 
 // CheckoutSessionRequest represents the request body for creating a Stripe Checkout Session.
 type CheckoutSessionRequest struct {
-	SceneID    string                 `json:"scene_id"`
-	EventID    *string                `json:"event_id,omitempty"`
-	Items      []CheckoutItemRequest  `json:"items"`
-	SuccessURL string                 `json:"success_url"`
-	CancelURL  string                 `json:"cancel_url"`
+	SceneID    string                `json:"scene_id"`
+	EventID    *string               `json:"event_id,omitempty"`
+	Items      []CheckoutItemRequest `json:"items"`
+	SuccessURL string                `json:"success_url"`
+	CancelURL  string                `json:"cancel_url"`
 }
 
 // CheckoutItemRequest represents a line item in the checkout.
@@ -327,28 +327,28 @@ func (h *PaymentHandlers) CreateCheckoutSession(w http.ResponseWriter, r *http.R
 // isValidRedirectURL validates that a URL is safe for redirection.
 // It ensures the URL uses HTTPS (or HTTP for localhost in development).
 func isValidRedirectURL(rawURL string) bool {
-parsedURL, err := url.Parse(rawURL)
-if err != nil {
-return false
-}
+	parsedURL, err := url.Parse(rawURL)
+	if err != nil {
+		return false
+	}
 
-// Must have a scheme
-if parsedURL.Scheme == "" {
-return false
-}
+	// Must have a scheme
+	if parsedURL.Scheme == "" {
+		return false
+	}
 
-// Allow https for all domains
-if parsedURL.Scheme == "https" {
-return true
-}
+	// Allow https for all domains
+	if parsedURL.Scheme == "https" {
+		return true
+	}
 
-// Allow http only for localhost/127.0.0.1 (development)
-if parsedURL.Scheme == "http" {
-host := parsedURL.Hostname()
-if host == "localhost" || host == "127.0.0.1" || host == "::1" {
-return true
-}
-}
+	// Allow http only for localhost/127.0.0.1 (development)
+	if parsedURL.Scheme == "http" {
+		host := parsedURL.Hostname()
+		if host == "localhost" || host == "127.0.0.1" || host == "::1" {
+			return true
+		}
+	}
 
-return false
+	return false
 }

@@ -16,10 +16,8 @@ export { axe };
 // Mock fetch globally for tests
 // This prevents test failures when using relative URLs in authStore.logout()
 // and supports i18next-http-backend which expects Response.text()
-global.fetch = vi.fn((url: string | URL | Request, init?: RequestInit) => {
-  const urlString =
-    typeof url === 'string' ? url : url instanceof Request ? url.url : url.toString();
-
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+global.fetch = vi.fn((_url: string | URL | Request, _init?: RequestInit) => {
   // Mock response object with both json() and text() methods
   const mockResponse = {
     ok: true,

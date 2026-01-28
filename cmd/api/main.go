@@ -173,22 +173,6 @@ func main() {
 	stripeAPIKey := os.Getenv("STRIPE_API_KEY")
 	stripeOnboardingReturnURL := os.Getenv("STRIPE_ONBOARDING_RETURN_URL")
 	stripeOnboardingRefreshURL := os.Getenv("STRIPE_ONBOARDING_REFRESH_URL")
-	
-	// Parse application fee percentage (default: 5.0%)
-	stripeApplicationFeePercent := 5.0
-	if feePercentStr := os.Getenv("STRIPE_APPLICATION_FEE_PERCENT"); feePercentStr != "" {
-		if parsed, err := strconv.ParseFloat(feePercentStr, 64); err == nil {
-			stripeApplicationFeePercent = parsed
-		} else {
-			logger.Warn("invalid STRIPE_APPLICATION_FEE_PERCENT, using default 5.0%", "error", err)
-		}
-	}
-	
-	// Validate fee percentage
-	if stripeApplicationFeePercent < 0 || stripeApplicationFeePercent >= 100 {
-		logger.Error("invalid STRIPE_APPLICATION_FEE_PERCENT: must be between 0 and 100", "value", stripeApplicationFeePercent)
-		os.Exit(1)
-	}
 
 	// Parse application fee percentage (default: 5.0%)
 	stripeApplicationFeePercent := 5.0
@@ -209,12 +193,12 @@ func main() {
 	var paymentHandlers *api.PaymentHandlers
 	var webhookHandlers *api.WebhookHandlers
 	stripeWebhookSecret := os.Getenv("STRIPE_WEBHOOK_SECRET")
-	
+
 	if stripeAPIKey != "" && stripeOnboardingReturnURL != "" && stripeOnboardingRefreshURL != "" {
 		stripeClient := payment.NewStripeClient(stripeAPIKey)
 		paymentRepo := payment.NewInMemoryPaymentRepository()
 		webhookRepo := payment.NewInMemoryWebhookRepository()
-		
+
 		paymentHandlers = api.NewPaymentHandlers(
 			sceneRepo,
 			paymentRepo,
@@ -224,7 +208,7 @@ func main() {
 			stripeApplicationFeePercent,
 		)
 		logger.Info("Stripe payment handlers initialized", "application_fee_percent", stripeApplicationFeePercent)
-		
+
 		// Initialize webhook handler if secret is configured
 		if stripeWebhookSecret != "" {
 			webhookHandlers = api.NewWebhookHandlers(

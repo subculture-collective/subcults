@@ -14,20 +14,20 @@ const (
 
 // PaymentRecord represents a provisional payment record for a Stripe Checkout Session.
 type PaymentRecord struct {
-	ID                   string     `json:"id"`
-	SessionID            string     `json:"session_id"`                     // Stripe Checkout Session ID
-	Status               string     `json:"status"`                         // pending, succeeded, failed, canceled, refunded
-	Amount               int64      `json:"amount"`                         // Total amount in cents
-	Fee                  int64      `json:"fee"`                            // Platform fee in cents
-	Currency             string     `json:"currency,omitempty"`             // ISO 4217 currency code (defaults to 'usd' if empty)
-	UserDID              string     `json:"user_did"`                       // User making the payment
-	SceneID              string     `json:"scene_id"`                       // Scene receiving payment
-	EventID              *string    `json:"event_id,omitempty"`             // Optional event ID
-	ConnectedAccountID   *string    `json:"connected_account_id,omitempty"` // Stripe Connect account ID
-	PaymentIntentID      *string    `json:"payment_intent_id,omitempty"`    // Stripe Payment Intent ID
-	FailureReason        *string    `json:"failure_reason,omitempty"`       // Reason for failure
-	CreatedAt            *time.Time `json:"created_at,omitempty"`
-	UpdatedAt            *time.Time `json:"updated_at,omitempty"`
+	ID                 string     `json:"id"`
+	SessionID          string     `json:"session_id"`                     // Stripe Checkout Session ID
+	Status             string     `json:"status"`                         // pending, succeeded, failed, canceled, refunded
+	Amount             int64      `json:"amount"`                         // Total amount in cents
+	Fee                int64      `json:"fee"`                            // Platform fee in cents
+	Currency           string     `json:"currency,omitempty"`             // ISO 4217 currency code (defaults to 'usd' if empty)
+	UserDID            string     `json:"user_did"`                       // User making the payment
+	SceneID            string     `json:"scene_id"`                       // Scene receiving payment
+	EventID            *string    `json:"event_id,omitempty"`             // Optional event ID
+	ConnectedAccountID *string    `json:"connected_account_id,omitempty"` // Stripe Connect account ID
+	PaymentIntentID    *string    `json:"payment_intent_id,omitempty"`    // Stripe Payment Intent ID
+	FailureReason      *string    `json:"failure_reason,omitempty"`       // Reason for failure
+	CreatedAt          *time.Time `json:"created_at,omitempty"`
+	UpdatedAt          *time.Time `json:"updated_at,omitempty"`
 }
 
 // DeepCopy creates a deep copy of the PaymentRecord, including all pointer fields.

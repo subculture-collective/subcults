@@ -1,10 +1,13 @@
+/* eslint-disable react-refresh/only-export-components */
+
 /**
  * Test utilities
  * Common test helpers and setup
  */
 
-import { ReactNode } from 'react';
 import { createMemoryRouter, RouterProvider } from 'react-router-dom';
+
+/* eslint-disable @typescript-eslint/no-explicit-any */
 
 /**
  * Create a memory router with v7 future flags enabled
@@ -23,12 +26,6 @@ export function createTestRouter(routes: any[], initialEntries?: string[]) {
 /**
  * Wrapper component for tests using createTestRouter
  */
-export function TestRouterProvider({
-  router,
-  children,
-}: {
-  router: ReturnType<typeof createTestRouter>;
-  children?: ReactNode;
-}) {
+export function TestRouterProvider({ router }: { router: ReturnType<typeof createTestRouter> }) {
   return <RouterProvider router={router} />;
 }

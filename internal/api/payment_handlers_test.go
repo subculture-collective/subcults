@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/onnwee/subcults/internal/middleware"
+	"github.com/onnwee/subcults/internal/payment"
 	"github.com/onnwee/subcults/internal/scene"
 	"github.com/stripe/stripe-go/v81"
 )
@@ -659,150 +660,150 @@ func TestCreateCheckoutSession_EmptyItems(t *testing.T) {
 
 // TestCreateCheckoutSession_QuantityExceedsLimit tests checkout with quantity > 100.
 func TestCreateCheckoutSession_QuantityExceedsLimit(t *testing.T) {
-sceneRepo := scene.NewInMemorySceneRepository()
-paymentRepo := payment.NewInMemoryPaymentRepository()
-mockClient := &mockStripeClient{}
-handlers := NewPaymentHandlers(
-sceneRepo,
-paymentRepo,
-mockClient,
-"https://example.com/return",
-"https://example.com/refresh",
-5.0,
-)
+	sceneRepo := scene.NewInMemorySceneRepository()
+	paymentRepo := payment.NewInMemoryPaymentRepository()
+	mockClient := &mockStripeClient{}
+	handlers := NewPaymentHandlers(
+		sceneRepo,
+		paymentRepo,
+		mockClient,
+		"https://example.com/return",
+		"https://example.com/refresh",
+		5.0,
+	)
 
-// Create a test scene with connected account
-connectedAccountID := "acct_test123"
-testScene := &scene.Scene{
-ID:                 "scene-1",
-Name:               "Test Scene",
-OwnerDID:           "did:plc:owner123",
-CoarseGeohash:      "dr5regw",
-ConnectedAccountID: &connectedAccountID,
-}
-if err := sceneRepo.Insert(testScene); err != nil {
-t.Fatalf("failed to create test scene: %v", err)
-}
+	// Create a test scene with connected account
+	connectedAccountID := "acct_test123"
+	testScene := &scene.Scene{
+		ID:                 "scene-1",
+		Name:               "Test Scene",
+		OwnerDID:           "did:plc:owner123",
+		CoarseGeohash:      "dr5regw",
+		ConnectedAccountID: &connectedAccountID,
+	}
+	if err := sceneRepo.Insert(testScene); err != nil {
+		t.Fatalf("failed to create test scene: %v", err)
+	}
 
-reqBody := CheckoutSessionRequest{
-SceneID: "scene-1",
-Items: []CheckoutItemRequest{
-{PriceID: "price_test123", Quantity: 101}, // Exceeds limit
-},
-SuccessURL: "https://example.com/success",
-CancelURL:  "https://example.com/cancel",
-}
-body, _ := json.Marshal(reqBody)
+	reqBody := CheckoutSessionRequest{
+		SceneID: "scene-1",
+		Items: []CheckoutItemRequest{
+			{PriceID: "price_test123", Quantity: 101}, // Exceeds limit
+		},
+		SuccessURL: "https://example.com/success",
+		CancelURL:  "https://example.com/cancel",
+	}
+	body, _ := json.Marshal(reqBody)
 
-req := httptest.NewRequest(http.MethodPost, "/payments/checkout", bytes.NewReader(body))
-req.Header.Set("Content-Type", "application/json")
-ctx := middleware.SetUserDID(req.Context(), "did:plc:user123")
-req = req.WithContext(ctx)
+	req := httptest.NewRequest(http.MethodPost, "/payments/checkout", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	ctx := middleware.SetUserDID(req.Context(), "did:plc:user123")
+	req = req.WithContext(ctx)
 
-w := httptest.NewRecorder()
-handlers.CreateCheckoutSession(w, req)
+	w := httptest.NewRecorder()
+	handlers.CreateCheckoutSession(w, req)
 
-if w.Code != http.StatusBadRequest {
-t.Errorf("expected status 400, got %d", w.Code)
-}
+	if w.Code != http.StatusBadRequest {
+		t.Errorf("expected status 400, got %d", w.Code)
+	}
 }
 
 // TestCreateCheckoutSession_ZeroQuantity tests checkout with quantity of 0.
 func TestCreateCheckoutSession_ZeroQuantity(t *testing.T) {
-sceneRepo := scene.NewInMemorySceneRepository()
-paymentRepo := payment.NewInMemoryPaymentRepository()
-mockClient := &mockStripeClient{}
-handlers := NewPaymentHandlers(
-sceneRepo,
-paymentRepo,
-mockClient,
-"https://example.com/return",
-"https://example.com/refresh",
-5.0,
-)
+	sceneRepo := scene.NewInMemorySceneRepository()
+	paymentRepo := payment.NewInMemoryPaymentRepository()
+	mockClient := &mockStripeClient{}
+	handlers := NewPaymentHandlers(
+		sceneRepo,
+		paymentRepo,
+		mockClient,
+		"https://example.com/return",
+		"https://example.com/refresh",
+		5.0,
+	)
 
-// Create a test scene with connected account
-connectedAccountID := "acct_test123"
-testScene := &scene.Scene{
-ID:                 "scene-1",
-Name:               "Test Scene",
-OwnerDID:           "did:plc:owner123",
-CoarseGeohash:      "dr5regw",
-ConnectedAccountID: &connectedAccountID,
-}
-if err := sceneRepo.Insert(testScene); err != nil {
-t.Fatalf("failed to create test scene: %v", err)
-}
+	// Create a test scene with connected account
+	connectedAccountID := "acct_test123"
+	testScene := &scene.Scene{
+		ID:                 "scene-1",
+		Name:               "Test Scene",
+		OwnerDID:           "did:plc:owner123",
+		CoarseGeohash:      "dr5regw",
+		ConnectedAccountID: &connectedAccountID,
+	}
+	if err := sceneRepo.Insert(testScene); err != nil {
+		t.Fatalf("failed to create test scene: %v", err)
+	}
 
-reqBody := CheckoutSessionRequest{
-SceneID: "scene-1",
-Items: []CheckoutItemRequest{
-{PriceID: "price_test123", Quantity: 0},
-},
-SuccessURL: "https://example.com/success",
-CancelURL:  "https://example.com/cancel",
-}
-body, _ := json.Marshal(reqBody)
+	reqBody := CheckoutSessionRequest{
+		SceneID: "scene-1",
+		Items: []CheckoutItemRequest{
+			{PriceID: "price_test123", Quantity: 0},
+		},
+		SuccessURL: "https://example.com/success",
+		CancelURL:  "https://example.com/cancel",
+	}
+	body, _ := json.Marshal(reqBody)
 
-req := httptest.NewRequest(http.MethodPost, "/payments/checkout", bytes.NewReader(body))
-req.Header.Set("Content-Type", "application/json")
-ctx := middleware.SetUserDID(req.Context(), "did:plc:user123")
-req = req.WithContext(ctx)
+	req := httptest.NewRequest(http.MethodPost, "/payments/checkout", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	ctx := middleware.SetUserDID(req.Context(), "did:plc:user123")
+	req = req.WithContext(ctx)
 
-w := httptest.NewRecorder()
-handlers.CreateCheckoutSession(w, req)
+	w := httptest.NewRecorder()
+	handlers.CreateCheckoutSession(w, req)
 
-if w.Code != http.StatusBadRequest {
-t.Errorf("expected status 400, got %d", w.Code)
-}
+	if w.Code != http.StatusBadRequest {
+		t.Errorf("expected status 400, got %d", w.Code)
+	}
 }
 
 // TestCreateCheckoutSession_NegativeQuantity tests checkout with negative quantity.
 func TestCreateCheckoutSession_NegativeQuantity(t *testing.T) {
-sceneRepo := scene.NewInMemorySceneRepository()
-paymentRepo := payment.NewInMemoryPaymentRepository()
-mockClient := &mockStripeClient{}
-handlers := NewPaymentHandlers(
-sceneRepo,
-paymentRepo,
-mockClient,
-"https://example.com/return",
-"https://example.com/refresh",
-5.0,
-)
+	sceneRepo := scene.NewInMemorySceneRepository()
+	paymentRepo := payment.NewInMemoryPaymentRepository()
+	mockClient := &mockStripeClient{}
+	handlers := NewPaymentHandlers(
+		sceneRepo,
+		paymentRepo,
+		mockClient,
+		"https://example.com/return",
+		"https://example.com/refresh",
+		5.0,
+	)
 
-// Create a test scene with connected account
-connectedAccountID := "acct_test123"
-testScene := &scene.Scene{
-ID:                 "scene-1",
-Name:               "Test Scene",
-OwnerDID:           "did:plc:owner123",
-CoarseGeohash:      "dr5regw",
-ConnectedAccountID: &connectedAccountID,
-}
-if err := sceneRepo.Insert(testScene); err != nil {
-t.Fatalf("failed to create test scene: %v", err)
-}
+	// Create a test scene with connected account
+	connectedAccountID := "acct_test123"
+	testScene := &scene.Scene{
+		ID:                 "scene-1",
+		Name:               "Test Scene",
+		OwnerDID:           "did:plc:owner123",
+		CoarseGeohash:      "dr5regw",
+		ConnectedAccountID: &connectedAccountID,
+	}
+	if err := sceneRepo.Insert(testScene); err != nil {
+		t.Fatalf("failed to create test scene: %v", err)
+	}
 
-reqBody := CheckoutSessionRequest{
-SceneID: "scene-1",
-Items: []CheckoutItemRequest{
-{PriceID: "price_test123", Quantity: -1},
-},
-SuccessURL: "https://example.com/success",
-CancelURL:  "https://example.com/cancel",
-}
-body, _ := json.Marshal(reqBody)
+	reqBody := CheckoutSessionRequest{
+		SceneID: "scene-1",
+		Items: []CheckoutItemRequest{
+			{PriceID: "price_test123", Quantity: -1},
+		},
+		SuccessURL: "https://example.com/success",
+		CancelURL:  "https://example.com/cancel",
+	}
+	body, _ := json.Marshal(reqBody)
 
-req := httptest.NewRequest(http.MethodPost, "/payments/checkout", bytes.NewReader(body))
-req.Header.Set("Content-Type", "application/json")
-ctx := middleware.SetUserDID(req.Context(), "did:plc:user123")
-req = req.WithContext(ctx)
+	req := httptest.NewRequest(http.MethodPost, "/payments/checkout", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	ctx := middleware.SetUserDID(req.Context(), "did:plc:user123")
+	req = req.WithContext(ctx)
 
-w := httptest.NewRecorder()
-handlers.CreateCheckoutSession(w, req)
+	w := httptest.NewRecorder()
+	handlers.CreateCheckoutSession(w, req)
 
-if w.Code != http.StatusBadRequest {
-t.Errorf("expected status 400, got %d", w.Code)
-}
+	if w.Code != http.StatusBadRequest {
+		t.Errorf("expected status 400, got %d", w.Code)
+	}
 }

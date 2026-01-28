@@ -28,33 +28,33 @@ var ErrPaymentIntentMismatch = errors.New("payment intent ID mismatch")
 type PaymentRepository interface {
 	// GetByID retrieves a payment record by ID.
 	GetByID(id string) (*PaymentRecord, error)
-	
+
 	// GetBySessionID retrieves a payment record by session ID.
 	GetBySessionID(sessionID string) (*PaymentRecord, error)
-	
+
 	// CreatePending creates a new payment record in pending status.
 	// Returns ErrDuplicateSessionID if a record with the same session_id already exists.
 	CreatePending(record *PaymentRecord) error
-	
+
 	// MarkCompleted transitions a payment from pending to succeeded status.
 	// Returns ErrPaymentRecordNotFound if the session doesn't exist.
 	// Returns ErrInvalidStatusTransition if the payment is not in pending status.
 	// Returns ErrPaymentIntentMismatch if already succeeded with a different payment intent ID.
 	// Idempotent: returns nil if already in succeeded status with the same payment intent ID.
 	MarkCompleted(sessionID, paymentIntentID string) error
-	
+
 	// MarkFailed transitions a payment from pending to failed status.
 	// Returns ErrPaymentRecordNotFound if the session doesn't exist.
 	// Returns ErrInvalidStatusTransition if the payment is not in pending status.
 	// Idempotent: returns nil if already in failed status with the same reason.
 	MarkFailed(sessionID, reason string) error
-	
+
 	// MarkCanceled transitions a payment from pending to canceled status.
 	// Returns ErrPaymentRecordNotFound if the session doesn't exist.
 	// Returns ErrInvalidStatusTransition if the payment is not in pending status.
 	// Idempotent: returns nil if already in canceled status.
 	MarkCanceled(sessionID string) error
-	
+
 	// MarkRefunded transitions a payment from succeeded to refunded status.
 	// Returns ErrPaymentRecordNotFound if the session doesn't exist.
 	// Returns ErrInvalidStatusTransition if the payment is not in succeeded status.
@@ -64,8 +64,8 @@ type PaymentRepository interface {
 
 // InMemoryPaymentRepository implements PaymentRepository with in-memory storage.
 type InMemoryPaymentRepository struct {
-	mu      sync.RWMutex
-	records map[string]*PaymentRecord
+	mu       sync.RWMutex
+	records  map[string]*PaymentRecord
 	sessions map[string]string // Maps session_id -> record ID for uniqueness
 }
 
@@ -79,9 +79,10 @@ func NewInMemoryPaymentRepository() *InMemoryPaymentRepository {
 
 // isValidStatusTransition validates if a status transition is allowed.
 // Valid transitions:
-//   pending -> succeeded, failed, canceled
-//   succeeded -> refunded
-//   All other transitions are invalid (e.g., succeeded -> failed, failed -> succeeded)
+//
+//	pending -> succeeded, failed, canceled
+//	succeeded -> refunded
+//	All other transitions are invalid (e.g., succeeded -> failed, failed -> succeeded)
 func isValidStatusTransition(from, to string) bool {
 	switch from {
 	case StatusPending:
@@ -217,7 +218,7 @@ func (r *InMemoryPaymentRepository) MarkCompleted(sessionID, paymentIntentID str
 	}
 
 	record := r.records[recordID]
-	
+
 	// Idempotent: if already succeeded, check payment intent ID
 	if record.Status == StatusSucceeded {
 		if record.PaymentIntentID != nil && *record.PaymentIntentID != paymentIntentID {
@@ -254,7 +255,7 @@ func (r *InMemoryPaymentRepository) MarkFailed(sessionID, reason string) error {
 	}
 
 	record := r.records[recordID]
-	
+
 	// Idempotent: if already failed with same reason, return success
 	if record.Status == StatusFailed {
 		if record.FailureReason != nil && *record.FailureReason == reason {
@@ -295,7 +296,7 @@ func (r *InMemoryPaymentRepository) MarkCanceled(sessionID string) error {
 	}
 
 	record := r.records[recordID]
-	
+
 	// Idempotent: if already canceled, return success
 	if record.Status == StatusCanceled {
 		return nil
@@ -328,7 +329,7 @@ func (r *InMemoryPaymentRepository) MarkRefunded(sessionID string) error {
 	}
 
 	record := r.records[recordID]
-	
+
 	// Idempotent: if already refunded, return success
 	if record.Status == StatusRefunded {
 		return nil
