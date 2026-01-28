@@ -23,7 +23,8 @@ The backpressure system consists of:
 | Pause Threshold | 1000 messages | Pause WebSocket reads when pending > 1000 |
 | Resume Threshold | 100 messages | Resume reads when pending < 100 |
 | Max Pause Duration | 30 seconds | Emit warning if paused longer than this |
-| Queue Timeout | 5 seconds | Timeout for queuing a single message |
+| Queue Buffer Size | 2000 messages | Total capacity = 2x pause threshold |
+| Queue Timeout | 5 seconds | Timeout for queuing a single message; triggers reconnect if exceeded |
 
 ### Behavior
 
@@ -105,8 +106,52 @@ client.Run(ctx)
 On context cancellation:
 1. Reader goroutine stops accepting new messages
 2. Processor goroutine drains remaining messages (5s timeout)
-3. Any unprocessed messages are logged
-4. No messages lost if shutdown completes within timeout
+3. Messages successfully processed during drain are saved
+4. Any unprocessed messages after timeout are lost and logged
+5. Connection closed cleanly
+
+**Note**: Message loss during shutdown only occurs if:
+- Drain timeout (5s) is exceeded
+- Process is forcefully terminated (SIGKILL)
+- Handler returns error during drain
+
+For maximum reliability, allow sufficient time for graceful shutdown.
+
+## Message Loss Scenarios
+
+The implementation is designed to minimize message loss, but certain extreme conditions can result in dropped messages:
+
+### 1. Queue Timeout (5 seconds)
+**When**: Queue is completely full and cannot accept a message for >5 seconds
+**Action**: Connection is closed and reconnection attempted
+**Impact**: Messages received during reconnection window may be lost
+**Prevention**: 
+- Optimize handler processing speed
+- Scale database resources
+- Monitor `indexer_pending_messages` metric
+
+### 2. Graceful Shutdown Timeout
+**When**: Process shutdown initiated with messages still in queue
+**Action**: 5-second drain timeout attempted
+**Impact**: Messages not processed within timeout are lost
+**Prevention**: 
+- Allow sufficient shutdown time (>5s)
+- Monitor queue depth before shutdown
+- Avoid forced termination (SIGKILL)
+
+### 3. Handler Errors
+**When**: Message handler returns error during processing
+**Action**: Error logged, processing continues
+**Impact**: Single message may not be persisted
+**Prevention**:
+- Implement robust error handling in handler
+- Add retry logic for transient failures
+- Monitor `indexer_messages_error_total` metric
+
+### Under Normal Operation
+- **No message loss**: Queue depth stays below pause threshold
+- **Backpressure triggered**: Pause/resume mechanism prevents queue overflow
+- **Connection issues**: Automatic reconnection with exponential backoff
 
 ## Monitoring
 
@@ -162,7 +207,7 @@ On context cancellation:
 ### Under Backpressure
 - **Latency**: Increases as queue fills
 - **Throughput**: Matches processor capacity
-- **Memory**: ~2MB for full queue (1000 messages × ~2KB/msg)
+- **Memory**: ~4MB for full queue (2000 messages × ~2KB/msg)
 - **Pause overhead**: 100ms polling interval
 
 ### Recovery Time
@@ -209,13 +254,19 @@ See `client_test.go` for full test coverage.
 
 ### Problem: Messages timing out during queue
 
-**Cause**: Queue completely full, blocking for >5s
+**Cause**: Queue completely full for >5 seconds (critical overload)
+
+**Immediate Impact**: Connection closed, automatic reconnection triggered
 
 **Solutions**:
-1. Critical situation - immediate intervention required
-2. Restart indexer to clear queue (messages will be lost)
-3. Address root cause before restarting
-4. Consider increasing queue buffer size (with caution)
+1. **Critical situation** - immediate intervention required
+2. Check database health (CPU, disk I/O, connections)
+3. Scale database resources vertically or horizontally
+4. Review handler processing logic for bottlenecks
+5. Consider temporary rate limiting at source
+6. Monitor reconnection attempts and success rate
+
+**Note**: Connection reset helps prevent sustained queue overflow. Messages may be lost during reconnection window.
 
 ## Future Enhancements
 
