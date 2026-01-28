@@ -13,6 +13,13 @@ import (
 	"github.com/gorilla/websocket"
 )
 
+// Backpressure thresholds and limits.
+const (
+	BackpressurePauseThreshold  = 1000              // Pause consumption when pending > 1000
+	BackpressureResumeThreshold = 100               // Resume when pending < 100
+	MaxPauseDuration            = 30 * time.Second  // Max pause before warning
+)
+
 // MessageHandler is a callback function for processing incoming messages.
 // The handler receives the message type and payload.
 // Return an error to signal the client should disconnect.
@@ -20,23 +27,43 @@ type MessageHandler func(messageType int, payload []byte) error
 
 // Client is a resilient WebSocket client for connecting to Jetstream.
 // It automatically reconnects with exponential backoff and jitter.
+// Implements backpressure handling to prevent queue explosion.
 type Client struct {
 	config  Config
 	handler MessageHandler
 	logger  *slog.Logger
+	metrics *Metrics
 
 	mu          sync.Mutex
 	rng         *rand.Rand // protected by mu
 	conn        *websocket.Conn
 	isConnected bool
+	isPaused    bool
 
+	// Message queue for backpressure handling
+	messageQueue chan queuedMessage
+	
 	// reconnectCount tracks consecutive reconnection attempts (atomic)
 	reconnectCount int64
 }
 
+// queuedMessage wraps a message with its metadata for queuing
+type queuedMessage struct {
+	messageType int
+	payload     []byte
+}
+
 // NewClient creates a new Jetstream WebSocket client with the given configuration.
 // The handler function will be called for each incoming message.
+// If metrics is nil, backpressure metrics will not be recorded.
 func NewClient(config Config, handler MessageHandler, logger *slog.Logger) (*Client, error) {
+	return NewClientWithMetrics(config, handler, logger, nil)
+}
+
+// NewClientWithMetrics creates a new Jetstream WebSocket client with metrics support.
+// The handler function will be called for each incoming message.
+// If metrics is provided, backpressure events will be recorded.
+func NewClientWithMetrics(config Config, handler MessageHandler, logger *slog.Logger, metrics *Metrics) (*Client, error) {
 	if err := config.Validate(); err != nil {
 		return nil, err
 	}
@@ -44,21 +71,34 @@ func NewClient(config Config, handler MessageHandler, logger *slog.Logger) (*Cli
 		logger = slog.Default()
 	}
 	return &Client{
-		config:  config,
-		handler: handler,
-		logger:  logger,
-		rng:     rand.New(rand.NewSource(time.Now().UnixNano())),
+		config:       config,
+		handler:      handler,
+		logger:       logger,
+		metrics:      metrics,
+		rng:          rand.New(rand.NewSource(time.Now().UnixNano())),
+		messageQueue: make(chan queuedMessage, BackpressurePauseThreshold*2), // Buffer for 2x pause threshold
 	}, nil
 }
 
 // Run starts the WebSocket client and blocks until the context is cancelled.
 // It will automatically reconnect with exponential backoff on connection failures.
 func (c *Client) Run(ctx context.Context) error {
+	// Start message processor goroutine
+	processorCtx, processorCancel := context.WithCancel(ctx)
+	defer processorCancel()
+	
+	processorDone := make(chan struct{})
+	go func() {
+		c.processMessages(processorCtx)
+		close(processorDone)
+	}()
+	
 	for {
 		select {
 		case <-ctx.Done():
 			c.logger.Info("jetstream client stopping due to context cancellation")
 			c.close()
+			<-processorDone // Wait for processor to finish
 			return ctx.Err()
 		default:
 		}
@@ -80,6 +120,7 @@ func (c *Client) Run(ctx context.Context) error {
 
 			select {
 			case <-ctx.Done():
+				<-processorDone // Wait for processor to finish
 				return ctx.Err()
 			case <-time.After(delay):
 				continue
@@ -117,12 +158,77 @@ func (c *Client) connect(ctx context.Context) error {
 }
 
 // readLoop reads messages from the WebSocket connection until it closes.
+// Implements backpressure handling by pausing consumption when queue is full.
 func (c *Client) readLoop(ctx context.Context) {
+	var pauseStart time.Time
+	
 	for {
 		select {
 		case <-ctx.Done():
 			return
 		default:
+		}
+
+		// Check backpressure and pause if necessary
+		queueLen := len(c.messageQueue)
+		if c.metrics != nil {
+			c.metrics.SetPendingMessages(queueLen)
+		}
+		
+		c.mu.Lock()
+		wasPaused := c.isPaused
+		
+		// Pause if queue exceeds threshold
+		if !c.isPaused && queueLen > BackpressurePauseThreshold {
+			c.isPaused = true
+			pauseStart = time.Now()
+			if c.metrics != nil {
+				c.metrics.IncBackpressurePaused()
+			}
+			c.logger.Warn("backpressure: pausing message consumption",
+				slog.Int("pending", queueLen),
+				slog.Int("threshold", BackpressurePauseThreshold))
+		}
+		
+		// Resume if queue drops below threshold
+		if c.isPaused && queueLen < BackpressureResumeThreshold {
+			pauseDuration := time.Since(pauseStart)
+			c.isPaused = false
+			if c.metrics != nil {
+				c.metrics.IncBackpressureResumed()
+				c.metrics.ObserveBackpressureDuration(pauseDuration.Seconds())
+			}
+			c.logger.Info("backpressure: resuming message consumption",
+				slog.Int("pending", queueLen),
+				slog.Duration("pause_duration", pauseDuration))
+		}
+		
+		// Check for excessive pause duration
+		if c.isPaused && time.Since(pauseStart) > MaxPauseDuration {
+			c.logger.Warn("backpressure: exceeded max pause duration",
+				slog.Int("pending", queueLen),
+				slog.Duration("pause_duration", time.Since(pauseStart)),
+				slog.Duration("max_pause", MaxPauseDuration))
+			// Reset pause start to avoid spamming warnings
+			pauseStart = time.Now()
+		}
+		
+		isPaused := c.isPaused
+		c.mu.Unlock()
+		
+		// If paused, wait a bit before checking again
+		if isPaused {
+			select {
+			case <-ctx.Done():
+				return
+			case <-time.After(100 * time.Millisecond):
+				continue
+			}
+		}
+		
+		// If we just resumed from pause, log transition
+		if wasPaused && !isPaused {
+			c.logger.Info("backpressure: consumption resumed")
 		}
 
 		// Get connection under lock to prevent race with close()
@@ -143,14 +249,17 @@ func (c *Client) readLoop(ctx context.Context) {
 			return
 		}
 
-		// Process message through handler (without logging payload content)
-		if c.handler != nil {
-			if err := c.handler(messageType, payload); err != nil {
-				c.logger.Error("message handler error",
-					slog.String("error", err.Error()))
-				c.close()
-				return
-			}
+		// Queue message for processing (non-blocking with timeout)
+		msg := queuedMessage{messageType: messageType, payload: payload}
+		select {
+		case c.messageQueue <- msg:
+			// Message queued successfully
+		case <-time.After(5 * time.Second):
+			// Queue is full and blocking for too long - this is a critical issue
+			c.logger.Error("backpressure: failed to queue message after timeout",
+				slog.Int("pending", len(c.messageQueue)))
+		case <-ctx.Done():
+			return
 		}
 	}
 }
@@ -165,6 +274,64 @@ func (c *Client) close() {
 		c.conn = nil
 	}
 	c.isConnected = false
+}
+
+// processMessages processes messages from the queue.
+// This runs in a separate goroutine to decouple reading from processing.
+func (c *Client) processMessages(ctx context.Context) {
+	for {
+		select {
+		case <-ctx.Done():
+			// Drain remaining messages before exiting
+			c.drainQueue()
+			return
+		case msg := <-c.messageQueue:
+			// Process message through handler
+			if c.handler != nil {
+				if err := c.handler(msg.messageType, msg.payload); err != nil {
+					c.logger.Error("message handler error",
+						slog.String("error", err.Error()))
+					// Continue processing other messages despite error
+				}
+			}
+			// Update pending count after processing
+			if c.metrics != nil {
+				c.metrics.SetPendingMessages(len(c.messageQueue))
+			}
+		}
+	}
+}
+
+// drainQueue processes any remaining messages in the queue before shutdown.
+func (c *Client) drainQueue() {
+	remaining := len(c.messageQueue)
+	if remaining > 0 {
+		c.logger.Info("draining message queue", slog.Int("remaining", remaining))
+	}
+	
+	// Process remaining messages with timeout
+	timeout := time.After(5 * time.Second)
+	for {
+		select {
+		case msg := <-c.messageQueue:
+			if c.handler != nil {
+				if err := c.handler(msg.messageType, msg.payload); err != nil {
+					c.logger.Error("message handler error during drain",
+						slog.String("error", err.Error()))
+				}
+			}
+		case <-timeout:
+			remaining := len(c.messageQueue)
+			if remaining > 0 {
+				c.logger.Warn("queue drain timeout, messages remaining",
+					slog.Int("remaining", remaining))
+			}
+			return
+		default:
+			// Queue is empty
+			return
+		}
+	}
 }
 
 // computeBackoff calculates the next reconnection delay with exponential backoff and jitter.
