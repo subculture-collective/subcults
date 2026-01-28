@@ -112,29 +112,38 @@ func (h *WebhookHandlers) handleCheckoutSessionCompleted(ctx context.Context, ev
 		return
 	}
 
-	// Get the payment record by session ID
-	record, err := h.paymentRepo.GetBySessionID(session.ID)
+	// Verify the payment record exists by session ID
+	_, err := h.paymentRepo.GetBySessionID(session.ID)
 	if err != nil {
 		slog.ErrorContext(ctx, "failed to get payment record", "session_id", session.ID, "error", err)
 		return
 	}
 
-	// Update payment intent ID if available
-	// For payment mode, the payment intent is created immediately
+	// NOTE:
+	// We intentionally do NOT persist any state here. The source of truth for payment
+	// status is the payment_intent.succeeded event, which we handle in
+	// handlePaymentIntentSucceeded. That handler is responsible for marking the
+	// payment record as completed based on the payment intent ID.
+	//
+	// Historically this handler attempted to "record" the payment intent ID by
+	// mutating an in-memory copy of the payment record returned from the
+	// repository, but that mutation was never persisted and therefore had no
+	// effect. We avoid that pattern now and only use this hook for observability.
+
+	// For payment mode, the payment intent is often created immediately and
+	// attached to the checkout session. We log that relationship for debugging
+	// and tracing, but defer any state changes to payment_intent.succeeded.
 	if session.PaymentIntent != nil && session.PaymentIntent.ID != "" {
-		// Store the payment intent ID - we'll wait for payment_intent.succeeded for final status
-		// Update the record in memory
-		record.PaymentIntentID = &session.PaymentIntent.ID
-		
-		// Note: We're not marking as completed here - we wait for payment_intent.succeeded
-		// This is provisional status tracking as per requirements
-		slog.InfoContext(ctx, "checkout session completed, payment intent recorded",
+		slog.InfoContext(ctx, "checkout session completed, payment intent available",
 			"session_id", session.ID,
 			"payment_intent_id", session.PaymentIntent.ID)
+	} else {
+		slog.InfoContext(ctx, "checkout session completed without immediate payment intent",
+			"session_id", session.ID)
 	}
 
 	// If the mode requires immediate finalization (e.g., for certain payment methods),
-	// we could mark as completed here, but typically we wait for the payment_intent.succeeded event
+	// we could mark as completed here, but typically we wait for the payment_intent.succeeded event.
 }
 
 // handlePaymentIntentSucceeded processes payment_intent.succeeded events.
@@ -145,21 +154,25 @@ func (h *WebhookHandlers) handlePaymentIntentSucceeded(ctx context.Context, even
 		return
 	}
 
-	// Get the checkout session ID from metadata or charges
-	// Stripe attaches the checkout session to the payment intent
+	// Get the checkout session ID from metadata.
+	// Note: The metadata.session_id field must be set when creating the checkout session.
+	// Since Stripe creates the PaymentIntent after the checkout session is created,
+	// we cannot set metadata at session creation time. Instead, in a production
+	// implementation with a database, we would query:
+	//   SELECT * FROM payment_records WHERE payment_intent_id = paymentIntent.ID
+	// 
+	// For the in-memory implementation, we require session_id in metadata.
+	// This is a known limitation documented in stripe.go.
 	sessionID := ""
 	if paymentIntent.Metadata != nil {
 		sessionID = paymentIntent.Metadata["session_id"]
 	}
 	
-	// If not in metadata, we cannot process this event without a database query
-	// In a real implementation with a database, we could query:
-	// SELECT * FROM payment_records WHERE payment_intent_id = paymentIntent.ID
-	// For now, we'll skip this event if we can't find the session
 	if sessionID == "" {
-		slog.WarnContext(ctx, "payment intent succeeded but session ID not found",
+		slog.ErrorContext(ctx, "payment intent succeeded but session_id not found in metadata",
 			"payment_intent_id", paymentIntent.ID,
-			"event_id", event.ID)
+			"event_id", event.ID,
+			"help", "PaymentIntent must include session_id in metadata, or use database query by payment_intent_id")
 		return
 	}
 
@@ -193,16 +206,18 @@ func (h *WebhookHandlers) handlePaymentIntentFailed(ctx context.Context, event s
 		return
 	}
 
-	// Get the session ID (same logic as succeeded)
+	// Get the session ID from metadata (same requirements as handlePaymentIntentSucceeded).
+	// See documentation in handlePaymentIntentSucceeded for details on metadata requirements.
 	sessionID := ""
 	if paymentIntent.Metadata != nil {
 		sessionID = paymentIntent.Metadata["session_id"]
 	}
 
 	if sessionID == "" {
-		slog.WarnContext(ctx, "payment intent failed but session ID not found",
+		slog.ErrorContext(ctx, "payment intent failed but session_id not found in metadata",
 			"payment_intent_id", paymentIntent.ID,
-			"event_id", event.ID)
+			"event_id", event.ID,
+			"help", "PaymentIntent must include session_id in metadata, or use database query by payment_intent_id")
 		return
 	}
 
@@ -259,9 +274,14 @@ func (h *WebhookHandlers) handleAccountUpdated(ctx context.Context, event stripe
 	}
 
 	// Capabilities are active - log for now
-	// In a full implementation with a connected_account_status field, we would update it here
+	// In a full implementation with a connected_account_status field, we would:
+	// 1. Query for scenes with this connected_account_id to verify the account
+	//    belongs to a scene in our system
+	// 2. Update the scene's connected_account_status to "active"
+	// This would help catch misconfigured webhooks or unauthorized account updates.
+	//
 	// For now, the presence of ConnectedAccountID in the scene indicates onboarding started,
-	// and this event confirms capabilities are active
+	// and this event confirms capabilities are active.
 	slog.InfoContext(ctx, "account capabilities activated",
 		"account_id", account.ID,
 		"details_submitted", account.DetailsSubmitted,
@@ -269,5 +289,5 @@ func (h *WebhookHandlers) handleAccountUpdated(ctx context.Context, event stripe
 
 	// Note: We don't have a connected_account_status field in the Scene model yet,
 	// so we're just logging this for observability. When that field is added,
-	// we would query for scenes with this connected_account_id and update their status.
+	// we should query for the scene by connected_account_id before updating status.
 }

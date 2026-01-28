@@ -9,14 +9,10 @@ CREATE TABLE IF NOT EXISTS webhook_events (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     event_id VARCHAR(255) NOT NULL UNIQUE,
     event_type VARCHAR(100) NOT NULL,
-    processed_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    
-    -- Indexes for fast lookup
-    CONSTRAINT uniq_event_id UNIQUE (event_id)
+    processed_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
--- Create index for event_id lookups (redundant with UNIQUE but explicit)
-CREATE INDEX IF NOT EXISTS idx_webhook_events_event_id ON webhook_events(event_id);
+-- Create index for processed_at lookups
 CREATE INDEX IF NOT EXISTS idx_webhook_events_processed_at ON webhook_events(processed_at);
 
 -- Add comments
