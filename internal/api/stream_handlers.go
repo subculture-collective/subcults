@@ -33,30 +33,36 @@ type StreamSessionResponse struct {
 
 // StreamHandlers holds dependencies for stream session HTTP handlers.
 type StreamHandlers struct {
-	streamRepo      stream.SessionRepository
-	analyticsRepo   stream.AnalyticsRepository
-	sceneRepo       scene.SceneRepository
-	eventRepo       scene.EventRepository
-	auditRepo       audit.Repository
-	streamMetrics   *stream.Metrics
+	streamRepo        stream.SessionRepository
+	participantRepo   stream.ParticipantRepository
+	analyticsRepo     stream.AnalyticsRepository
+	sceneRepo         scene.SceneRepository
+	eventRepo         scene.EventRepository
+	auditRepo         audit.Repository
+	streamMetrics     *stream.Metrics
+	eventBroadcaster  *stream.EventBroadcaster
 }
 
 // NewStreamHandlers creates a new StreamHandlers instance.
 func NewStreamHandlers(
 	streamRepo stream.SessionRepository,
+	participantRepo stream.ParticipantRepository,
 	analyticsRepo stream.AnalyticsRepository,
 	sceneRepo scene.SceneRepository,
 	eventRepo scene.EventRepository,
 	auditRepo audit.Repository,
 	streamMetrics *stream.Metrics,
+	eventBroadcaster *stream.EventBroadcaster,
 ) *StreamHandlers {
 	return &StreamHandlers{
-		streamRepo:      streamRepo,
-		analyticsRepo:   analyticsRepo,
-		sceneRepo:       sceneRepo,
-		eventRepo:       eventRepo,
-		auditRepo:       auditRepo,
-		streamMetrics:   streamMetrics,
+		streamRepo:       streamRepo,
+		participantRepo:  participantRepo,
+		analyticsRepo:    analyticsRepo,
+		sceneRepo:        sceneRepo,
+		eventRepo:        eventRepo,
+		auditRepo:        auditRepo,
+		streamMetrics:    streamMetrics,
+		eventBroadcaster: eventBroadcaster,
 	}
 }
 
@@ -371,6 +377,52 @@ func (h *StreamHandlers) JoinStream(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	// Generate participant ID from user DID
+	participantID := stream.GenerateParticipantID(userDID)
+
+	// Record participant join in participant repository
+	var isReconnection bool
+	if h.participantRepo != nil {
+		participant, reconnection, err := h.participantRepo.RecordJoin(streamID, participantID, userDID)
+		if err != nil {
+			if errors.Is(err, stream.ErrParticipantAlreadyActive) {
+				// Participant is already active, this is a duplicate join request
+				slog.WarnContext(ctx, "participant already active in stream",
+					"stream_id", streamID,
+					"participant_id", participantID,
+					"user_did", userDID,
+				)
+				// Continue with join count increment and return success
+			} else {
+				slog.ErrorContext(ctx, "failed to record participant join",
+					"error", err,
+					"stream_id", streamID,
+					"user_did", userDID,
+				)
+				ctx = middleware.SetErrorCode(ctx, ErrCodeInternal)
+				WriteError(w, ctx, http.StatusInternalServerError, ErrCodeInternal, "Failed to record participant join")
+				return
+			}
+		} else {
+			isReconnection = reconnection
+			
+			// Broadcast participant joined event via WebSocket
+			if h.eventBroadcaster != nil {
+				activeCount, _ := h.participantRepo.GetActiveCount(streamID)
+				event := &stream.ParticipantStateEvent{
+					Type:            "participant_joined",
+					StreamSessionID: streamID,
+					ParticipantID:   participant.ParticipantID,
+					UserDID:         participant.UserDID,
+					Timestamp:       participant.JoinedAt,
+					IsReconnection:  isReconnection,
+					ActiveCount:     activeCount,
+				}
+				h.eventBroadcaster.Broadcast(streamID, event)
+			}
+		}
+	}
+
 	// Record join in repository
 	if err := h.streamRepo.RecordJoin(streamID); err != nil {
 		slog.ErrorContext(ctx, "failed to record join",
@@ -517,6 +569,47 @@ func (h *StreamHandlers) LeaveStream(w http.ResponseWriter, r *http.Request) {
 			WriteError(w, ctx, http.StatusInternalServerError, ErrCodeInternal, "Internal server error")
 		}
 		return
+	}
+
+	// Generate participant ID from user DID
+	participantID := stream.GenerateParticipantID(userDID)
+
+	// Record participant leave in participant repository
+	if h.participantRepo != nil {
+		if err := h.participantRepo.RecordLeave(streamID, participantID); err != nil {
+			if errors.Is(err, stream.ErrParticipantNotFound) {
+				// Participant was not active, log warning but continue
+				slog.WarnContext(ctx, "participant not found or already left",
+					"stream_id", streamID,
+					"participant_id", participantID,
+					"user_did", userDID,
+				)
+			} else {
+				slog.ErrorContext(ctx, "failed to record participant leave",
+					"error", err,
+					"stream_id", streamID,
+					"user_did", userDID,
+				)
+				ctx = middleware.SetErrorCode(ctx, ErrCodeInternal)
+				WriteError(w, ctx, http.StatusInternalServerError, ErrCodeInternal, "Failed to record participant leave")
+				return
+			}
+		} else {
+			// Broadcast participant left event via WebSocket
+			if h.eventBroadcaster != nil {
+				activeCount, _ := h.participantRepo.GetActiveCount(streamID)
+				event := &stream.ParticipantStateEvent{
+					Type:            "participant_left",
+					StreamSessionID: streamID,
+					ParticipantID:   participantID,
+					UserDID:         userDID,
+					Timestamp:       time.Now(),
+					IsReconnection:  false,
+					ActiveCount:     activeCount,
+				}
+				h.eventBroadcaster.Broadcast(streamID, event)
+			}
+		}
 	}
 
 	// Record leave in repository
