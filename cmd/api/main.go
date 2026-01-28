@@ -191,9 +191,14 @@ func main() {
 	}
 
 	var paymentHandlers *api.PaymentHandlers
+	var webhookHandlers *api.WebhookHandlers
+	stripeWebhookSecret := os.Getenv("STRIPE_WEBHOOK_SECRET")
+	
 	if stripeAPIKey != "" && stripeOnboardingReturnURL != "" && stripeOnboardingRefreshURL != "" {
 		stripeClient := payment.NewStripeClient(stripeAPIKey)
 		paymentRepo := payment.NewInMemoryPaymentRepository()
+		webhookRepo := payment.NewInMemoryWebhookRepository()
+		
 		paymentHandlers = api.NewPaymentHandlers(
 			sceneRepo,
 			paymentRepo,
@@ -203,6 +208,19 @@ func main() {
 			stripeApplicationFeePercent,
 		)
 		logger.Info("Stripe payment handlers initialized", "application_fee_percent", stripeApplicationFeePercent)
+		
+		// Initialize webhook handler if secret is configured
+		if stripeWebhookSecret != "" {
+			webhookHandlers = api.NewWebhookHandlers(
+				stripeWebhookSecret,
+				paymentRepo,
+				webhookRepo,
+				sceneRepo,
+			)
+			logger.Info("Stripe webhook handler initialized")
+		} else {
+			logger.Warn("STRIPE_WEBHOOK_SECRET not configured, webhook endpoint will not be available")
+		}
 	} else {
 		logger.Warn("Stripe credentials not fully configured, payment endpoints will not be available")
 	}
@@ -439,6 +457,19 @@ func main() {
 				return
 			}
 			paymentHandlers.CreateCheckoutSession(w, r)
+		})
+	}
+
+	// Webhook endpoint (if configured) - must be before auth middleware
+	// Stripe signature verification serves as authentication
+	if webhookHandlers != nil {
+		mux.HandleFunc("/internal/stripe", func(w http.ResponseWriter, r *http.Request) {
+			if r.Method != http.MethodPost {
+				ctx := middleware.SetErrorCode(r.Context(), api.ErrCodeBadRequest)
+				api.WriteError(w, ctx, http.StatusMethodNotAllowed, api.ErrCodeBadRequest, "Method not allowed")
+				return
+			}
+			webhookHandlers.HandleStripeWebhook(w, r)
 		})
 	}
 
