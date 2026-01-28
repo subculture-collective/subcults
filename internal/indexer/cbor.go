@@ -154,10 +154,9 @@ func ParseRecord(data []byte) (*ParsedRecord, error) {
 	}
 
 	// Decode CBOR record with options to ensure JSON compatibility
-	// Use PreferTextString to decode keys as strings
 	var recordData interface{}
 	dm, err := cbor.DecOptions{
-		// Ensure map keys are decoded as strings for JSON compatibility
+		// Allow byte-string keys in maps for JSON compatibility
 		MapKeyByteString: cbor.MapKeyByteStringAllowed,
 	}.DecMode()
 	if err != nil {
@@ -206,10 +205,16 @@ func convertToStringKeyedMaps(data interface{}) interface{} {
 		result := make(map[string]interface{}, len(v))
 		for key, value := range v {
 			// Convert key to string
-			strKey, ok := key.(string)
-			if !ok {
-				// Try to convert to string
-				strKey = fmt.Sprintf("%v", key)
+			var strKey string
+			switch k := key.(type) {
+			case string:
+				strKey = k
+			case []byte:
+				// Interpret CBOR byte-string keys as UTF-8/text keys
+				strKey = string(k)
+			default:
+				// Fallback for other key types
+				strKey = fmt.Sprintf("%v", k)
 			}
 			// Recursively convert nested values
 			result[strKey] = convertToStringKeyedMaps(value)

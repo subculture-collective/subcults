@@ -557,8 +557,16 @@ func TestEncodeCBOR_RoundTrip(t *testing.T) {
 					t.Errorf("decoded = %v, want %v", decoded, v)
 				}
 			case int:
-				// CBOR may decode as uint64 or int64
-				decodedInt := int(decoded.(uint64))
+				// CBOR may decode as uint64 or int64; handle both safely.
+				var decodedInt int
+				switch n := decoded.(type) {
+				case uint64:
+					decodedInt = int(n)
+				case int64:
+					decodedInt = int(n)
+				default:
+					t.Fatalf("unexpected type for decoded number: %T", decoded)
+				}
 				if decodedInt != v {
 					t.Errorf("decoded = %v, want %v", decodedInt, v)
 				}

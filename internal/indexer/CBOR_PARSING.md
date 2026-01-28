@@ -119,7 +119,7 @@ go test ./internal/indexer/ -v
 go test ./internal/indexer/ -race -cover
 ```
 
-Coverage: **93.0%**
+Test coverage for this package is monitored via the standard Go coverage tooling; ensure new changes preserve strong coverage, especially around parsing, filtering, and validation paths.
 
 ## Example Messages
 
@@ -189,10 +189,9 @@ After CBOR parsing, records should still enforce location consent rules via `Enf
 
 ### Performance
 
-Benchmarks (on typical hardware):
-- `DecodeCBORMessage`: ~0.001ms per message
-- `ParseRecord`: ~0.002ms per record (includes JSON conversion)
-- `FilterCBOR`: ~0.003ms per record (includes validation)
+These parsing and validation routines are designed to be low-latency and suitable for real-time Jetstream consumption. Actual timings are highly dependent on hardware, load, and Go runtime configuration.
+
+For up-to-date benchmark results, refer to the performance baselines and CI artifacts (see the `perf/` directory and associated tooling in this repository).
 
 ### Future Enhancements
 
