@@ -458,6 +458,14 @@ func main() {
 			}
 			paymentHandlers.CreateCheckoutSession(w, r)
 		})
+		mux.HandleFunc("/payments/status", func(w http.ResponseWriter, r *http.Request) {
+			if r.Method != http.MethodGet {
+				ctx := middleware.SetErrorCode(r.Context(), api.ErrCodeBadRequest)
+				api.WriteError(w, ctx, http.StatusMethodNotAllowed, api.ErrCodeBadRequest, "Method not allowed")
+				return
+			}
+			paymentHandlers.GetPaymentStatus(w, r)
+		})
 	}
 
 	// Webhook endpoint (if configured) - must be before auth middleware

@@ -71,6 +71,9 @@ const (
 	
 	// ErrCodeUnauthorized is an alias of ErrCodeAuthFailed for 401-style auth errors.
 	ErrCodeUnauthorized = ErrCodeAuthFailed
+	
+	// ErrCodePaymentNotFound indicates the payment record was not found.
+	ErrCodePaymentNotFound = "payment_not_found"
 )
 
 // ErrorResponse represents the standard error response format.
