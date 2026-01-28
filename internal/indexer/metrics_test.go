@@ -36,18 +36,18 @@ func TestMetrics_Register(t *testing.T) {
 		}
 
 		expectedNames := map[string]bool{
-			MetricMessagesProcessed:      false,
-			MetricMessagesError:          false,
-			MetricUpserts:                false,
-			MetricTrustRecompute:         false,
-			MetricIngestLatency:          false,
-			MetricBackpressurePaused:     false,
-			MetricBackpressureResumed:    false,
-			MetricBackpressureDuration:   false,
-			MetricPendingMessages:        false,
-			MetricProcessingLag:          false,
-			MetricReconnectionAttempts:   false,
-			MetricDatabaseWritesFailed:   false,
+			MetricMessagesProcessed:    false,
+			MetricMessagesError:        false,
+			MetricUpserts:              false,
+			MetricTrustRecompute:       false,
+			MetricIngestLatency:        false,
+			MetricBackpressurePaused:   false,
+			MetricBackpressureResumed:  false,
+			MetricBackpressureDuration: false,
+			MetricPendingMessages:      false,
+			MetricProcessingLag:        false,
+			MetricReconnectionAttempts: false,
+			MetricDatabaseWritesFailed: false,
 		}
 
 		for _, family := range families {
