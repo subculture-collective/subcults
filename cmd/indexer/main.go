@@ -85,14 +85,62 @@ func main() {
 		}
 	}()
 
-	// TODO: Initialize Jetstream indexer with metrics
+	// Initialize Jetstream client with backpressure handling
+	jetstreamURL := os.Getenv("JETSTREAM_URL")
+	if jetstreamURL == "" {
+		jetstreamURL = "wss://jetstream1.us-east.bsky.network/subscribe"
+		logger.Warn("JETSTREAM_URL not set, using default", "url", jetstreamURL)
+	}
+
+	config := indexer.DefaultConfig(jetstreamURL)
+	
+	// Message handler (placeholder - will be replaced with actual record processing)
+	handler := func(messageType int, payload []byte) error {
+		// TODO: Implement actual record filtering and database persistence
+		// For now, just increment the processed counter
+		metrics.IncMessagesProcessed()
+		return nil
+	}
+
+	client, err := indexer.NewClientWithMetrics(config, handler, logger, metrics)
+	if err != nil {
+		logger.Error("failed to create jetstream client", "error", err)
+		os.Exit(1)
+	}
+
+	// Start Jetstream client in background
+	clientCtx, clientCancel := context.WithCancel(context.Background())
+	defer clientCancel()
+
+	clientDone := make(chan error, 1)
+	go func() {
+		logger.Info("starting jetstream client", "url", jetstreamURL)
+		clientDone <- client.Run(clientCtx)
+	}()
 
 	// Wait for interrupt signal for graceful shutdown
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
-	<-quit
+
+	select {
+	case <-quit:
+		logger.Info("received shutdown signal")
+	case err := <-clientDone:
+		logger.Error("jetstream client exited unexpectedly", "error", err)
+	}
 
 	logger.Info("shutting down indexer...")
+
+	// Cancel client context
+	clientCancel()
+
+	// Wait for client to finish with timeout
+	select {
+	case <-clientDone:
+		logger.Info("jetstream client stopped")
+	case <-time.After(5 * time.Second):
+		logger.Warn("jetstream client shutdown timeout")
+	}
 
 	// Create context with timeout for shutdown
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
