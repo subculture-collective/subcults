@@ -33,30 +33,36 @@ type StreamSessionResponse struct {
 
 // StreamHandlers holds dependencies for stream session HTTP handlers.
 type StreamHandlers struct {
-	streamRepo      stream.SessionRepository
-	analyticsRepo   stream.AnalyticsRepository
-	sceneRepo       scene.SceneRepository
-	eventRepo       scene.EventRepository
-	auditRepo       audit.Repository
-	streamMetrics   *stream.Metrics
+	streamRepo       stream.SessionRepository
+	participantRepo  stream.ParticipantRepository
+	analyticsRepo    stream.AnalyticsRepository
+	sceneRepo        scene.SceneRepository
+	eventRepo        scene.EventRepository
+	auditRepo        audit.Repository
+	streamMetrics    *stream.Metrics
+	eventBroadcaster *stream.EventBroadcaster
 }
 
 // NewStreamHandlers creates a new StreamHandlers instance.
 func NewStreamHandlers(
 	streamRepo stream.SessionRepository,
+	participantRepo stream.ParticipantRepository,
 	analyticsRepo stream.AnalyticsRepository,
 	sceneRepo scene.SceneRepository,
 	eventRepo scene.EventRepository,
 	auditRepo audit.Repository,
 	streamMetrics *stream.Metrics,
+	eventBroadcaster *stream.EventBroadcaster,
 ) *StreamHandlers {
 	return &StreamHandlers{
-		streamRepo:      streamRepo,
-		analyticsRepo:   analyticsRepo,
-		sceneRepo:       sceneRepo,
-		eventRepo:       eventRepo,
-		auditRepo:       auditRepo,
-		streamMetrics:   streamMetrics,
+		streamRepo:       streamRepo,
+		participantRepo:  participantRepo,
+		analyticsRepo:    analyticsRepo,
+		sceneRepo:        sceneRepo,
+		eventRepo:        eventRepo,
+		auditRepo:        auditRepo,
+		streamMetrics:    streamMetrics,
+		eventBroadcaster: eventBroadcaster,
 	}
 }
 
@@ -322,7 +328,7 @@ func (h *StreamHandlers) isSceneOwner(ctx context.Context, sceneID, userDID stri
 
 // JoinStreamRequest represents the request body for recording a join event.
 type JoinStreamRequest struct {
-	TokenIssuedAt string  `json:"token_issued_at"` // RFC3339 timestamp from token issuance
+	TokenIssuedAt string  `json:"token_issued_at"`          // RFC3339 timestamp from token issuance
 	GeohashPrefix *string `json:"geohash_prefix,omitempty"` // Optional 4-char geohash for geographic tracking
 }
 
@@ -368,6 +374,52 @@ func (h *StreamHandlers) JoinStream(w http.ResponseWriter, r *http.Request) {
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 			// Non-fatal: continue without latency tracking
 			slog.WarnContext(ctx, "failed to decode join request body", "error", err)
+		}
+	}
+
+	// Generate participant ID from user DID
+	participantID := stream.GenerateParticipantID(userDID)
+
+	// Record participant join in participant repository
+	var isReconnection bool
+	if h.participantRepo != nil {
+		participant, reconnection, err := h.participantRepo.RecordJoin(streamID, participantID, userDID)
+		if err != nil {
+			if errors.Is(err, stream.ErrParticipantAlreadyActive) {
+				// Participant is already active, this is a duplicate join request
+				slog.WarnContext(ctx, "participant already active in stream",
+					"stream_id", streamID,
+					"participant_id", participantID,
+					"user_did", userDID,
+				)
+				// Continue with join count increment and return success
+			} else {
+				slog.ErrorContext(ctx, "failed to record participant join",
+					"error", err,
+					"stream_id", streamID,
+					"user_did", userDID,
+				)
+				ctx = middleware.SetErrorCode(ctx, ErrCodeInternal)
+				WriteError(w, ctx, http.StatusInternalServerError, ErrCodeInternal, "Failed to record participant join")
+				return
+			}
+		} else {
+			isReconnection = reconnection
+
+			// Broadcast participant joined event via WebSocket
+			if h.eventBroadcaster != nil {
+				activeCount, _ := h.participantRepo.GetActiveCount(streamID)
+				event := &stream.ParticipantStateEvent{
+					Type:            "participant_joined",
+					StreamSessionID: streamID,
+					ParticipantID:   participant.ParticipantID,
+					UserDID:         participant.UserDID,
+					Timestamp:       participant.JoinedAt,
+					IsReconnection:  isReconnection,
+					ActiveCount:     activeCount,
+				}
+				h.eventBroadcaster.Broadcast(streamID, event)
+			}
 		}
 	}
 
@@ -517,6 +569,47 @@ func (h *StreamHandlers) LeaveStream(w http.ResponseWriter, r *http.Request) {
 			WriteError(w, ctx, http.StatusInternalServerError, ErrCodeInternal, "Internal server error")
 		}
 		return
+	}
+
+	// Generate participant ID from user DID
+	participantID := stream.GenerateParticipantID(userDID)
+
+	// Record participant leave in participant repository
+	if h.participantRepo != nil {
+		if err := h.participantRepo.RecordLeave(streamID, participantID); err != nil {
+			if errors.Is(err, stream.ErrParticipantNotFound) {
+				// Participant was not active, log warning but continue
+				slog.WarnContext(ctx, "participant not found or already left",
+					"stream_id", streamID,
+					"participant_id", participantID,
+					"user_did", userDID,
+				)
+			} else {
+				slog.ErrorContext(ctx, "failed to record participant leave",
+					"error", err,
+					"stream_id", streamID,
+					"user_did", userDID,
+				)
+				ctx = middleware.SetErrorCode(ctx, ErrCodeInternal)
+				WriteError(w, ctx, http.StatusInternalServerError, ErrCodeInternal, "Failed to record participant leave")
+				return
+			}
+		} else {
+			// Broadcast participant left event via WebSocket
+			if h.eventBroadcaster != nil {
+				activeCount, _ := h.participantRepo.GetActiveCount(streamID)
+				event := &stream.ParticipantStateEvent{
+					Type:            "participant_left",
+					StreamSessionID: streamID,
+					ParticipantID:   participantID,
+					UserDID:         userDID,
+					Timestamp:       time.Now(),
+					IsReconnection:  false,
+					ActiveCount:     activeCount,
+				}
+				h.eventBroadcaster.Broadcast(streamID, event)
+			}
+		}
 	}
 
 	// Record leave in repository
@@ -688,5 +781,52 @@ func (h *StreamHandlers) GetStreamAnalytics(w http.ResponseWriter, r *http.Reque
 	w.WriteHeader(http.StatusOK)
 	if err := json.NewEncoder(w).Encode(analytics); err != nil {
 		slog.ErrorContext(ctx, "failed to encode analytics response", "error", err)
+	}
+}
+
+// GetActiveParticipants handles GET /streams/{id}/participants - retrieves active participants.
+// Returns minimal participant info (no PII) for UI display.
+func (h *StreamHandlers) GetActiveParticipants(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	// Extract stream ID from URL path
+	// Expected: /streams/{id}/participants
+	pathParts := strings.Split(strings.TrimPrefix(r.URL.Path, "/streams/"), "/")
+	if len(pathParts) != 2 || pathParts[0] == "" || pathParts[1] != "participants" {
+		ctx = middleware.SetErrorCode(ctx, ErrCodeBadRequest)
+		WriteError(w, ctx, http.StatusBadRequest, ErrCodeBadRequest, "Invalid URL path")
+		return
+	}
+	streamID := pathParts[0]
+
+	// Verify stream exists
+	session, err := h.streamRepo.GetByID(streamID)
+	if err != nil {
+		if errors.Is(err, stream.ErrStreamNotFound) {
+			ctx = middleware.SetErrorCode(ctx, ErrCodeNotFound)
+			WriteError(w, ctx, http.StatusNotFound, ErrCodeNotFound, "Stream session not found")
+		} else {
+			slog.ErrorContext(ctx, "failed to get stream session", "error", err)
+			ctx = middleware.SetErrorCode(ctx, ErrCodeInternal)
+			WriteError(w, ctx, http.StatusInternalServerError, ErrCodeInternal, "Internal server error")
+		}
+		return
+	}
+
+	// Get active count (efficient, uses denormalized field)
+	activeCount := session.ActiveParticipantCount
+
+	// Return participant count only (no PII)
+	// Individual participant identities are not exposed to preserve privacy
+	response := map[string]interface{}{
+		"stream_id":    streamID,
+		"active_count": activeCount,
+		"room_name":    session.RoomName,
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	if err := json.NewEncoder(w).Encode(response); err != nil {
+		slog.ErrorContext(ctx, "failed to encode participants response", "error", err)
 	}
 }

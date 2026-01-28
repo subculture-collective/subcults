@@ -18,10 +18,10 @@ var (
 // InMemoryAnalyticsRepository is an in-memory implementation of AnalyticsRepository.
 // Thread-safe via RWMutex.
 type InMemoryAnalyticsRepository struct {
-	mu            sync.RWMutex
-	events        map[string][]*ParticipantEvent // stream_session_id -> events
-	analytics     map[string]*Analytics           // stream_session_id -> analytics
-	sessionRepo   SessionRepository               // Reference to session repo for stream data
+	mu          sync.RWMutex
+	events      map[string][]*ParticipantEvent // stream_session_id -> events
+	analytics   map[string]*Analytics          // stream_session_id -> analytics
+	sessionRepo SessionRepository              // Reference to session repo for stream data
 }
 
 // NewInMemoryAnalyticsRepository creates a new in-memory analytics repository.
@@ -143,7 +143,7 @@ func (r *InMemoryAnalyticsRepository) ComputeAnalytics(streamSessionID string) (
 	for _, event := range sortedEvents {
 		if event.EventType == "join" {
 			totalJoins++
-			
+
 			// Only increment concurrent count when this participant was not already joined
 			if _, alreadyJoined := participantJoinTimes[event.ParticipantDID]; !alreadyJoined {
 				concurrent++
@@ -240,7 +240,7 @@ func (r *InMemoryAnalyticsRepository) GetAnalytics(streamSessionID string) (*Ana
 
 	// Return a copy
 	analyticsCopy := *analytics
-	
+
 	// Deep copy the geographic distribution map
 	if analytics.GeographicDistribution != nil {
 		analyticsCopy.GeographicDistribution = make(map[string]int, len(analytics.GeographicDistribution))

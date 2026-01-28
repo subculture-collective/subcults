@@ -257,7 +257,7 @@ func main() {
 	trustStoreAdapter := api.NewTrustScoreStoreAdapter(trustScoreStore)
 	eventHandlers := api.NewEventHandlers(eventRepo, sceneRepo, auditRepo, rsvpRepo, streamRepo, trustStoreAdapter)
 	rsvpHandlers := api.NewRSVPHandlers(rsvpRepo, eventRepo)
-	streamHandlers := api.NewStreamHandlers(streamRepo, analyticsRepo, sceneRepo, eventRepo, auditRepo, streamMetrics)
+	streamHandlers := api.NewStreamHandlers(streamRepo, participantRepo, analyticsRepo, sceneRepo, eventRepo, auditRepo, streamMetrics, eventBroadcaster)
 	postHandlers := api.NewPostHandlers(postRepo, sceneRepo, membershipRepo, metadataService)
 	trustHandlers := api.NewTrustHandlers(sceneRepo, trustDataSource, trustScoreStore, trustDirtyTracker)
 	searchHandlers := api.NewSearchHandlers(sceneRepo, postRepo, trustStoreAdapter)

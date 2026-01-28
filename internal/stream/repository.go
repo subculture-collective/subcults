@@ -23,7 +23,10 @@ type Session struct {
 	EventID          *string `json:"event_id,omitempty"`
 	RoomName         string  `json:"room_name"`
 	HostDID          string  `json:"host_did"`
-	ParticipantCount int     `json:"participant_count"`
+	ParticipantCount int     `json:"participant_count"` // Deprecated: use ActiveParticipantCount
+
+	// Denormalized participant count for efficient queries
+	ActiveParticipantCount int `json:"active_participant_count"`
 
 	// AT Protocol record tracking
 	RecordDID  *string `json:"record_did,omitempty"`
@@ -79,6 +82,10 @@ type SessionRepository interface {
 	// RecordLeave increments the leave count for a stream session.
 	// Returns ErrStreamNotFound if session doesn't exist.
 	RecordLeave(id string) error
+
+	// UpdateActiveParticipantCount updates the denormalized active_participant_count.
+	// Returns ErrStreamNotFound if session doesn't exist.
+	UpdateActiveParticipantCount(id string, count int) error
 
 	// HasActiveStreamForScene checks if there's an active stream (ended_at IS NULL) for the given scene.
 	HasActiveStreamForScene(sceneID string) (bool, error)
@@ -282,16 +289,17 @@ func (r *InMemorySessionRepository) CreateStreamSession(sceneID *string, eventID
 	// Create new session
 	newID := uuid.New().String()
 	session := &Session{
-		ID:               newID,
-		SceneID:          sceneID,
-		EventID:          eventID,
-		RoomName:         roomName,
-		HostDID:          hostDID,
-		ParticipantCount: 0,
-		JoinCount:        0,
-		LeaveCount:       0,
-		StartedAt:        now,
-		EndedAt:          nil, // Active stream
+		ID:                     newID,
+		SceneID:                sceneID,
+		EventID:                eventID,
+		RoomName:               roomName,
+		HostDID:                hostDID,
+		ParticipantCount:       0,
+		ActiveParticipantCount: 0,
+		JoinCount:              0,
+		LeaveCount:             0,
+		StartedAt:              now,
+		EndedAt:                nil, // Active stream
 	}
 
 	r.sessions[newID] = session
@@ -349,6 +357,21 @@ func (r *InMemorySessionRepository) RecordLeave(id string) error {
 	}
 
 	session.LeaveCount++
+	return nil
+}
+
+// UpdateActiveParticipantCount updates the denormalized active_participant_count.
+// Returns ErrStreamNotFound if session doesn't exist.
+func (r *InMemorySessionRepository) UpdateActiveParticipantCount(id string, count int) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	session, ok := r.sessions[id]
+	if !ok {
+		return ErrStreamNotFound
+	}
+
+	session.ActiveParticipantCount = count
 	return nil
 }
 
