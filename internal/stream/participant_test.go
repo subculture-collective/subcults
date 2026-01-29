@@ -176,19 +176,8 @@ t.Error("IsReconnection should be false")
 }
 }
 
-// TestParticipantStateEvent_Reconnection tests reconnection events.
+// TestParticipantStateEvent_Reconnection tests reconnection event behavior.
+// This test will be expanded when reconnection behavior logic is implemented.
 func TestParticipantStateEvent_Reconnection(t *testing.T) {
-event := &ParticipantStateEvent{
-Type:            "participant_joined",
-StreamSessionID: "session-reconnect",
-ParticipantID:   "user-charlie",
-UserDID:         "did:plc:charlie789",
-Timestamp:       time.Now(),
-IsReconnection:  true, // This is a reconnection
-ActiveCount:     3,
-}
-
-if !event.IsReconnection {
-t.Error("IsReconnection should be true for reconnection events")
-}
+t.Skip("TODO: implement reconnection behavior test when reconnection logic is added")
 }

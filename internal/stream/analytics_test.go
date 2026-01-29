@@ -449,4 +449,3 @@ func TestInMemoryAnalyticsRepository_ComputeAnalytics_ParticipantsNeverLeave(t *
 	}
 }
 
-// TestComputeAnalytics_EdgeCases tests edge cases in analytics computation.

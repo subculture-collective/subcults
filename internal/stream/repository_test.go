@@ -736,392 +736,394 @@ func TestSessionRepository_JoinLeave_Combined(t *testing.T) {
 
 // TestSessionRepository_SetLockStatus tests the SetLockStatus method.
 func TestSessionRepository_SetLockStatus(t *testing.T) {
-tests := []struct {
-name       string
-setupFn    func(*InMemorySessionRepository) string
-sessionID  string
-locked     bool
-wantErr    error
-checkLock  bool
-}{
-{
-name: "lock_active_stream",
-setupFn: func(repo *InMemorySessionRepository) string {
-sceneID := "scene-lock-test"
-id, _, _ := repo.CreateStreamSession(&sceneID, nil, "did:plc:host")
-return id
-},
-locked:    true,
-wantErr:   nil,
-checkLock: true,
-},
-{
-name: "unlock_active_stream",
-setupFn: func(repo *InMemorySessionRepository) string {
-sceneID := "scene-unlock-test"
-id, _, _ := repo.CreateStreamSession(&sceneID, nil, "did:plc:host")
-repo.SetLockStatus(id, true) // Lock it first
-return id
-},
-locked:    false,
-wantErr:   nil,
-checkLock: true,
-},
-{
-name:      "nonexistent_stream",
-setupFn:   func(repo *InMemorySessionRepository) string { return "" },
-sessionID: "nonexistent-stream-id",
-locked:    true,
-wantErr:   ErrStreamNotFound,
-checkLock: false,
-},
-}
+	tests := []struct {
+		name      string
+		setupFn   func(*InMemorySessionRepository) string
+		sessionID string
+		locked    bool
+		wantErr   error
+		checkLock bool
+	}{
+		{
+			name: "lock_active_stream",
+			setupFn: func(repo *InMemorySessionRepository) string {
+				sceneID := "scene-lock-test"
+				id, _, _ := repo.CreateStreamSession(&sceneID, nil, "did:plc:host")
+				return id
+			},
+			locked:    true,
+			wantErr:   nil,
+			checkLock: true,
+		},
+		{
+			name: "unlock_active_stream",
+			setupFn: func(repo *InMemorySessionRepository) string {
+				sceneID := "scene-unlock-test"
+				id, _, _ := repo.CreateStreamSession(&sceneID, nil, "did:plc:host")
+				repo.SetLockStatus(id, true) // Lock it first
+				return id
+			},
+			locked:    false,
+			wantErr:   nil,
+			checkLock: true,
+		},
+		{
+			name:      "nonexistent_stream",
+			setupFn:   func(repo *InMemorySessionRepository) string { return "" },
+			sessionID: "nonexistent-stream-id",
+			locked:    true,
+			wantErr:   ErrStreamNotFound,
+			checkLock: false,
+		},
+	}
 
-for _, tt := range tests {
-t.Run(tt.name, func(t *testing.T) {
-repo := NewInMemorySessionRepository()
-var id string
-if tt.setupFn != nil {
-id = tt.setupFn(repo)
-}
-if tt.sessionID != "" {
-id = tt.sessionID
-}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			repo := NewInMemorySessionRepository()
+			var id string
+			if tt.setupFn != nil {
+				id = tt.setupFn(repo)
+			}
+			if tt.sessionID != "" {
+				id = tt.sessionID
+			}
 
-err := repo.SetLockStatus(id, tt.locked)
-if err != tt.wantErr {
-t.Errorf("SetLockStatus() error = %v, wantErr %v", err, tt.wantErr)
-return
-}
+			err := repo.SetLockStatus(id, tt.locked)
+			if err != tt.wantErr {
+				t.Errorf("SetLockStatus() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
 
-if tt.checkLock && err == nil {
-session, err := repo.GetByID(id)
-if err != nil {
-t.Fatalf("GetByID() failed: %v", err)
-}
-if session.IsLocked != tt.locked {
-t.Errorf("IsLocked = %v, want %v", session.IsLocked, tt.locked)
-}
-}
-})
-}
+			if tt.checkLock && err == nil {
+				session, err := repo.GetByID(id)
+				if err != nil {
+					t.Fatalf("GetByID() failed: %v", err)
+				}
+				if session.IsLocked != tt.locked {
+					t.Errorf("IsLocked = %v, want %v", session.IsLocked, tt.locked)
+				}
+			}
+		})
+	}
 }
 
 // TestSessionRepository_SetFeaturedParticipant tests the SetFeaturedParticipant method.
 func TestSessionRepository_SetFeaturedParticipant(t *testing.T) {
-tests := []struct {
-name          string
-setupFn       func(*InMemorySessionRepository) string
-sessionID     string
-participantID *string
-wantErr       error
-}{
-{
-name: "set_featured_participant",
-setupFn: func(repo *InMemorySessionRepository) string {
-sceneID := "scene-featured-test"
-id, _, _ := repo.CreateStreamSession(&sceneID, nil, "did:plc:host")
-return id
-},
-participantID: strPtr("participant-alice"),
-wantErr:       nil,
-},
-{
-name: "clear_featured_participant",
-setupFn: func(repo *InMemorySessionRepository) string {
-sceneID := "scene-clear-featured"
-id, _, _ := repo.CreateStreamSession(&sceneID, nil, "did:plc:host")
-repo.SetFeaturedParticipant(id, strPtr("participant-bob"))
-return id
-},
-participantID: nil, // Clear the featured participant
-wantErr:       nil,
-},
-{
-name:          "nonexistent_stream",
-setupFn:       func(repo *InMemorySessionRepository) string { return "" },
-sessionID:     "nonexistent-id",
-participantID: strPtr("participant-charlie"),
-wantErr:       ErrStreamNotFound,
-},
-}
+	tests := []struct {
+		name          string
+		setupFn       func(*InMemorySessionRepository) string
+		sessionID     string
+		participantID *string
+		wantErr       error
+	}{
+		{
+			name: "set_featured_participant",
+			setupFn: func(repo *InMemorySessionRepository) string {
+				sceneID := "scene-featured-test"
+				id, _, _ := repo.CreateStreamSession(&sceneID, nil, "did:plc:host")
+				return id
+			},
+			participantID: strPtr("participant-alice"),
+			wantErr:       nil,
+		},
+		{
+			name: "clear_featured_participant",
+			setupFn: func(repo *InMemorySessionRepository) string {
+				sceneID := "scene-clear-featured"
+				id, _, _ := repo.CreateStreamSession(&sceneID, nil, "did:plc:host")
+				repo.SetFeaturedParticipant(id, strPtr("participant-bob"))
+				return id
+			},
+			participantID: nil, // Clear the featured participant
+			wantErr:       nil,
+		},
+		{
+			name:          "nonexistent_stream",
+			setupFn:       func(repo *InMemorySessionRepository) string { return "" },
+			sessionID:     "nonexistent-id",
+			participantID: strPtr("participant-charlie"),
+			wantErr:       ErrStreamNotFound,
+		},
+	}
 
-for _, tt := range tests {
-t.Run(tt.name, func(t *testing.T) {
-repo := NewInMemorySessionRepository()
-var id string
-if tt.setupFn != nil {
-id = tt.setupFn(repo)
-}
-if tt.sessionID != "" {
-id = tt.sessionID
-}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			repo := NewInMemorySessionRepository()
+			var id string
+			if tt.setupFn != nil {
+				id = tt.setupFn(repo)
+			}
+			if tt.sessionID != "" {
+				id = tt.sessionID
+			}
 
-err := repo.SetFeaturedParticipant(id, tt.participantID)
-if err != tt.wantErr {
-t.Errorf("SetFeaturedParticipant() error = %v, wantErr %v", err, tt.wantErr)
-return
-}
+			err := repo.SetFeaturedParticipant(id, tt.participantID)
+			if err != tt.wantErr {
+				t.Errorf("SetFeaturedParticipant() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
 
-if err == nil {
-session, err := repo.GetByID(id)
-if err != nil {
-t.Fatalf("GetByID() failed: %v", err)
-}
-if tt.participantID == nil {
-if session.FeaturedParticipant != nil {
-t.Errorf("FeaturedParticipant = %v, want nil", session.FeaturedParticipant)
-}
-} else {
-if session.FeaturedParticipant == nil {
-t.Error("FeaturedParticipant is nil, want non-nil")
-} else if *session.FeaturedParticipant != *tt.participantID {
-t.Errorf("FeaturedParticipant = %v, want %v", *session.FeaturedParticipant, *tt.participantID)
-}
-}
-}
-})
-}
+			if err == nil {
+				session, err := repo.GetByID(id)
+				if err != nil {
+					t.Fatalf("GetByID() failed: %v", err)
+				}
+				if tt.participantID == nil {
+					if session.FeaturedParticipant != nil {
+						t.Errorf("FeaturedParticipant = %v, want nil", session.FeaturedParticipant)
+					}
+				} else {
+					if session.FeaturedParticipant == nil {
+						t.Error("FeaturedParticipant is nil, want non-nil")
+					} else if *session.FeaturedParticipant != *tt.participantID {
+						t.Errorf("FeaturedParticipant = %v, want %v", *session.FeaturedParticipant, *tt.participantID)
+					}
+				}
+			}
+		})
+	}
 }
 
 // TestSessionRepository_GetActiveStreamsForEvents tests the batch operation for multiple events.
 func TestSessionRepository_GetActiveStreamsForEvents(t *testing.T) {
-tests := []struct {
-name     string
-setupFn  func(*InMemorySessionRepository) []string
-eventIDs []string
-want     map[string]bool // eventID -> has active stream
-}{
-{
-name: "multiple_events_with_active_streams",
-setupFn: func(repo *InMemorySessionRepository) []string {
-event1 := "event-batch-1"
-event2 := "event-batch-2"
-event3 := "event-batch-3"
+	tests := []struct {
+		name     string
+		setupFn  func(*InMemorySessionRepository) []string
+		eventIDs []string
+		want     map[string]bool // eventID -> has active stream
+	}{
+		{
+			name: "multiple_events_with_active_streams",
+			setupFn: func(repo *InMemorySessionRepository) []string {
+				event1 := "event-batch-1"
+				event2 := "event-batch-2"
+				event3 := "event-batch-3"
 
-repo.CreateStreamSession(nil, &event1, "did:plc:host1")
-repo.CreateStreamSession(nil, &event2, "did:plc:host2")
-// event3 has no active stream
-return []string{event1, event2, event3}
-},
-eventIDs: []string{"event-batch-1", "event-batch-2", "event-batch-3"},
-want: map[string]bool{
-"event-batch-1": true,
-"event-batch-2": true,
-"event-batch-3": false,
-},
-},
-{
-name: "no_active_streams",
-setupFn: func(repo *InMemorySessionRepository) []string {
-event1 := "event-ended-1"
-event2 := "event-ended-2"
+				repo.CreateStreamSession(nil, &event1, "did:plc:host1")
+				repo.CreateStreamSession(nil, &event2, "did:plc:host2")
+				// event3 has no active stream
+				return []string{event1, event2, event3}
+			},
+			eventIDs: []string{"event-batch-1", "event-batch-2", "event-batch-3"},
+			want: map[string]bool{
+				"event-batch-1": true,
+				"event-batch-2": true,
+				"event-batch-3": false,
+			},
+		},
+		{
+			name: "no_active_streams",
+			setupFn: func(repo *InMemorySessionRepository) []string {
+				event1 := "event-ended-1"
+				event2 := "event-ended-2"
 
-id1, _, _ := repo.CreateStreamSession(nil, &event1, "did:plc:host1")
-id2, _, _ := repo.CreateStreamSession(nil, &event2, "did:plc:host2")
-repo.EndStreamSession(id1)
-repo.EndStreamSession(id2)
-return []string{event1, event2}
-},
-eventIDs: []string{"event-ended-1", "event-ended-2"},
-want: map[string]bool{
-"event-ended-1": false,
-"event-ended-2": false,
-},
-},
-{
-name:     "empty_event_list",
-setupFn:  func(repo *InMemorySessionRepository) []string { return []string{} },
-eventIDs: []string{},
-want:     map[string]bool{},
-},
-{
-name: "multiple_streams_per_event_returns_most_recent",
-setupFn: func(repo *InMemorySessionRepository) []string {
-eventID := "event-multiple"
+				id1, _, _ := repo.CreateStreamSession(nil, &event1, "did:plc:host1")
+				id2, _, _ := repo.CreateStreamSession(nil, &event2, "did:plc:host2")
+				repo.EndStreamSession(id1)
+				repo.EndStreamSession(id2)
+				return []string{event1, event2}
+			},
+			eventIDs: []string{"event-ended-1", "event-ended-2"},
+			want: map[string]bool{
+				"event-ended-1": false,
+				"event-ended-2": false,
+			},
+		},
+		{
+			name:     "empty_event_list",
+			setupFn:  func(repo *InMemorySessionRepository) []string { return []string{} },
+			eventIDs: []string{},
+			want:     map[string]bool{},
+		},
+		{
+			name: "multiple_streams_per_event_returns_most_recent",
+			setupFn: func(repo *InMemorySessionRepository) []string {
+				eventID := "event-multiple"
 
-// Create first stream
-id1, room1, _ := repo.CreateStreamSession(nil, &eventID, "did:plc:host1")
-time.Sleep(10 * time.Millisecond)
+				// Create first stream
+				id1, room1, _ := repo.CreateStreamSession(nil, &eventID, "did:plc:host1")
+				time.Sleep(10 * time.Millisecond)
 
-// Create second stream (more recent)
-id2, room2, _ := repo.CreateStreamSession(nil, &eventID, "did:plc:host2")
+				// Create second stream (more recent)
+				id2, room2, _ := repo.CreateStreamSession(nil, &eventID, "did:plc:host2")
 
-// Verify later by checking the room name
-_ = id1
-_ = room1
-_ = id2
-_ = room2
-return []string{eventID}
-},
-eventIDs: []string{"event-multiple"},
-want: map[string]bool{
-"event-multiple": true,
-},
-},
-}
+				// Verify later by checking the room name
+				_ = id1
+				_ = room1
+				_ = id2
+				_ = room2
+				return []string{eventID}
+			},
+			eventIDs: []string{"event-multiple"},
+			want: map[string]bool{
+				"event-multiple": true,
+			},
+		},
+	}
 
-for _, tt := range tests {
-t.Run(tt.name, func(t *testing.T) {
-repo := NewInMemorySessionRepository()
-var eventIDs []string
-if tt.setupFn != nil {
-eventIDs = tt.setupFn(repo)
-}
-if tt.eventIDs != nil {
-eventIDs = tt.eventIDs
-}
-
-result, err := repo.GetActiveStreamsForEvents(eventIDs)
-if err != nil {
-t.Fatalf("GetActiveStreamsForEvents() error = %v", err)
-}
-
-// Check that result matches expected active streams
-		expectedCount := 0
-for eventID, shouldHaveStream := range tt.want {
-			if shouldHaveStream {
-				expectedCount++
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			repo := NewInMemorySessionRepository()
+			var eventIDs []string
+			if tt.setupFn != nil {
+				eventIDs = tt.setupFn(repo)
 			}
-info, hasStream := result[eventID]
-if shouldHaveStream && !hasStream {
-t.Errorf("Expected active stream for event %s, got none", eventID)
-} else if !shouldHaveStream && hasStream {
-t.Errorf("Expected no active stream for event %s, got %v", eventID, info)
-}
-}
+			if tt.eventIDs != nil {
+				eventIDs = tt.eventIDs
+			}
 
-// Verify no unexpected events in result
-		if len(result) != expectedCount {
-			t.Errorf("Result count = %d, want %d", len(result), expectedCount)
-}
-})
-}
+			result, err := repo.GetActiveStreamsForEvents(eventIDs)
+			if err != nil {
+				t.Fatalf("GetActiveStreamsForEvents() error = %v", err)
+			}
+
+			// Check that result matches expected active streams
+			expectedCount := 0
+			for eventID, shouldHaveStream := range tt.want {
+				if shouldHaveStream {
+					expectedCount++
+				}
+				info, hasStream := result[eventID]
+				if shouldHaveStream && !hasStream {
+					t.Errorf("Expected active stream for event %s, got none", eventID)
+				} else if !shouldHaveStream && hasStream {
+					t.Errorf("Expected no active stream for event %s, got %v", eventID, info)
+				}
+			}
+
+			// Verify no unexpected events in result
+			if len(result) != expectedCount {
+				t.Errorf("Result count = %d, want %d", len(result), expectedCount)
+			}
+		})
+	}
 }
 
 // TestSessionRepository_GetByID_EdgeCases tests edge cases for GetByID.
 func TestSessionRepository_GetByID_EdgeCases(t *testing.T) {
-tests := []struct {
-name      string
-setupFn   func(*InMemorySessionRepository) string
-sessionID string
-wantErr   error
-}{
-{
-name: "valid_session",
-setupFn: func(repo *InMemorySessionRepository) string {
-sceneID := "scene-getbyid"
-id, _, _ := repo.CreateStreamSession(&sceneID, nil, "did:plc:host")
-return id
-},
-wantErr: nil,
-},
-{
-name:      "empty_session_id",
-setupFn:   func(repo *InMemorySessionRepository) string { return "" },
-sessionID: "",
-wantErr:   ErrStreamNotFound,
-},
-{
-name:      "nonexistent_session_id",
-setupFn:   func(repo *InMemorySessionRepository) string { return "" },
-sessionID: "nonexistent-uuid",
-wantErr:   ErrStreamNotFound,
-},
-}
+	tests := []struct {
+		name      string
+		setupFn   func(*InMemorySessionRepository) string
+		sessionID string
+		wantErr   error
+	}{
+		{
+			name: "valid_session",
+			setupFn: func(repo *InMemorySessionRepository) string {
+				sceneID := "scene-getbyid"
+				id, _, _ := repo.CreateStreamSession(&sceneID, nil, "did:plc:host")
+				return id
+			},
+			wantErr: nil,
+		},
+		{
+			name:      "empty_session_id",
+			setupFn:   func(repo *InMemorySessionRepository) string { return "" },
+			sessionID: "",
+			wantErr:   ErrStreamNotFound,
+		},
+		{
+			name:      "nonexistent_session_id",
+			setupFn:   func(repo *InMemorySessionRepository) string { return "" },
+			sessionID: "nonexistent-uuid",
+			wantErr:   ErrStreamNotFound,
+		},
+	}
 
-for _, tt := range tests {
-t.Run(tt.name, func(t *testing.T) {
-repo := NewInMemorySessionRepository()
-var id string
-if tt.setupFn != nil {
-id = tt.setupFn(repo)
-}
-if tt.sessionID != "" {
-id = tt.sessionID
-}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			repo := NewInMemorySessionRepository()
+			var id string
+			if tt.setupFn != nil {
+				id = tt.setupFn(repo)
+			}
+			if tt.sessionID != "" {
+				id = tt.sessionID
+			}
 
-session, err := repo.GetByID(id)
-if err != tt.wantErr {
-t.Errorf("GetByID() error = %v, wantErr %v", err, tt.wantErr)
-return
-}
+			session, err := repo.GetByID(id)
+			if err != tt.wantErr {
+				t.Errorf("GetByID() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
 
-if tt.wantErr == nil && session == nil {
-t.Error("Expected non-nil session, got nil")
-}
-})
-}
+			if tt.wantErr == nil && session == nil {
+				t.Error("Expected non-nil session, got nil")
+			}
+		})
+	}
 }
 
 // TestSessionRepository_UpdateActiveParticipantCount_EdgeCases tests edge cases.
 func TestSessionRepository_UpdateActiveParticipantCount_EdgeCases(t *testing.T) {
-tests := []struct {
-name      string
-setupFn   func(*InMemorySessionRepository) string
-sessionID string
-count     int
-wantErr   error
-}{
-{
-name: "valid_update",
-setupFn: func(repo *InMemorySessionRepository) string {
-sceneID := "scene-update-count"
-id, _, _ := repo.CreateStreamSession(&sceneID, nil, "did:plc:host")
-return id
-},
-count:   10,
-wantErr: nil,
-},
-{
-name: "zero_count",
-setupFn: func(repo *InMemorySessionRepository) string {
-sceneID := "scene-zero-count"
-id, _, _ := repo.CreateStreamSession(&sceneID, nil, "did:plc:host")
-return id
-},
-count:   0,
-wantErr: nil,
-},
-{
-name:      "nonexistent_session",
-setupFn:   func(repo *InMemorySessionRepository) string { return "" },
-sessionID: "nonexistent-id",
-count:     5,
-wantErr:   ErrStreamNotFound,
-},
+	tests := []struct {
+		name      string
+		setupFn   func(*InMemorySessionRepository) string
+		sessionID string
+		count     int
+		wantErr   error
+	}{
+		{
+			name: "valid_update",
+			setupFn: func(repo *InMemorySessionRepository) string {
+				sceneID := "scene-update-count"
+				id, _, _ := repo.CreateStreamSession(&sceneID, nil, "did:plc:host")
+				return id
+			},
+			count:   10,
+			wantErr: nil,
+		},
+		{
+			name: "zero_count",
+			setupFn: func(repo *InMemorySessionRepository) string {
+				sceneID := "scene-zero-count"
+				id, _, _ := repo.CreateStreamSession(&sceneID, nil, "did:plc:host")
+				return id
+			},
+			count:   0,
+			wantErr: nil,
+		},
+		{
+			name:      "nonexistent_session",
+			setupFn:   func(repo *InMemorySessionRepository) string { return "" },
+			sessionID: "nonexistent-id",
+			count:     5,
+			wantErr:   ErrStreamNotFound,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			repo := NewInMemorySessionRepository()
+			var id string
+			if tt.setupFn != nil {
+				id = tt.setupFn(repo)
+			}
+			if tt.sessionID != "" {
+				id = tt.sessionID
+			}
+
+			err := repo.UpdateActiveParticipantCount(id, tt.count)
+			if err != tt.wantErr {
+				t.Errorf("UpdateActiveParticipantCount() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+
+			if err == nil {
+				session, err := repo.GetByID(id)
+				if err != nil {
+					t.Fatalf("GetByID() failed: %v", err)
+				}
+				if session.ActiveParticipantCount != tt.count {
+					t.Errorf("ActiveParticipantCount = %d, want %d", session.ActiveParticipantCount, tt.count)
+				}
+			}
+		})
+	}
 }
 
-for _, tt := range tests {
-t.Run(tt.name, func(t *testing.T) {
-repo := NewInMemorySessionRepository()
-var id string
-if tt.setupFn != nil {
-id = tt.setupFn(repo)
-}
-if tt.sessionID != "" {
-id = tt.sessionID
-}
-
-err := repo.UpdateActiveParticipantCount(id, tt.count)
-if err != tt.wantErr {
-t.Errorf("UpdateActiveParticipantCount() error = %v, wantErr %v", err, tt.wantErr)
-return
-}
-
-if err == nil {
-session, err := repo.GetByID(id)
-if err != nil {
-t.Fatalf("GetByID() failed: %v", err)
-}
-			if session.ActiveParticipantCount != tt.count {
-				t.Errorf("ActiveParticipantCount = %d, want %d", session.ActiveParticipantCount, tt.count)
-}
-}
-})
-}
-}
-
+// Benchmark tests for performance-sensitive operations
+// BenchmarkCreateStreamSession benchmarks stream session creation.
 // Benchmark tests for performance-sensitive operations
 // BenchmarkCreateStreamSession benchmarks stream session creation.
 func BenchmarkCreateStreamSession(b *testing.B) {
@@ -1131,7 +1133,9 @@ sceneID := "bench-scene"
 b.ResetTimer()
 for i := 0; i < b.N; i++ {
 hostDID := "did:plc:host" + string(rune(i))
-repo.CreateStreamSession(&sceneID, nil, hostDID)
+if _, _, err := repo.CreateStreamSession(&sceneID, nil, hostDID); err != nil {
+b.Fatalf("CreateStreamSession failed: %v", err)
+}
 }
 }
 
@@ -1139,11 +1143,16 @@ repo.CreateStreamSession(&sceneID, nil, hostDID)
 func BenchmarkGetByID(b *testing.B) {
 repo := NewInMemorySessionRepository()
 sceneID := "bench-scene"
-id, _, _ := repo.CreateStreamSession(&sceneID, nil, "did:plc:host")
+id, _, err := repo.CreateStreamSession(&sceneID, nil, "did:plc:host")
+if err != nil {
+b.Fatalf("CreateStreamSession failed: %v", err)
+}
 
 b.ResetTimer()
 for i := 0; i < b.N; i++ {
-repo.GetByID(id)
+if _, err := repo.GetByID(id); err != nil {
+b.Fatalf("GetByID failed: %v", err)
+}
 }
 }
 
@@ -1151,11 +1160,15 @@ repo.GetByID(id)
 func BenchmarkGetActiveStreamForEvent(b *testing.B) {
 repo := NewInMemorySessionRepository()
 eventID := "bench-event"
-repo.CreateStreamSession(nil, &eventID, "did:plc:host")
+if _, _, err := repo.CreateStreamSession(nil, &eventID, "did:plc:host"); err != nil {
+b.Fatalf("CreateStreamSession failed: %v", err)
+}
 
 b.ResetTimer()
 for i := 0; i < b.N; i++ {
-repo.GetActiveStreamForEvent(eventID)
+if _, err := repo.GetActiveStreamForEvent(eventID); err != nil {
+b.Fatalf("GetActiveStreamForEvent failed: %v", err)
+}
 }
 }
 
@@ -1168,12 +1181,16 @@ eventIDs := make([]string, 100)
 for i := 0; i < 100; i++ {
 eventID := "bench-event-" + string(rune(i))
 eventIDs[i] = eventID
-repo.CreateStreamSession(nil, &eventID, "did:plc:host")
+if _, _, err := repo.CreateStreamSession(nil, &eventID, "did:plc:host"); err != nil {
+b.Fatalf("CreateStreamSession failed: %v", err)
+}
 }
 
 b.ResetTimer()
 for i := 0; i < b.N; i++ {
-repo.GetActiveStreamsForEvents(eventIDs)
+if _, err := repo.GetActiveStreamsForEvents(eventIDs); err != nil {
+b.Fatalf("GetActiveStreamsForEvents failed: %v", err)
+}
 }
 }
 
@@ -1181,14 +1198,21 @@ repo.GetActiveStreamsForEvents(eventIDs)
 func BenchmarkRecordJoinLeave(b *testing.B) {
 repo := NewInMemorySessionRepository()
 sceneID := "bench-scene"
-id, _, _ := repo.CreateStreamSession(&sceneID, nil, "did:plc:host")
+id, _, err := repo.CreateStreamSession(&sceneID, nil, "did:plc:host")
+if err != nil {
+b.Fatalf("CreateStreamSession failed: %v", err)
+}
 
 b.ResetTimer()
 for i := 0; i < b.N; i++ {
 if i%2 == 0 {
-repo.RecordJoin(id)
+if err := repo.RecordJoin(id); err != nil {
+b.Fatalf("RecordJoin failed: %v", err)
+}
 } else {
-repo.RecordLeave(id)
+if err := repo.RecordLeave(id); err != nil {
+b.Fatalf("RecordLeave failed: %v", err)
+}
 }
 }
 }
@@ -1197,11 +1221,16 @@ repo.RecordLeave(id)
 func BenchmarkSetLockStatus(b *testing.B) {
 repo := NewInMemorySessionRepository()
 sceneID := "bench-scene"
-id, _, _ := repo.CreateStreamSession(&sceneID, nil, "did:plc:host")
+id, _, err := repo.CreateStreamSession(&sceneID, nil, "did:plc:host")
+if err != nil {
+b.Fatalf("CreateStreamSession failed: %v", err)
+}
 
 b.ResetTimer()
 for i := 0; i < b.N; i++ {
-repo.SetLockStatus(id, i%2 == 0)
+if err := repo.SetLockStatus(id, i%2 == 0); err != nil {
+b.Fatalf("SetLockStatus failed: %v", err)
+}
 }
 }
 
@@ -1209,15 +1238,22 @@ repo.SetLockStatus(id, i%2 == 0)
 func BenchmarkSetFeaturedParticipant(b *testing.B) {
 repo := NewInMemorySessionRepository()
 sceneID := "bench-scene"
-id, _, _ := repo.CreateStreamSession(&sceneID, nil, "did:plc:host")
+id, _, err := repo.CreateStreamSession(&sceneID, nil, "did:plc:host")
+if err != nil {
+b.Fatalf("CreateStreamSession failed: %v", err)
+}
 participantID := "participant-featured"
 
 b.ResetTimer()
 for i := 0; i < b.N; i++ {
 if i%2 == 0 {
-repo.SetFeaturedParticipant(id, &participantID)
+if err := repo.SetFeaturedParticipant(id, &participantID); err != nil {
+b.Fatalf("SetFeaturedParticipant failed: %v", err)
+}
 } else {
-repo.SetFeaturedParticipant(id, nil)
+if err := repo.SetFeaturedParticipant(id, nil); err != nil {
+b.Fatalf("SetFeaturedParticipant failed: %v", err)
+}
 }
 }
 }

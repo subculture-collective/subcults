@@ -20,7 +20,7 @@ Expand unit test coverage to >80% for backend core packages: auth, geo, ranking,
 ## Stream Package Deep Dive
 
 ### What Was Added
-Added **6 new test files** with **300+ new test cases** covering:
+Added **2 new test files** and expanded **4 existing test files** with **300+ new test cases** covering:
 
 #### 1. Repository Operations (`repository_test.go`)
 - ✅ `SetLockStatus` - Lock/unlock stream sessions (3 test cases + benchmark)

@@ -28,7 +28,6 @@ func TestQualityMetricsValidation(t *testing.T) {
 tests := []struct {
 name    string
 metrics QualityMetrics
-wantErr bool
 }{
 {
 name: "valid_metrics",
@@ -42,7 +41,6 @@ AudioLevel:        floatPtr(-20.0),
 RTTMs:             floatPtr(45.2),
 MeasuredAt:        time.Now(),
 },
-wantErr: false,
 },
 {
 name: "high_packet_loss",
@@ -56,7 +54,6 @@ AudioLevel:        floatPtr(-40.0),
 RTTMs:             floatPtr(200.0),
 MeasuredAt:        time.Now(),
 },
-wantErr: false, // Valid but indicates poor quality
 },
 {
 name: "zero_values",
@@ -70,7 +67,6 @@ AudioLevel:        floatPtr(0.0),
 RTTMs:             floatPtr(0.0),
 MeasuredAt:        time.Now(),
 },
-wantErr: false, // Zero values are technically valid
 },
 {
 name: "nil_optional_fields",
@@ -80,7 +76,6 @@ ParticipantID:   "participant-nil",
 MeasuredAt:      time.Now(),
 // All optional fields are nil
 },
-wantErr: false, // Optional fields can be nil
 },
 }
 
