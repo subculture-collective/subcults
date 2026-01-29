@@ -7,13 +7,13 @@ import (
 
 // Metrics names as constants for consistency.
 const (
-	MetricRateLimitRequests      = "rate_limit_requests_total"
-	MetricRateLimitBlocked       = "rate_limit_blocked_total"
-	MetricRateLimitRedisErrors   = "rate_limit_redis_errors_total"
-	MetricHTTPRequestDuration    = "http_request_duration_seconds"
-	MetricHTTPRequestsTotal      = "http_requests_total"
-	MetricHTTPRequestSizeBytes   = "http_request_size_bytes"
-	MetricHTTPResponseSizeBytes  = "http_response_size_bytes"
+	MetricRateLimitRequests     = "rate_limit_requests_total"
+	MetricRateLimitBlocked      = "rate_limit_blocked_total"
+	MetricRateLimitRedisErrors  = "rate_limit_redis_errors_total"
+	MetricHTTPRequestDuration   = "http_request_duration_seconds"
+	MetricHTTPRequestsTotal     = "http_requests_total"
+	MetricHTTPRequestSizeBytes  = "http_request_size_bytes"
+	MetricHTTPResponseSizeBytes = "http_response_size_bytes"
 )
 
 // Metrics contains Prometheus metrics for middleware operations.

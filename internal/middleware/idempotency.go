@@ -8,7 +8,7 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
-	
+
 	"github.com/onnwee/subcults/internal/idempotency"
 )
 
@@ -81,28 +81,28 @@ func IdempotencyMiddleware(repo idempotency.Repository, routes map[string]bool) 
 				next.ServeHTTP(w, r)
 				return
 			}
-			
+
 			// Only apply to POST requests
 			if r.Method != http.MethodPost {
 				next.ServeHTTP(w, r)
 				return
 			}
-			
+
 			// Get idempotency key from header
 			key := r.Header.Get(IdempotencyKeyHeader)
-			
+
 			// Validate key presence
 			if key == "" {
 				ctx := SetErrorCode(r.Context(), "missing_idempotency_key")
 				writeJSONError(w, ctx, http.StatusBadRequest, "missing_idempotency_key", "Idempotency-Key header is required for this request")
 				return
 			}
-			
+
 			// Validate key format
 			if err := idempotency.ValidateKey(key); err != nil {
 				var code, message string
 				status := http.StatusBadRequest
-				
+
 				switch err {
 				case idempotency.ErrKeyTooLong:
 					code = "idempotency_key_too_long"
@@ -111,16 +111,16 @@ func IdempotencyMiddleware(repo idempotency.Repository, routes map[string]bool) 
 					code = "invalid_idempotency_key"
 					message = "Invalid Idempotency-Key format"
 				}
-				
+
 				ctx := SetErrorCode(r.Context(), code)
 				writeJSONError(w, ctx, status, code, message)
 				return
 			}
-			
+
 			// Store key in context for potential use by handlers
 			ctx := SetIdempotencyKey(r.Context(), key)
 			r = r.WithContext(ctx)
-			
+
 			// Check if key already exists
 			// Note: There is a potential race condition if two requests with the same
 			// idempotency key arrive simultaneously. Both may pass this check and execute
@@ -135,7 +135,7 @@ func IdempotencyMiddleware(repo idempotency.Repository, routes map[string]bool) 
 					"key", key,
 					"status", existing.ResponseStatusCode,
 				)
-				
+
 				w.Header().Set("Content-Type", "application/json")
 				w.WriteHeader(existing.ResponseStatusCode)
 				if _, err := io.WriteString(w, existing.ResponseBody); err != nil {
@@ -147,7 +147,7 @@ func IdempotencyMiddleware(repo idempotency.Repository, routes map[string]bool) 
 				}
 				return
 			}
-			
+
 			// Key not found - proceed with handler and cache response
 			if err != idempotency.ErrKeyNotFound {
 				// Unexpected error - log and continue without idempotency
@@ -155,18 +155,18 @@ func IdempotencyMiddleware(repo idempotency.Repository, routes map[string]bool) 
 				next.ServeHTTP(w, r)
 				return
 			}
-			
+
 			// Wrap response writer to capture response
 			captureWriter := newIdempotencyResponseWriter(w)
-			
+
 			// Call next handler
 			next.ServeHTTP(captureWriter, r)
-			
+
 			// Only cache successful responses (2xx status codes)
 			if captureWriter.statusCode >= 200 && captureWriter.statusCode < 300 {
 				responseBody := captureWriter.body.String()
 				responseHash := idempotency.ComputeResponseHash(responseBody)
-				
+
 				// Store the idempotency key with cached response
 				// Note: PaymentID field is currently not populated by the middleware.
 				// This is a generic middleware that doesn't parse response bodies.
@@ -181,7 +181,7 @@ func IdempotencyMiddleware(repo idempotency.Repository, routes map[string]bool) 
 					ResponseBody:       responseBody,
 					ResponseStatusCode: captureWriter.statusCode,
 				}
-				
+
 				if err := repo.Store(record); err != nil {
 					// Log error but don't fail the request - response already sent
 					slog.ErrorContext(ctx, "failed to store idempotency key", "key", key, "error", err)
@@ -197,13 +197,13 @@ func IdempotencyMiddleware(repo idempotency.Repository, routes map[string]bool) 
 func writeJSONError(w http.ResponseWriter, ctx context.Context, status int, code, message string) {
 	// Update context in response writer if it supports it
 	UpdateResponseContext(w, ctx)
-	
+
 	// Create error response
 	errorResp := map[string]string{
 		"error":   code,
 		"message": message,
 	}
-	
+
 	// Encode to JSON
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)

@@ -3,6 +3,7 @@ package middleware
 
 import (
 	"context"
+	"io"
 	"log/slog"
 	"net/http"
 	"os"
@@ -129,13 +130,19 @@ func newResponseWriter(w http.ResponseWriter, initialCtx context.Context) *respo
 // In production (env == "production"), it returns a JSON handler.
 // Otherwise, it returns a text handler for development.
 func NewLogger(env string) *slog.Logger {
+	return newLoggerWithWriter(env, os.Stdout)
+}
+
+// newLoggerWithWriter creates an slog.Logger with a custom writer.
+// This is primarily used for testing to capture log output.
+func newLoggerWithWriter(env string, w io.Writer) *slog.Logger {
 	var handler slog.Handler
 	if env == "production" {
-		handler = slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{
+		handler = slog.NewJSONHandler(w, &slog.HandlerOptions{
 			Level: slog.LevelInfo,
 		})
 	} else {
-		handler = slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{
+		handler = slog.NewTextHandler(w, &slog.HandlerOptions{
 			Level: slog.LevelDebug,
 		})
 	}
@@ -188,7 +195,7 @@ func Logging(logger *slog.Logger) func(http.Handler) http.Handler {
 			if rw.statusCode >= 400 {
 				if errorCode := GetErrorCode(finalCtx); errorCode != "" {
 					attrs = append(attrs, slog.String("error_code", errorCode))
-					
+
 					// Add rate limit key if this is a rate limit violation
 					if errorCode == "rate_limit_exceeded" {
 						if rateLimitKey := GetRateLimitKey(finalCtx); rateLimitKey != "" {

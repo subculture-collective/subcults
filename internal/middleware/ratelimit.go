@@ -229,7 +229,7 @@ func RateLimiter(store RateLimitStore, config RateLimitConfig, keyFunc KeyFunc, 
 				// Set error code for logging middleware
 				// The logging middleware will automatically log this with error_code="rate_limit_exceeded"
 				ctx := SetErrorCode(r.Context(), "rate_limit_exceeded")
-				
+
 				// Store rate limit details in context for logging
 				ctx = SetRateLimitKey(ctx, key)
 				r = r.WithContext(ctx)
