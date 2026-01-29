@@ -3,6 +3,7 @@ package stream
 import (
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestGenerateParticipantID(t *testing.T) {
@@ -109,4 +110,85 @@ func TestGenerateParticipantID_Uniqueness(t *testing.T) {
 	if len(ids) != len(dids) {
 		t.Errorf("Expected %d unique IDs, got %d", len(dids), len(ids))
 	}
+}
+
+// TestParticipant_IsActive tests the IsActive method.
+func TestParticipant_IsActive(t *testing.T) {
+now := time.Now()
+leftTime := now.Add(-1 * time.Hour)
+
+tests := []struct {
+name   string
+leftAt *time.Time
+want   bool
+}{
+{
+name:   "active_participant",
+leftAt: nil,
+want:   true,
+},
+{
+name:   "left_participant",
+leftAt: &leftTime,
+want:   false,
+},
+}
+
+for _, tt := range tests {
+t.Run(tt.name, func(t *testing.T) {
+p := &Participant{
+ID:              "participant-123",
+StreamSessionID: "session-456",
+ParticipantID:   "user-alice",
+UserDID:         "did:plc:alice123",
+JoinedAt:        now,
+LeftAt:          tt.leftAt,
+}
+
+got := p.IsActive()
+if got != tt.want {
+t.Errorf("IsActive() = %v, want %v", got, tt.want)
+}
+})
+}
+}
+
+// TestParticipantStateEvent_Structure tests the ParticipantStateEvent structure.
+func TestParticipantStateEvent_Structure(t *testing.T) {
+event := &ParticipantStateEvent{
+Type:            "participant_joined",
+StreamSessionID: "session-789",
+ParticipantID:   "user-bob",
+UserDID:         "did:plc:bob456",
+Timestamp:       time.Now(),
+IsReconnection:  false,
+ActiveCount:     5,
+}
+
+if event.Type != "participant_joined" {
+t.Errorf("Type = %s, want participant_joined", event.Type)
+}
+if event.ActiveCount != 5 {
+t.Errorf("ActiveCount = %d, want 5", event.ActiveCount)
+}
+if event.IsReconnection {
+t.Error("IsReconnection should be false")
+}
+}
+
+// TestParticipantStateEvent_Reconnection tests reconnection events.
+func TestParticipantStateEvent_Reconnection(t *testing.T) {
+event := &ParticipantStateEvent{
+Type:            "participant_joined",
+StreamSessionID: "session-reconnect",
+ParticipantID:   "user-charlie",
+UserDID:         "did:plc:charlie789",
+Timestamp:       time.Now(),
+IsReconnection:  true, // This is a reconnection
+ActiveCount:     3,
+}
+
+if !event.IsReconnection {
+t.Error("IsReconnection should be true for reconnection events")
+}
 }

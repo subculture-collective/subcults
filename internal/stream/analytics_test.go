@@ -448,3 +448,5 @@ func TestInMemoryAnalyticsRepository_ComputeAnalytics_ParticipantsNeverLeave(t *
 		t.Errorf("Expected median ~100ms (user2 only), got %.0fms", medianMs)
 	}
 }
+
+// TestComputeAnalytics_EdgeCases tests edge cases in analytics computation.
