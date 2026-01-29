@@ -56,6 +56,13 @@ type Config struct {
 
 	// Feature Flags
 	RankTrustEnabled bool `koanf:"rank_trust_enabled"` // Enable trust-weighted ranking in search/feed
+
+	// Tracing (OpenTelemetry)
+	TracingEnabled      bool    `koanf:"tracing_enabled"`       // Enable distributed tracing
+	TracingExporterType string  `koanf:"tracing_exporter_type"` // Exporter type: otlp-http, otlp-grpc
+	TracingOTLPEndpoint string  `koanf:"tracing_otlp_endpoint"` // OTLP endpoint URL
+	TracingSampleRate   float64 `koanf:"tracing_sample_rate"`   // Sampling rate (0.0 to 1.0)
+	TracingInsecure     bool    `koanf:"tracing_insecure"`      // Disable TLS for OTLP (dev only)
 }
 
 // Configuration validation errors.
@@ -85,6 +92,10 @@ const (
 	DefaultR2MaxUploadSizeMB         = 15
 	DefaultRankTrustEnabled          = false
 	DefaultStripeApplicationFeePercent = 5.0 // 5% platform fee by default
+	DefaultTracingEnabled            = false
+	DefaultTracingExporterType       = "otlp-http"
+	DefaultTracingSampleRate         = 0.1 // 10% sampling in production
+	DefaultTracingInsecure           = false
 )
 
 // Load reads configuration from environment variables and an optional config file.
@@ -146,6 +157,48 @@ func Load(configFilePath string) (*Config, []error) {
 		}
 	}
 
+	// Parse tracing configuration
+	tracingEnabled := DefaultTracingEnabled
+	if k.Exists("tracing_enabled") {
+		tracingEnabled = k.Bool("tracing_enabled")
+	}
+	if val := os.Getenv("TRACING_ENABLED"); val != "" {
+		valLower := strings.ToLower(val)
+		switch valLower {
+		case "true", "1", "yes", "on":
+			tracingEnabled = true
+		case "false", "0", "no", "off":
+			tracingEnabled = false
+		}
+	}
+
+	tracingSampleRate := DefaultTracingSampleRate
+	if k.Exists("tracing_sample_rate") {
+		tracingSampleRate = k.Float64("tracing_sample_rate")
+	}
+	if sampleRateStr := os.Getenv("TRACING_SAMPLE_RATE"); sampleRateStr != "" {
+		parsed, err := strconv.ParseFloat(sampleRateStr, 64)
+		if err != nil {
+			loadErrs = append(loadErrs, fmt.Errorf("TRACING_SAMPLE_RATE must be a valid float: %w", err))
+		} else {
+			tracingSampleRate = parsed
+		}
+	}
+
+	tracingInsecure := DefaultTracingInsecure
+	if k.Exists("tracing_insecure") {
+		tracingInsecure = k.Bool("tracing_insecure")
+	}
+	if val := os.Getenv("TRACING_INSECURE"); val != "" {
+		valLower := strings.ToLower(val)
+		switch valLower {
+		case "true", "1", "yes", "on":
+			tracingInsecure = true
+		case "false", "0", "no", "off":
+			tracingInsecure = false
+		}
+	}
+
 	// Build config struct, with env vars taking precedence over file values
 	cfg := &Config{
 		Port:                       port,
@@ -169,6 +222,11 @@ func Load(configFilePath string) (*Config, []error) {
 		R2MaxUploadSizeMB:   maxUploadSize,
 		RedisURL:            getEnvOrKoanf("REDIS_URL", k, "redis_url"),
 		RankTrustEnabled:    rankTrustEnabled,
+		TracingEnabled:      tracingEnabled,
+		TracingExporterType: getEnvOrDefault("TRACING_EXPORTER_TYPE", k.String("tracing_exporter_type"), DefaultTracingExporterType),
+		TracingOTLPEndpoint: getEnvOrKoanf("TRACING_OTLP_ENDPOINT", k, "tracing_otlp_endpoint"),
+		TracingSampleRate:   tracingSampleRate,
+		TracingInsecure:     tracingInsecure,
 	}
 
 	// Validate and collect errors
@@ -329,6 +387,11 @@ func (c *Config) LogSummary() map[string]string {
 		"r2_max_upload_size_mb":         fmt.Sprintf("%d", c.R2MaxUploadSizeMB),
 		"redis_url":                     maskDatabaseURL(c.RedisURL),
 		"rank_trust_enabled":            fmt.Sprintf("%t", c.RankTrustEnabled),
+		"tracing_enabled":               fmt.Sprintf("%t", c.TracingEnabled),
+		"tracing_exporter_type":         c.TracingExporterType,
+		"tracing_otlp_endpoint":         c.TracingOTLPEndpoint,
+		"tracing_sample_rate":           fmt.Sprintf("%.2f", c.TracingSampleRate),
+		"tracing_insecure":              fmt.Sprintf("%t", c.TracingInsecure),
 	}
 }
 

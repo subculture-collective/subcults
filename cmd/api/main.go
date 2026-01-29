@@ -29,6 +29,7 @@ import (
 	"github.com/onnwee/subcults/internal/post"
 	"github.com/onnwee/subcults/internal/scene"
 	"github.com/onnwee/subcults/internal/stream"
+	"github.com/onnwee/subcults/internal/tracing"
 	"github.com/onnwee/subcults/internal/trust"
 	"github.com/onnwee/subcults/internal/upload"
 )
@@ -60,6 +61,69 @@ func main() {
 	}
 	logger := middleware.NewLogger(env)
 	slog.SetDefault(logger)
+
+	// Initialize OpenTelemetry tracing
+	tracingEnabled := false
+	if val := os.Getenv("TRACING_ENABLED"); val != "" {
+		valLower := strings.ToLower(val)
+		switch valLower {
+		case "true", "1", "yes", "on":
+			tracingEnabled = true
+		}
+	}
+
+	var tracerProvider *tracing.Provider
+	if tracingEnabled {
+		// Parse tracing configuration
+		exporterType := os.Getenv("TRACING_EXPORTER_TYPE")
+		if exporterType == "" {
+			exporterType = "otlp-http"
+		}
+
+		sampleRateStr := os.Getenv("TRACING_SAMPLE_RATE")
+		sampleRate := 0.1 // Default 10%
+		if sampleRateStr != "" {
+			if parsed, err := strconv.ParseFloat(sampleRateStr, 64); err == nil {
+				sampleRate = parsed
+			} else {
+				logger.Warn("invalid TRACING_SAMPLE_RATE value, using default",
+					"value", sampleRateStr,
+					"error", err,
+					"default_sample_rate", sampleRate,
+				)
+			}
+		}
+
+		insecureMode := false
+		if val := os.Getenv("TRACING_INSECURE"); val != "" {
+			valLower := strings.ToLower(val)
+			insecureMode = valLower == "true" || valLower == "1" || valLower == "yes" || valLower == "on"
+		}
+
+		tracingConfig := tracing.Config{
+			ServiceName:  "subcults-api",
+			Enabled:      true,
+			Environment:  env,
+			ExporterType: exporterType,
+			OTLPEndpoint: os.Getenv("TRACING_OTLP_ENDPOINT"),
+			SamplingRate: sampleRate,
+			InsecureMode: insecureMode,
+		}
+
+		var err error
+		tracerProvider, err = tracing.NewProvider(tracingConfig)
+		if err != nil {
+			logger.Error("failed to initialize tracing", "error", err)
+			os.Exit(1)
+		}
+		logger.Info("tracing initialized",
+			"exporter", exporterType,
+			"endpoint", tracingConfig.OTLPEndpoint,
+			"sample_rate", sampleRate,
+		)
+	} else {
+		logger.Info("tracing disabled")
+	}
 
 	// Parse trust ranking feature flag from environment
 	// Accepts: true/false, 1/0, yes/no, on/off (case-insensitive)
@@ -683,17 +747,35 @@ func main() {
 	})
 
 	// Apply middleware chain:
-	// 1. General rate limiting (1000 req/min per IP) - blocks excessive requests early
-	// 2. HTTP metrics - captures request duration, sizes, and counts
-	// 3. RequestID - generates/extracts request IDs for tracing
-	// 4. Logging - logs requests with all context
-	handler := middleware.RateLimiter(rateLimitStore, generalLimit, middleware.IPKeyFunc(), rateLimitMetrics)(
-		middleware.HTTPMetrics(rateLimitMetrics)(
-			middleware.RequestID(
-				middleware.Logging(logger)(mux),
-			),
-		),
-	)
+	// The following middleware are applied in reverse order (innermost to outermost).
+	// This means the request flows through them in the order listed below (1→5),
+	// but they are applied to the handler in reverse order (5→1).
+	//
+	// Request flow (what executes first to last):
+	// 1. Tracing - OpenTelemetry instrumentation (if enabled)
+	// 2. General rate limiting (1000 req/min per IP) - blocks excessive requests early
+	// 3. HTTP metrics - captures request duration, sizes, and counts
+	// 4. RequestID - generates/extracts request IDs for tracing
+	// 5. Logging - logs requests with all context
+	var handler http.Handler = mux
+	
+	// Apply middleware in reverse order of execution
+	// Logging is applied first (innermost, executes last)
+	handler = middleware.Logging(logger)(handler)
+	
+	// Then RequestID
+	handler = middleware.RequestID(handler)
+	
+	// Then HTTP metrics
+	handler = middleware.HTTPMetrics(rateLimitMetrics)(handler)
+	
+	// Then rate limiting
+	handler = middleware.RateLimiter(rateLimitStore, generalLimit, middleware.IPKeyFunc(), rateLimitMetrics)(handler)
+	
+	// Finally, tracing (outermost, executes first) - only if enabled
+	if tracingEnabled {
+		handler = middleware.Tracing("subcults-api")(handler)
+	}
 
 	server := &http.Server{
 		Addr:         ":" + port,
@@ -722,6 +804,13 @@ func main() {
 	// Create context with timeout for shutdown
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
+
+	// Shutdown tracer provider first to flush pending spans
+	if tracerProvider != nil {
+		if err := tracerProvider.Shutdown(ctx); err != nil {
+			logger.Error("failed to shutdown tracer provider", "error", err)
+		}
+	}
 
 	if err := server.Shutdown(ctx); err != nil {
 		logger.Error("server forced to shutdown", "error", err)
