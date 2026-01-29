@@ -33,8 +33,18 @@ type RecomputeJobConfig struct {
 	Logger *slog.Logger
 	// Metrics for performance tracking.
 	Metrics *Metrics
+	// JobMetrics for centralized background job tracking.
+	JobMetrics JobMetrics
 	// Timeout for each recompute cycle.
 	Timeout time.Duration
+}
+
+// JobMetrics provides centralized background job metrics tracking.
+// This interface allows the job to report to the centralized job metrics system.
+type JobMetrics interface {
+	IncJobsTotal(jobType, status string)
+	ObserveJobDuration(jobType string, seconds float64)
+	IncJobErrors(jobType, errorType string)
 }
 
 // DefaultRecomputeInterval is the default interval between recompute cycles.
@@ -178,6 +188,9 @@ func (j *RecomputeJob) recomputeDirtyScenes(parentCtx context.Context) {
 			if j.config.Metrics != nil {
 				j.config.Metrics.IncRecomputeErrors()
 			}
+			if j.config.JobMetrics != nil {
+				j.config.JobMetrics.IncJobErrors("trust_recompute", "timeout")
+			}
 			return
 		default:
 		}
@@ -198,6 +211,9 @@ func (j *RecomputeJob) recomputeDirtyScenes(parentCtx context.Context) {
 				"error", err)
 			if j.config.Metrics != nil {
 				j.config.Metrics.IncRecomputeErrors()
+			}
+			if j.config.JobMetrics != nil {
+				j.config.JobMetrics.IncJobErrors("trust_recompute", "recompute_error")
 			}
 			continue
 		}
@@ -227,12 +243,24 @@ func (j *RecomputeJob) recomputeDirtyScenes(parentCtx context.Context) {
 		avgVariance = varianceSum / float64(varianceCount)
 	}
 
+	// Determine job status
+	status := "success"
+	if successCount < sceneCount {
+		status = "failure"
+	}
+
 	// Update metrics
 	if j.config.Metrics != nil {
 		j.config.Metrics.IncRecomputeTotal()
 		j.config.Metrics.ObserveRecomputeDuration(duration)
 		j.config.Metrics.SetLastRecomputeTimestamp(float64(time.Now().Unix()))
 		j.config.Metrics.SetLastRecomputeSceneCount(float64(successCount))
+	}
+
+	// Update centralized job metrics
+	if j.config.JobMetrics != nil {
+		j.config.JobMetrics.IncJobsTotal("trust_recompute", status)
+		j.config.JobMetrics.ObserveJobDuration("trust_recompute", duration)
 	}
 
 	// Completion log with required fields
