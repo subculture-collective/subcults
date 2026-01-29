@@ -405,7 +405,7 @@ func (h *PaymentHandlers) GetPaymentStatus(w http.ResponseWriter, r *http.Reques
 	// If not the payment owner, check if they are the scene owner
 	isSceneOwner := false
 	if !isPaymentOwner {
-		scene, err := h.sceneRepo.GetByID(paymentRecord.SceneID)
+		scn, err := h.sceneRepo.GetByID(paymentRecord.SceneID)
 		if err != nil {
 			if err == scene.ErrSceneNotFound || err == scene.ErrSceneDeleted {
 				// Scene not found or deleted - deny access
@@ -418,7 +418,7 @@ func (h *PaymentHandlers) GetPaymentStatus(w http.ResponseWriter, r *http.Reques
 			WriteError(w, ctx, http.StatusInternalServerError, ErrCodeInternal, "failed to verify authorization")
 			return
 		}
-		isSceneOwner = scene.IsOwner(userDID)
+		isSceneOwner = scn.IsOwner(userDID)
 	}
 
 	// If neither payment owner nor scene owner, deny access
