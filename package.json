@@ -6,6 +6,9 @@
   "scripts": {
     "build": "cd web && npm run build && cd .. && mkdir -p dist && cp -r web/dist/* dist/",
     "test": "cd web && npm test",
+    "test:e2e": "cd e2e && npm run test:e2e",
+    "test:e2e:ui": "cd e2e && npm run test:e2e:ui",
+    "test:load": "cd e2e && npm run test:load",
     "lint": "cd web && npm run lint",
     "format": "prettier --write .",
     "format:check": "prettier --check ."
