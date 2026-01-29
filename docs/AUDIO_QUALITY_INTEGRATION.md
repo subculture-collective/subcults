@@ -1,0 +1,395 @@
+# Audio Quality Metrics Integration Guide
+
+## Overview
+
+This guide explains how to integrate the audio quality metrics handlers into the API server and set up periodic metrics collection.
+
+## API Handler Integration
+
+### 1. Initialize Quality Metrics Handler
+
+In `cmd/api/main.go`, add the quality metrics handler after initializing the stream handlers:
+
+```go
+// Initialize quality metrics repository
+qualityMetricsRepo := stream.NewPostgresQualityMetricsRepository(db)
+
+// Create quality metrics handler
+qualityMetricsHandler := api.NewQualityMetricsHandler(
+    roomService,
+    qualityMetricsRepo,
+    streamRepo,
+    streamMetrics,
+)
+```
+
+### 2. Register Quality Metrics Routes
+
+Add the following routes to the stream routing section in `cmd/api/main.go`:
+
+```go
+mux.HandleFunc("/streams/", func(w http.ResponseWriter, r *http.Request) {
+    pathParts := strings.Split(strings.TrimPrefix(r.URL.Path, "/streams/"), "/")
+
+    // ... existing routes ...
+
+    // Quality metrics routes
+    
+    // GET /streams/{id}/quality-metrics
+    if len(pathParts) == 2 && pathParts[0] != "" && pathParts[1] == "quality-metrics" && r.Method == http.MethodGet {
+        qualityMetricsHandler.GetStreamQualityMetrics(w, r)
+        return
+    }
+
+    // POST /streams/{id}/quality-metrics/collect
+    if len(pathParts) == 3 && pathParts[0] != "" && pathParts[1] == "quality-metrics" && pathParts[2] == "collect" && r.Method == http.MethodPost {
+        qualityMetricsHandler.CollectStreamQualityMetrics(w, r)
+        return
+    }
+
+    // GET /streams/{id}/quality-metrics/high-packet-loss
+    if len(pathParts) == 3 && pathParts[0] != "" && pathParts[1] == "quality-metrics" && pathParts[2] == "high-packet-loss" && r.Method == http.MethodGet {
+        qualityMetricsHandler.GetHighPacketLossParticipants(w, r)
+        return
+    }
+
+    // GET /streams/{id}/participants/{participant_id}/quality-metrics
+    if len(pathParts) == 4 && pathParts[0] != "" && pathParts[1] == "participants" && pathParts[3] == "quality-metrics" && r.Method == http.MethodGet {
+        qualityMetricsHandler.GetParticipantQualityMetrics(w, r)
+        return
+    }
+
+    // ... rest of stream routes ...
+})
+```
+
+### 3. Apply Authentication Middleware
+
+Ensure quality metrics endpoints are protected with authentication:
+
+```go
+// Wrap handler with authentication middleware
+authenticatedQualityMetricsHandler := middleware.Authenticate(jwtSecret)(
+    http.HandlerFunc(qualityMetricsHandler.CollectStreamQualityMetrics),
+)
+```
+
+## Periodic Metrics Collection
+
+### Background Job Approach
+
+Create a background goroutine to periodically collect metrics from active streams:
+
+```go
+// In cmd/api/main.go, after server initialization
+
+// Start background metrics collection
+go func() {
+    ticker := time.NewTicker(30 * time.Second) // Collect every 30 seconds
+    defer ticker.Stop()
+
+    for range ticker.C {
+        collectQualityMetrics(
+            context.Background(),
+            streamRepo,
+            qualityMetricsRepo,
+            roomService,
+            streamMetrics,
+            logger,
+        )
+    }
+}()
+
+// Helper function
+func collectQualityMetrics(
+    ctx context.Context,
+    streamRepo stream.SessionRepository,
+    metricsRepo stream.QualityMetricsRepository,
+    roomService *livekit.RoomService,
+    metrics *stream.Metrics,
+    logger *slog.Logger,
+) {
+    // Get all active streams
+    activeStreams, err := streamRepo.ListActive(ctx)
+    if err != nil {
+        logger.Error("failed to list active streams", "error", err)
+        return
+    }
+
+    for _, session := range activeStreams {
+        // Get participants from LiveKit
+        participants, err := roomService.GetAllParticipantStats(ctx, session.RoomName)
+        if err != nil {
+            logger.Error("failed to get participant stats",
+                "stream_id", session.ID,
+                "room_name", session.RoomName,
+                "error", err)
+            continue
+        }
+
+        // Collect metrics for each participant
+        measuredAt := time.Now()
+        for _, participant := range participants {
+            qualityMetrics := extractQualityMetrics(session.ID, participant, measuredAt)
+
+            // Store in database
+            if err := metricsRepo.RecordMetrics(qualityMetrics); err != nil {
+                logger.Error("failed to record quality metrics",
+                    "participant_id", participant.Identity,
+                    "error", err)
+                continue
+            }
+
+            // Update Prometheus metrics
+            updatePrometheusMetrics(metrics, qualityMetrics)
+
+            // Check for alerts
+            if qualityMetrics.HasPoorNetworkQuality() {
+                metrics.IncQualityAlerts()
+                logger.Warn("poor network quality detected",
+                    "stream_id", session.ID,
+                    "participant_id", participant.Identity,
+                    "packet_loss", qualityMetrics.PacketLossPercent,
+                    "jitter", qualityMetrics.JitterMs,
+                    "rtt", qualityMetrics.RTTMs)
+            }
+        }
+    }
+}
+
+// Helper to extract metrics (from quality_metrics_handlers.go)
+func extractQualityMetrics(streamID string, participant *livekit.ParticipantInfo, measuredAt time.Time) *stream.QualityMetrics {
+    metrics := &stream.QualityMetrics{
+        StreamSessionID: streamID,
+        ParticipantID:   participant.Identity,
+        MeasuredAt:      measuredAt,
+    }
+
+    // Extract stats from audio tracks
+    // Note: The exact extraction depends on LiveKit protocol version
+    // This is a placeholder for actual implementation
+
+    return metrics
+}
+
+// Helper to update Prometheus metrics
+func updatePrometheusMetrics(metrics *stream.Metrics, qualityMetrics *stream.QualityMetrics) {
+    if qualityMetrics.BitrateKbps != nil {
+        metrics.ObserveAudioBitrate(*qualityMetrics.BitrateKbps)
+    }
+    if qualityMetrics.JitterMs != nil {
+        metrics.ObserveAudioJitter(*qualityMetrics.JitterMs)
+    }
+    if qualityMetrics.PacketLossPercent != nil {
+        metrics.ObserveAudioPacketLoss(*qualityMetrics.PacketLossPercent)
+    }
+    if qualityMetrics.AudioLevel != nil {
+        metrics.ObserveAudioLevel(*qualityMetrics.AudioLevel)
+    }
+    if qualityMetrics.RTTMs != nil {
+        metrics.ObserveNetworkRTT(*qualityMetrics.RTTMs)
+    }
+}
+```
+
+### External Monitoring Service
+
+Alternatively, use an external service to poll the collection endpoint:
+
+```bash
+# Cron job example (runs every minute)
+*/1 * * * * curl -X POST http://api:8080/streams/active/quality-metrics/collect \
+    -H "Authorization: Bearer $API_TOKEN"
+```
+
+### Kubernetes CronJob
+
+```yaml
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: stream-quality-metrics-collector
+spec:
+  schedule: "*/1 * * * *"  # Every minute
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          containers:
+          - name: collector
+            image: curlimages/curl:latest
+            command:
+            - /bin/sh
+            - -c
+            - |
+              for stream_id in $(curl -s http://api:8080/streams/active | jq -r '.streams[].id'); do
+                curl -X POST "http://api:8080/streams/$stream_id/quality-metrics/collect" \
+                  -H "Authorization: Bearer $API_TOKEN"
+              done
+            env:
+            - name: API_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: api-secrets
+                  key: token
+          restartPolicy: OnFailure
+```
+
+## Database Migration
+
+Before using quality metrics, run the migration:
+
+```bash
+# Apply migration
+make migrate-up
+
+# Or manually
+./scripts/migrate.sh up
+```
+
+Verify the table was created:
+
+```sql
+SELECT * FROM stream_quality_metrics LIMIT 1;
+```
+
+## Testing
+
+### Manual Test
+
+1. Start an active stream
+2. Call the collect endpoint:
+
+```bash
+curl -X POST http://localhost:8080/streams/{stream_id}/quality-metrics/collect \
+  -H "Authorization: Bearer $JWT_TOKEN"
+```
+
+3. Verify metrics were recorded:
+
+```bash
+curl http://localhost:8080/streams/{stream_id}/quality-metrics \
+  -H "Authorization: Bearer $JWT_TOKEN"
+```
+
+### Check Prometheus Metrics
+
+```bash
+curl http://localhost:8080/metrics | grep stream_audio
+```
+
+Expected output:
+```
+# HELP stream_audio_bitrate_kbps Audio bitrate in kilobits per second
+# TYPE stream_audio_bitrate_kbps histogram
+stream_audio_bitrate_kbps_bucket{le="16"} 0
+stream_audio_bitrate_kbps_bucket{le="32"} 0
+...
+```
+
+## Monitoring Setup
+
+### Grafana Dashboard
+
+Import the dashboard from `docs/grafana/audio-quality-dashboard.json` (to be created).
+
+### Prometheus Alerts
+
+Add the alert rules from `docs/OBSERVABILITY.md` to your Prometheus configuration.
+
+### Log Monitoring
+
+Quality alerts are logged with structured fields:
+
+```json
+{
+  "level": "warn",
+  "msg": "poor network quality detected",
+  "stream_id": "uuid",
+  "participant_id": "user-abc123",
+  "packet_loss": 6.5,
+  "jitter": 45.2,
+  "rtt": 350.0
+}
+```
+
+Set up log aggregation to track quality issues over time.
+
+## Performance Considerations
+
+### Collection Frequency
+
+- **Default**: 30 seconds
+- **Low-latency requirements**: 15 seconds
+- **High volume**: 60 seconds
+
+### Database Cleanup
+
+Quality metrics can accumulate quickly. Set up a cleanup job:
+
+```sql
+-- Delete metrics older than 7 days
+DELETE FROM stream_quality_metrics
+WHERE measured_at < NOW() - INTERVAL '7 days';
+```
+
+Or use a cron job:
+
+```bash
+# Daily cleanup at 2 AM
+0 2 * * * psql $DATABASE_URL -c "DELETE FROM stream_quality_metrics WHERE measured_at < NOW() - INTERVAL '7 days';"
+```
+
+### Indexing
+
+The migration includes optimal indexes for common queries:
+
+- `idx_quality_metrics_session`: Stream session lookups
+- `idx_quality_metrics_participant`: Participant history
+- `idx_quality_metrics_packet_loss`: High packet loss queries (partial index)
+
+## Troubleshooting
+
+### No Metrics Collected
+
+1. Verify LiveKit connection:
+   ```bash
+   curl http://localhost:8080/health
+   ```
+
+2. Check stream is active:
+   ```bash
+   curl http://localhost:8080/streams/{id}
+   ```
+
+3. Verify LiveKit room exists:
+   - Check LiveKit dashboard
+   - Verify room name matches stream session
+
+### High Database Load
+
+- Reduce collection frequency
+- Implement batching for metrics storage
+- Enable connection pooling
+- Consider time-series database (e.g., TimescaleDB)
+
+### Missing Prometheus Metrics
+
+- Verify metrics are registered at startup
+- Check `/metrics` endpoint accessibility
+- Ensure metrics are being updated in handler
+- Verify Prometheus scrape config
+
+## Next Steps
+
+1. Implement client-side codec adaptation based on metrics
+2. Add WebSocket notifications for quality alerts
+3. Create quality trend visualizations
+4. Implement predictive quality analysis
+5. Add geographic quality correlation
+
+## See Also
+
+- [OBSERVABILITY.md](./OBSERVABILITY.md) - Full metrics documentation
+- [ARCHITECTURE.md](./ARCHITECTURE.md) - System architecture
+- [API Reference](./API_REFERENCE.md) - Complete API documentation
