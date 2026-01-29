@@ -169,6 +169,9 @@ func (h *StreamHandlers) CreateStream(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Check for concurrent start attempts - prevent duplicate streams for the same scene/event
+	// NOTE: This is a defensive check before database write. The database has unique partial indexes
+	// (idx_stream_scene_active_unique, idx_stream_event_active_unique) that enforce this constraint
+	// at the database level, preventing race conditions.
 	if req.SceneID != nil {
 		hasActive, err := h.streamRepo.HasActiveStreamForScene(*req.SceneID)
 		if err != nil {
@@ -208,8 +211,21 @@ func (h *StreamHandlers) CreateStream(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Create stream session in database first
+	// The database has unique partial indexes that prevent race conditions by ensuring
+	// only one active stream per scene/event. If a concurrent request slips through the
+	// pre-flight check above, the database will reject it with a unique constraint violation.
 	id, roomName, err := h.streamRepo.CreateStreamSession(req.SceneID, req.EventID, userDID)
 	if err != nil {
+		// Check if this is a unique constraint violation (concurrent stream attempt)
+		// Different database drivers return different error types, so we check the error message
+		if strings.Contains(err.Error(), "duplicate") || strings.Contains(err.Error(), "unique") || 
+		   strings.Contains(err.Error(), "idx_stream_scene_active_unique") || 
+		   strings.Contains(err.Error(), "idx_stream_event_active_unique") {
+			ctx = middleware.SetErrorCode(ctx, ErrCodeConflict)
+			WriteError(w, ctx, http.StatusConflict, ErrCodeConflict, "An active stream already exists")
+			return
+		}
+		
 		slog.ErrorContext(ctx, "failed to create stream session",
 			"error", err,
 			"user_did", userDID,
@@ -222,12 +238,17 @@ func (h *StreamHandlers) CreateStream(w http.ResponseWriter, r *http.Request) {
 	// Create LiveKit room with 2-hour timeout (7200 seconds)
 	// emptyTimeout: room closes 2 hours after last participant leaves
 	// maxParticipants: 0 = unlimited
+	//
+	// IMPORTANT: If room creation fails, we still proceed with the stream creation in the database.
+	// This design choice provides resilience against temporary LiveKit API failures. The room
+	// will be created on-demand when the first participant joins via the JoinStream handler.
+	// This ensures users can always create streams even if LiveKit is temporarily unavailable.
 	if h.roomService != nil {
 		_, err = h.roomService.CreateRoom(ctx, roomName, 7200, 0)
 		if err != nil {
-			// Log error but don't fail the request - room may already exist
-			// LiveKit will reuse existing rooms, which is acceptable
-			slog.WarnContext(ctx, "failed to create LiveKit room (may already exist)",
+			// Log error but don't fail the request - room may already exist or LiveKit may be temporarily down
+			// The room will be created on-demand during JoinStream if it doesn't exist
+			slog.WarnContext(ctx, "failed to create LiveKit room (will create on-demand during join)",
 				"error", err,
 				"room_name", roomName,
 				"stream_id", id,
@@ -332,15 +353,33 @@ func (h *StreamHandlers) EndStream(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Delete LiveKit room to disconnect all participants
+	// KNOWN LIMITATION: If room deletion fails with a non-retryable error after the database
+	// write succeeds, the stream will appear "ended" in the database but participants may remain
+	// connected in LiveKit. This is an acceptable trade-off for system resilience.
+	//
+	// Mitigation: LiveKit rooms have a 2-hour empty timeout configured at creation time.
+	// When all participants leave, the room will auto-cleanup within 2 hours. Additionally,
+	// operators can use LiveKit's admin API or dashboard to manually clean up orphaned rooms
+	// if needed (rooms where ended_at IS NOT NULL but LiveKit room still exists).
 	if h.roomService != nil {
 		err = h.roomService.DeleteRoom(ctx, session.RoomName)
 		if err != nil {
-			// Log error but don't fail the request - room may already be deleted
-			slog.WarnContext(ctx, "failed to delete LiveKit room (may not exist)",
-				"error", err,
-				"room_name", session.RoomName,
-				"stream_id", streamID,
-			)
+			// Check if this is a "room not found" error (already deleted is acceptable)
+			if errors.Is(err, livekitpkg.ErrRoomNotFound) {
+				slog.InfoContext(ctx, "LiveKit room already deleted",
+					"room_name", session.RoomName,
+					"stream_id", streamID,
+				)
+			} else {
+				// Log non-retryable errors as warnings for operator awareness
+				// These may require manual cleanup via LiveKit admin tools
+				slog.WarnContext(ctx, "failed to delete LiveKit room (may require manual cleanup)",
+					"error", err,
+					"room_name", session.RoomName,
+					"stream_id", streamID,
+					"note", "Room will auto-cleanup after 2-hour empty timeout or can be manually removed via LiveKit admin",
+				)
+			}
 		} else {
 			slog.InfoContext(ctx, "deleted LiveKit room",
 				"room_name", session.RoomName,

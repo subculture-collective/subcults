@@ -13,6 +13,9 @@ import (
 var (
 	// ErrRoomServiceNotConfigured is returned when room service operations are attempted without proper configuration.
 	ErrRoomServiceNotConfigured = errors.New("livekit room service not configured")
+	
+	// ErrRoomNotFound is returned when a requested room does not exist in LiveKit.
+	ErrRoomNotFound = errors.New("room not found")
 )
 
 // RoomService provides operations for managing LiveKit rooms.
@@ -81,6 +84,7 @@ func (s *RoomService) DeleteRoom(ctx context.Context, roomName string) error {
 }
 
 // GetRoom retrieves information about a specific LiveKit room.
+// Returns ErrRoomNotFound if the room does not exist in LiveKit.
 func (s *RoomService) GetRoom(ctx context.Context, roomName string) (*livekit.Room, error) {
 	if s.roomClient == nil {
 		return nil, ErrRoomServiceNotConfigured
@@ -94,7 +98,7 @@ func (s *RoomService) GetRoom(ctx context.Context, roomName string) (*livekit.Ro
 	}
 
 	if len(resp.Rooms) == 0 {
-		return nil, fmt.Errorf("room not found")
+		return nil, ErrRoomNotFound
 	}
 
 	return resp.Rooms[0], nil
