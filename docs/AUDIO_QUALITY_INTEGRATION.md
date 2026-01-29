@@ -109,7 +109,20 @@ func collectQualityMetrics(
     metrics *stream.Metrics,
     logger *slog.Logger,
 ) {
-    // Get all active streams
+    // NOTE: SessionRepository does not have a ListActive method.
+    // You'll need to implement a method to get active streams, for example:
+    // - Add ListActive() method to SessionRepository interface
+    // - Query database directly: SELECT * FROM stream_sessions WHERE ended_at IS NULL
+    // - Or maintain an in-memory cache of active streams
+    //
+    // Example implementation (requires adding to repository):
+    //   activeStreams, err := streamRepo.ListActive(ctx)
+    //
+    // For now, this is a conceptual example showing the collection pattern.
+
+    logger.Info("quality metrics collection skipped - ListActive not implemented")
+    // Uncomment and implement once ListActive is available:
+    /*
     activeStreams, err := streamRepo.ListActive(ctx)
     if err != nil {
         logger.Error("failed to list active streams", "error", err)
@@ -157,19 +170,16 @@ func collectQualityMetrics(
     }
 }
 
-// Helper to extract metrics (from quality_metrics_handlers.go)
+// Helper to extract metrics (placeholder - see quality_metrics_handlers.go for full docs)
 func extractQualityMetrics(streamID string, participant *livekit.ParticipantInfo, measuredAt time.Time) *stream.QualityMetrics {
-    metrics := &stream.QualityMetrics{
+    // NOTE: This is a placeholder. Actual extraction depends on LiveKit protocol version.
+    // See internal/api/quality_metrics_handlers.go for detailed implementation notes.
+    return &stream.QualityMetrics{
         StreamSessionID: streamID,
         ParticipantID:   participant.Identity,
         MeasuredAt:      measuredAt,
+        // TODO: Extract actual metrics from participant.Tracks[].Stats
     }
-
-    // Extract stats from audio tracks
-    // Note: The exact extraction depends on LiveKit protocol version
-    // This is a placeholder for actual implementation
-
-    return metrics
 }
 
 // Helper to update Prometheus metrics
@@ -194,12 +204,27 @@ func updatePrometheusMetrics(metrics *stream.Metrics, qualityMetrics *stream.Qua
 
 ### External Monitoring Service
 
-Alternatively, use an external service to poll the collection endpoint:
+Alternatively, use an external service to poll the collection endpoint.
+
+**Note**: You'll need to iterate through active streams. Here's a conceptual example:
 
 ```bash
-# Cron job example (runs every minute)
-*/1 * * * * curl -X POST http://api:8080/streams/active/quality-metrics/collect \
-    -H "Authorization: Bearer $API_TOKEN"
+# Bash script to collect metrics for all active streams
+# This requires implementing an endpoint to list active streams
+
+#!/bin/bash
+API_TOKEN="your-jwt-token"
+API_URL="http://api:8080"
+
+# Get active stream IDs (requires implementing /streams?status=active endpoint)
+STREAMS=$(curl -s "$API_URL/streams?status=active" -H "Authorization: Bearer $API_TOKEN" | jq -r '.streams[].id')
+
+# Collect metrics for each stream
+for stream_id in $STREAMS; do
+    echo "Collecting metrics for stream $stream_id"
+    curl -X POST "$API_URL/streams/$stream_id/quality-metrics/collect" \
+        -H "Authorization: Bearer $API_TOKEN"
+done
 ```
 
 ### Kubernetes CronJob
@@ -222,7 +247,10 @@ spec:
             - /bin/sh
             - -c
             - |
-              for stream_id in $(curl -s http://api:8080/streams/active | jq -r '.streams[].id'); do
+              # Get active streams (requires implementing /streams?status=active endpoint)
+              for stream_id in $(curl -s -H "Authorization: Bearer $API_TOKEN" \
+                "http://api:8080/streams?status=active" | jq -r '.streams[].id'); do
+                
                 curl -X POST "http://api:8080/streams/$stream_id/quality-metrics/collect" \
                   -H "Authorization: Bearer $API_TOKEN"
               done

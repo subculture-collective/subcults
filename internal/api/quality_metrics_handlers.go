@@ -72,11 +72,13 @@ func (h *QualityMetricsHandler) GetStreamQualityMetrics(w http.ResponseWriter, r
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]interface{}{
+	if err := json.NewEncoder(w).Encode(map[string]interface{}{
 		"stream_id": streamID,
 		"metrics":   metrics,
 		"count":     len(metrics),
-	})
+	}); err != nil {
+		slog.ErrorContext(ctx, "failed to encode response", "error", err)
+	}
 }
 
 // GetParticipantQualityMetrics retrieves quality metrics for a specific participant.
@@ -113,7 +115,9 @@ func (h *QualityMetricsHandler) GetParticipantQualityMetrics(w http.ResponseWrit
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(metrics)
+	if err := json.NewEncoder(w).Encode(metrics); err != nil {
+		slog.ErrorContext(ctx, "failed to encode response", "error", err)
+	}
 }
 
 // CollectStreamQualityMetrics collects quality metrics from LiveKit for all participants in a stream.
@@ -199,13 +203,15 @@ func (h *QualityMetricsHandler) CollectStreamQualityMetrics(w http.ResponseWrite
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]interface{}{
+	if err := json.NewEncoder(w).Encode(map[string]interface{}{
 		"stream_id":        streamID,
 		"participants":     len(participants),
 		"metrics_recorded": recordedCount,
 		"alerts_triggered": alertsTriggered,
 		"measured_at":      measuredAt,
-	})
+	}); err != nil {
+		slog.ErrorContext(ctx, "failed to encode response", "error", err)
+	}
 }
 
 // GetHighPacketLossParticipants returns participants with recent high packet loss.
@@ -243,15 +249,35 @@ func (h *QualityMetricsHandler) GetHighPacketLossParticipants(w http.ResponseWri
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]interface{}{
+	if err := json.NewEncoder(w).Encode(map[string]interface{}{
 		"stream_id":      streamID,
 		"since_minutes":  sinceMinutes,
 		"participants":   participants,
 		"count":          len(participants),
-	})
+	}); err != nil {
+		slog.ErrorContext(ctx, "failed to encode response", "error", err)
+	}
 }
 
 // extractQualityMetrics extracts quality metrics from LiveKit ParticipantInfo.
+// 
+// NOTE: This is a placeholder implementation. The actual extraction of quality
+// metrics from LiveKit's ParticipantInfo depends on the specific fields available
+// in the version of livekit/protocol being used. 
+//
+// To implement full extraction, inspect ParticipantInfo.Tracks and extract:
+// - Bitrate from track.Bitrate or track stats
+// - Jitter from connection quality stats
+// - Packet loss from connection quality stats
+// - Audio level from track volume
+// - RTT from connection stats
+//
+// Example (requires protocol-specific implementation):
+//   for _, track := range participant.Tracks {
+//       if track.Type == livekit.TrackType_AUDIO && track.Stats != nil {
+//           // Extract from track.Stats fields based on protocol version
+//       }
+//   }
 func extractQualityMetrics(streamID string, participant *livekit.ParticipantInfo, measuredAt time.Time) *stream.QualityMetrics {
 	metrics := &stream.QualityMetrics{
 		StreamSessionID: streamID,
@@ -259,20 +285,13 @@ func extractQualityMetrics(streamID string, participant *livekit.ParticipantInfo
 		MeasuredAt:      measuredAt,
 	}
 
-	// Extract stats from audio tracks
-	for _, track := range participant.Tracks {
-		if track.Type == livekit.TrackType_AUDIO {
-			// Extract quality metrics from track
-			// Note: LiveKit's ParticipantInfo includes track statistics
-			// The exact fields depend on the LiveKit protocol version
-			
-			// Bitrate (convert from bps to kbps)
-			if track.Muted == false {
-				// Placeholder: In real implementation, extract from track stats
-				// For now, we'll leave these nil to be populated by actual LiveKit data
-			}
-		}
-	}
+	// TODO: Extract actual quality metrics from LiveKit ParticipantInfo
+	// The exact implementation depends on the LiveKit protocol version and
+	// available fields in ParticipantInfo.Tracks[].Stats or ConnectionQuality
+	//
+	// Until this is implemented, metrics will be stored with nil values,
+	// which is acceptable for testing the infrastructure but will not provide
+	// actual quality data for monitoring.
 
 	return metrics
 }

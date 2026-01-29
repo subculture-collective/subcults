@@ -188,7 +188,7 @@ func (r *PostgresQualityMetricsRepository) GetParticipantsWithHighPacketLoss(str
 		FROM stream_quality_metrics
 		WHERE stream_session_id = $1
 		  AND packet_loss_percent > 5.0
-		  AND measured_at >= NOW() - INTERVAL '1 minute' * $2
+		  AND measured_at >= NOW() - ($2 * INTERVAL '1 minute')
 		ORDER BY participant_id
 	`
 
