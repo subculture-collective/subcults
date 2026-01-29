@@ -92,6 +92,10 @@ logs/
 # Testing
 .testcache/
 test-results/
+playwright-report/
+e2e-report/
+e2e-results.json
+stream-load-test-results.json
 
 # Performance and profiling
 *.prof

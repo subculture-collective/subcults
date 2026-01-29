@@ -1,4 +1,4 @@
-.PHONY: help build build-api build-frontend test lint clean tidy verify fmt \
+.PHONY: help build build-api build-frontend test test-e2e test-load lint clean tidy verify fmt \
 	migrate-up migrate-down compose-up compose-down logs dev dev-api dev-frontend dev-indexer
 
 # Default target
@@ -35,9 +35,18 @@ build-frontend:
 test:
 	@echo "Running Go tests..."
 	go test -v -race -cover ./...
-	@echo "Running frontend tests..."
-	@echo "No frontend tests defined in package.json; skipping frontend tests."
+	@echo "Running frontend tests (if defined in package.json)..."
 	npm run test --if-present
+
+## test-e2e: Run E2E tests for streaming functionality
+test-e2e:
+	@echo "Running E2E tests..."
+	npm run test:e2e
+
+## test-load: Run k6 load tests for streaming
+test-load:
+	@echo "Running load tests..."
+	npm run test:load
 
 ## lint: Run linters
 lint:
