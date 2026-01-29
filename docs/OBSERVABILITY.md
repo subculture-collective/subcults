@@ -311,6 +311,175 @@ groups:
           description: "Pending messages: {{ $value }} (threshold: 1000)"
 ```
 
+### Background Job Metrics
+
+Background jobs (trust recomputation, payment processing, stream cleanup, etc.) expose centralized metrics for monitoring health and performance.
+
+#### `background_jobs_total`
+
+**Type**: Counter  
+**Labels**: `job_type`, `status`  
+**Description**: Total number of background job executions by type and status.
+
+**Job Types**:
+- `trust_recompute` - Trust score recomputation jobs
+- `index_backfill` - Index backfill operations
+- `index_processing` - Continuous index message processing
+- `payment_processing` - Payment webhook processing
+- `stream_cleanup` - Stream session cleanup
+- `cache_invalidation` - Cache invalidation jobs
+- `report_generation` - Report generation jobs
+
+**Status Values**:
+- `success` - Job completed successfully
+- `failure` - Job completed with errors
+
+**Usage**: Track job execution frequency, success rates, and failure patterns.
+
+**Example Queries**:
+```promql
+# Success rate by job type (last 5 minutes)
+sum(rate(background_jobs_total{status="success"}[5m])) by (job_type) /
+sum(rate(background_jobs_total[5m])) by (job_type)
+
+# Total successful jobs in the last hour
+sum(increase(background_jobs_total{status="success"}[1h])) by (job_type)
+
+# Failed trust recompute jobs
+sum(increase(background_jobs_total{job_type="trust_recompute", status="failure"}[1h]))
+
+# Overall job failure rate
+rate(background_jobs_total{status="failure"}[5m]) /
+rate(background_jobs_total[5m])
+```
+
+#### `background_jobs_duration_seconds`
+
+**Type**: Histogram  
+**Labels**: `job_type`  
+**Description**: Histogram of background job execution duration in seconds.
+
+**Buckets**: 0.1, 0.25, 0.5, 1.0, 2.0, 5.0, 10.0, 30.0, 60.0, 120.0 seconds
+
+**Usage**: Monitor job performance, detect slowdowns, and set SLOs.
+
+**Example Queries**:
+```promql
+# 95th percentile job duration by type
+histogram_quantile(0.95, rate(background_jobs_duration_seconds_bucket[5m])) by (job_type)
+
+# 50th percentile (median) duration
+histogram_quantile(0.50, rate(background_jobs_duration_seconds_bucket[5m])) by (job_type)
+
+# Average job duration
+rate(background_jobs_duration_seconds_sum[5m]) /
+rate(background_jobs_duration_seconds_count[5m])
+
+# Jobs exceeding 30 second threshold
+sum(rate(background_jobs_duration_seconds_bucket{le="30.0"}[5m])) by (job_type) /
+sum(rate(background_jobs_duration_seconds_count[5m])) by (job_type) < 0.95
+```
+
+#### `background_job_errors_total`
+
+**Type**: Counter  
+**Labels**: `job_type`, `error_type`  
+**Description**: Total number of background job errors by type and error category.
+
+**Common Error Types**:
+- `timeout` - Job exceeded execution timeout
+- `database_error` - Database operation failure
+- `network_error` - Network connectivity issue
+- `validation_error` - Input validation failure
+- `permission_denied` - Authorization failure
+- `recompute_error` - Trust score computation error
+- `not_found` - Resource not found
+
+**Usage**: Track specific error patterns and identify failure root causes.
+
+**Example Queries**:
+```promql
+# Error rate by type for trust recompute
+rate(background_job_errors_total{job_type="trust_recompute"}[5m]) by (error_type)
+
+# Most common error types across all jobs
+topk(5, sum(rate(background_job_errors_total[1h])) by (error_type))
+
+# Timeout errors in the last hour
+sum(increase(background_job_errors_total{error_type="timeout"}[1h])) by (job_type)
+
+# Jobs with high database error rates
+sum(rate(background_job_errors_total{error_type="database_error"}[5m])) by (job_type) > 0.1
+```
+
+### Background Job Alert Conditions
+
+Recommended Prometheus alert rules for background jobs:
+
+```yaml
+groups:
+  - name: background_jobs
+    rules:
+      # High job failure rate
+      - alert: HighBackgroundJobFailureRate
+        expr: |
+          sum(rate(background_jobs_total{status="failure"}[5m])) by (job_type) /
+          sum(rate(background_jobs_total[5m])) by (job_type) > 0.1
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High failure rate for {{ $labels.job_type }}"
+          description: "Failure rate is {{ $value | humanizePercentage }}"
+
+      # Job duration exceeding SLO
+      - alert: BackgroundJobSlow
+        expr: |
+          histogram_quantile(0.95,
+            rate(background_jobs_duration_seconds_bucket[5m])
+          ) by (job_type) > 60
+        for: 15m
+        labels:
+          severity: warning
+        annotations:
+          summary: "{{ $labels.job_type }} p95 duration exceeding 60s"
+          description: "p95 duration is {{ $value }}s"
+
+      # Job not running (no executions in expected interval)
+      - alert: BackgroundJobStalled
+        expr: |
+          (time() - (
+            max(background_jobs_total) by (job_type) > bool 0
+          )) > 600
+        labels:
+          severity: critical
+        annotations:
+          summary: "{{ $labels.job_type }} has not run in 10 minutes"
+          description: "Check job scheduler and service health"
+
+      # High timeout error rate
+      - alert: BackgroundJobTimeouts
+        expr: |
+          sum(rate(background_job_errors_total{error_type="timeout"}[5m])) by (job_type) > 0.05
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High timeout rate for {{ $labels.job_type }}"
+          description: "Timeout error rate is {{ $value }}/sec"
+
+      # Database errors in jobs
+      - alert: BackgroundJobDatabaseErrors
+        expr: |
+          sum(rate(background_job_errors_total{error_type="database_error"}[5m])) by (job_type) > 0
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Database errors in {{ $labels.job_type }}"
+          description: "Database error rate is {{ $value }}/sec"
+```
+
 ## Recording Join/Leave Events
 
 ### Join Event
