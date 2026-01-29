@@ -107,13 +107,13 @@ func main() {
 	}
 	logger.Info("stream metrics registered")
 
-	// Initialize rate limiting metrics
+	// Initialize HTTP and rate limiting metrics
 	rateLimitMetrics := middleware.NewMetrics()
 	if err := rateLimitMetrics.Register(promRegistry); err != nil {
-		logger.Error("failed to register rate limit metrics", "error", err)
+		logger.Error("failed to register middleware metrics", "error", err)
 		os.Exit(1)
 	}
-	logger.Info("rate limit metrics registered")
+	logger.Info("middleware metrics registered (HTTP request metrics and rate limiting)")
 
 	// Initialize rate limiting
 	// Check if Redis URL is configured for distributed rate limiting
@@ -682,11 +682,16 @@ func main() {
 		}
 	})
 
-	// Apply middleware: General rate limiting (1000 req/min per IP) -> RequestID -> Logging
-	// Rate limiting is applied first to protect all endpoints by default
+	// Apply middleware chain:
+	// 1. General rate limiting (1000 req/min per IP) - blocks excessive requests early
+	// 2. HTTP metrics - captures request duration, sizes, and counts
+	// 3. RequestID - generates/extracts request IDs for tracing
+	// 4. Logging - logs requests with all context
 	handler := middleware.RateLimiter(rateLimitStore, generalLimit, middleware.IPKeyFunc(), rateLimitMetrics)(
-		middleware.RequestID(
-			middleware.Logging(logger)(mux),
+		middleware.HTTPMetrics(rateLimitMetrics)(
+			middleware.RequestID(
+				middleware.Logging(logger)(mux),
+			),
 		),
 	)
 
