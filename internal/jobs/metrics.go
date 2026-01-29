@@ -29,6 +29,14 @@ const (
 	StatusFailure = "failure"
 )
 
+// Reporter provides the interface for centralized background job metrics tracking.
+// This interface allows jobs to report to the centralized job metrics system.
+type Reporter interface {
+	IncJobsTotal(jobType, status string)
+	ObserveJobDuration(jobType string, seconds float64)
+	IncJobErrors(jobType, errorType string)
+}
+
 // Metrics contains Prometheus metrics for background job operations.
 // All operations are thread-safe.
 type Metrics struct {

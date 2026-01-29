@@ -349,8 +349,8 @@ sum(increase(background_jobs_total{status="success"}[1h])) by (job_type)
 sum(increase(background_jobs_total{job_type="trust_recompute", status="failure"}[1h]))
 
 # Overall job failure rate
-rate(background_jobs_total{status="failure"}[5m]) /
-rate(background_jobs_total[5m])
+sum(rate(background_jobs_total{status="failure"}[5m])) /
+sum(rate(background_jobs_total[5m]))
 ```
 
 #### `background_jobs_duration_seconds`
@@ -447,7 +447,7 @@ groups:
       # Job not running (no executions in expected interval)
       - alert: BackgroundJobStalled
         expr: |
-          rate(background_jobs_total[10m]) == 0
+          sum by (job_type) (rate(background_jobs_total[10m])) == 0
         labels:
           severity: critical
         annotations:

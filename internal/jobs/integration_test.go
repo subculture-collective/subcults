@@ -106,16 +106,12 @@ func TestJobMetricsWithTrustJob(t *testing.T) {
 		t.Fatalf("failed to register job metrics: %v", err)
 	}
 
-	// Simulate a trust recompute job execution
-	startTime := time.Now()
-
-	// Simulate job work
-	time.Sleep(10 * time.Millisecond)
+	// Simulate a trust recompute job execution with a known duration
+	testDuration := 0.123 // 123ms simulated work
 
 	// Record success
-	duration := time.Since(startTime).Seconds()
 	jobMetrics.IncJobsTotal(JobTypeTrustRecompute, StatusSuccess)
-	jobMetrics.ObserveJobDuration(JobTypeTrustRecompute, duration)
+	jobMetrics.ObserveJobDuration(JobTypeTrustRecompute, testDuration)
 
 	// Verify metrics were recorded
 	successCount := getCounterVecValue(jobMetrics.jobsTotal, JobTypeTrustRecompute, StatusSuccess)
@@ -128,36 +124,28 @@ func TestJobMetricsWithTrustJob(t *testing.T) {
 		t.Errorf("expected duration sample count 1, got %d", durationCount)
 	}
 
-	// Verify duration is reasonable
+	// Verify recorded duration matches what we observed
 	recordedDuration := getHistogramVecSampleSum(jobMetrics.jobsDuration, JobTypeTrustRecompute)
-	if recordedDuration < 0.01 || recordedDuration > 1.0 {
-		t.Errorf("unexpected duration: %f seconds", recordedDuration)
+	if recordedDuration != testDuration {
+		t.Errorf("recorded duration = %f, expected %f", recordedDuration, testDuration)
 	}
 
 	t.Logf("Trust job metrics integration verified (duration: %fs)", recordedDuration)
 }
 
-// TestJobMetricsNilSafe verifies that metrics work correctly when nil
-// (simulating optional metrics configuration).
+// TestJobMetricsNilSafe verifies that code using the Reporter interface
+// handles nil gracefully (simulating optional metrics configuration).
 func TestJobMetricsNilSafe(t *testing.T) {
-	// This demonstrates that job code can safely call metrics methods
-	// even when metrics are not configured (nil)
-	var m *Metrics = nil
+	// This demonstrates the pattern: check if metrics are configured before calling
+	var reporter Reporter = nil
 
-	// These operations should not panic
-	defer func() {
-		if r := recover(); r != nil {
-			t.Errorf("operations panicked with nil metrics: %v", r)
-		}
-	}()
-
-	// In real code, you'd check if m != nil before calling methods
-	// But this test verifies the behavior if someone forgets
-	if m != nil {
-		m.IncJobsTotal(JobTypeTrustRecompute, StatusSuccess)
-		m.ObserveJobDuration(JobTypeTrustRecompute, 1.0)
-		m.IncJobErrors(JobTypeTrustRecompute, "test")
+	// Real code should check if reporter != nil before calling methods
+	// This test documents the expected usage pattern
+	if reporter != nil {
+		reporter.IncJobsTotal(JobTypeTrustRecompute, StatusSuccess)
+		reporter.ObserveJobDuration(JobTypeTrustRecompute, 1.0)
+		reporter.IncJobErrors(JobTypeTrustRecompute, "test")
 	}
 
-	t.Log("Nil-safe operations verified")
+	t.Log("Nil-safe pattern verified: always check reporter != nil before calling methods")
 }

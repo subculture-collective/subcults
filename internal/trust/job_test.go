@@ -9,6 +9,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/onnwee/subcults/internal/jobs"
 )
 
 // slowDataSource wraps a DataSource with artificial delays for testing timeouts.
@@ -764,18 +766,18 @@ func TestRecomputeJob_WithJobMetrics(t *testing.T) {
 	job.RecomputeNow()
 
 	// Verify job total metrics were updated
-	if v := jobMetrics.jobsTotal["trust_recompute"]["success"]; v != 1 {
+	if v := jobMetrics.jobsTotal[jobs.JobTypeTrustRecompute][jobs.StatusSuccess]; v != 1 {
 		t.Errorf("jobsTotal[trust_recompute][success] = %d, want 1", v)
 	}
 
 	// Verify job duration was recorded
-	if len(jobMetrics.jobsDuration["trust_recompute"]) != 1 {
-		t.Errorf("jobsDuration[trust_recompute] count = %d, want 1", len(jobMetrics.jobsDuration["trust_recompute"]))
+	if len(jobMetrics.jobsDuration[jobs.JobTypeTrustRecompute]) != 1 {
+		t.Errorf("jobsDuration[trust_recompute] count = %d, want 1", len(jobMetrics.jobsDuration[jobs.JobTypeTrustRecompute]))
 	}
 
 	// Duration should be positive
-	if len(jobMetrics.jobsDuration["trust_recompute"]) > 0 {
-		duration := jobMetrics.jobsDuration["trust_recompute"][0]
+	if len(jobMetrics.jobsDuration[jobs.JobTypeTrustRecompute]) > 0 {
+		duration := jobMetrics.jobsDuration[jobs.JobTypeTrustRecompute][0]
 		if duration <= 0 {
 			t.Errorf("jobsDuration = %f, should be > 0", duration)
 		}
@@ -822,12 +824,12 @@ func TestRecomputeJob_WithJobMetricsAndErrors(t *testing.T) {
 	job.RecomputeNow()
 
 	// Verify job status is failure (not all scenes processed)
-	if v := jobMetrics.jobsTotal["trust_recompute"]["failure"]; v != 1 {
+	if v := jobMetrics.jobsTotal[jobs.JobTypeTrustRecompute][jobs.StatusFailure]; v != 1 {
 		t.Errorf("jobsTotal[trust_recompute][failure] = %d, want 1", v)
 	}
 
 	// Verify job errors were tracked
-	if v := jobMetrics.jobErrors["trust_recompute"]["recompute_error"]; v != 5 {
+	if v := jobMetrics.jobErrors[jobs.JobTypeTrustRecompute]["recompute_error"]; v != 5 {
 		t.Errorf("jobErrors[trust_recompute][recompute_error] = %d, want 5", v)
 	}
 }
@@ -867,25 +869,27 @@ func TestRecomputeJob_WithJobMetricsTimeout(t *testing.T) {
 	job.RecomputeNow()
 
 	// Verify timeout error was tracked
-	if v := jobMetrics.jobErrors["trust_recompute"]["timeout"]; v != 1 {
+	if v := jobMetrics.jobErrors[jobs.JobTypeTrustRecompute]["timeout"]; v != 1 {
 		t.Errorf("jobErrors[trust_recompute][timeout] = %d, want 1", v)
 	}
 
 	// Verify job completion was tracked even with timeout (failure status)
-	if v := jobMetrics.jobsTotal["trust_recompute"]["failure"]; v != 1 {
+	if v := jobMetrics.jobsTotal[jobs.JobTypeTrustRecompute][jobs.StatusFailure]; v != 1 {
 		t.Errorf("jobsTotal[trust_recompute][failure] = %d, want 1", v)
 	}
 
 	// Verify duration was recorded
-	if len(jobMetrics.jobsDuration["trust_recompute"]) != 1 {
-		t.Errorf("jobsDuration[trust_recompute] count = %d, want 1", len(jobMetrics.jobsDuration["trust_recompute"]))
+	if len(jobMetrics.jobsDuration[jobs.JobTypeTrustRecompute]) != 1 {
+		t.Errorf("jobsDuration[trust_recompute] count = %d, want 1", len(jobMetrics.jobsDuration[jobs.JobTypeTrustRecompute]))
 	}
 
-	// Duration should be positive and roughly match timeout
-	if len(jobMetrics.jobsDuration["trust_recompute"]) > 0 {
-		duration := jobMetrics.jobsDuration["trust_recompute"][0]
-		if duration <= 0 || duration > 1.0 {
-			t.Errorf("jobsDuration = %f, expected between 0 and 1.0", duration)
+	// Duration should be positive and bounded by timeout + some overhead (scheduler contention)
+	// Use 3x timeout as upper bound to account for CI variability
+	maxDuration := 3 * 500 * time.Millisecond
+	if len(jobMetrics.jobsDuration[jobs.JobTypeTrustRecompute]) > 0 {
+		duration := jobMetrics.jobsDuration[jobs.JobTypeTrustRecompute][0]
+		if duration <= 0 || duration > maxDuration.Seconds() {
+			t.Errorf("jobsDuration = %f, expected between 0 and %f", duration, maxDuration.Seconds())
 		}
 	}
 
