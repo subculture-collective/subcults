@@ -128,20 +128,32 @@ it('should announce loading state', () => {
 
 ### 5. Mock External Dependencies
 
-#### Mocking Stores (Zustand)
+#### Configuring Stores (Zustand)
 ```typescript
-import { vi } from 'vitest';
+import { beforeEach } from 'vitest';
+import { useThemeStore } from '../stores/themeStore';
 
-vi.mock('../stores/authStore', () => ({
-  useAuth: vi.fn(() => ({
-    user: { id: '123', name: 'Test User' },
-    isAuthenticated: true,
-  })),
-  useAuthActions: vi.fn(() => ({
-    login: vi.fn(),
-    logout: vi.fn(),
-  })),
-}));
+// Reset theme store to a known state before each test
+beforeEach(() => {
+  // Clear any persisted theme state
+  localStorage.clear();
+  
+  // Set initial state using setState
+  useThemeStore.setState({ theme: 'light' });
+  
+  // Clean up DOM if the store modifies it
+  document.documentElement.classList.remove('dark');
+});
+```
+
+**Note:** For custom stores like `authStore` that don't use Zustand, call the store's methods directly:
+```typescript
+import { authStore } from '../stores/authStore';
+
+beforeEach(() => {
+  // Reset to logged out state
+  authStore.logout();
+});
 ```
 
 #### Mocking API Calls
@@ -155,6 +167,30 @@ vi.mock('../lib/api-client', () => ({
 ```
 
 #### Mocking React Router
+```typescript
+import { vi } from 'vitest';
+
+// Mock useNavigate to test navigation
+const mockNavigate = vi.fn();
+vi.mock('react-router-dom', async () => {
+  const actual = await vi.importActual('react-router-dom');
+  return {
+    ...actual,
+    useNavigate: () => mockNavigate,
+  };
+});
+
+// In your test
+it('should navigate on button click', async () => {
+  const user = userEvent.setup();
+  render(<Component />);
+  
+  await user.click(screen.getByRole('button'));
+  expect(mockNavigate).toHaveBeenCalledWith('/expected-route');
+});
+```
+
+**Alternative:** Use `createMemoryRouter` for integration testing with real routing:
 ```typescript
 import { createMemoryRouter, RouterProvider } from 'react-router-dom';
 
@@ -414,10 +450,9 @@ logRoles(container); // Shows all roles in component
 
 See these files for comprehensive examples:
 
-- **SearchBar**: `src/components/SearchBar.test.tsx` - Keyboard nav, debounce, results
+- **SearchBar**: `src/components/SearchBar.test.tsx` - Keyboard nav, debounce, results, API mocking
+- **DarkModeToggle**: `src/components/DarkModeToggle.test.tsx` - Zustand store integration, theme toggling
 - **MiniPlayer**: `src/components/MiniPlayer.test.tsx` - Streaming controls, volume
-- **LoginPage**: `src/pages/LoginPage.test.tsx` - Forms, navigation, auth
-- **SettingsPage**: `src/pages/SettingsPage.test.tsx` - Settings, theme management
 - **MapView**: `src/components/MapView.test.tsx` - Map interaction, geolocation
 
 ## Continuous Integration

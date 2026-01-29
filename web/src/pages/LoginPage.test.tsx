@@ -3,25 +3,29 @@
  * Tests authentication form behavior and navigation
  */
 
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { createMemoryRouter, RouterProvider } from 'react-router-dom';
 import { LoginPage } from './LoginPage';
 import { authStore } from '../stores/authStore';
 
-// Mock authStore
-vi.mock('../stores/authStore', () => ({
-  authStore: {
-    setUser: vi.fn(),
-  },
-}));
+// Mock navigate to test navigation behavior
+const mockNavigate = vi.fn();
+vi.mock('react-router-dom', async () => {
+  const actual = await vi.importActual('react-router-dom');
+  return {
+    ...actual,
+    useNavigate: () => mockNavigate,
+  };
+});
 
 describe('LoginPage', () => {
-  const mockNavigate = vi.fn();
-
   beforeEach(() => {
     vi.clearAllMocks();
+    mockNavigate.mockClear();
+    // Reset auth state to logged out
+    authStore.logout();
   });
 
   const renderLoginPage = (initialEntries = ['/login']) => {
@@ -77,63 +81,62 @@ describe('LoginPage', () => {
   });
 
   describe('User Authentication', () => {
-    it('should call setUser with user role when login as user is clicked', async () => {
+    it('should authenticate user when login as user is clicked', async () => {
       const user = userEvent.setup();
       renderLoginPage();
 
       const userButton = screen.getByRole('button', { name: /Login as User/i });
       await user.click(userButton);
 
-      expect(authStore.setUser).toHaveBeenCalledWith(
-        {
-          did: 'did:example:test-user',
-          role: 'user',
-        },
-        'placeholder-access-token'
-      );
+      // Verify auth state changed
+      const state = authStore.getState();
+      expect(state.isAuthenticated).toBe(true);
+      expect(state.user?.role).toBe('user');
     });
 
-    it('should call setUser with admin role when login as admin is clicked', async () => {
+    it('should authenticate admin when login as admin is clicked', async () => {
       const user = userEvent.setup();
       renderLoginPage();
 
       const adminButton = screen.getByRole('button', { name: /Login as Admin/i });
       await user.click(adminButton);
 
-      expect(authStore.setUser).toHaveBeenCalledWith(
-        {
-          did: 'did:example:test-user',
-          role: 'admin',
-        },
-        'placeholder-access-token'
-      );
+      // Verify auth state changed
+      const state = authStore.getState();
+      expect(state.isAuthenticated).toBe(true);
+      expect(state.user?.role).toBe('admin');
+      expect(state.isAdmin).toBe(true);
     });
   });
 
   describe('Navigation', () => {
-    it('should navigate to home after user login', async () => {
+    it('should navigate away after user login', async () => {
       const user = userEvent.setup();
       renderLoginPage();
 
       const userButton = screen.getByRole('button', { name: /Login as User/i });
       await user.click(userButton);
 
-      // Should navigate away from login page
-      expect(screen.queryByRole('heading', { name: /login/i })).not.toBeInTheDocument();
+      // Verify navigation occurred
+      await waitFor(() => {
+        expect(mockNavigate).toHaveBeenCalled();
+      });
     });
 
-    it('should navigate to home after admin login', async () => {
+    it('should navigate away after admin login', async () => {
       const user = userEvent.setup();
       renderLoginPage();
 
       const adminButton = screen.getByRole('button', { name: /Login as Admin/i });
       await user.click(adminButton);
 
-      // Should navigate away from login page
-      expect(screen.queryByRole('heading', { name: /login/i })).not.toBeInTheDocument();
+      // Verify navigation occurred
+      await waitFor(() => {
+        expect(mockNavigate).toHaveBeenCalled();
+      });
     });
 
-    it('should redirect to the page user tried to visit after login', async () => {
+    it('should navigate to the intended page after login', async () => {
       const user = userEvent.setup();
       // Simulate user trying to visit /admin but being redirected to /login
       renderLoginPage([
@@ -146,8 +149,10 @@ describe('LoginPage', () => {
       const adminButton = screen.getByRole('button', { name: /Login as Admin/i });
       await user.click(adminButton);
 
-      // Should navigate away from login page
-      expect(screen.queryByRole('heading', { name: /login/i })).not.toBeInTheDocument();
+      // Should navigate to the originally requested page
+      await waitFor(() => {
+        expect(mockNavigate).toHaveBeenCalledWith('/admin', { replace: true });
+      });
     });
   });
 
@@ -198,7 +203,11 @@ describe('LoginPage', () => {
       expect(userButton).toHaveFocus();
       await user.keyboard('{Enter}');
 
-      expect(authStore.setUser).toHaveBeenCalled();
+      // Verify auth state changed
+      await waitFor(() => {
+        const state = authStore.getState();
+        expect(state.isAuthenticated).toBe(true);
+      });
     });
 
     it('should activate button with Space key', async () => {
@@ -212,7 +221,11 @@ describe('LoginPage', () => {
       expect(userButton).toHaveFocus();
       await user.keyboard(' ');
 
-      expect(authStore.setUser).toHaveBeenCalled();
+      // Verify auth state changed
+      await waitFor(() => {
+        const state = authStore.getState();
+        expect(state.isAuthenticated).toBe(true);
+      });
     });
   });
 });

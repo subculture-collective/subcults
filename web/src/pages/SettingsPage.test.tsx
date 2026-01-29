@@ -3,24 +3,17 @@
  * Tests settings page functionality and user interactions
  */
 
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach } from 'vitest';
 import { render, screen } from '@testing-library/react';
-import userEvent from '@testing-library/user-event';
 import { BrowserRouter } from 'react-router-dom';
 import { SettingsPage } from './SettingsPage';
-import { themeStore } from '../stores/themeStore';
-
-// Mock the stores
-vi.mock('../stores/themeStore', () => ({
-  useTheme: vi.fn(() => 'light'),
-  useThemeActions: vi.fn(() => ({
-    toggleTheme: vi.fn(),
-  })),
-}));
+import { useThemeStore } from '../stores/themeStore';
 
 describe('SettingsPage', () => {
   beforeEach(() => {
-    vi.clearAllMocks();
+    localStorage.clear();
+    useThemeStore.setState({ theme: 'light' });
+    document.documentElement.classList.remove('dark');
   });
 
   const renderSettingsPage = () => {
@@ -191,11 +184,9 @@ describe('SettingsPage', () => {
   });
 
   describe('Theme State', () => {
-    it('should display dark theme when store has dark theme', async () => {
-      // Re-mock for this specific test
-      const { useTheme } = await import('../stores/themeStore');
-      vi.mocked(useTheme).mockReturnValue('dark');
-
+    it('should display dark theme when store has dark theme', () => {
+      useThemeStore.setState({ theme: 'dark' });
+      
       renderSettingsPage();
       expect(screen.getByText('dark')).toBeInTheDocument();
     });
