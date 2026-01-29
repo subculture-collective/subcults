@@ -4,6 +4,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -93,7 +94,7 @@ func TestHTTPMetrics(t *testing.T) {
 			}
 			req := httptest.NewRequest(tt.method, tt.path, body)
 			if tt.requestBody != "" {
-				req.Header.Set("Content-Length", string(rune(len(tt.requestBody))))
+				req.Header.Set("Content-Length", strconv.Itoa(len(tt.requestBody)))
 			}
 
 			// Execute request

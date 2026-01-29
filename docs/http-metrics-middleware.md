@@ -45,6 +45,18 @@ The HTTP request metrics middleware automatically instruments all HTTP endpoints
 
 Health check endpoints (`/health` and `/ready`) are automatically excluded from metrics to prevent cardinality explosion and metric pollution.
 
+## Path Normalization
+
+To prevent cardinality explosion, dynamic path segments (IDs) are normalized to route patterns:
+
+- `/events/123` → `/events/{id}`
+- `/events/abc-def/cancel` → `/events/{id}/cancel`
+- `/streams/stream-456/join` → `/streams/{id}/join`
+- `/posts/post-789` → `/posts/{id}`
+- `/trust/did:plc:abc123` → `/trust/{id}`
+
+This ensures metrics remain aggregatable across different resource IDs while maintaining useful endpoint-level visibility. Static routes (e.g., `/search/events`, `/payments/checkout`) are not normalized.
+
 ## Middleware Chain
 
 The HTTP metrics middleware is integrated into the middleware chain as follows:
