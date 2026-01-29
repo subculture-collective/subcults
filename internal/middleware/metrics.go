@@ -7,17 +7,25 @@ import (
 
 // Metrics names as constants for consistency.
 const (
-	MetricRateLimitRequests    = "rate_limit_requests_total"
-	MetricRateLimitBlocked     = "rate_limit_blocked_total"
-	MetricRateLimitRedisErrors = "rate_limit_redis_errors_total"
+	MetricRateLimitRequests      = "rate_limit_requests_total"
+	MetricRateLimitBlocked       = "rate_limit_blocked_total"
+	MetricRateLimitRedisErrors   = "rate_limit_redis_errors_total"
+	MetricHTTPRequestDuration    = "http_request_duration_seconds"
+	MetricHTTPRequestsTotal      = "http_requests_total"
+	MetricHTTPRequestSizeBytes   = "http_request_size_bytes"
+	MetricHTTPResponseSizeBytes  = "http_response_size_bytes"
 )
 
 // Metrics contains Prometheus metrics for middleware operations.
 // All operations are thread-safe.
 type Metrics struct {
-	rateLimitRequests  *prometheus.CounterVec
-	rateLimitBlocked   *prometheus.CounterVec
+	rateLimitRequests    *prometheus.CounterVec
+	rateLimitBlocked     *prometheus.CounterVec
 	rateLimitRedisErrors prometheus.Counter
+	httpRequestDuration  *prometheus.HistogramVec
+	httpRequestsTotal    *prometheus.CounterVec
+	httpRequestSize      *prometheus.HistogramVec
+	httpResponseSize     *prometheus.HistogramVec
 }
 
 // NewMetrics creates and returns a new Metrics instance with all collectors initialized.
@@ -44,6 +52,37 @@ func NewMetrics() *Metrics {
 				Help: "Total number of Redis errors during rate limiting (fail-open events)",
 			},
 		),
+		httpRequestDuration: prometheus.NewHistogramVec(
+			prometheus.HistogramOpts{
+				Name:    MetricHTTPRequestDuration,
+				Help:    "HTTP request duration in seconds",
+				Buckets: []float64{0.01, 0.1, 0.5, 1.0, 2.0},
+			},
+			[]string{"method", "path", "status"},
+		),
+		httpRequestsTotal: prometheus.NewCounterVec(
+			prometheus.CounterOpts{
+				Name: MetricHTTPRequestsTotal,
+				Help: "Total number of HTTP requests",
+			},
+			[]string{"method", "path", "status"},
+		),
+		httpRequestSize: prometheus.NewHistogramVec(
+			prometheus.HistogramOpts{
+				Name:    MetricHTTPRequestSizeBytes,
+				Help:    "HTTP request size in bytes",
+				Buckets: prometheus.ExponentialBuckets(100, 10, 8), // 100 B to ~100 MB
+			},
+			[]string{"method", "path", "status"},
+		),
+		httpResponseSize: prometheus.NewHistogramVec(
+			prometheus.HistogramOpts{
+				Name:    MetricHTTPResponseSizeBytes,
+				Help:    "HTTP response size in bytes",
+				Buckets: prometheus.ExponentialBuckets(100, 10, 8), // 100 B to ~100 MB
+			},
+			[]string{"method", "path", "status"},
+		),
 	}
 }
 
@@ -54,6 +93,10 @@ func (m *Metrics) Register(reg prometheus.Registerer) error {
 		m.rateLimitRequests,
 		m.rateLimitBlocked,
 		m.rateLimitRedisErrors,
+		m.httpRequestDuration,
+		m.httpRequestsTotal,
+		m.httpRequestSize,
+		m.httpResponseSize,
 	}
 
 	for _, c := range collectors {
@@ -84,11 +127,34 @@ func (m *Metrics) IncRateLimitRedisErrors() {
 	m.rateLimitRedisErrors.Inc()
 }
 
+// ObserveHTTPRequest records HTTP request metrics.
+// method: HTTP method (e.g., "GET", "POST")
+// path: Request path (e.g., "/events")
+// status: HTTP status code (e.g., 200, 404)
+// duration: Request duration in seconds
+// requestSize: Request body size in bytes
+// responseSize: Response body size in bytes
+func (m *Metrics) ObserveHTTPRequest(method, path, status string, duration float64, requestSize, responseSize int64) {
+	labels := prometheus.Labels{
+		"method": method,
+		"path":   path,
+		"status": status,
+	}
+	m.httpRequestDuration.With(labels).Observe(duration)
+	m.httpRequestsTotal.With(labels).Inc()
+	m.httpRequestSize.With(labels).Observe(float64(requestSize))
+	m.httpResponseSize.With(labels).Observe(float64(responseSize))
+}
+
 // Collectors returns all Prometheus collectors for testing.
 func (m *Metrics) Collectors() []prometheus.Collector {
 	return []prometheus.Collector{
 		m.rateLimitRequests,
 		m.rateLimitBlocked,
 		m.rateLimitRedisErrors,
+		m.httpRequestDuration,
+		m.httpRequestsTotal,
+		m.httpRequestSize,
+		m.httpResponseSize,
 	}
 }
