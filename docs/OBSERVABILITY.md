@@ -571,7 +571,7 @@ rate(stream_audio_bitrate_kbps_sum[5m]) / rate(stream_audio_bitrate_kbps_count[5
 histogram_quantile(0.95, rate(stream_audio_jitter_ms_bucket[5m]))
 
 # Participants experiencing high jitter (>30ms)
-sum(rate(stream_audio_jitter_ms_bucket{le="30"}[5m])) / sum(rate(stream_audio_jitter_ms_count[5m]))
+1 - (sum(rate(stream_audio_jitter_ms_bucket{le="30"}[5m])) / sum(rate(stream_audio_jitter_ms_count[5m])))
 ```
 
 #### `stream_audio_packet_loss_percent`
@@ -591,7 +591,7 @@ sum(rate(stream_audio_jitter_ms_bucket{le="30"}[5m])) / sum(rate(stream_audio_ji
 histogram_quantile(0.95, rate(stream_audio_packet_loss_percent_bucket[5m]))
 
 # Participants experiencing high packet loss (>5%)
-sum(rate(stream_audio_packet_loss_percent_bucket{le="5"}[5m])) / sum(rate(stream_audio_packet_loss_percent_count[5m]))
+(sum(rate(stream_audio_packet_loss_percent_bucket{le="+Inf"}[5m])) - sum(rate(stream_audio_packet_loss_percent_bucket{le="5"}[5m]))) / sum(rate(stream_audio_packet_loss_percent_count[5m]))
 ```
 
 #### `stream_audio_level`
@@ -609,7 +609,7 @@ sum(rate(stream_audio_packet_loss_percent_bucket{le="5"}[5m])) / sum(rate(stream
 histogram_quantile(0.95, rate(stream_audio_level_bucket[5m]))
 
 # Percentage of time with active audio (>0.1)
-sum(rate(stream_audio_level_bucket{le="0.1"}[5m])) / sum(rate(stream_audio_level_count[5m]))
+(sum(rate(stream_audio_level_bucket{le="+Inf"}[5m])) - sum(rate(stream_audio_level_bucket{le="0.1"}[5m]))) / sum(rate(stream_audio_level_count[5m]))
 ```
 
 #### `stream_network_rtt_ms`

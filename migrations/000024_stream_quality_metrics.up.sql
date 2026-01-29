@@ -28,7 +28,10 @@ CREATE TABLE IF NOT EXISTS stream_quality_metrics (
 -- Indexes for efficient queries
 CREATE INDEX idx_quality_metrics_session ON stream_quality_metrics(stream_session_id, measured_at DESC);
 CREATE INDEX idx_quality_metrics_participant ON stream_quality_metrics(participant_id, measured_at DESC);
-CREATE INDEX idx_quality_metrics_packet_loss ON stream_quality_metrics(stream_session_id, packet_loss_percent DESC) WHERE packet_loss_percent > 5.0;
+-- Efficient lookup of latest metrics for a participant in a session
+CREATE INDEX idx_quality_metrics_session_participant_latest ON stream_quality_metrics(stream_session_id, participant_id, measured_at DESC);
+-- High packet loss scanning within recent time windows
+CREATE INDEX idx_quality_metrics_packet_loss ON stream_quality_metrics(stream_session_id, measured_at DESC, packet_loss_percent DESC) WHERE packet_loss_percent > 5.0;
 
 COMMENT ON TABLE stream_quality_metrics IS 'Real-time audio quality metrics for stream participants';
 COMMENT ON COLUMN stream_quality_metrics.bitrate_kbps IS 'Audio bitrate in kilobits per second';

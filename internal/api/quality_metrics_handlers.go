@@ -43,10 +43,18 @@ func NewQualityMetricsHandler(
 func (h *QualityMetricsHandler) GetStreamQualityMetrics(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	
+	// Require authenticated user
+	userDID := middleware.GetUserDID(ctx)
+	if userDID == "" {
+		ctx = middleware.SetErrorCode(ctx, ErrCodeAuthFailed)
+		WriteError(w, ctx, http.StatusUnauthorized, ErrCodeAuthFailed, "Authentication required")
+		return
+	}
+	
 	// Extract stream ID from URL path
 	// Expected: /streams/{id}/quality-metrics
 	pathParts := strings.Split(strings.TrimPrefix(r.URL.Path, "/streams/"), "/")
-	if len(pathParts) < 2 || pathParts[0] == "" {
+	if len(pathParts) != 2 || pathParts[0] == "" || pathParts[1] != "quality-metrics" {
 		ctx = middleware.SetErrorCode(ctx, ErrCodeBadRequest)
 		WriteError(w, ctx, http.StatusBadRequest, ErrCodeBadRequest, "Invalid URL path")
 		return
@@ -86,10 +94,22 @@ func (h *QualityMetricsHandler) GetStreamQualityMetrics(w http.ResponseWriter, r
 func (h *QualityMetricsHandler) GetParticipantQualityMetrics(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	
+	// Require authenticated user
+	userDID := middleware.GetUserDID(ctx)
+	if userDID == "" {
+		ctx = middleware.SetErrorCode(ctx, ErrCodeAuthFailed)
+		WriteError(w, ctx, http.StatusUnauthorized, ErrCodeAuthFailed, "Authentication required")
+		return
+	}
+	
 	// Extract stream ID and participant ID from URL path
 	// Expected: /streams/{id}/participants/{participant_id}/quality-metrics
 	pathParts := strings.Split(strings.TrimPrefix(r.URL.Path, "/streams/"), "/")
-	if len(pathParts) < 4 || pathParts[0] == "" || pathParts[2] == "" {
+	if len(pathParts) != 4 ||
+		pathParts[0] == "" || // stream ID
+		pathParts[1] != "participants" ||
+		pathParts[2] == "" || // participant ID
+		pathParts[3] != "quality-metrics" {
 		ctx = middleware.SetErrorCode(ctx, ErrCodeBadRequest)
 		WriteError(w, ctx, http.StatusBadRequest, ErrCodeBadRequest, "Invalid URL path")
 		return
@@ -126,10 +146,18 @@ func (h *QualityMetricsHandler) GetParticipantQualityMetrics(w http.ResponseWrit
 func (h *QualityMetricsHandler) CollectStreamQualityMetrics(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	
+	// Require authenticated user
+	userDID := middleware.GetUserDID(ctx)
+	if userDID == "" {
+		ctx = middleware.SetErrorCode(ctx, ErrCodeAuthFailed)
+		WriteError(w, ctx, http.StatusUnauthorized, ErrCodeAuthFailed, "Authentication required")
+		return
+	}
+	
 	// Extract stream ID from URL path
 	// Expected: /streams/{id}/quality-metrics/collect
 	pathParts := strings.Split(strings.TrimPrefix(r.URL.Path, "/streams/"), "/")
-	if len(pathParts) < 2 || pathParts[0] == "" {
+	if len(pathParts) != 3 || pathParts[0] == "" || pathParts[1] != "quality-metrics" || pathParts[2] != "collect" {
 		ctx = middleware.SetErrorCode(ctx, ErrCodeBadRequest)
 		WriteError(w, ctx, http.StatusBadRequest, ErrCodeBadRequest, "Invalid URL path")
 		return
@@ -150,10 +178,25 @@ func (h *QualityMetricsHandler) CollectStreamQualityMetrics(w http.ResponseWrite
 		return
 	}
 
+	// Verify ownership - only stream host can collect metrics
+	if session.HostDID != userDID {
+		ctx = middleware.SetErrorCode(ctx, ErrCodeForbidden)
+		WriteError(w, ctx, http.StatusForbidden, ErrCodeForbidden, "Only the stream host can collect quality metrics")
+		return
+	}
+
 	// Check if stream is active
 	if session.EndedAt != nil {
 		ctx = middleware.SetErrorCode(ctx, ErrCodeBadRequest)
 		WriteError(w, ctx, http.StatusBadRequest, ErrCodeBadRequest, "Stream has ended")
+		return
+	}
+
+	// Check if LiveKit room service is configured
+	if h.roomService == nil {
+		slog.ErrorContext(ctx, "LiveKit room service is not configured")
+		ctx = middleware.SetErrorCode(ctx, ErrCodeInternal)
+		WriteError(w, ctx, http.StatusInternalServerError, ErrCodeInternal, "Live streaming is not configured")
 		return
 	}
 
@@ -219,10 +262,18 @@ func (h *QualityMetricsHandler) CollectStreamQualityMetrics(w http.ResponseWrite
 func (h *QualityMetricsHandler) GetHighPacketLossParticipants(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	
+	// Require authenticated user
+	userDID := middleware.GetUserDID(ctx)
+	if userDID == "" {
+		ctx = middleware.SetErrorCode(ctx, ErrCodeAuthFailed)
+		WriteError(w, ctx, http.StatusUnauthorized, ErrCodeAuthFailed, "Authentication required")
+		return
+	}
+	
 	// Extract stream ID from URL path
 	// Expected: /streams/{id}/quality-metrics/high-packet-loss
 	pathParts := strings.Split(strings.TrimPrefix(r.URL.Path, "/streams/"), "/")
-	if len(pathParts) < 2 || pathParts[0] == "" {
+	if len(pathParts) != 3 || pathParts[0] == "" || pathParts[1] != "quality-metrics" || pathParts[2] != "high-packet-loss" {
 		ctx = middleware.SetErrorCode(ctx, ErrCodeBadRequest)
 		WriteError(w, ctx, http.StatusBadRequest, ErrCodeBadRequest, "Invalid URL path")
 		return

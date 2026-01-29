@@ -24,6 +24,12 @@ func NewPostgresQualityMetricsRepository(db *sql.DB) *PostgresQualityMetricsRepo
 
 // RecordMetrics stores audio quality metrics for a participant.
 func (r *PostgresQualityMetricsRepository) RecordMetrics(metrics *QualityMetrics) error {
+	// Default to current time if MeasuredAt is zero value
+	measuredAt := metrics.MeasuredAt
+	if measuredAt.IsZero() {
+		measuredAt = time.Now()
+	}
+
 	query := `
 		INSERT INTO stream_quality_metrics (
 			stream_session_id, participant_id,
@@ -43,7 +49,7 @@ func (r *PostgresQualityMetricsRepository) RecordMetrics(metrics *QualityMetrics
 		metrics.PacketLossPercent,
 		metrics.AudioLevel,
 		metrics.RTTMs,
-		metrics.MeasuredAt,
+		measuredAt,
 	).Scan(&id)
 
 	if err != nil {
@@ -51,6 +57,7 @@ func (r *PostgresQualityMetricsRepository) RecordMetrics(metrics *QualityMetrics
 	}
 
 	metrics.ID = id
+	metrics.MeasuredAt = measuredAt
 	return nil
 }
 

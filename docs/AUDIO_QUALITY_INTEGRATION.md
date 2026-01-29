@@ -229,6 +229,8 @@ done
 
 ### Kubernetes CronJob
 
+**Security Note**: The following example uses a pinned, trusted image with minimal permissions. Avoid using mutable tags like `latest` for security-sensitive workloads.
+
 ```yaml
 apiVersion: batch/v1
 kind: CronJob
@@ -240,9 +242,12 @@ spec:
     spec:
       template:
         spec:
+          serviceAccountName: metrics-collector  # Use dedicated service account with minimal permissions
           containers:
           - name: collector
-            image: curlimages/curl:latest
+            # Use a pinned, immutable image digest instead of mutable tags
+            # Replace with your organization's trusted image
+            image: curlimages/curl:8.5.0@sha256:4bfa3e2c0164fb103fb9bfd4dc956facce32b6c5d2f61e8a9f00f0f2f2b4c3c0  # Example digest - verify actual digest
             command:
             - /bin/sh
             - -c
@@ -260,8 +265,24 @@ spec:
                 secretKeyRef:
                   name: api-secrets
                   key: token
+            securityContext:
+              runAsNonRoot: true
+              runAsUser: 1000
+              allowPrivilegeEscalation: false
+              readOnlyRootFilesystem: true
+              capabilities:
+                drop:
+                - ALL
           restartPolicy: OnFailure
 ```
+
+**Security Best Practices**:
+- Use image digests instead of mutable tags (`:latest`, `:8.5.0`)
+- Create a dedicated ServiceAccount with minimal RBAC permissions
+- Run as non-root user with restrictive security context
+- Consider using a first-party helper image from your own registry
+- Rotate API tokens regularly
+- Use network policies to restrict pod egress to only the API server
 
 ## Database Migration
 
