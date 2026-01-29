@@ -85,9 +85,13 @@ func main() {
 	auditRepo := audit.NewInMemoryRepository()
 	rsvpRepo := scene.NewInMemoryRSVPRepository()
 	streamRepo := stream.NewInMemorySessionRepository()
+	participantRepo := stream.NewInMemoryParticipantRepository(streamRepo)
 	analyticsRepo := stream.NewInMemoryAnalyticsRepository(streamRepo)
 	postRepo := post.NewInMemoryPostRepository()
 	membershipRepo := membership.NewInMemoryMembershipRepository()
+	
+	// Initialize event broadcaster for WebSocket participant updates
+	eventBroadcaster := stream.NewEventBroadcaster()
 
 	// Initialize trust score components
 	trustDataSource := trust.NewInMemoryDataSource()
@@ -250,22 +254,6 @@ func main() {
 		}
 	}
 	
-	// Validate fee percentage
-	if stripeApplicationFeePercent < 0 || stripeApplicationFeePercent >= 100 {
-		logger.Error("invalid STRIPE_APPLICATION_FEE_PERCENT: must be between 0 and 100", "value", stripeApplicationFeePercent)
-		os.Exit(1)
-	}
-
-	// Parse application fee percentage (default: 5.0%)
-	stripeApplicationFeePercent := 5.0
-	if feePercentStr := os.Getenv("STRIPE_APPLICATION_FEE_PERCENT"); feePercentStr != "" {
-		if parsed, err := strconv.ParseFloat(feePercentStr, 64); err == nil {
-			stripeApplicationFeePercent = parsed
-		} else {
-			logger.Warn("invalid STRIPE_APPLICATION_FEE_PERCENT, using default 5.0%", "error", err)
-		}
-	}
-
 	// Validate fee percentage
 	if stripeApplicationFeePercent < 0 || stripeApplicationFeePercent >= 100 {
 		logger.Error("invalid STRIPE_APPLICATION_FEE_PERCENT: must be between 0 and 100", "value", stripeApplicationFeePercent)
@@ -666,14 +654,17 @@ func main() {
 		trustHandlers.GetTrustScore(w, r)
 	})
 
-	// Health check endpoint
-	mux.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusOK)
-		if _, err := w.Write([]byte(`{"status":"healthy"}`)); err != nil {
-			slog.Error("failed to write health response", "error", err)
-		}
+	// Health check endpoints for Kubernetes probes
+	healthHandlers := api.NewHealthHandlers(api.HealthHandlersConfig{
+		// Database, LiveKit, and Stripe checkers would be configured here when using real services
+		// For now, using in-memory repos and optional services, so checkers are nil
+		DBChecker:      nil, // Will be configured when using real database
+		LiveKitChecker: nil, // Will be configured when LiveKit health check is implemented
+		StripeChecker:  nil, // Will be configured when Stripe health check is implemented
+		MetricsEnabled: true, // Prometheus metrics are registered
 	})
+	mux.HandleFunc("/health", healthHandlers.Health)
+	mux.HandleFunc("/ready", healthHandlers.Ready)
 
 	// Placeholder root endpoint
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
