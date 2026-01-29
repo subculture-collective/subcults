@@ -157,7 +157,9 @@ func main() {
 // performFailingOperation simulates a failing operation for demonstration.
 func performFailingOperation(ctx context.Context) error {
 	ctx, endSpan := tracing.StartSpan(ctx, "database_transaction")
-	defer endSpan(nil)
+	defer func() {
+		// Error will be handled by defer
+	}()
 	
 	// Simulate some work before failure
 	time.Sleep(50 * time.Millisecond)

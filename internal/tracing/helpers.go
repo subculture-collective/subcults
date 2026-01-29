@@ -58,8 +58,6 @@ func StartDBSpan(ctx context.Context, table string, operation DBOperation) (cont
 		if err != nil {
 			span.RecordError(err)
 			span.SetStatus(codes.Error, err.Error())
-		} else {
-			span.SetStatus(codes.Ok, "")
 		}
 		span.End()
 	}
@@ -82,8 +80,6 @@ func StartSpan(ctx context.Context, name string) (context.Context, func(error)) 
 		if err != nil {
 			span.RecordError(err)
 			span.SetStatus(codes.Error, err.Error())
-		} else {
-			span.SetStatus(codes.Ok, "")
 		}
 		span.End()
 	}

@@ -6,6 +6,8 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"net/url"
+	"strings"
 	"time"
 
 	"go.opentelemetry.io/otel"
@@ -124,7 +126,7 @@ func NewProvider(cfg Config) (*Provider, error) {
 	slog.Info("tracing initialized",
 		"service", cfg.ServiceName,
 		"exporter", cfg.ExporterType,
-		"endpoint", cfg.OTLPEndpoint,
+		"endpoint", maskEndpoint(cfg.OTLPEndpoint),
 		"sampling_rate", cfg.SamplingRate,
 		"environment", cfg.Environment,
 	)
@@ -133,6 +135,48 @@ func NewProvider(cfg Config) (*Provider, error) {
 		tp:     tp,
 		config: cfg,
 	}, nil
+}
+
+// maskEndpoint masks sensitive information in OTLP endpoint URLs.
+// It redacts userinfo (username:password) if present in the URL.
+func maskEndpoint(endpoint string) string {
+	if endpoint == "" {
+		return "<not set>"
+	}
+	
+	// Try to parse as URL to check for userinfo
+	// Handle both full URLs (http://...) and host:port format
+	var fullURL string
+	if strings.Contains(endpoint, "://") {
+		fullURL = endpoint
+	} else {
+		// Assume http for parsing purposes
+		fullURL = "http://" + endpoint
+	}
+	
+	parsed, err := url.Parse(fullURL)
+	if err != nil {
+		// If parsing fails, just return the endpoint as-is
+		return endpoint
+	}
+	
+	// Check if there's userinfo (credentials)
+	if parsed.User != nil {
+		// Mask the password
+		username := parsed.User.Username()
+		if username != "" {
+			// Reconstruct without credentials
+			parsed.User = nil
+			maskedURL := parsed.String()
+			// Remove the http:// prefix if it wasn't in the original
+			if !strings.Contains(endpoint, "://") {
+				maskedURL = strings.TrimPrefix(maskedURL, "http://")
+			}
+			return maskedURL + " (credentials redacted)"
+		}
+	}
+	
+	return endpoint
 }
 
 // createOTLPHTTPExporter creates an OTLP HTTP exporter.

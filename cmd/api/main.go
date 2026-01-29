@@ -85,6 +85,12 @@ func main() {
 		if sampleRateStr != "" {
 			if parsed, err := strconv.ParseFloat(sampleRateStr, 64); err == nil {
 				sampleRate = parsed
+			} else {
+				logger.Warn("invalid TRACING_SAMPLE_RATE value, using default",
+					"value", sampleRateStr,
+					"error", err,
+					"default_sample_rate", sampleRate,
+				)
 			}
 		}
 
@@ -741,6 +747,11 @@ func main() {
 	})
 
 	// Apply middleware chain:
+	// The following middleware are applied in reverse order (innermost to outermost).
+	// This means the request flows through them in the order listed below (1→5),
+	// but they are applied to the handler in reverse order (5→1).
+	//
+	// Request flow (what executes first to last):
 	// 1. Tracing - OpenTelemetry instrumentation (if enabled)
 	// 2. General rate limiting (1000 req/min per IP) - blocks excessive requests early
 	// 3. HTTP metrics - captures request duration, sizes, and counts
@@ -748,7 +759,8 @@ func main() {
 	// 5. Logging - logs requests with all context
 	var handler http.Handler = mux
 	
-	// Wrap with logging first (innermost)
+	// Apply middleware in reverse order of execution
+	// Logging is applied first (innermost, executes last)
 	handler = middleware.Logging(logger)(handler)
 	
 	// Then RequestID
@@ -760,7 +772,7 @@ func main() {
 	// Then rate limiting
 	handler = middleware.RateLimiter(rateLimitStore, generalLimit, middleware.IPKeyFunc(), rateLimitMetrics)(handler)
 	
-	// Finally, tracing (outermost) - only if enabled
+	// Finally, tracing (outermost, executes first) - only if enabled
 	if tracingEnabled {
 		handler = middleware.Tracing("subcults-api")(handler)
 	}
