@@ -235,16 +235,11 @@ func TestLogging_DefaultStatus(t *testing.T) {
 func TestNewLogger_Production(t *testing.T) {
 	buf := &bytes.Buffer{}
 
-	// Create logger with production settings
-	logger := NewLogger("production")
+	// Create logger with production settings using test helper
+	logger := newLoggerWithWriter("production", buf)
 	if logger == nil {
 		t.Fatal("expected non-nil logger")
 	}
-
-	// Replace handler to capture output
-	logger = slog.New(slog.NewJSONHandler(buf, &slog.HandlerOptions{
-		Level: slog.LevelInfo,
-	}))
 
 	// Test that production logger outputs JSON format
 	logger.Info("test message", "key", "value", "count", 42)
@@ -275,17 +270,15 @@ func TestNewLogger_Production(t *testing.T) {
 }
 
 func TestNewLogger_Development(t *testing.T) {
-	logger := NewLogger("development")
+	buf := &bytes.Buffer{}
+
+	// Create logger with development settings using test helper
+	logger := newLoggerWithWriter("development", buf)
 	if logger == nil {
 		t.Fatal("expected non-nil logger")
 	}
 
-	// Development logger uses text format, just verify it works
-	buf := &bytes.Buffer{}
-	logger = slog.New(slog.NewTextHandler(buf, &slog.HandlerOptions{
-		Level: slog.LevelDebug,
-	}))
-
+	// Test that development logger outputs text format and logs debug messages
 	logger.Debug("debug message", "component", "test")
 
 	output := buf.String()

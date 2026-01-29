@@ -32,7 +32,7 @@ func main() {
 	}
 
 	// Initialize logger
-	// Indexer always runs in production mode (JSON format)
+	// Defaults to production mode (JSON format) if SUBCULT_ENV not set
 	env := os.Getenv("SUBCULT_ENV")
 	if env == "" {
 		env = "production"
