@@ -135,12 +135,8 @@ func (h *HealthHandlers) Ready(w http.ResponseWriter, r *http.Request) {
 		checks["stripe"] = "ok"
 	}
 
-	// Check metrics availability
-	if h.metricsEnabled {
-		checks["metrics"] = "ok"
-	} else {
-		checks["metrics"] = "ok"
-	}
+	// Metrics are always available (Prometheus registry is always initialized)
+	checks["metrics"] = "ok"
 
 	status := "healthy"
 	statusCode := http.StatusOK
