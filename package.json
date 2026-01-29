@@ -8,6 +8,7 @@
     "test": "cd web && npm test",
     "test:e2e": "cd e2e && npm run test:e2e",
     "test:e2e:ui": "cd e2e && npm run test:e2e:ui",
+    "test:e2e:report": "cd e2e && npm run test:e2e:report",
     "test:load": "cd e2e && npm run test:load",
     "lint": "cd web && npm run lint",
     "format": "prettier --write .",

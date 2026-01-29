@@ -364,8 +364,8 @@ The mock servers log all connections and messages:
 Test network conditions manually:
 
 ```bash
-# Start mock servers
-cd e2e && npx ts-node mocks/mock-api-server.ts
+# Start mock servers (requires tsx or ts-node)
+cd e2e && npx tsx mocks/mock-api-server.ts
 
 # In another terminal, test latency
 curl -X POST http://localhost:8080/api/test/simulate-latency \

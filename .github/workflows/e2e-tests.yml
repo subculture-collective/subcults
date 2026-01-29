@@ -48,7 +48,7 @@ jobs:
       - name: Install Playwright browsers
         run: |
           cd e2e
-          npx playwright install --with-deps chromium
+          npx playwright install --with-deps
       
       - name: Build frontend
         run: |

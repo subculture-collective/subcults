@@ -40,9 +40,12 @@ test.describe('Reconnection', () => {
     await page.context().setOffline(true);
     await page.waitForTimeout(2000);
     
-    // Should show reconnecting state
+    // Should show reconnecting state (optional - UI may vary)
     const reconnectingIndicator = page.locator('[data-testid="reconnecting-indicator"], text=/reconnecting/i');
     const hasReconnectingIndicator = await reconnectingIndicator.isVisible().catch(() => false);
+    if (hasReconnectingIndicator) {
+      console.log('[E2E] Reconnecting indicator shown');
+    }
     
     // Go back online
     await page.context().setOffline(false);
@@ -98,13 +101,10 @@ test.describe('Reconnection', () => {
     // Wait for max reconnection attempts (should be around 30-60 seconds)
     await page.waitForTimeout(60000);
     
-    // Should show error message
+    // Should show error message after exhausting retries
     const errorMessage = page.locator('[role="alert"]');
-    const hasError = await errorMessage.isVisible().catch(() => false);
-    
-    if (hasError) {
-      await expect(errorMessage).toContainText(/reconnect|connection|failed/i);
-    }
+    await expect(errorMessage).toBeVisible({ timeout: 5000 });
+    await expect(errorMessage).toContainText(/reconnect|connection|failed/i);
     
     // Reset
     await page.context().setOffline(false);

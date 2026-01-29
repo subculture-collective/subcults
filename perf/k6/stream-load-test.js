@@ -50,11 +50,11 @@ export default function () {
   const userId = `user-${__VU}-${__ITER}`;
   const joinStartTime = new Date();
   
-  // Step 1: Fetch LiveKit token
+  // Step 1: Fetch LiveKit token (using production API contract)
   const tokenStartTime = new Date();
   const tokenResponse = http.post(`${BASE_URL}/api/livekit/token`, JSON.stringify({
-    roomId: ROOM_ID,
-    identity: userId,
+    room_id: ROOM_ID,
+    scene_id: `test-scene-${__VU}`,
   }), {
     headers: {
       'Content-Type': 'application/json',
@@ -74,6 +74,14 @@ export default function () {
         return false;
       }
     },
+    'expires_at is returned': (r) => {
+      try {
+        const body = JSON.parse(r.body);
+        return body.expires_at && body.expires_at.length > 0;
+      } catch (e) {
+        return false;
+      }
+    },
   });
   
   if (!tokenSuccess) {
@@ -82,8 +90,6 @@ export default function () {
     sleep(1);
     return;
   }
-  
-  const tokenData = JSON.parse(tokenResponse.body);
   
   // Step 2: Connect to WebSocket
   const wsStartTime = new Date();
@@ -160,14 +166,13 @@ export default function () {
 
 export function handleSummary(data) {
   return {
-    'perf/k6/stream-load-test-results.json': JSON.stringify(data, null, 2),
-    stdout: textSummary(data, { indent: ' ', enableColors: true }),
+    'stream-load-test-results.json': JSON.stringify(data, null, 2),
+    stdout: textSummary(data, { indent: ' ' }),
   };
 }
 
 function textSummary(data, options) {
   const indent = options.indent || '';
-  const enableColors = options.enableColors || false;
   
   let summary = '\n' + indent + '=== Load Test Summary ===\n\n';
   

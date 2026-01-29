@@ -98,6 +98,10 @@ export default defineConfig({
       url: 'http://localhost:5173',
       reuseExistingServer: !process.env.CI,
       timeout: 120 * 1000,
+      env: {
+        // Set LiveKit WebSocket URL for E2E tests (points to mock server)
+        VITE_LIVEKIT_WS_URL: process.env.VITE_LIVEKIT_WS_URL ?? 'ws://localhost:7880',
+      },
     },
   ],
 });

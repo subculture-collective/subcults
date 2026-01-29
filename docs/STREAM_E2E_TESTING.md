@@ -376,7 +376,7 @@ Potential improvements identified during implementation:
 ## Conclusion
 
 The E2E test suite provides comprehensive coverage of all streaming functionality with:
-- 19 automated E2E tests across 3 test suites
+- 18 automated E2E tests across 3 test suites
 - Full mock LiveKit infrastructure for fast, reliable testing
 - Load testing with k6 for performance validation
 - CI/CD integration for automated testing

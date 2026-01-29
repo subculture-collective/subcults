@@ -35,8 +35,7 @@ build-frontend:
 test:
 	@echo "Running Go tests..."
 	go test -v -race -cover ./...
-	@echo "Running frontend tests..."
-	@echo "No frontend tests defined in package.json; skipping frontend tests."
+	@echo "Running frontend tests (if defined in package.json)..."
 	npm run test --if-present
 
 ## test-e2e: Run E2E tests for streaming functionality

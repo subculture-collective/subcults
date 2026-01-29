@@ -11,7 +11,6 @@
  * - Network condition simulation
  */
 
-import { Server } from 'http';
 import { WebSocketServer, WebSocket } from 'ws';
 
 export interface MockParticipant {
@@ -36,7 +35,6 @@ export class MockLiveKitServer {
   private wss: WebSocketServer | null = null;
   private rooms = new Map<string, MockRoom>();
   private connections = new Map<string, WebSocket>();
-  private tokenSecret = 'mock-secret-key';
   
   constructor(private port: number = 7880) {}
 

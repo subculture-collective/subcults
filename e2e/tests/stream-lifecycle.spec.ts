@@ -8,7 +8,7 @@
  * - End stream
  */
 
-import { test, expect, Page } from '@playwright/test';
+import { test, expect } from '@playwright/test';
 import { MockAPIServer } from '../mocks/mock-api-server';
 
 let mockServer: MockAPIServer;

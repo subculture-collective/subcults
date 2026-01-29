@@ -95,7 +95,7 @@ test-results/
 playwright-report/
 e2e-report/
 e2e-results.json
-perf/k6/stream-load-test-results.json
+stream-load-test-results.json
 
 # Performance and profiling
 *.prof

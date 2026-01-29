@@ -6,7 +6,7 @@
  */
 
 import express, { Express, Request, Response } from 'express';
-import { Server } from 'http';
+import type { Server } from 'http';
 import { MockLiveKitServer } from './mock-livekit-server';
 
 export class MockAPIServer {
@@ -16,7 +16,7 @@ export class MockAPIServer {
   
   constructor(
     private port: number = 8080,
-    liveKitPort: number = 7880
+    private liveKitPort: number = 7880
   ) {
     this.app = express();
     this.mockLiveKit = new MockLiveKitServer(liveKitPort);
@@ -53,32 +53,43 @@ export class MockAPIServer {
       res.json({ status: 'ok', timestamp: new Date().toISOString() });
     });
 
-    // LiveKit token generation
+    // LiveKit token generation (matches production API contract)
     this.app.post('/api/livekit/token', (req: Request, res: Response) => {
-      const { roomId, identity } = req.body;
+      const { room_id, scene_id, event_id } = req.body;
       
-      if (!roomId || !identity) {
+      if (!room_id) {
         res.status(400).json({
-          error: 'roomId and identity are required',
+          error: 'room_id is required',
         });
         return;
       }
       
-      // Validate roomId format (alphanumeric, hyphens, underscores, max 128 chars)
-      if (!/^[a-zA-Z0-9_-]{1,128}$/.test(roomId)) {
+      // Validate room_id format (alphanumeric, hyphens, underscores, colons, max 128 chars)
+      // Matches production: ^[a-zA-Z0-9_:-]{1,128}$
+      if (!/^[a-zA-Z0-9_:-]{1,128}$/.test(room_id)) {
         res.status(400).json({
-          error: 'Invalid roomId format',
+          error: 'Invalid room_id format',
         });
         return;
       }
       
-      const token = this.mockLiveKit.generateToken(roomId, identity);
-      const wsUrl = `ws://localhost:7880?room=${roomId}&identity=${identity}`;
+      // Derive identity from scene/event IDs (deterministic for E2E tests)
+      const identityParts: string[] = ['e2e'];
+      if (scene_id) {
+        identityParts.push(`scene-${scene_id}`);
+      }
+      if (event_id) {
+        identityParts.push(`event-${event_id}`);
+      }
+      const identity = identityParts.join(':');
       
+      const token = this.mockLiveKit.generateToken(room_id, identity);
+      const expiresAt = new Date(Date.now() + 300000).toISOString(); // 5 minutes
+      
+      // Match production response structure (snake_case)
       res.json({
         token,
-        url: wsUrl,
-        expiresAt: new Date(Date.now() + 300000).toISOString(), // 5 minutes
+        expires_at: expiresAt,
       });
     });
 
