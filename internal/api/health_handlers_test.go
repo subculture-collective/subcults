@@ -6,6 +6,7 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 )
@@ -75,6 +76,21 @@ func TestHealth_MethodNotAllowed(t *testing.T) {
 
 	if w.Code != http.StatusMethodNotAllowed {
 		t.Errorf("expected status 405, got %d", w.Code)
+	}
+
+	// Verify it returns structured JSON error
+	contentType := w.Header().Get("Content-Type")
+	if !strings.Contains(contentType, "application/json") {
+		t.Errorf("expected Content-Type to contain application/json, got %s", contentType)
+	}
+
+	var errResp ErrorResponse
+	if err := json.NewDecoder(w.Body).Decode(&errResp); err != nil {
+		t.Fatalf("failed to decode error response: %v", err)
+	}
+
+	if errResp.Error.Code != ErrCodeBadRequest {
+		t.Errorf("expected error code %s, got %s", ErrCodeBadRequest, errResp.Error.Code)
 	}
 }
 
@@ -331,6 +347,21 @@ func TestReady_MethodNotAllowed(t *testing.T) {
 
 	if w.Code != http.StatusMethodNotAllowed {
 		t.Errorf("expected status 405, got %d", w.Code)
+	}
+
+	// Verify it returns structured JSON error
+	contentType := w.Header().Get("Content-Type")
+	if !strings.Contains(contentType, "application/json") {
+		t.Errorf("expected Content-Type to contain application/json, got %s", contentType)
+	}
+
+	var errResp ErrorResponse
+	if err := json.NewDecoder(w.Body).Decode(&errResp); err != nil {
+		t.Fatalf("failed to decode error response: %v", err)
+	}
+
+	if errResp.Error.Code != ErrCodeBadRequest {
+		t.Errorf("expected error code %s, got %s", ErrCodeBadRequest, errResp.Error.Code)
 	}
 }
 

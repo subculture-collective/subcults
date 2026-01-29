@@ -7,6 +7,8 @@ import (
 	"log/slog"
 	"net/http"
 	"time"
+
+	"github.com/onnwee/subcults/internal/middleware"
 )
 
 // HealthChecker defines the interface for components that can be health checked.
@@ -57,7 +59,8 @@ type HealthResponse struct {
 // This is a basic check that the process is alive.
 func (h *HealthHandlers) Health(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		ctx := middleware.SetErrorCode(r.Context(), ErrCodeBadRequest)
+		WriteError(w, ctx, http.StatusMethodNotAllowed, ErrCodeBadRequest, "Method not allowed")
 		return
 	}
 
@@ -83,7 +86,8 @@ func (h *HealthHandlers) Health(w http.ResponseWriter, r *http.Request) {
 // Checks external dependencies and returns 503 if any critical service is unavailable.
 func (h *HealthHandlers) Ready(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		ctx := middleware.SetErrorCode(r.Context(), ErrCodeBadRequest)
+		WriteError(w, ctx, http.StatusMethodNotAllowed, ErrCodeBadRequest, "Method not allowed")
 		return
 	}
 
@@ -98,7 +102,7 @@ func (h *HealthHandlers) Ready(w http.ResponseWriter, r *http.Request) {
 		if err := h.dbChecker.HealthCheck(ctx); err != nil {
 			checks["database"] = "error"
 			healthy = false
-			slog.Warn("database health check failed", "error", err)
+			slog.WarnContext(ctx, "database health check failed", "error", err)
 		} else {
 			checks["database"] = "ok"
 		}
@@ -112,7 +116,7 @@ func (h *HealthHandlers) Ready(w http.ResponseWriter, r *http.Request) {
 		if err := h.livekitChecker.HealthCheck(ctx); err != nil {
 			checks["livekit"] = "error"
 			healthy = false
-			slog.Warn("livekit health check failed", "error", err)
+			slog.WarnContext(ctx, "livekit health check failed", "error", err)
 		} else {
 			checks["livekit"] = "ok"
 		}
@@ -126,7 +130,7 @@ func (h *HealthHandlers) Ready(w http.ResponseWriter, r *http.Request) {
 		if err := h.stripeChecker.HealthCheck(ctx); err != nil {
 			checks["stripe"] = "error"
 			healthy = false
-			slog.Warn("stripe health check failed", "error", err)
+			slog.WarnContext(ctx, "stripe health check failed", "error", err)
 		} else {
 			checks["stripe"] = "ok"
 		}
