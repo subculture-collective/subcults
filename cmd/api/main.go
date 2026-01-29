@@ -600,6 +600,22 @@ func main() {
 			return
 		}
 
+		// Check if this is a GET request for stream details: /streams/{id}
+		if len(pathParts) == 1 && pathParts[0] != "" && r.Method == http.MethodGet {
+			streamHandlers.GetStream(w, r)
+			return
+		}
+
+		// Check if this is a PATCH request for updating stream metadata: /streams/{id}.
+		// IMPORTANT: This must only match plain `/streams/{id}` paths and not interfere with
+		// more specific PATCH routes like `/streams/{id}/lock` and `/streams/{id}/featured_participant`,
+		// which are handled explicitly above. The routing order ensures specific routes are checked
+		// first (len(pathParts) == 2) before this generic handler (len(pathParts) == 1).
+		if len(pathParts) == 1 && pathParts[0] != "" && r.Method == http.MethodPatch {
+			streamHandlers.UpdateStream(w, r)
+			return
+		}
+
 		// No other stream endpoints yet, return 404
 		ctx := middleware.SetErrorCode(r.Context(), api.ErrCodeNotFound)
 		api.WriteError(w, ctx, http.StatusNotFound, api.ErrCodeNotFound, "The requested resource was not found")
