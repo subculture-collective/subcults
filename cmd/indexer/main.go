@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/onnwee/subcults/internal/indexer"
+	"github.com/onnwee/subcults/internal/middleware"
 	"github.com/prometheus/client_golang/prometheus"
 )
 
@@ -31,7 +32,12 @@ func main() {
 	}
 
 	// Initialize logger
-	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
+	// Indexer always runs in production mode (JSON format)
+	env := os.Getenv("SUBCULT_ENV")
+	if env == "" {
+		env = "production"
+	}
+	logger := middleware.NewLogger(env)
 	slog.SetDefault(logger)
 
 	// Get metrics port from environment or default to 9090

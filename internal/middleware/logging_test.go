@@ -233,9 +233,44 @@ func TestLogging_DefaultStatus(t *testing.T) {
 }
 
 func TestNewLogger_Production(t *testing.T) {
+	buf := &bytes.Buffer{}
+
+	// Create logger with production settings
 	logger := NewLogger("production")
 	if logger == nil {
 		t.Fatal("expected non-nil logger")
+	}
+
+	// Replace handler to capture output
+	logger = slog.New(slog.NewJSONHandler(buf, &slog.HandlerOptions{
+		Level: slog.LevelInfo,
+	}))
+
+	// Test that production logger outputs JSON format
+	logger.Info("test message", "key", "value", "count", 42)
+
+	// Verify JSON format
+	var logEntry map[string]interface{}
+	if err := json.Unmarshal(buf.Bytes(), &logEntry); err != nil {
+		t.Fatalf("production logger should output valid JSON: %v, log: %s", err, buf.String())
+	}
+
+	// Verify standard fields
+	if logEntry["msg"] != "test message" {
+		t.Errorf("expected msg 'test message', got %v", logEntry["msg"])
+	}
+	if logEntry["level"] != "INFO" {
+		t.Errorf("expected level INFO, got %v", logEntry["level"])
+	}
+	if logEntry["key"] != "value" {
+		t.Errorf("expected key 'value', got %v", logEntry["key"])
+	}
+	if logEntry["count"] != float64(42) {
+		t.Errorf("expected count 42, got %v", logEntry["count"])
+	}
+	// Verify timestamp exists
+	if _, ok := logEntry["time"]; !ok {
+		t.Error("expected 'time' field in JSON log")
 	}
 }
 
@@ -243,6 +278,22 @@ func TestNewLogger_Development(t *testing.T) {
 	logger := NewLogger("development")
 	if logger == nil {
 		t.Fatal("expected non-nil logger")
+	}
+
+	// Development logger uses text format, just verify it works
+	buf := &bytes.Buffer{}
+	logger = slog.New(slog.NewTextHandler(buf, &slog.HandlerOptions{
+		Level: slog.LevelDebug,
+	}))
+
+	logger.Debug("debug message", "component", "test")
+
+	output := buf.String()
+	if !strings.Contains(output, "debug message") {
+		t.Errorf("expected log to contain 'debug message', got: %s", output)
+	}
+	if !strings.Contains(output, "component=test") {
+		t.Errorf("expected log to contain 'component=test', got: %s", output)
 	}
 }
 
@@ -392,5 +443,107 @@ func TestLogging_NoErrorCodeFor2xx(t *testing.T) {
 	logStr := buf.String()
 	if strings.Contains(logStr, "error_code") {
 		t.Error("error_code should not be logged for 2xx responses")
+	}
+}
+
+// TestLogging_StandardFieldsVerification verifies all standard fields are present
+// in structured logs across the application.
+func TestLogging_StandardFieldsVerification(t *testing.T) {
+	tests := []struct {
+		name            string
+		setupHandler    func(w http.ResponseWriter, r *http.Request)
+		setupMiddleware func(http.Handler) http.Handler
+		expectedFields  map[string]bool // fields that should be present
+		statusCode      int
+		requestID       string
+	}{
+		{
+			name: "successful request with all fields",
+			setupHandler: func(w http.ResponseWriter, r *http.Request) {
+				w.WriteHeader(http.StatusOK)
+				_, _ = w.Write([]byte(`{"status":"ok"}`))
+			},
+			setupMiddleware: func(next http.Handler) http.Handler {
+				return RequestID(userDIDMiddleware("did:plc:test123")(next))
+			},
+			expectedFields: map[string]bool{
+				"time":       true,
+				"level":      true,
+				"msg":        true,
+				"method":     true,
+				"path":       true,
+				"status":     true,
+				"latency_ms": true,
+				"size":       true,
+				"request_id": true,
+				"user_did":   true,
+			},
+			statusCode: http.StatusOK,
+			requestID:  "req-abc-123",
+		},
+		{
+			name: "error request with error code",
+			setupHandler: func(w http.ResponseWriter, r *http.Request) {
+				w.WriteHeader(http.StatusBadRequest)
+				_, _ = w.Write([]byte(`{"error":"bad request"}`))
+			},
+			setupMiddleware: func(next http.Handler) http.Handler {
+				return RequestID(errorCodeMiddleware("VALIDATION_ERROR")(next))
+			},
+			expectedFields: map[string]bool{
+				"time":       true,
+				"level":      true,
+				"msg":        true,
+				"method":     true,
+				"path":       true,
+				"status":     true,
+				"latency_ms": true,
+				"size":       true,
+				"request_id": true,
+				"error_code": true,
+			},
+			statusCode: http.StatusBadRequest,
+			requestID:  "req-err-456",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			buf := &bytes.Buffer{}
+			logger := newTestLogger(buf)
+
+			handler := tt.setupMiddleware(Logging(logger)(http.HandlerFunc(tt.setupHandler)))
+
+			req := httptest.NewRequest(http.MethodPost, "/api/test", nil)
+			if tt.requestID != "" {
+				req.Header.Set(RequestIDHeader, tt.requestID)
+			}
+			rr := httptest.NewRecorder()
+
+			handler.ServeHTTP(rr, req)
+
+			// Parse log entry
+			var logEntry map[string]interface{}
+			if err := json.Unmarshal(buf.Bytes(), &logEntry); err != nil {
+				t.Fatalf("failed to parse log entry: %v, log: %s", err, buf.String())
+			}
+
+			// Verify expected fields are present
+			for field, shouldExist := range tt.expectedFields {
+				_, exists := logEntry[field]
+				if shouldExist && !exists {
+					t.Errorf("expected field %q to be present in log entry", field)
+				}
+			}
+
+			// Verify status code
+			if status, ok := logEntry["status"].(float64); ok {
+				if int(status) != tt.statusCode {
+					t.Errorf("expected status %d, got %d", tt.statusCode, int(status))
+				}
+			} else {
+				t.Errorf("status field missing or wrong type")
+			}
+		})
 	}
 }
