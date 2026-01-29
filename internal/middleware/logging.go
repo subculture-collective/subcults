@@ -188,7 +188,7 @@ func Logging(logger *slog.Logger) func(http.Handler) http.Handler {
 			if rw.statusCode >= 400 {
 				if errorCode := GetErrorCode(finalCtx); errorCode != "" {
 					attrs = append(attrs, slog.String("error_code", errorCode))
-					
+
 					// Add rate limit key if this is a rate limit violation
 					if errorCode == "rate_limit_exceeded" {
 						if rateLimitKey := GetRateLimitKey(finalCtx); rateLimitKey != "" {

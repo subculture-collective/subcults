@@ -17,10 +17,10 @@ func TestRedisRateLimitStore_Allow(t *testing.T) {
 	client := redis.NewClient(&redis.Options{
 		Addr: "localhost:6379",
 	})
-	
+
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
-	
+
 	// Skip test if Redis is not available
 	if err := client.Ping(ctx).Err(); err != nil {
 		t.Skip("Redis not available, skipping integration test")
@@ -69,10 +69,10 @@ func TestRedisRateLimitStore_DifferentKeys(t *testing.T) {
 	client := redis.NewClient(&redis.Options{
 		Addr: "localhost:6379",
 	})
-	
+
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
-	
+
 	if err := client.Ping(ctx).Err(); err != nil {
 		t.Skip("Redis not available, skipping integration test")
 	}
@@ -113,10 +113,10 @@ func TestRedisRateLimitStore_WindowExpiry(t *testing.T) {
 	client := redis.NewClient(&redis.Options{
 		Addr: "localhost:6379",
 	})
-	
+
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
-	
+
 	if err := client.Ping(ctx).Err(); err != nil {
 		t.Skip("Redis not available, skipping integration test")
 	}
