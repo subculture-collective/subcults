@@ -697,6 +697,7 @@ func BenchmarkRecompute(b *testing.B) {
 }
 
 // mockJobMetrics is a mock implementation of JobMetrics for testing.
+// Note: This implementation is NOT thread-safe. Use only in single-threaded tests.
 type mockJobMetrics struct {
 	jobsTotal       map[string]map[string]int
 	jobsDuration    map[string][]float64
@@ -868,6 +869,24 @@ func TestRecomputeJob_WithJobMetricsTimeout(t *testing.T) {
 	// Verify timeout error was tracked
 	if v := jobMetrics.jobErrors["trust_recompute"]["timeout"]; v != 1 {
 		t.Errorf("jobErrors[trust_recompute][timeout] = %d, want 1", v)
+	}
+
+	// Verify job completion was tracked even with timeout (failure status)
+	if v := jobMetrics.jobsTotal["trust_recompute"]["failure"]; v != 1 {
+		t.Errorf("jobsTotal[trust_recompute][failure] = %d, want 1", v)
+	}
+
+	// Verify duration was recorded
+	if len(jobMetrics.jobsDuration["trust_recompute"]) != 1 {
+		t.Errorf("jobsDuration[trust_recompute] count = %d, want 1", len(jobMetrics.jobsDuration["trust_recompute"]))
+	}
+
+	// Duration should be positive and roughly match timeout
+	if len(jobMetrics.jobsDuration["trust_recompute"]) > 0 {
+		duration := jobMetrics.jobsDuration["trust_recompute"][0]
+		if duration <= 0 || duration > 1.0 {
+			t.Errorf("jobsDuration = %f, expected between 0 and 1.0", duration)
+		}
 	}
 
 	// Some scenes should still be dirty

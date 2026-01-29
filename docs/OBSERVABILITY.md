@@ -366,18 +366,17 @@ rate(background_jobs_total[5m])
 **Example Queries**:
 ```promql
 # 95th percentile job duration by type
-histogram_quantile(0.95, rate(background_jobs_duration_seconds_bucket[5m])) by (job_type)
+histogram_quantile(0.95, sum by (job_type, le) (rate(background_jobs_duration_seconds_bucket[5m])))
 
 # 50th percentile (median) duration
-histogram_quantile(0.50, rate(background_jobs_duration_seconds_bucket[5m])) by (job_type)
+histogram_quantile(0.50, sum by (job_type, le) (rate(background_jobs_duration_seconds_bucket[5m])))
 
 # Average job duration
-rate(background_jobs_duration_seconds_sum[5m]) /
-rate(background_jobs_duration_seconds_count[5m])
+sum by (job_type) (rate(background_jobs_duration_seconds_sum[5m])) /
+sum by (job_type) (rate(background_jobs_duration_seconds_count[5m]))
 
-# Jobs exceeding 30 second threshold
-sum(rate(background_jobs_duration_seconds_bucket{le="30.0"}[5m])) by (job_type) /
-sum(rate(background_jobs_duration_seconds_count[5m])) by (job_type) < 0.95
+# Jobs with p95 duration exceeding 30 seconds
+histogram_quantile(0.95, sum by (job_type, le) (rate(background_jobs_duration_seconds_bucket[5m]))) > 30
 ```
 
 #### `background_job_errors_total`
@@ -436,8 +435,8 @@ groups:
       - alert: BackgroundJobSlow
         expr: |
           histogram_quantile(0.95,
-            rate(background_jobs_duration_seconds_bucket[5m])
-          ) by (job_type) > 60
+            sum by (job_type, le) (rate(background_jobs_duration_seconds_bucket[5m]))
+          ) > 60
         for: 15m
         labels:
           severity: warning
@@ -448,9 +447,7 @@ groups:
       # Job not running (no executions in expected interval)
       - alert: BackgroundJobStalled
         expr: |
-          (time() - (
-            max(background_jobs_total) by (job_type) > bool 0
-          )) > 600
+          rate(background_jobs_total[10m]) == 0
         labels:
           severity: critical
         annotations:

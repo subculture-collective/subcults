@@ -191,6 +191,16 @@ func (j *RecomputeJob) recomputeDirtyScenes(parentCtx context.Context) {
 			if j.config.JobMetrics != nil {
 				j.config.JobMetrics.IncJobErrors("trust_recompute", "timeout")
 			}
+			
+			// Record job completion metrics even for timeout
+			duration := time.Since(startTime).Seconds()
+			if j.config.Metrics != nil {
+				j.config.Metrics.ObserveRecomputeDuration(duration)
+			}
+			if j.config.JobMetrics != nil {
+				j.config.JobMetrics.IncJobsTotal("trust_recompute", "failure")
+				j.config.JobMetrics.ObserveJobDuration("trust_recompute", duration)
+			}
 			return
 		default:
 		}
