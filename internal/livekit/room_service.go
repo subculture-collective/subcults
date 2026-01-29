@@ -40,6 +40,66 @@ func NewRoomService(url, apiKey, apiSecret string) *RoomService {
 	}
 }
 
+// CreateRoom creates a new LiveKit room with the specified configuration.
+// emptyTimeout is the duration in seconds after which an empty room will be automatically closed (0 = no timeout).
+// maxParticipants is the maximum number of participants allowed (0 = unlimited).
+func (s *RoomService) CreateRoom(ctx context.Context, roomName string, emptyTimeout, maxParticipants uint32) (*livekit.Room, error) {
+	if s.roomClient == nil {
+		return nil, ErrRoomServiceNotConfigured
+	}
+
+	req := &livekit.CreateRoomRequest{
+		Name:            roomName,
+		EmptyTimeout:    emptyTimeout,
+		MaxParticipants: maxParticipants,
+	}
+
+	room, err := s.roomClient.CreateRoom(ctx, req)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create room: %w", err)
+	}
+
+	return room, nil
+}
+
+// DeleteRoom deletes a LiveKit room, disconnecting all participants.
+func (s *RoomService) DeleteRoom(ctx context.Context, roomName string) error {
+	if s.roomClient == nil {
+		return ErrRoomServiceNotConfigured
+	}
+
+	req := &livekit.DeleteRoomRequest{
+		Room: roomName,
+	}
+
+	_, err := s.roomClient.DeleteRoom(ctx, req)
+	if err != nil {
+		return fmt.Errorf("failed to delete room: %w", err)
+	}
+
+	return nil
+}
+
+// GetRoom retrieves information about a specific LiveKit room.
+func (s *RoomService) GetRoom(ctx context.Context, roomName string) (*livekit.Room, error) {
+	if s.roomClient == nil {
+		return nil, ErrRoomServiceNotConfigured
+	}
+
+	resp, err := s.roomClient.ListRooms(ctx, &livekit.ListRoomsRequest{
+		Names: []string{roomName},
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to get room: %w", err)
+	}
+
+	if len(resp.Rooms) == 0 {
+		return nil, fmt.Errorf("room not found")
+	}
+
+	return resp.Rooms[0], nil
+}
+
 // MuteParticipantTrack mutes a specific participant's track in a room.
 func (s *RoomService) MuteParticipantTrack(ctx context.Context, roomName, participantIdentity string, trackSID string, muted bool) error {
 	if s.roomClient == nil {

@@ -168,7 +168,46 @@ func (h *StreamHandlers) CreateStream(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	// Create stream session
+	// Check for concurrent start attempts - prevent duplicate streams for the same scene/event
+	if req.SceneID != nil {
+		hasActive, err := h.streamRepo.HasActiveStreamForScene(*req.SceneID)
+		if err != nil {
+			slog.ErrorContext(ctx, "failed to check for active stream",
+				"error", err,
+				"scene_id", *req.SceneID,
+				"user_did", userDID,
+			)
+			ctx = middleware.SetErrorCode(ctx, ErrCodeInternal)
+			WriteError(w, ctx, http.StatusInternalServerError, ErrCodeInternal, "Internal server error")
+			return
+		}
+		if hasActive {
+			ctx = middleware.SetErrorCode(ctx, ErrCodeConflict)
+			WriteError(w, ctx, http.StatusConflict, ErrCodeConflict, "An active stream already exists for this scene")
+			return
+		}
+	}
+
+	if req.EventID != nil {
+		activeStream, err := h.streamRepo.GetActiveStreamForEvent(*req.EventID)
+		if err != nil {
+			slog.ErrorContext(ctx, "failed to check for active stream",
+				"error", err,
+				"event_id", *req.EventID,
+				"user_did", userDID,
+			)
+			ctx = middleware.SetErrorCode(ctx, ErrCodeInternal)
+			WriteError(w, ctx, http.StatusInternalServerError, ErrCodeInternal, "Internal server error")
+			return
+		}
+		if activeStream != nil {
+			ctx = middleware.SetErrorCode(ctx, ErrCodeConflict)
+			WriteError(w, ctx, http.StatusConflict, ErrCodeConflict, "An active stream already exists for this event")
+			return
+		}
+	}
+
+	// Create stream session in database first
 	id, roomName, err := h.streamRepo.CreateStreamSession(req.SceneID, req.EventID, userDID)
 	if err != nil {
 		slog.ErrorContext(ctx, "failed to create stream session",
@@ -178,6 +217,28 @@ func (h *StreamHandlers) CreateStream(w http.ResponseWriter, r *http.Request) {
 		ctx = middleware.SetErrorCode(ctx, ErrCodeInternal)
 		WriteError(w, ctx, http.StatusInternalServerError, ErrCodeInternal, "Failed to create stream session")
 		return
+	}
+
+	// Create LiveKit room with 2-hour timeout (7200 seconds)
+	// emptyTimeout: room closes 2 hours after last participant leaves
+	// maxParticipants: 0 = unlimited
+	if h.roomService != nil {
+		_, err = h.roomService.CreateRoom(ctx, roomName, 7200, 0)
+		if err != nil {
+			// Log error but don't fail the request - room may already exist
+			// LiveKit will reuse existing rooms, which is acceptable
+			slog.WarnContext(ctx, "failed to create LiveKit room (may already exist)",
+				"error", err,
+				"room_name", roomName,
+				"stream_id", id,
+			)
+		} else {
+			slog.InfoContext(ctx, "created LiveKit room",
+				"room_name", roomName,
+				"stream_id", id,
+				"empty_timeout", 7200,
+			)
+		}
 	}
 
 	// Log stream creation for audit
@@ -257,7 +318,7 @@ func (h *StreamHandlers) EndStream(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// End the stream session
+	// End the stream session in database
 	err = h.streamRepo.EndStreamSession(streamID)
 	if err != nil {
 		slog.ErrorContext(ctx, "failed to end stream session",
@@ -268,6 +329,24 @@ func (h *StreamHandlers) EndStream(w http.ResponseWriter, r *http.Request) {
 		ctx = middleware.SetErrorCode(ctx, ErrCodeInternal)
 		WriteError(w, ctx, http.StatusInternalServerError, ErrCodeInternal, "Failed to end stream session")
 		return
+	}
+
+	// Delete LiveKit room to disconnect all participants
+	if h.roomService != nil {
+		err = h.roomService.DeleteRoom(ctx, session.RoomName)
+		if err != nil {
+			// Log error but don't fail the request - room may already be deleted
+			slog.WarnContext(ctx, "failed to delete LiveKit room (may not exist)",
+				"error", err,
+				"room_name", session.RoomName,
+				"stream_id", streamID,
+			)
+		} else {
+			slog.InfoContext(ctx, "deleted LiveKit room",
+				"room_name", session.RoomName,
+				"stream_id", streamID,
+			)
+		}
 	}
 
 	// Compute analytics for the ended stream
@@ -313,6 +392,182 @@ func (h *StreamHandlers) EndStream(w http.ResponseWriter, r *http.Request) {
 		SceneID:  session.SceneID,
 		EventID:  session.EventID,
 		Status:   "ended",
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	if err := json.NewEncoder(w).Encode(response); err != nil {
+		slog.ErrorContext(ctx, "failed to encode stream response", "error", err)
+	}
+}
+
+// GetStream handles GET /streams/{id} - retrieves stream session details.
+func (h *StreamHandlers) GetStream(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	// Extract user DID from context (set by auth middleware)
+	userDID := middleware.GetUserDID(ctx)
+	if userDID == "" {
+		ctx = middleware.SetErrorCode(ctx, ErrCodeAuthFailed)
+		WriteError(w, ctx, http.StatusUnauthorized, ErrCodeAuthFailed, "Authentication required")
+		return
+	}
+
+	// Extract stream ID from URL path
+	// Expected: /streams/{id}
+	streamID := strings.TrimPrefix(r.URL.Path, "/streams/")
+	if streamID == "" || strings.Contains(streamID, "/") {
+		ctx = middleware.SetErrorCode(ctx, ErrCodeBadRequest)
+		WriteError(w, ctx, http.StatusBadRequest, ErrCodeBadRequest, "Invalid URL path")
+		return
+	}
+
+	// Get the stream session
+	session, err := h.streamRepo.GetByID(streamID)
+	if err != nil {
+		if errors.Is(err, stream.ErrStreamNotFound) {
+			ctx = middleware.SetErrorCode(ctx, ErrCodeNotFound)
+			WriteError(w, ctx, http.StatusNotFound, ErrCodeNotFound, "Stream session not found")
+		} else {
+			slog.ErrorContext(ctx, "failed to get stream session", "error", err)
+			ctx = middleware.SetErrorCode(ctx, ErrCodeInternal)
+			WriteError(w, ctx, http.StatusInternalServerError, ErrCodeInternal, "Internal server error")
+		}
+		return
+	}
+
+	// Determine status
+	status := "active"
+	if session.EndedAt != nil {
+		status = "ended"
+	}
+
+	// Return response
+	response := StreamSessionResponse{
+		ID:       session.ID,
+		RoomName: session.RoomName,
+		SceneID:  session.SceneID,
+		EventID:  session.EventID,
+		Status:   status,
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	if err := json.NewEncoder(w).Encode(response); err != nil {
+		slog.ErrorContext(ctx, "failed to encode stream response", "error", err)
+	}
+}
+
+// UpdateStreamRequest represents the request body for updating stream metadata.
+type UpdateStreamRequest struct {
+	Metadata map[string]interface{} `json:"metadata,omitempty"`
+}
+
+// UpdateStream handles PATCH /streams/{id} - updates stream metadata.
+func (h *StreamHandlers) UpdateStream(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	// Extract user DID from context (set by auth middleware)
+	userDID := middleware.GetUserDID(ctx)
+	if userDID == "" {
+		ctx = middleware.SetErrorCode(ctx, ErrCodeAuthFailed)
+		WriteError(w, ctx, http.StatusUnauthorized, ErrCodeAuthFailed, "Authentication required")
+		return
+	}
+
+	// Extract stream ID from URL path
+	// Expected: /streams/{id}
+	streamID := strings.TrimPrefix(r.URL.Path, "/streams/")
+	if streamID == "" || strings.Contains(streamID, "/") {
+		ctx = middleware.SetErrorCode(ctx, ErrCodeBadRequest)
+		WriteError(w, ctx, http.StatusBadRequest, ErrCodeBadRequest, "Invalid URL path")
+		return
+	}
+
+	// Get the stream session to verify ownership
+	session, err := h.streamRepo.GetByID(streamID)
+	if err != nil {
+		if errors.Is(err, stream.ErrStreamNotFound) {
+			ctx = middleware.SetErrorCode(ctx, ErrCodeNotFound)
+			WriteError(w, ctx, http.StatusNotFound, ErrCodeNotFound, "Stream session not found")
+		} else {
+			slog.ErrorContext(ctx, "failed to get stream session", "error", err)
+			ctx = middleware.SetErrorCode(ctx, ErrCodeInternal)
+			WriteError(w, ctx, http.StatusInternalServerError, ErrCodeInternal, "Internal server error")
+		}
+		return
+	}
+
+	// Verify that the user is the stream host
+	if session.HostDID != userDID {
+		ctx = middleware.SetErrorCode(ctx, ErrCodeForbidden)
+		WriteError(w, ctx, http.StatusForbidden, ErrCodeForbidden, "You must be the stream host to update it")
+		return
+	}
+
+	// Parse request body
+	var req UpdateStreamRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		ctx = middleware.SetErrorCode(ctx, ErrCodeBadRequest)
+		WriteError(w, ctx, http.StatusBadRequest, ErrCodeBadRequest, "Invalid JSON in request body")
+		return
+	}
+
+	// Update room metadata in LiveKit if metadata is provided
+	if req.Metadata != nil && h.roomService != nil {
+		// Convert metadata to JSON string
+		metadataJSON, err := json.Marshal(req.Metadata)
+		if err != nil {
+			slog.ErrorContext(ctx, "failed to marshal metadata", "error", err)
+			ctx = middleware.SetErrorCode(ctx, ErrCodeInternal)
+			WriteError(w, ctx, http.StatusInternalServerError, ErrCodeInternal, "Failed to process metadata")
+			return
+		}
+
+		// Update room metadata in LiveKit
+		if err := h.roomService.UpdateRoomMetadata(ctx, session.RoomName, string(metadataJSON)); err != nil {
+			slog.ErrorContext(ctx, "failed to update room metadata",
+				"error", err,
+				"stream_id", streamID,
+				"room_name", session.RoomName,
+			)
+			ctx = middleware.SetErrorCode(ctx, ErrCodeInternal)
+			WriteError(w, ctx, http.StatusInternalServerError, ErrCodeInternal, "Failed to update room metadata")
+			return
+		}
+	}
+
+	// Log metadata update for audit
+	auditEntry := audit.LogEntry{
+		UserDID:    userDID,
+		EntityType: "stream_session",
+		EntityID:   streamID,
+		Action:     "metadata_updated",
+		RequestID:  middleware.GetRequestID(ctx),
+	}
+
+	if _, err := h.auditRepo.LogAccess(auditEntry); err != nil {
+		// Log error but don't fail the request
+		slog.ErrorContext(ctx, "failed to log metadata update audit entry",
+			"error", err,
+			"stream_id", streamID,
+			"user_did", userDID,
+		)
+	}
+
+	// Determine status
+	status := "active"
+	if session.EndedAt != nil {
+		status = "ended"
+	}
+
+	// Return response
+	response := StreamSessionResponse{
+		ID:       streamID,
+		RoomName: session.RoomName,
+		SceneID:  session.SceneID,
+		EventID:  session.EventID,
+		Status:   status,
 	}
 
 	w.Header().Set("Content-Type", "application/json")

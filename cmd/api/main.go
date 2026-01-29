@@ -600,6 +600,18 @@ func main() {
 			return
 		}
 
+		// Check if this is a GET request for stream details: /streams/{id}
+		if len(pathParts) == 1 && pathParts[0] != "" && r.Method == http.MethodGet {
+			streamHandlers.GetStream(w, r)
+			return
+		}
+
+		// Check if this is a PATCH request for updating stream metadata: /streams/{id}
+		if len(pathParts) == 1 && pathParts[0] != "" && r.Method == http.MethodPatch {
+			streamHandlers.UpdateStream(w, r)
+			return
+		}
+
 		// No other stream endpoints yet, return 404
 		ctx := middleware.SetErrorCode(r.Context(), api.ErrCodeNotFound)
 		api.WriteError(w, ctx, http.StatusNotFound, api.ErrCodeNotFound, "The requested resource was not found")

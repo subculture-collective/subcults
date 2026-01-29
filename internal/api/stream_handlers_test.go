@@ -27,7 +27,7 @@ func TestCreateStream_Success_WithSceneID(t *testing.T) {
 	sceneRepo := scene.NewInMemorySceneRepository()
 	eventRepo := scene.NewInMemoryEventRepository()
 	auditRepo := audit.NewInMemoryRepository()
-	handlers := NewStreamHandlers(streamRepo, nil, sceneRepo, eventRepo, auditRepo, nil)
+	handlers := NewStreamHandlers(streamRepo, nil, nil, sceneRepo, eventRepo, auditRepo, nil, nil, nil)
 
 	// Create a scene first
 	testScene := &scene.Scene{
@@ -90,7 +90,7 @@ func TestCreateStream_Success_WithEventID(t *testing.T) {
 	sceneRepo := scene.NewInMemorySceneRepository()
 	eventRepo := scene.NewInMemoryEventRepository()
 	auditRepo := audit.NewInMemoryRepository()
-	handlers := NewStreamHandlers(streamRepo, nil, sceneRepo, eventRepo, auditRepo, nil)
+	handlers := NewStreamHandlers(streamRepo, nil, nil, sceneRepo, eventRepo, auditRepo, nil, nil, nil)
 
 	// Create a scene and event
 	testScene := &scene.Scene{
@@ -154,7 +154,7 @@ func TestCreateStream_NoSceneOrEvent(t *testing.T) {
 	sceneRepo := scene.NewInMemorySceneRepository()
 	eventRepo := scene.NewInMemoryEventRepository()
 	auditRepo := audit.NewInMemoryRepository()
-	handlers := NewStreamHandlers(streamRepo, nil, sceneRepo, eventRepo, auditRepo, nil)
+	handlers := NewStreamHandlers(streamRepo, nil, nil, sceneRepo, eventRepo, auditRepo, nil, nil, nil)
 
 	reqBody := CreateStreamRequest{}
 
@@ -182,7 +182,7 @@ func TestCreateStream_BothSceneAndEvent(t *testing.T) {
 	sceneRepo := scene.NewInMemorySceneRepository()
 	eventRepo := scene.NewInMemoryEventRepository()
 	auditRepo := audit.NewInMemoryRepository()
-	handlers := NewStreamHandlers(streamRepo, nil, sceneRepo, eventRepo, auditRepo, nil)
+	handlers := NewStreamHandlers(streamRepo, nil, nil, sceneRepo, eventRepo, auditRepo, nil, nil, nil)
 
 	// Create a scene and event
 	testScene := &scene.Scene{
@@ -248,7 +248,7 @@ func TestCreateStream_Forbidden_NotSceneOwner(t *testing.T) {
 	sceneRepo := scene.NewInMemorySceneRepository()
 	eventRepo := scene.NewInMemoryEventRepository()
 	auditRepo := audit.NewInMemoryRepository()
-	handlers := NewStreamHandlers(streamRepo, nil, sceneRepo, eventRepo, auditRepo, nil)
+	handlers := NewStreamHandlers(streamRepo, nil, nil, sceneRepo, eventRepo, auditRepo, nil, nil, nil)
 
 	// Create a scene owned by someone else
 	testScene := &scene.Scene{
@@ -291,7 +291,7 @@ func TestCreateStream_Forbidden_NotEventHost(t *testing.T) {
 	sceneRepo := scene.NewInMemorySceneRepository()
 	eventRepo := scene.NewInMemoryEventRepository()
 	auditRepo := audit.NewInMemoryRepository()
-	handlers := NewStreamHandlers(streamRepo, nil, sceneRepo, eventRepo, auditRepo, nil)
+	handlers := NewStreamHandlers(streamRepo, nil, nil, sceneRepo, eventRepo, auditRepo, nil, nil, nil)
 
 	// Create a scene and event owned by someone else
 	testScene := &scene.Scene{
@@ -347,7 +347,7 @@ func TestEndStream_Success(t *testing.T) {
 	sceneRepo := scene.NewInMemorySceneRepository()
 	eventRepo := scene.NewInMemoryEventRepository()
 	auditRepo := audit.NewInMemoryRepository()
-	handlers := NewStreamHandlers(streamRepo, nil, sceneRepo, eventRepo, auditRepo, nil)
+	handlers := NewStreamHandlers(streamRepo, nil, nil, sceneRepo, eventRepo, auditRepo, nil, nil, nil)
 
 	// Create a stream session
 	sceneID := "scene-123"
@@ -393,7 +393,7 @@ func TestEndStream_Forbidden_NotHost(t *testing.T) {
 	sceneRepo := scene.NewInMemorySceneRepository()
 	eventRepo := scene.NewInMemoryEventRepository()
 	auditRepo := audit.NewInMemoryRepository()
-	handlers := NewStreamHandlers(streamRepo, nil, sceneRepo, eventRepo, auditRepo, nil)
+	handlers := NewStreamHandlers(streamRepo, nil, nil, sceneRepo, eventRepo, auditRepo, nil, nil, nil)
 
 	// Create a stream session
 	sceneID := "scene-123"
@@ -431,7 +431,7 @@ func TestEndStream_NotFound(t *testing.T) {
 	sceneRepo := scene.NewInMemorySceneRepository()
 	eventRepo := scene.NewInMemoryEventRepository()
 	auditRepo := audit.NewInMemoryRepository()
-	handlers := NewStreamHandlers(streamRepo, nil, sceneRepo, eventRepo, auditRepo, nil)
+	handlers := NewStreamHandlers(streamRepo, nil, nil, sceneRepo, eventRepo, auditRepo, nil, nil, nil)
 
 	req := httptest.NewRequest(http.MethodPost, "/streams/nonexistent-id/end", nil)
 	ctx := middleware.SetUserDID(req.Context(), "did:plc:test123")
@@ -451,7 +451,7 @@ func TestEndStream_Idempotent(t *testing.T) {
 	sceneRepo := scene.NewInMemorySceneRepository()
 	eventRepo := scene.NewInMemoryEventRepository()
 	auditRepo := audit.NewInMemoryRepository()
-	handlers := NewStreamHandlers(streamRepo, nil, sceneRepo, eventRepo, auditRepo, nil)
+	handlers := NewStreamHandlers(streamRepo, nil, nil, sceneRepo, eventRepo, auditRepo, nil, nil, nil)
 
 	// Create and end a stream session
 	sceneID := "scene-123"
@@ -491,7 +491,7 @@ func TestJoinStream_Success(t *testing.T) {
 	eventRepo := scene.NewInMemoryEventRepository()
 	auditRepo := audit.NewInMemoryRepository()
 	streamMetrics := stream.NewMetrics()
-	handlers := NewStreamHandlers(streamRepo, nil, nil, sceneRepo, eventRepo, auditRepo, streamMetrics, nil)
+	handlers := NewStreamHandlers(streamRepo, nil, nil, sceneRepo, eventRepo, auditRepo, streamMetrics, nil, nil)
 
 	// Create a scene and stream session first
 	testScene := &scene.Scene{
@@ -566,7 +566,7 @@ func TestJoinStream_NotFound(t *testing.T) {
 	eventRepo := scene.NewInMemoryEventRepository()
 	auditRepo := audit.NewInMemoryRepository()
 	streamMetrics := stream.NewMetrics()
-	handlers := NewStreamHandlers(streamRepo, nil, nil, sceneRepo, eventRepo, auditRepo, streamMetrics, nil)
+	handlers := NewStreamHandlers(streamRepo, nil, nil, sceneRepo, eventRepo, auditRepo, streamMetrics, nil, nil)
 
 	req := httptest.NewRequest(http.MethodPost, "/streams/nonexistent-id/join", nil)
 	ctx := middleware.SetUserDID(req.Context(), "did:plc:test123")
@@ -587,7 +587,7 @@ func TestJoinStream_Unauthorized(t *testing.T) {
 	eventRepo := scene.NewInMemoryEventRepository()
 	auditRepo := audit.NewInMemoryRepository()
 	streamMetrics := stream.NewMetrics()
-	handlers := NewStreamHandlers(streamRepo, nil, nil, sceneRepo, eventRepo, auditRepo, streamMetrics, nil)
+	handlers := NewStreamHandlers(streamRepo, nil, nil, sceneRepo, eventRepo, auditRepo, streamMetrics, nil, nil)
 
 	req := httptest.NewRequest(http.MethodPost, "/streams/some-id/join", nil)
 	// No auth context
@@ -607,7 +607,7 @@ func TestLeaveStream_Success(t *testing.T) {
 	eventRepo := scene.NewInMemoryEventRepository()
 	auditRepo := audit.NewInMemoryRepository()
 	streamMetrics := stream.NewMetrics()
-	handlers := NewStreamHandlers(streamRepo, nil, nil, sceneRepo, eventRepo, auditRepo, streamMetrics, nil)
+	handlers := NewStreamHandlers(streamRepo, nil, nil, sceneRepo, eventRepo, auditRepo, streamMetrics, nil, nil)
 
 	// Create a scene and stream session first
 	testScene := &scene.Scene{
@@ -670,7 +670,7 @@ func TestLeaveStream_NotFound(t *testing.T) {
 	eventRepo := scene.NewInMemoryEventRepository()
 	auditRepo := audit.NewInMemoryRepository()
 	streamMetrics := stream.NewMetrics()
-	handlers := NewStreamHandlers(streamRepo, nil, nil, sceneRepo, eventRepo, auditRepo, streamMetrics, nil)
+	handlers := NewStreamHandlers(streamRepo, nil, nil, sceneRepo, eventRepo, auditRepo, streamMetrics, nil, nil)
 
 	req := httptest.NewRequest(http.MethodPost, "/streams/nonexistent-id/leave", nil)
 	ctx := middleware.SetUserDID(req.Context(), "did:plc:test123")
@@ -691,7 +691,7 @@ func TestJoinLeave_Multiple(t *testing.T) {
 	eventRepo := scene.NewInMemoryEventRepository()
 	auditRepo := audit.NewInMemoryRepository()
 	streamMetrics := stream.NewMetrics()
-	handlers := NewStreamHandlers(streamRepo, nil, nil, sceneRepo, eventRepo, auditRepo, streamMetrics, nil)
+	handlers := NewStreamHandlers(streamRepo, nil, nil, sceneRepo, eventRepo, auditRepo, streamMetrics, nil, nil)
 
 	// Create a scene and stream session first
 	testScene := &scene.Scene{
@@ -754,7 +754,7 @@ func TestJoinStream_WithNilMetrics(t *testing.T) {
 	eventRepo := scene.NewInMemoryEventRepository()
 	auditRepo := audit.NewInMemoryRepository()
 	// Pass nil for metrics to test the nil check path
-	handlers := NewStreamHandlers(streamRepo, nil, sceneRepo, eventRepo, auditRepo, nil)
+	handlers := NewStreamHandlers(streamRepo, nil, nil, sceneRepo, eventRepo, auditRepo, nil, nil, nil)
 
 	// Create a scene and stream session first
 	testScene := &scene.Scene{
@@ -811,5 +811,319 @@ func TestJoinStream_WithNilMetrics(t *testing.T) {
 	}
 	if session.LeaveCount != 1 {
 		t.Errorf("expected LeaveCount 1, got %d", session.LeaveCount)
+	}
+}
+
+// TestGetStream_Success tests successful stream retrieval.
+func TestGetStream_Success(t *testing.T) {
+	streamRepo := stream.NewInMemorySessionRepository()
+	sceneRepo := scene.NewInMemorySceneRepository()
+	eventRepo := scene.NewInMemoryEventRepository()
+	auditRepo := audit.NewInMemoryRepository()
+	handlers := NewStreamHandlers(streamRepo, nil, nil, sceneRepo, eventRepo, auditRepo, nil, nil, nil)
+
+	// Create a scene first
+	testScene := &scene.Scene{
+		ID:            uuid.New().String(),
+		Name:          "Test Scene",
+		OwnerDID:      "did:plc:test123",
+		CoarseGeohash: "dr5regw",
+		CreatedAt:     &time.Time{},
+	}
+	if err := sceneRepo.Insert(testScene); err != nil {
+		t.Fatalf("failed to insert scene: %v", err)
+	}
+
+	// Create a stream session
+	streamID, roomName, err := streamRepo.CreateStreamSession(ptrString(testScene.ID), nil, "did:plc:test123")
+	if err != nil {
+		t.Fatalf("failed to create stream: %v", err)
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "/streams/"+streamID, nil)
+	ctx := middleware.SetUserDID(req.Context(), "did:plc:test123")
+	req = req.WithContext(ctx)
+	w := httptest.NewRecorder()
+
+	handlers.GetStream(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("expected status 200, got %d: %s", w.Code, w.Body.String())
+	}
+
+	var response StreamSessionResponse
+	if err := json.NewDecoder(w.Body).Decode(&response); err != nil {
+		t.Fatalf("failed to decode response: %v", err)
+	}
+
+	if response.ID != streamID {
+		t.Errorf("expected stream ID %s, got %s", streamID, response.ID)
+	}
+
+	if response.RoomName != roomName {
+		t.Errorf("expected room name %s, got %s", roomName, response.RoomName)
+	}
+
+	if response.Status != "active" {
+		t.Errorf("expected status 'active', got %s", response.Status)
+	}
+}
+
+// TestGetStream_NotFound tests retrieval of non-existent stream.
+func TestGetStream_NotFound(t *testing.T) {
+	streamRepo := stream.NewInMemorySessionRepository()
+	sceneRepo := scene.NewInMemorySceneRepository()
+	eventRepo := scene.NewInMemoryEventRepository()
+	auditRepo := audit.NewInMemoryRepository()
+	handlers := NewStreamHandlers(streamRepo, nil, nil, sceneRepo, eventRepo, auditRepo, nil, nil, nil)
+
+	req := httptest.NewRequest(http.MethodGet, "/streams/"+uuid.New().String(), nil)
+	ctx := middleware.SetUserDID(req.Context(), "did:plc:test123")
+	req = req.WithContext(ctx)
+	w := httptest.NewRecorder()
+
+	handlers.GetStream(w, req)
+
+	if w.Code != http.StatusNotFound {
+		t.Errorf("expected status 404, got %d: %s", w.Code, w.Body.String())
+	}
+}
+
+// TestGetStream_Unauthorized tests stream retrieval without authentication.
+func TestGetStream_Unauthorized(t *testing.T) {
+	streamRepo := stream.NewInMemorySessionRepository()
+	sceneRepo := scene.NewInMemorySceneRepository()
+	eventRepo := scene.NewInMemoryEventRepository()
+	auditRepo := audit.NewInMemoryRepository()
+	handlers := NewStreamHandlers(streamRepo, nil, nil, sceneRepo, eventRepo, auditRepo, nil, nil, nil)
+
+	req := httptest.NewRequest(http.MethodGet, "/streams/"+uuid.New().String(), nil)
+	w := httptest.NewRecorder()
+
+	handlers.GetStream(w, req)
+
+	if w.Code != http.StatusUnauthorized {
+		t.Errorf("expected status 401, got %d: %s", w.Code, w.Body.String())
+	}
+}
+
+// TestUpdateStream_Success tests successful stream metadata update.
+func TestUpdateStream_Success(t *testing.T) {
+	streamRepo := stream.NewInMemorySessionRepository()
+	sceneRepo := scene.NewInMemorySceneRepository()
+	eventRepo := scene.NewInMemoryEventRepository()
+	auditRepo := audit.NewInMemoryRepository()
+	handlers := NewStreamHandlers(streamRepo, nil, nil, sceneRepo, eventRepo, auditRepo, nil, nil, nil)
+
+	// Create a scene first
+	testScene := &scene.Scene{
+		ID:            uuid.New().String(),
+		Name:          "Test Scene",
+		OwnerDID:      "did:plc:test123",
+		CoarseGeohash: "dr5regw",
+		CreatedAt:     &time.Time{},
+	}
+	if err := sceneRepo.Insert(testScene); err != nil {
+		t.Fatalf("failed to insert scene: %v", err)
+	}
+
+	// Create a stream session
+	streamID, _, err := streamRepo.CreateStreamSession(ptrString(testScene.ID), nil, "did:plc:test123")
+	if err != nil {
+		t.Fatalf("failed to create stream: %v", err)
+	}
+
+	reqBody := UpdateStreamRequest{
+		Metadata: map[string]interface{}{
+			"title":       "My Stream",
+			"description": "A great stream",
+		},
+	}
+
+	body, err := json.Marshal(reqBody)
+	if err != nil {
+		t.Fatalf("failed to marshal request: %v", err)
+	}
+
+	req := httptest.NewRequest(http.MethodPatch, "/streams/"+streamID, bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	ctx := middleware.SetUserDID(req.Context(), "did:plc:test123")
+	req = req.WithContext(ctx)
+	w := httptest.NewRecorder()
+
+	handlers.UpdateStream(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("expected status 200, got %d: %s", w.Code, w.Body.String())
+	}
+
+	var response StreamSessionResponse
+	if err := json.NewDecoder(w.Body).Decode(&response); err != nil {
+		t.Fatalf("failed to decode response: %v", err)
+	}
+
+	if response.ID != streamID {
+		t.Errorf("expected stream ID %s, got %s", streamID, response.ID)
+	}
+}
+
+// TestUpdateStream_Forbidden tests metadata update by non-host.
+func TestUpdateStream_Forbidden(t *testing.T) {
+	streamRepo := stream.NewInMemorySessionRepository()
+	sceneRepo := scene.NewInMemorySceneRepository()
+	eventRepo := scene.NewInMemoryEventRepository()
+	auditRepo := audit.NewInMemoryRepository()
+	handlers := NewStreamHandlers(streamRepo, nil, nil, sceneRepo, eventRepo, auditRepo, nil, nil, nil)
+
+	// Create a scene first
+	testScene := &scene.Scene{
+		ID:            uuid.New().String(),
+		Name:          "Test Scene",
+		OwnerDID:      "did:plc:test123",
+		CoarseGeohash: "dr5regw",
+		CreatedAt:     &time.Time{},
+	}
+	if err := sceneRepo.Insert(testScene); err != nil {
+		t.Fatalf("failed to insert scene: %v", err)
+	}
+
+	// Create a stream session
+	streamID, _, err := streamRepo.CreateStreamSession(ptrString(testScene.ID), nil, "did:plc:test123")
+	if err != nil {
+		t.Fatalf("failed to create stream: %v", err)
+	}
+
+	reqBody := UpdateStreamRequest{
+		Metadata: map[string]interface{}{
+			"title": "Hacked Stream",
+		},
+	}
+
+	body, err := json.Marshal(reqBody)
+	if err != nil {
+		t.Fatalf("failed to marshal request: %v", err)
+	}
+
+	req := httptest.NewRequest(http.MethodPatch, "/streams/"+streamID, bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	ctx := middleware.SetUserDID(req.Context(), "did:plc:different456") // Different user
+	req = req.WithContext(ctx)
+	w := httptest.NewRecorder()
+
+	handlers.UpdateStream(w, req)
+
+	if w.Code != http.StatusForbidden {
+		t.Errorf("expected status 403, got %d: %s", w.Code, w.Body.String())
+	}
+}
+
+// TestCreateStream_ConcurrentStartPrevention_Scene tests duplicate prevention for scenes.
+func TestCreateStream_ConcurrentStartPrevention_Scene(t *testing.T) {
+	streamRepo := stream.NewInMemorySessionRepository()
+	sceneRepo := scene.NewInMemorySceneRepository()
+	eventRepo := scene.NewInMemoryEventRepository()
+	auditRepo := audit.NewInMemoryRepository()
+	handlers := NewStreamHandlers(streamRepo, nil, nil, sceneRepo, eventRepo, auditRepo, nil, nil, nil)
+
+	// Create a scene first
+	testScene := &scene.Scene{
+		ID:            uuid.New().String(),
+		Name:          "Test Scene",
+		OwnerDID:      "did:plc:test123",
+		CoarseGeohash: "dr5regw",
+		CreatedAt:     &time.Time{},
+	}
+	if err := sceneRepo.Insert(testScene); err != nil {
+		t.Fatalf("failed to insert scene: %v", err)
+	}
+
+	// Create first stream
+	_, _, err := streamRepo.CreateStreamSession(ptrString(testScene.ID), nil, "did:plc:test123")
+	if err != nil {
+		t.Fatalf("failed to create first stream: %v", err)
+	}
+
+	// Attempt to create second stream for same scene
+	reqBody := CreateStreamRequest{
+		SceneID: ptrString(testScene.ID),
+	}
+
+	body, err := json.Marshal(reqBody)
+	if err != nil {
+		t.Fatalf("failed to marshal request: %v", err)
+	}
+
+	req := httptest.NewRequest(http.MethodPost, "/streams", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	ctx := middleware.SetUserDID(req.Context(), "did:plc:test123")
+	req = req.WithContext(ctx)
+	w := httptest.NewRecorder()
+
+	handlers.CreateStream(w, req)
+
+	if w.Code != http.StatusConflict {
+		t.Errorf("expected status 409, got %d: %s", w.Code, w.Body.String())
+	}
+}
+
+// TestCreateStream_ConcurrentStartPrevention_Event tests duplicate prevention for events.
+func TestCreateStream_ConcurrentStartPrevention_Event(t *testing.T) {
+	streamRepo := stream.NewInMemorySessionRepository()
+	sceneRepo := scene.NewInMemorySceneRepository()
+	eventRepo := scene.NewInMemoryEventRepository()
+	auditRepo := audit.NewInMemoryRepository()
+	handlers := NewStreamHandlers(streamRepo, nil, nil, sceneRepo, eventRepo, auditRepo, nil, nil, nil)
+
+	// Create a scene and event
+	testScene := &scene.Scene{
+		ID:            uuid.New().String(),
+		Name:          "Test Scene",
+		OwnerDID:      "did:plc:test123",
+		CoarseGeohash: "dr5regw",
+		CreatedAt:     &time.Time{},
+	}
+	if err := sceneRepo.Insert(testScene); err != nil {
+		t.Fatalf("failed to insert scene: %v", err)
+	}
+
+	startsAt := time.Now().Add(24 * time.Hour)
+	testEvent := &scene.Event{
+		ID:            uuid.New().String(),
+		SceneID:       testScene.ID,
+		Name:          "Test Event",
+		CoarseGeohash: "dr5regw",
+		StartsAt:      startsAt,
+		CreatedAt:     time.Now(),
+	}
+	if err := eventRepo.Insert(testEvent); err != nil {
+		t.Fatalf("failed to insert event: %v", err)
+	}
+
+	// Create first stream
+	_, _, err := streamRepo.CreateStreamSession(nil, ptrString(testEvent.ID), "did:plc:test123")
+	if err != nil {
+		t.Fatalf("failed to create first stream: %v", err)
+	}
+
+	// Attempt to create second stream for same event
+	reqBody := CreateStreamRequest{
+		EventID: ptrString(testEvent.ID),
+	}
+
+	body, err := json.Marshal(reqBody)
+	if err != nil {
+		t.Fatalf("failed to marshal request: %v", err)
+	}
+
+	req := httptest.NewRequest(http.MethodPost, "/streams", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	ctx := middleware.SetUserDID(req.Context(), "did:plc:test123")
+	req = req.WithContext(ctx)
+	w := httptest.NewRecorder()
+
+	handlers.CreateStream(w, req)
+
+	if w.Code != http.StatusConflict {
+		t.Errorf("expected status 409, got %d: %s", w.Code, w.Body.String())
 	}
 }
