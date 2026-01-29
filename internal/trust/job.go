@@ -7,6 +7,8 @@ import (
 	"log/slog"
 	"sync"
 	"time"
+
+	"github.com/onnwee/subcults/internal/jobs"
 )
 
 // DataSource provides membership and alliance data for trust score computation.
@@ -33,6 +35,8 @@ type RecomputeJobConfig struct {
 	Logger *slog.Logger
 	// Metrics for performance tracking.
 	Metrics *Metrics
+	// JobMetrics for centralized background job tracking.
+	JobMetrics jobs.Reporter
 	// Timeout for each recompute cycle.
 	Timeout time.Duration
 }
@@ -178,6 +182,19 @@ func (j *RecomputeJob) recomputeDirtyScenes(parentCtx context.Context) {
 			if j.config.Metrics != nil {
 				j.config.Metrics.IncRecomputeErrors()
 			}
+			if j.config.JobMetrics != nil {
+				j.config.JobMetrics.IncJobErrors(jobs.JobTypeTrustRecompute, "timeout")
+			}
+			
+			// Record job completion metrics even for timeout
+			duration := time.Since(startTime).Seconds()
+			if j.config.Metrics != nil {
+				j.config.Metrics.ObserveRecomputeDuration(duration)
+			}
+			if j.config.JobMetrics != nil {
+				j.config.JobMetrics.IncJobsTotal(jobs.JobTypeTrustRecompute, jobs.StatusFailure)
+				j.config.JobMetrics.ObserveJobDuration(jobs.JobTypeTrustRecompute, duration)
+			}
 			return
 		default:
 		}
@@ -198,6 +215,9 @@ func (j *RecomputeJob) recomputeDirtyScenes(parentCtx context.Context) {
 				"error", err)
 			if j.config.Metrics != nil {
 				j.config.Metrics.IncRecomputeErrors()
+			}
+			if j.config.JobMetrics != nil {
+				j.config.JobMetrics.IncJobErrors(jobs.JobTypeTrustRecompute, "recompute_error")
 			}
 			continue
 		}
@@ -227,12 +247,24 @@ func (j *RecomputeJob) recomputeDirtyScenes(parentCtx context.Context) {
 		avgVariance = varianceSum / float64(varianceCount)
 	}
 
+	// Determine job status
+	status := jobs.StatusSuccess
+	if successCount < sceneCount {
+		status = jobs.StatusFailure
+	}
+
 	// Update metrics
 	if j.config.Metrics != nil {
 		j.config.Metrics.IncRecomputeTotal()
 		j.config.Metrics.ObserveRecomputeDuration(duration)
 		j.config.Metrics.SetLastRecomputeTimestamp(float64(time.Now().Unix()))
 		j.config.Metrics.SetLastRecomputeSceneCount(float64(successCount))
+	}
+
+	// Update centralized job metrics
+	if j.config.JobMetrics != nil {
+		j.config.JobMetrics.IncJobsTotal(jobs.JobTypeTrustRecompute, status)
+		j.config.JobMetrics.ObserveJobDuration(jobs.JobTypeTrustRecompute, duration)
 	}
 
 	// Completion log with required fields

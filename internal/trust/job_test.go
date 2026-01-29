@@ -9,6 +9,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/onnwee/subcults/internal/jobs"
 )
 
 // slowDataSource wraps a DataSource with artificial delays for testing timeouts.
@@ -694,4 +696,216 @@ func BenchmarkRecompute(b *testing.B) {
 		}
 		job.RecomputeNow()
 	}
+}
+
+// mockJobMetrics is a mock implementation of JobMetrics for testing.
+// Note: This implementation is NOT thread-safe. Use only in single-threaded tests.
+type mockJobMetrics struct {
+	jobsTotal       map[string]map[string]int
+	jobsDuration    map[string][]float64
+	jobErrors       map[string]map[string]int
+}
+
+func newMockJobMetrics() *mockJobMetrics {
+	return &mockJobMetrics{
+		jobsTotal:    make(map[string]map[string]int),
+		jobsDuration: make(map[string][]float64),
+		jobErrors:    make(map[string]map[string]int),
+	}
+}
+
+func (m *mockJobMetrics) IncJobsTotal(jobType, status string) {
+	if m.jobsTotal[jobType] == nil {
+		m.jobsTotal[jobType] = make(map[string]int)
+	}
+	m.jobsTotal[jobType][status]++
+}
+
+func (m *mockJobMetrics) ObserveJobDuration(jobType string, seconds float64) {
+	m.jobsDuration[jobType] = append(m.jobsDuration[jobType], seconds)
+}
+
+func (m *mockJobMetrics) IncJobErrors(jobType, errorType string) {
+	if m.jobErrors[jobType] == nil {
+		m.jobErrors[jobType] = make(map[string]int)
+	}
+	m.jobErrors[jobType][errorType]++
+}
+
+func TestRecomputeJob_WithJobMetrics(t *testing.T) {
+	dataSource := NewInMemoryDataSource()
+	scoreStore := NewInMemoryScoreStore()
+	dirtyTracker := NewDirtyTracker()
+	jobMetrics := newMockJobMetrics()
+
+	// Setup 20 scenes with data
+	for i := 0; i < 20; i++ {
+		sceneID := fmt.Sprintf("scene-%d", i)
+		dataSource.AddMembership(Membership{
+			SceneID:     sceneID,
+			UserDID:     fmt.Sprintf("did:user%d", i),
+			Role:        "member",
+			TrustWeight: 0.5,
+		})
+		dirtyTracker.MarkDirty(sceneID)
+	}
+
+	job := NewRecomputeJob(
+		RecomputeJobConfig{
+			Interval:   100 * time.Millisecond,
+			Logger:     slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError})),
+			JobMetrics: jobMetrics,
+			Timeout:    5 * time.Second,
+		},
+		dirtyTracker,
+		dataSource,
+		scoreStore,
+	)
+
+	// Trigger recompute
+	job.RecomputeNow()
+
+	// Verify job total metrics were updated
+	if v := jobMetrics.jobsTotal[jobs.JobTypeTrustRecompute][jobs.StatusSuccess]; v != 1 {
+		t.Errorf("jobsTotal[trust_recompute][success] = %d, want 1", v)
+	}
+
+	// Verify job duration was recorded
+	if len(jobMetrics.jobsDuration[jobs.JobTypeTrustRecompute]) != 1 {
+		t.Errorf("jobsDuration[trust_recompute] count = %d, want 1", len(jobMetrics.jobsDuration[jobs.JobTypeTrustRecompute]))
+	}
+
+	// Duration should be positive
+	if len(jobMetrics.jobsDuration[jobs.JobTypeTrustRecompute]) > 0 {
+		duration := jobMetrics.jobsDuration[jobs.JobTypeTrustRecompute][0]
+		if duration <= 0 {
+			t.Errorf("jobsDuration = %f, should be > 0", duration)
+		}
+	}
+
+	// Verify all scenes were processed
+	if count := dirtyTracker.DirtyCount(); count != 0 {
+		t.Errorf("dirty count = %d, want 0", count)
+	}
+}
+
+func TestRecomputeJob_WithJobMetricsAndErrors(t *testing.T) {
+	// Use a data source that will return errors
+	dataSource := NewInMemoryDataSource()
+	scoreStore := &errorScoreStore{} // Always returns errors
+	dirtyTracker := NewDirtyTracker()
+	jobMetrics := newMockJobMetrics()
+
+	// Setup 5 scenes
+	for i := 0; i < 5; i++ {
+		sceneID := fmt.Sprintf("scene-%d", i)
+		dataSource.AddMembership(Membership{
+			SceneID:     sceneID,
+			UserDID:     fmt.Sprintf("did:user%d", i),
+			Role:        "member",
+			TrustWeight: 0.5,
+		})
+		dirtyTracker.MarkDirty(sceneID)
+	}
+
+	job := NewRecomputeJob(
+		RecomputeJobConfig{
+			Interval:   100 * time.Millisecond,
+			Logger:     slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError})),
+			JobMetrics: jobMetrics,
+			Timeout:    5 * time.Second,
+		},
+		dirtyTracker,
+		dataSource,
+		scoreStore,
+	)
+
+	// Trigger recompute
+	job.RecomputeNow()
+
+	// Verify job status is failure (not all scenes processed)
+	if v := jobMetrics.jobsTotal[jobs.JobTypeTrustRecompute][jobs.StatusFailure]; v != 1 {
+		t.Errorf("jobsTotal[trust_recompute][failure] = %d, want 1", v)
+	}
+
+	// Verify job errors were tracked
+	if v := jobMetrics.jobErrors[jobs.JobTypeTrustRecompute]["recompute_error"]; v != 5 {
+		t.Errorf("jobErrors[trust_recompute][recompute_error] = %d, want 5", v)
+	}
+}
+
+func TestRecomputeJob_WithJobMetricsTimeout(t *testing.T) {
+	dataSource := NewInMemoryDataSource()
+	slowDataSource := newSlowDataSource(dataSource, 200*time.Millisecond)
+	scoreStore := NewInMemoryScoreStore()
+	dirtyTracker := NewDirtyTracker()
+	jobMetrics := newMockJobMetrics()
+
+	// Setup 10 scenes - with 200ms delay per scene, this would take 2+ seconds
+	for i := 0; i < 10; i++ {
+		sceneID := fmt.Sprintf("scene-%d", i)
+		dataSource.AddMembership(Membership{
+			SceneID:     sceneID,
+			UserDID:     fmt.Sprintf("did:user%d", i),
+			Role:        "member",
+			TrustWeight: 0.5,
+		})
+		dirtyTracker.MarkDirty(sceneID)
+	}
+
+	job := NewRecomputeJob(
+		RecomputeJobConfig{
+			Interval:   100 * time.Millisecond,
+			Logger:     slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError})),
+			JobMetrics: jobMetrics,
+			Timeout:    500 * time.Millisecond, // Very short timeout to trigger abort
+		},
+		dirtyTracker,
+		slowDataSource,
+		scoreStore,
+	)
+
+	// Trigger recompute
+	job.RecomputeNow()
+
+	// Verify timeout error was tracked
+	if v := jobMetrics.jobErrors[jobs.JobTypeTrustRecompute]["timeout"]; v != 1 {
+		t.Errorf("jobErrors[trust_recompute][timeout] = %d, want 1", v)
+	}
+
+	// Verify job completion was tracked even with timeout (failure status)
+	if v := jobMetrics.jobsTotal[jobs.JobTypeTrustRecompute][jobs.StatusFailure]; v != 1 {
+		t.Errorf("jobsTotal[trust_recompute][failure] = %d, want 1", v)
+	}
+
+	// Verify duration was recorded
+	if len(jobMetrics.jobsDuration[jobs.JobTypeTrustRecompute]) != 1 {
+		t.Errorf("jobsDuration[trust_recompute] count = %d, want 1", len(jobMetrics.jobsDuration[jobs.JobTypeTrustRecompute]))
+	}
+
+	// Duration should be positive and bounded by timeout + some overhead (scheduler contention)
+	// Use 3x timeout as upper bound to account for CI variability
+	maxDuration := 3 * 500 * time.Millisecond
+	if len(jobMetrics.jobsDuration[jobs.JobTypeTrustRecompute]) > 0 {
+		duration := jobMetrics.jobsDuration[jobs.JobTypeTrustRecompute][0]
+		if duration <= 0 || duration > maxDuration.Seconds() {
+			t.Errorf("jobsDuration = %f, expected between 0 and %f", duration, maxDuration.Seconds())
+		}
+	}
+
+	// Some scenes should still be dirty
+	if count := dirtyTracker.DirtyCount(); count == 0 {
+		t.Error("dirty count should be > 0 due to timeout abort")
+	}
+}
+
+// errorScoreStore is a ScoreStore that always returns errors.
+type errorScoreStore struct{}
+
+func (e *errorScoreStore) SaveScore(score SceneTrustScore) error {
+	return fmt.Errorf("simulated save error")
+}
+
+func (e *errorScoreStore) GetScore(sceneID string) (*SceneTrustScore, error) {
+	return nil, fmt.Errorf("simulated get error")
 }
