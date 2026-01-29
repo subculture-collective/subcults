@@ -526,8 +526,337 @@ Planned additions:
 - Per-scene join/leave metrics (with scene ID label)
 - Stream duration histogram
 - Participant count gauge per active session
-- Audio quality metrics integration
 - Client-side error rate tracking
+
+## Audio Quality Metrics
+
+### Overview
+
+Audio quality metrics track real-time network conditions and audio performance for stream participants. These metrics enable proactive detection of quality degradation and support adaptive streaming strategies.
+
+### Available Audio Quality Metrics
+
+#### `stream_audio_bitrate_kbps`
+
+**Type**: Histogram  
+**Description**: Audio bitrate in kilobits per second for active participants.
+
+**Buckets**: 16, 32, 64, 96, 128, 160, 192, 256, 320 kbps
+
+**Usage**: Monitor audio quality and detect bandwidth constraints.
+
+**Example Queries**:
+```promql
+# 95th percentile audio bitrate
+histogram_quantile(0.95, rate(stream_audio_bitrate_kbps_bucket[5m]))
+
+# Average audio bitrate
+rate(stream_audio_bitrate_kbps_sum[5m]) / rate(stream_audio_bitrate_kbps_count[5m])
+```
+
+#### `stream_audio_jitter_ms`
+
+**Type**: Histogram  
+**Description**: Audio jitter (packet delay variation) in milliseconds.
+
+**Buckets**: 1, 5, 10, 20, 30, 50, 100, 200 ms
+
+**Usage**: Detect network instability and buffer issues.
+
+**Alert Threshold**: Jitter > 30ms indicates poor network quality.
+
+**Example Queries**:
+```promql
+# 95th percentile jitter
+histogram_quantile(0.95, rate(stream_audio_jitter_ms_bucket[5m]))
+
+# Participants experiencing high jitter (>30ms)
+1 - (sum(rate(stream_audio_jitter_ms_bucket{le="30"}[5m])) / sum(rate(stream_audio_jitter_ms_count[5m])))
+```
+
+#### `stream_audio_packet_loss_percent`
+
+**Type**: Histogram  
+**Description**: Audio packet loss percentage (0-100) for active participants.
+
+**Buckets**: 0.1, 0.5, 1, 2, 5, 10, 20, 50 percent
+
+**Usage**: Identify network reliability issues and quality degradation.
+
+**Alert Threshold**: Packet loss > 5% triggers high packet loss counter.
+
+**Example Queries**:
+```promql
+# 95th percentile packet loss
+histogram_quantile(0.95, rate(stream_audio_packet_loss_percent_bucket[5m]))
+
+# Participants experiencing high packet loss (>5%)
+(sum(rate(stream_audio_packet_loss_percent_bucket{le="+Inf"}[5m])) - sum(rate(stream_audio_packet_loss_percent_bucket{le="5"}[5m]))) / sum(rate(stream_audio_packet_loss_percent_count[5m]))
+```
+
+#### `stream_audio_level`
+
+**Type**: Histogram  
+**Description**: Audio level from 0.0 (silent) to 1.0 (loudest).
+
+**Buckets**: 0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0
+
+**Usage**: Monitor audio activity and detect silence/dropout issues.
+
+**Example Queries**:
+```promql
+# 95th percentile audio level
+histogram_quantile(0.95, rate(stream_audio_level_bucket[5m]))
+
+# Percentage of time with active audio (>0.1)
+(sum(rate(stream_audio_level_bucket{le="+Inf"}[5m])) - sum(rate(stream_audio_level_bucket{le="0.1"}[5m]))) / sum(rate(stream_audio_level_count[5m]))
+```
+
+#### `stream_network_rtt_ms`
+
+**Type**: Histogram  
+**Description**: Network round-trip time in milliseconds between client and server.
+
+**Buckets**: 10, 25, 50, 100, 150, 200, 300, 500, 1000 ms
+
+**Usage**: Monitor network latency and connection quality.
+
+**Alert Threshold**: RTT > 300ms indicates poor network quality.
+
+**Example Queries**:
+```promql
+# 95th percentile RTT
+histogram_quantile(0.95, rate(stream_network_rtt_ms_bucket[5m]))
+
+# Average RTT
+rate(stream_network_rtt_ms_sum[5m]) / rate(stream_network_rtt_ms_count[5m])
+```
+
+#### `stream_quality_alerts_total`
+
+**Type**: Counter  
+**Description**: Total number of audio quality alerts triggered due to poor network conditions.
+
+**Usage**: Track frequency of quality degradation events.
+
+**Trigger Conditions**:
+- Packet loss > 5%
+- Jitter > 30ms
+- RTT > 300ms
+
+**Example Queries**:
+```promql
+# Quality alert rate per minute
+rate(stream_quality_alerts_total[1m]) * 60
+
+# Total alerts in last hour
+increase(stream_quality_alerts_total[1h])
+```
+
+#### `stream_high_packet_loss_total`
+
+**Type**: Counter  
+**Description**: Total number of high packet loss events (>5%).
+
+**Usage**: Track packet loss occurrences specifically for quick alerting.
+
+**Example Queries**:
+```promql
+# High packet loss event rate
+rate(stream_high_packet_loss_total[5m])
+
+# Percentage of observations with high packet loss
+rate(stream_high_packet_loss_total[5m]) / rate(stream_audio_packet_loss_percent_count[5m]) * 100
+```
+
+### Audio Quality API Endpoints
+
+#### Get Stream Quality Metrics
+
+**Endpoint**: `GET /streams/{id}/quality-metrics`
+
+**Query Parameters**:
+- `limit` (optional): Number of recent metrics to return (default: 100, max: 1000)
+
+**Response**:
+```json
+{
+  "stream_id": "uuid-here",
+  "metrics": [
+    {
+      "id": "metric-uuid",
+      "stream_session_id": "stream-uuid",
+      "participant_id": "user-abc123",
+      "bitrate_kbps": 128.5,
+      "jitter_ms": 15.2,
+      "packet_loss_percent": 2.3,
+      "audio_level": 0.72,
+      "rtt_ms": 45.8,
+      "measured_at": "2026-01-29T02:30:00Z"
+    }
+  ],
+  "count": 1
+}
+```
+
+#### Get Participant Quality Metrics
+
+**Endpoint**: `GET /streams/{id}/participants/{participant_id}/quality-metrics`
+
+**Response**: Returns the most recent quality metrics for the specified participant.
+
+#### Collect Quality Metrics
+
+**Endpoint**: `POST /streams/{id}/quality-metrics/collect`
+
+**Description**: Manually trigger collection of quality metrics from LiveKit for all participants. Typically called periodically by a background job.
+
+**Response**:
+```json
+{
+  "stream_id": "uuid-here",
+  "participants": 5,
+  "metrics_recorded": 5,
+  "alerts_triggered": 1,
+  "measured_at": "2026-01-29T02:30:00Z"
+}
+```
+
+#### Get High Packet Loss Participants
+
+**Endpoint**: `GET /streams/{id}/quality-metrics/high-packet-loss`
+
+**Query Parameters**:
+- `since_minutes` (optional): Time window in minutes (default: 5, max: 60)
+
+**Response**:
+```json
+{
+  "stream_id": "uuid-here",
+  "since_minutes": 5,
+  "participants": ["user-abc123", "user-def456"],
+  "count": 2
+}
+```
+
+### Quality Alert Conditions
+
+Recommended Prometheus alert rules for audio quality:
+
+```yaml
+groups:
+  - name: audio_quality
+    rules:
+      # High packet loss across stream
+      - alert: HighStreamPacketLoss
+        expr: histogram_quantile(0.95, rate(stream_audio_packet_loss_percent_bucket[5m])) > 5
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High packet loss detected in stream"
+          description: "95th percentile packet loss is {{ $value }}% (threshold: 5%)"
+
+      # High jitter across stream
+      - alert: HighStreamJitter
+        expr: histogram_quantile(0.95, rate(stream_audio_jitter_ms_bucket[5m])) > 30
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High jitter detected in stream"
+          description: "95th percentile jitter is {{ $value }}ms (threshold: 30ms)"
+
+      # High network latency
+      - alert: HighStreamLatency
+        expr: histogram_quantile(0.95, rate(stream_network_rtt_ms_bucket[5m])) > 300
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High network latency detected"
+          description: "95th percentile RTT is {{ $value }}ms (threshold: 300ms)"
+
+      # Frequent quality alerts
+      - alert: FrequentQualityAlerts
+        expr: rate(stream_quality_alerts_total[5m]) > 0.1
+        for: 10m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Frequent quality alerts detected"
+          description: "Quality alert rate is {{ $value }}/sec"
+
+      # Low audio bitrate indicating quality degradation
+      - alert: LowAudioBitrate
+        expr: histogram_quantile(0.50, rate(stream_audio_bitrate_kbps_bucket[5m])) < 64
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Low audio bitrate detected"
+          description: "Median bitrate is {{ $value }} kbps (threshold: 64 kbps)"
+```
+
+### Quality Degradation Strategy
+
+When poor network quality is detected:
+
+1. **Detection**: Metrics collection identifies participants with:
+   - Packet loss > 5%
+   - Jitter > 30ms
+   - RTT > 300ms
+
+2. **Alerting**: 
+   - Prometheus alerts trigger
+   - Logs capture quality degradation events
+   - `stream_quality_alerts_total` counter increments
+
+3. **Client Response** (recommended):
+   - Poll `/streams/{id}/quality-metrics/high-packet-loss` endpoint
+   - Reduce audio codec bitrate
+   - Suggest network troubleshooting to user
+   - Consider graceful quality reduction
+
+4. **Monitoring**:
+   - Track alert frequency
+   - Analyze time series data for patterns
+   - Identify systematic network issues
+
+### Performance Budgets
+
+Audio quality targets:
+- **Packet Loss**: p95 < 2%, p99 < 5%
+- **Jitter**: p95 < 20ms, p99 < 30ms
+- **RTT**: p95 < 150ms, p99 < 300ms
+- **Bitrate**: p50 > 96 kbps, p95 > 128 kbps
+
+### Integration with Monitoring Stack
+
+Add audio quality panels to Grafana dashboards:
+
+```yaml
+# Grafana Dashboard - Audio Quality Panel
+- title: "Audio Quality Metrics"
+  panels:
+    - title: "Packet Loss (p95)"
+      query: histogram_quantile(0.95, rate(stream_audio_packet_loss_percent_bucket[5m]))
+      threshold: 5
+      
+    - title: "Jitter (p95)"
+      query: histogram_quantile(0.95, rate(stream_audio_jitter_ms_bucket[5m]))
+      threshold: 30
+      
+    - title: "Network RTT (p95)"
+      query: histogram_quantile(0.95, rate(stream_network_rtt_ms_bucket[5m]))
+      threshold: 300
+      
+    - title: "Quality Alerts Rate"
+      query: rate(stream_quality_alerts_total[5m])
+      
+    - title: "High Packet Loss Events"
+      query: rate(stream_high_packet_loss_total[5m])
+```
 
 ## See Also
 

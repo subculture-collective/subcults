@@ -13,10 +13,10 @@ func TestNewMetrics(t *testing.T) {
 		t.Fatal("NewMetrics() returned nil")
 	}
 
-	// Verify all collectors are initialized
+	// Verify all collectors are initialized (including new audio quality metrics)
 	collectors := m.Collectors()
-	if len(collectors) != 3 {
-		t.Errorf("expected 3 collectors, got %d", len(collectors))
+	if len(collectors) != 10 {
+		t.Errorf("expected 10 collectors, got %d", len(collectors))
 	}
 }
 
@@ -36,9 +36,16 @@ func TestMetrics_Register(t *testing.T) {
 		}
 
 		expectedNames := map[string]bool{
-			MetricStreamJoins:       false,
-			MetricStreamLeaves:      false,
-			MetricStreamJoinLatency: false,
+			MetricStreamJoins:        false,
+			MetricStreamLeaves:       false,
+			MetricStreamJoinLatency:  false,
+			MetricAudioBitrate:       false,
+			MetricAudioJitter:        false,
+			MetricAudioPacketLoss:    false,
+			MetricAudioLevel:         false,
+			MetricNetworkRTT:         false,
+			MetricQualityAlerts:      false,
+			MetricHighPacketLoss:     false,
 		}
 
 		for _, family := range families {

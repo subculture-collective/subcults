@@ -219,3 +219,36 @@ func (s *RoomService) ListParticipants(ctx context.Context, roomName string) ([]
 
 	return resp.Participants, nil
 }
+
+// GetParticipantStats retrieves detailed statistics for a specific participant.
+// Stats include bitrate, jitter, packet loss, and other quality metrics.
+// Returns ErrRoomServiceNotConfigured if room service is not initialized.
+func (s *RoomService) GetParticipantStats(ctx context.Context, roomName, participantIdentity string) (*livekit.ParticipantInfo, error) {
+	if s.roomClient == nil {
+		return nil, ErrRoomServiceNotConfigured
+	}
+
+	// Use GetParticipant which includes track statistics
+	participant, err := s.GetParticipant(ctx, roomName, participantIdentity)
+	if err != nil {
+		return nil, err
+	}
+
+	return participant, nil
+}
+
+// GetAllParticipantStats retrieves statistics for all participants in a room.
+// This is useful for monitoring overall room quality and detecting issues.
+func (s *RoomService) GetAllParticipantStats(ctx context.Context, roomName string) ([]*livekit.ParticipantInfo, error) {
+	if s.roomClient == nil {
+		return nil, ErrRoomServiceNotConfigured
+	}
+
+	// ListParticipants returns full ParticipantInfo with track stats
+	participants, err := s.ListParticipants(ctx, roomName)
+	if err != nil {
+		return nil, err
+	}
+
+	return participants, nil
+}
