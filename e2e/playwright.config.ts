@@ -6,7 +6,7 @@ import { defineConfig, devices } from '@playwright/test';
  * See https://playwright.dev/docs/test-configuration
  */
 export default defineConfig({
-  testDir: './e2e/tests',
+  testDir: './tests',
   
   // Maximum time one test can run
   timeout: 60 * 1000,
@@ -19,8 +19,8 @@ export default defineConfig({
   
   // Reporter configuration
   reporter: [
-    ['html', { outputFolder: 'e2e-report' }],
-    ['json', { outputFile: 'e2e-results.json' }],
+    ['html', { outputFolder: '../e2e-report' }],
+    ['json', { outputFile: '../e2e-results.json' }],
     ['list'],
   ],
   
@@ -94,7 +94,7 @@ export default defineConfig({
   // Web server configuration
   webServer: [
     {
-      command: 'cd web && npm run dev',
+      command: 'cd ../web && npm run dev',
       url: 'http://localhost:5173',
       reuseExistingServer: !process.env.CI,
       timeout: 120 * 1000,

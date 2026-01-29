@@ -108,7 +108,7 @@ export class MockAPIServer {
 
     // Get room state for testing
     this.app.get('/api/test/room/:roomId', (req: Request, res: Response) => {
-      const { roomId } = req.params;
+      const roomId = Array.isArray(req.params.roomId) ? req.params.roomId[0] : req.params.roomId;
       const room = this.mockLiveKit.getRoom(roomId);
       
       if (room) {
