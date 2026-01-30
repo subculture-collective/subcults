@@ -55,8 +55,13 @@ func (t *PostgresSequenceTracker) GetLastSequence(ctx context.Context) (int64, e
 }
 
 // UpdateSequence updates the cursor in the database.
+// Only updates if the new sequence is greater than the current one (monotonic).
 func (t *PostgresSequenceTracker) UpdateSequence(ctx context.Context, sequence int64) error {
-	query := `UPDATE indexer_state SET cursor = $1, last_updated = NOW() WHERE id = (SELECT id FROM indexer_state ORDER BY id DESC LIMIT 1)`
+	// Use GREATEST to ensure monotonic updates - only update if new sequence is greater
+	query := `UPDATE indexer_state 
+	          SET cursor = GREATEST(cursor, $1), last_updated = NOW() 
+	          WHERE id = (SELECT id FROM indexer_state ORDER BY id DESC LIMIT 1) 
+	          AND $1 > cursor`
 	result, err := t.db.ExecContext(ctx, query, sequence)
 	if err != nil {
 		return fmt.Errorf("failed to update sequence: %w", err)
@@ -68,16 +73,33 @@ func (t *PostgresSequenceTracker) UpdateSequence(ctx context.Context, sequence i
 	}
 
 	if rowsAffected == 0 {
-		// No row exists, insert one
-		insertQuery := `INSERT INTO indexer_state (cursor, last_updated) VALUES ($1, NOW())`
-		_, err = t.db.ExecContext(ctx, insertQuery, sequence)
+		// Either no row exists, or sequence is not greater than current
+		// Check if row exists
+		var exists bool
+		checkQuery := `SELECT EXISTS(SELECT 1 FROM indexer_state LIMIT 1)`
+		err = t.db.QueryRowContext(ctx, checkQuery).Scan(&exists)
 		if err != nil {
-			return fmt.Errorf("failed to insert initial sequence: %w", err)
+			return fmt.Errorf("failed to check if state exists: %w", err)
 		}
-	}
 
-	t.logger.Debug("updated sequence cursor",
-		slog.Int64("cursor", sequence))
+		if !exists {
+			// No row exists, insert one
+			insertQuery := `INSERT INTO indexer_state (cursor, last_updated) VALUES ($1, NOW())`
+			_, err = t.db.ExecContext(ctx, insertQuery, sequence)
+			if err != nil {
+				return fmt.Errorf("failed to insert initial sequence: %w", err)
+			}
+			t.logger.Debug("inserted initial sequence cursor",
+				slog.Int64("cursor", sequence))
+		} else {
+			// Row exists but sequence is not greater - skip update (monotonic behavior)
+			t.logger.Debug("skipped sequence update (not greater than current)",
+				slog.Int64("sequence", sequence))
+		}
+	} else {
+		t.logger.Debug("updated sequence cursor",
+			slog.Int64("cursor", sequence))
+	}
 
 	return nil
 }

@@ -199,7 +199,7 @@ func (c *Client) connect(ctx context.Context) error {
 		}
 	}
 
-	c.logger.Info("connecting to jetstream", slog.String("url", c.config.URL))
+	c.logger.Info("connecting to jetstream", slog.String("url", url))
 
 	dialer := websocket.Dialer{
 		HandshakeTimeout: 10 * time.Second,
