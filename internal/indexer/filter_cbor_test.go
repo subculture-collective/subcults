@@ -151,8 +151,8 @@ func TestRecordFilter_FilterCBOR_ValidAllianceCreate(t *testing.T) {
 	filter := NewRecordFilter(metrics)
 
 	allianceData := map[string]interface{}{
-		"from": "scene1",
-		"to":   "scene2",
+		"fromSceneId": "scene1",
+		"toSceneId":   "scene2",
 	}
 	recordCBOR, err := EncodeCBOR(allianceData)
 	if err != nil {

@@ -14,9 +14,10 @@ const LexiconPrefix = "app.subcult."
 
 // Supported lexicon collection types within the app.subcult namespace.
 const (
-	CollectionScene = "app.subcult.scene"
-	CollectionEvent = "app.subcult.event"
-	CollectionPost  = "app.subcult.post"
+	CollectionScene    = "app.subcult.scene"
+	CollectionEvent    = "app.subcult.event"
+	CollectionPost     = "app.subcult.post"
+	CollectionAlliance = "app.subcult.alliance"
 )
 
 // Errors for record filtering and validation.
@@ -195,6 +196,8 @@ func (f *RecordFilter) validateRecord(collection string, payload []byte) error {
 		return validateEventRecord(payload)
 	case CollectionPost:
 		return validatePostRecord(payload)
+	case CollectionAlliance:
+		return validateAllianceRecord(payload)
 	default:
 		// For unknown app.subcult.* collections, just validate JSON syntax
 		return validateJSONSyntax(payload)
@@ -277,4 +280,24 @@ func validatePostRecord(payload []byte) error {
 		return err
 	}
 	return validateStringField(record, "sceneId")
+}
+
+// AllianceRecord documents the expected structure of an app.subcult.alliance record.
+// Note: This type is for documentation only. Validation uses map-based checking
+// to allow extra fields while enforcing required field presence and types.
+type AllianceRecord struct {
+	FromSceneID string `json:"fromSceneId"`
+	ToSceneID   string `json:"toSceneId"`
+}
+
+// validateAllianceRecord validates an alliance record's required fields.
+func validateAllianceRecord(payload []byte) error {
+	var record map[string]interface{}
+	if err := json.Unmarshal(payload, &record); err != nil {
+		return ErrMalformedJSON
+	}
+	if err := validateStringField(record, "fromSceneId"); err != nil {
+		return err
+	}
+	return validateStringField(record, "toSceneId")
 }

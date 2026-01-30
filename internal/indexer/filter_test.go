@@ -455,7 +455,7 @@ func TestRecordFilter_Filter_UnknownSubcultCollection(t *testing.T) {
 		{
 			name:       "app.subcult.alliance with valid JSON",
 			collection: "app.subcult.alliance",
-			payload:    `{"from":"scene1","to":"scene2"}`,
+			payload:    `{"fromSceneId":"scene1","toSceneId":"scene2"}`,
 			wantValid:  true,
 		},
 		{
