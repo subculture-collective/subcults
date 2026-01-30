@@ -17,7 +17,7 @@ func TestDuplicate_DetectionByDIDAndRKey(t *testing.T) {
 	// Create two identical records (same DID + RKey)
 	record1Data := map[string]interface{}{"name": "Test Scene Version 1"}
 	record1Bytes, _ := json.Marshal(record1Data)
-	
+
 	record2Data := map[string]interface{}{"name": "Test Scene Version 2"}
 	record2Bytes, _ := json.Marshal(record2Data)
 
@@ -317,7 +317,7 @@ func TestDuplicate_DeleteOperations(t *testing.T) {
 
 	for i, op := range operations {
 		var msg JetstreamMessage
-		
+
 		if op.operation == "delete" {
 			msg = JetstreamMessage{
 				DID:    did,
@@ -389,7 +389,7 @@ func TestTransactionAtomicity_SimulatedRollback(t *testing.T) {
 
 	// Simulate a batch of operations that should be atomic
 	type operation struct {
-		msg       JetstreamMessage
+		msg        JetstreamMessage
 		shouldFail bool
 	}
 
@@ -420,7 +420,7 @@ func TestTransactionAtomicity_SimulatedRollback(t *testing.T) {
 					Collection: CollectionScene,
 					RKey:       "scene2",
 					// Missing required field - should fail validation
-					Record:     mustEncodeCBORForDup([]byte(`{"description":"No name"}`)),
+					Record: mustEncodeCBORForDup([]byte(`{"description":"No name"}`)),
 				},
 			},
 			shouldFail: true,

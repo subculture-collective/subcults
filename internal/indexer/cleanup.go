@@ -13,12 +13,12 @@ import (
 // CleanupService handles periodic cleanup of old idempotency keys.
 // This prevents unbounded growth of the ingestion_idempotency table.
 type CleanupService struct {
-	db               *sql.DB
-	logger           *slog.Logger
-	retentionPeriod  time.Duration
-	cleanupInterval  time.Duration
-	stopChan         chan struct{}
-	doneChan         chan struct{}
+	db              *sql.DB
+	logger          *slog.Logger
+	retentionPeriod time.Duration
+	cleanupInterval time.Duration
+	stopChan        chan struct{}
+	doneChan        chan struct{}
 }
 
 // CleanupConfig contains configuration for the cleanup service.
@@ -116,9 +116,10 @@ func (s *CleanupService) run(ctx context.Context) {
 // - Default 24h retention may be too short for long replay/backfill scenarios
 // - If replaying from an old cursor (>24h), records can be reprocessed including deleted content
 // - For production with replay requirements, consider:
-//   1. Longer retention (e.g., 7-30 days) to cover expected replay windows
-//   2. Indefinite retention for delete operations to prevent re-ingestion
-//   3. Separate high-water mark / tombstone mechanism for correctness across long replays
+//  1. Longer retention (e.g., 7-30 days) to cover expected replay windows
+//  2. Indefinite retention for delete operations to prevent re-ingestion
+//  3. Separate high-water mark / tombstone mechanism for correctness across long replays
+//
 // - Current implementation prioritizes privacy (minimal retention) over replay correctness
 // - Adjust RetentionPeriod based on your replay patterns and correctness requirements
 func (s *CleanupService) cleanup(ctx context.Context) error {

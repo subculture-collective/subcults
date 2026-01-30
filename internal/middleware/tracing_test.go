@@ -137,7 +137,7 @@ func TestTracing_DifferentMethods(t *testing.T) {
 
 func TestGetTraceID_NoActiveSpan(t *testing.T) {
 	req := httptest.NewRequest(http.MethodGet, "/test", nil)
-	
+
 	traceID := GetTraceID(req)
 	if traceID != "" {
 		t.Errorf("expected empty trace ID for request without span, got %q", traceID)
@@ -146,7 +146,7 @@ func TestGetTraceID_NoActiveSpan(t *testing.T) {
 
 func TestGetSpanID_NoActiveSpan(t *testing.T) {
 	req := httptest.NewRequest(http.MethodGet, "/test", nil)
-	
+
 	spanID := GetSpanID(req)
 	if spanID != "" {
 		t.Errorf("expected empty span ID for request without span, got %q", spanID)

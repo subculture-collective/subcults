@@ -506,11 +506,11 @@ func TestEncodeCBOR_RoundTrip(t *testing.T) {
 		value interface{}
 	}{
 		{
-			name: "string",
+			name:  "string",
 			value: "test string",
 		},
 		{
-			name: "number",
+			name:  "number",
 			value: 42,
 		},
 		{
@@ -521,7 +521,7 @@ func TestEncodeCBOR_RoundTrip(t *testing.T) {
 			},
 		},
 		{
-			name: "array",
+			name:  "array",
 			value: []interface{}{"a", "b", "c"},
 		},
 		{
@@ -584,7 +584,7 @@ func TestParseRecord_ComplexSceneRecord(t *testing.T) {
 			"lat": 52.5200,
 			"lon": 13.4050,
 		},
-		"genres": []string{"techno", "house"},
+		"genres":   []string{"techno", "house"},
 		"capacity": 500,
 	}
 	recordCBOR, err := EncodeCBOR(sceneData)

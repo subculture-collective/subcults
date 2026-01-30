@@ -32,10 +32,10 @@ type Config struct {
 	LiveKitAPISecret string `koanf:"livekit_api_secret"`
 
 	// Stripe
-	StripeAPIKey              string  `koanf:"stripe_api_key"`
-	StripeWebhookSecret       string  `koanf:"stripe_webhook_secret"`
-	StripeOnboardingReturnURL string  `koanf:"stripe_onboarding_return_url"`
-	StripeOnboardingRefreshURL string `koanf:"stripe_onboarding_refresh_url"`
+	StripeAPIKey                string  `koanf:"stripe_api_key"`
+	StripeWebhookSecret         string  `koanf:"stripe_webhook_secret"`
+	StripeOnboardingReturnURL   string  `koanf:"stripe_onboarding_return_url"`
+	StripeOnboardingRefreshURL  string  `koanf:"stripe_onboarding_refresh_url"`
 	StripeApplicationFeePercent float64 `koanf:"stripe_application_fee_percent"` // Platform fee as percentage (e.g., 5.0 for 5%)
 
 	// MapTiler
@@ -87,15 +87,15 @@ var (
 
 // Default values for non-secret configuration.
 const (
-	DefaultPort                      = 8080
-	DefaultEnv                       = "development"
-	DefaultR2MaxUploadSizeMB         = 15
-	DefaultRankTrustEnabled          = false
+	DefaultPort                        = 8080
+	DefaultEnv                         = "development"
+	DefaultR2MaxUploadSizeMB           = 15
+	DefaultRankTrustEnabled            = false
 	DefaultStripeApplicationFeePercent = 5.0 // 5% platform fee by default
-	DefaultTracingEnabled            = false
-	DefaultTracingExporterType       = "otlp-http"
-	DefaultTracingSampleRate         = 0.1 // 10% sampling in production
-	DefaultTracingInsecure           = false
+	DefaultTracingEnabled              = false
+	DefaultTracingExporterType         = "otlp-http"
+	DefaultTracingSampleRate           = 0.1 // 10% sampling in production
+	DefaultTracingInsecure             = false
 )
 
 // Load reads configuration from environment variables and an optional config file.
@@ -201,32 +201,32 @@ func Load(configFilePath string) (*Config, []error) {
 
 	// Build config struct, with env vars taking precedence over file values
 	cfg := &Config{
-		Port:                       port,
-		Env:                        getEnvOrDefaultMulti([]string{"SUBCULT_ENV", "ENV", "GO_ENV"}, k.String("env"), DefaultEnv),
-		DatabaseURL:                getEnvOrKoanf("DATABASE_URL", k, "database_url"),
-		JWTSecret:                  getEnvOrKoanf("JWT_SECRET", k, "jwt_secret"),
-		LiveKitURL:                 getEnvOrKoanf("LIVEKIT_URL", k, "livekit_url"),
-		LiveKitAPIKey:              getEnvOrKoanf("LIVEKIT_API_KEY", k, "livekit_api_key"),
-		LiveKitAPISecret:           getEnvOrKoanf("LIVEKIT_API_SECRET", k, "livekit_api_secret"),
-		StripeAPIKey:               getEnvOrKoanf("STRIPE_API_KEY", k, "stripe_api_key"),
-		StripeWebhookSecret:        getEnvOrKoanf("STRIPE_WEBHOOK_SECRET", k, "stripe_webhook_secret"),
-		StripeOnboardingReturnURL:  getEnvOrKoanf("STRIPE_ONBOARDING_RETURN_URL", k, "stripe_onboarding_return_url"),
-		StripeOnboardingRefreshURL: getEnvOrKoanf("STRIPE_ONBOARDING_REFRESH_URL", k, "stripe_onboarding_refresh_url"),
+		Port:                        port,
+		Env:                         getEnvOrDefaultMulti([]string{"SUBCULT_ENV", "ENV", "GO_ENV"}, k.String("env"), DefaultEnv),
+		DatabaseURL:                 getEnvOrKoanf("DATABASE_URL", k, "database_url"),
+		JWTSecret:                   getEnvOrKoanf("JWT_SECRET", k, "jwt_secret"),
+		LiveKitURL:                  getEnvOrKoanf("LIVEKIT_URL", k, "livekit_url"),
+		LiveKitAPIKey:               getEnvOrKoanf("LIVEKIT_API_KEY", k, "livekit_api_key"),
+		LiveKitAPISecret:            getEnvOrKoanf("LIVEKIT_API_SECRET", k, "livekit_api_secret"),
+		StripeAPIKey:                getEnvOrKoanf("STRIPE_API_KEY", k, "stripe_api_key"),
+		StripeWebhookSecret:         getEnvOrKoanf("STRIPE_WEBHOOK_SECRET", k, "stripe_webhook_secret"),
+		StripeOnboardingReturnURL:   getEnvOrKoanf("STRIPE_ONBOARDING_RETURN_URL", k, "stripe_onboarding_return_url"),
+		StripeOnboardingRefreshURL:  getEnvOrKoanf("STRIPE_ONBOARDING_REFRESH_URL", k, "stripe_onboarding_refresh_url"),
 		StripeApplicationFeePercent: stripeFeePercent,
-		MapTilerAPIKey:            getEnvOrKoanf("MAPTILER_API_KEY", k, "maptiler_api_key"),
-		JetstreamURL:        getEnvOrKoanf("JETSTREAM_URL", k, "jetstream_url"),
-		R2BucketName:        getEnvOrKoanf("R2_BUCKET_NAME", k, "r2_bucket_name"),
-		R2AccessKeyID:       getEnvOrKoanf("R2_ACCESS_KEY_ID", k, "r2_access_key_id"),
-		R2SecretAccessKey:   getEnvOrKoanf("R2_SECRET_ACCESS_KEY", k, "r2_secret_access_key"),
-		R2Endpoint:          getEnvOrKoanf("R2_ENDPOINT", k, "r2_endpoint"),
-		R2MaxUploadSizeMB:   maxUploadSize,
-		RedisURL:            getEnvOrKoanf("REDIS_URL", k, "redis_url"),
-		RankTrustEnabled:    rankTrustEnabled,
-		TracingEnabled:      tracingEnabled,
-		TracingExporterType: getEnvOrDefault("TRACING_EXPORTER_TYPE", k.String("tracing_exporter_type"), DefaultTracingExporterType),
-		TracingOTLPEndpoint: getEnvOrKoanf("TRACING_OTLP_ENDPOINT", k, "tracing_otlp_endpoint"),
-		TracingSampleRate:   tracingSampleRate,
-		TracingInsecure:     tracingInsecure,
+		MapTilerAPIKey:              getEnvOrKoanf("MAPTILER_API_KEY", k, "maptiler_api_key"),
+		JetstreamURL:                getEnvOrKoanf("JETSTREAM_URL", k, "jetstream_url"),
+		R2BucketName:                getEnvOrKoanf("R2_BUCKET_NAME", k, "r2_bucket_name"),
+		R2AccessKeyID:               getEnvOrKoanf("R2_ACCESS_KEY_ID", k, "r2_access_key_id"),
+		R2SecretAccessKey:           getEnvOrKoanf("R2_SECRET_ACCESS_KEY", k, "r2_secret_access_key"),
+		R2Endpoint:                  getEnvOrKoanf("R2_ENDPOINT", k, "r2_endpoint"),
+		R2MaxUploadSizeMB:           maxUploadSize,
+		RedisURL:                    getEnvOrKoanf("REDIS_URL", k, "redis_url"),
+		RankTrustEnabled:            rankTrustEnabled,
+		TracingEnabled:              tracingEnabled,
+		TracingExporterType:         getEnvOrDefault("TRACING_EXPORTER_TYPE", k.String("tracing_exporter_type"), DefaultTracingExporterType),
+		TracingOTLPEndpoint:         getEnvOrKoanf("TRACING_OTLP_ENDPOINT", k, "tracing_otlp_endpoint"),
+		TracingSampleRate:           tracingSampleRate,
+		TracingInsecure:             tracingInsecure,
 	}
 
 	// Validate and collect errors

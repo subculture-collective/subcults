@@ -36,12 +36,12 @@ const (
 //	// ... perform database operation ...
 func StartDBSpan(ctx context.Context, table string, operation DBOperation) (context.Context, func(error)) {
 	tracer := otel.Tracer("subcults/db")
-	
+
 	spanName := string(operation)
 	if table != "" {
 		spanName = spanName + " " + table
 	}
-	
+
 	ctx, span := tracer.Start(ctx, spanName,
 		trace.WithSpanKind(trace.SpanKindClient),
 		trace.WithAttributes(
@@ -49,11 +49,11 @@ func StartDBSpan(ctx context.Context, table string, operation DBOperation) (cont
 			attribute.String("db.operation", string(operation)),
 		),
 	)
-	
+
 	if table != "" {
 		span.SetAttributes(attribute.String("db.sql.table", table))
 	}
-	
+
 	return ctx, func(err error) {
 		if err != nil {
 			span.RecordError(err)
@@ -73,9 +73,9 @@ func StartDBSpan(ctx context.Context, table string, operation DBOperation) (cont
 //	// ... perform operation ...
 func StartSpan(ctx context.Context, name string) (context.Context, func(error)) {
 	tracer := otel.Tracer("subcults")
-	
+
 	ctx, span := tracer.Start(ctx, name)
-	
+
 	return ctx, func(err error) {
 		if err != nil {
 			span.RecordError(err)

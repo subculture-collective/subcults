@@ -129,7 +129,7 @@ func main() {
 		logger.Info("using Postgres repository", "database_url", databaseURL)
 		repo = indexer.NewPostgresRecordRepository(db, logger)
 		sequenceTracker = indexer.NewPostgresSequenceTracker(db, logger)
-		
+
 		// Use Postgres cleanup service
 		cleanupConfig := indexer.DefaultCleanupConfig()
 		cleanupService = indexer.NewCleanupService(db, logger, cleanupConfig)
@@ -139,11 +139,8 @@ func main() {
 		memRepo := indexer.NewInMemoryRecordRepository(logger)
 		repo = memRepo
 		sequenceTracker = indexer.NewInMemorySequenceTracker(logger)
-		
-		// Use in-memory cleanup service
 		cleanupConfig := indexer.DefaultCleanupConfig()
 		cleanupService = indexer.NewInMemoryCleanupService(memRepo, logger, cleanupConfig)
-	}
 
 	filter := indexer.NewRecordFilter(indexer.NewFilterMetrics())
 
@@ -225,7 +222,7 @@ func main() {
 				slog.String("collection", result.Collection),
 				slog.String("did", result.DID),
 				slog.String("rkey", result.RKey))
-			
+
 			// Update sequence after successful delete
 			if msg != nil && msg.TimeUS > 0 {
 				if err := sequenceTracker.UpdateSequence(appCtx, msg.TimeUS); err != nil {

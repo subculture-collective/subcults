@@ -566,7 +566,7 @@ func TestClient_Backpressure_ResumesWhenQueueClears(t *testing.T) {
 		if resumeCount == 0 {
 			t.Error("expected backpressure to resume after pausing")
 		}
-		
+
 		// Check that pause duration was recorded
 		durationSamples := getHistogramSampleCount(metrics.backpressureDuration)
 		if durationSamples == 0 {
@@ -603,7 +603,7 @@ func TestClient_Backpressure_NoMessageLoss(t *testing.T) {
 			}
 			atomic.AddInt32(&messagesSent, 1)
 		}
-		
+
 		// Keep connection alive for a bit so client can process
 		time.Sleep(500 * time.Millisecond)
 	}))
@@ -654,7 +654,7 @@ func TestClient_Backpressure_NoMessageLoss(t *testing.T) {
 	// Verify all messages were processed
 	finalCount := atomic.LoadInt32(&processedCount)
 	sentCount := atomic.LoadInt32(&messagesSent)
-	
+
 	// We expect all sent messages to be processed
 	if finalCount != sentCount {
 		t.Errorf("expected %d messages processed, got %d (sent: %d)", sentCount, finalCount, sentCount)
@@ -686,7 +686,7 @@ func TestClient_Backpressure_MetricsTracking(t *testing.T) {
 	}
 
 	metrics := NewMetrics()
-	
+
 	handler := func(msgType int, payload []byte) error {
 		// Very slow processing to guarantee backpressure
 		time.Sleep(20 * time.Millisecond)
@@ -778,70 +778,70 @@ func TestClient_Backpressure_ThresholdBehavior(t *testing.T) {
 }
 
 func TestClient_Backpressure_QueueTimeout(t *testing.T) {
-// Test that queue timeout triggers connection close and reconnection
-ms := newSlowMockServer(0) // Fast message sending
-defer ms.Close()
+	// Test that queue timeout triggers connection close and reconnection
+	ms := newSlowMockServer(0) // Fast message sending
+	defer ms.Close()
 
-config := Config{
-URL:          ms.URL(),
-BaseDelay:    50 * time.Millisecond, // Short backoff for test
-MaxDelay:     100 * time.Millisecond,
-JitterFactor: 0,
-}
+	config := Config{
+		URL:          ms.URL(),
+		BaseDelay:    50 * time.Millisecond, // Short backoff for test
+		MaxDelay:     100 * time.Millisecond,
+		JitterFactor: 0,
+	}
 
-metrics := NewMetrics()
-var processedCount int32
-handlerDelay := 100 * time.Millisecond // Very slow processing to fill queue
+	metrics := NewMetrics()
+	var processedCount int32
+	handlerDelay := 100 * time.Millisecond // Very slow processing to fill queue
 
-handler := func(msgType int, payload []byte) error {
-// Extremely slow processing to guarantee queue fills
-time.Sleep(handlerDelay)
-atomic.AddInt32(&processedCount, 1)
-return nil
-}
+	handler := func(msgType int, payload []byte) error {
+		// Extremely slow processing to guarantee queue fills
+		time.Sleep(handlerDelay)
+		atomic.AddInt32(&processedCount, 1)
+		return nil
+	}
 
-client, err := NewClientWithMetrics(config, handler, newTestLogger(), metrics)
-if err != nil {
-t.Fatalf("NewClient() error = %v", err)
-}
+	client, err := NewClientWithMetrics(config, handler, newTestLogger(), metrics)
+	if err != nil {
+		t.Fatalf("NewClient() error = %v", err)
+	}
 
-ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
-defer cancel()
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
 
-var reconnectCount int32
+	var reconnectCount int32
 
-go func() {
-for {
-select {
-case <-ctx.Done():
-return
-default:
-}
+	go func() {
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			default:
+			}
 
-_ = client.Run(ctx)
-// If Run exits, it means connection was closed
-atomic.AddInt32(&reconnectCount, 1)
+			_ = client.Run(ctx)
+			// If Run exits, it means connection was closed
+			atomic.AddInt32(&reconnectCount, 1)
 
-// Avoid tight loop if Run exits immediately
-time.Sleep(10 * time.Millisecond)
-}
-}()
+			// Avoid tight loop if Run exits immediately
+			time.Sleep(10 * time.Millisecond)
+		}
+	}()
 
-// Wait for queue to fill and timeout to trigger
-time.Sleep(2 * time.Second)
+	// Wait for queue to fill and timeout to trigger
+	time.Sleep(2 * time.Second)
 
-// Verify that reconnection happened (connection closed due to timeout)
-reconnects := atomic.LoadInt32(&reconnectCount)
-if reconnects < 1 {
-t.Logf("Warning: Expected at least 1 reconnection due to queue timeout, got %d", reconnects)
-// Not failing test as timing may vary, but logging for visibility
-}
+	// Verify that reconnection happened (connection closed due to timeout)
+	reconnects := atomic.LoadInt32(&reconnectCount)
+	if reconnects < 1 {
+		t.Logf("Warning: Expected at least 1 reconnection due to queue timeout, got %d", reconnects)
+		// Not failing test as timing may vary, but logging for visibility
+	}
 
-// Verify messages were processed
-processed := atomic.LoadInt32(&processedCount)
-if processed == 0 {
-t.Error("Expected some messages to be processed")
-}
+	// Verify messages were processed
+	processed := atomic.LoadInt32(&processedCount)
+	if processed == 0 {
+		t.Error("Expected some messages to be processed")
+	}
 
-t.Logf("Reconnects: %d, Processed messages: %d", reconnects, processed)
+	t.Logf("Reconnects: %d, Processed messages: %d", reconnects, processed)
 }

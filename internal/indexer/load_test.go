@@ -23,11 +23,11 @@ func TestLoad_1000CommitsPerSecond(t *testing.T) {
 	}
 
 	const (
-		targetRate     = 1000 // commits per second
-		testDuration   = 5    // seconds
-		totalMessages  = targetRate * testDuration
-		sendInterval   = time.Second / targetRate
-		allowedMargin  = 0.1 // 10% margin for timing variations
+		targetRate    = 1000 // commits per second
+		testDuration  = 5    // seconds
+		totalMessages = targetRate * testDuration
+		sendInterval  = time.Second / targetRate
+		allowedMargin = 0.1 // 10% margin for timing variations
 	)
 
 	t.Logf("Load test configuration: %d msgs/sec for %d seconds = %d total messages",
@@ -131,11 +131,11 @@ func TestLoad_1000CommitsPerSecond(t *testing.T) {
 		// Quick validation
 		result := filter.FilterCBOR(payload)
 		atomic.AddInt32(&messagesReceived, 1)
-		
+
 		if result.Valid {
 			metrics.IncUpserts()
 		}
-		
+
 		return nil
 	}
 
@@ -252,7 +252,7 @@ func TestLoad_BurstTraffic(t *testing.T) {
 					return
 				}
 			}
-			
+
 			// Wait before next burst
 			if burst < numBursts-1 {
 				time.Sleep(burstInterval)
@@ -272,7 +272,7 @@ func TestLoad_BurstTraffic(t *testing.T) {
 	}
 
 	metrics := NewMetrics()
-	
+
 	// Slow handler to trigger backpressure
 	handler := func(msgType int, payload []byte) error {
 		time.Sleep(10 * time.Millisecond) // Simulate DB write
@@ -438,7 +438,7 @@ func TestLoad_ConcurrentProcessing(t *testing.T) {
 // BenchmarkIndexer_Throughput benchmarks raw indexer throughput.
 func BenchmarkIndexer_Throughput(b *testing.B) {
 	filter := NewRecordFilter(NewFilterMetrics())
-	
+
 	// Pre-generate a sample message
 	msg := JetstreamMessage{
 		DID:    "did:plc:bench",

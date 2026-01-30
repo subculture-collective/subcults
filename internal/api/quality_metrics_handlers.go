@@ -17,10 +17,10 @@ import (
 
 // QualityMetricsHandler handles quality metrics API endpoints.
 type QualityMetricsHandler struct {
-	roomService       *livekitservice.RoomService
-	metricsRepo       stream.QualityMetricsRepository
-	streamRepo        stream.SessionRepository
-	streamMetrics     *stream.Metrics
+	roomService   *livekitservice.RoomService
+	metricsRepo   stream.QualityMetricsRepository
+	streamRepo    stream.SessionRepository
+	streamMetrics *stream.Metrics
 }
 
 // NewQualityMetricsHandler creates a new QualityMetricsHandler.
@@ -42,7 +42,7 @@ func NewQualityMetricsHandler(
 // GET /streams/{id}/quality-metrics
 func (h *QualityMetricsHandler) GetStreamQualityMetrics(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	
+
 	// Require authenticated user
 	userDID := middleware.GetUserDID(ctx)
 	if userDID == "" {
@@ -50,7 +50,7 @@ func (h *QualityMetricsHandler) GetStreamQualityMetrics(w http.ResponseWriter, r
 		WriteError(w, ctx, http.StatusUnauthorized, ErrCodeAuthFailed, "Authentication required")
 		return
 	}
-	
+
 	// Extract stream ID from URL path
 	// Expected: /streams/{id}/quality-metrics
 	pathParts := strings.Split(strings.TrimPrefix(r.URL.Path, "/streams/"), "/")
@@ -93,7 +93,7 @@ func (h *QualityMetricsHandler) GetStreamQualityMetrics(w http.ResponseWriter, r
 // GET /streams/{id}/participants/{participant_id}/quality-metrics
 func (h *QualityMetricsHandler) GetParticipantQualityMetrics(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	
+
 	// Require authenticated user
 	userDID := middleware.GetUserDID(ctx)
 	if userDID == "" {
@@ -101,7 +101,7 @@ func (h *QualityMetricsHandler) GetParticipantQualityMetrics(w http.ResponseWrit
 		WriteError(w, ctx, http.StatusUnauthorized, ErrCodeAuthFailed, "Authentication required")
 		return
 	}
-	
+
 	// Extract stream ID and participant ID from URL path
 	// Expected: /streams/{id}/participants/{participant_id}/quality-metrics
 	pathParts := strings.Split(strings.TrimPrefix(r.URL.Path, "/streams/"), "/")
@@ -125,9 +125,9 @@ func (h *QualityMetricsHandler) GetParticipantQualityMetrics(w http.ResponseWrit
 			WriteError(w, ctx, http.StatusNotFound, ErrCodeNotFound, "Quality metrics not found")
 			return
 		}
-		slog.ErrorContext(ctx, "failed to get participant quality metrics", 
-			"stream_id", streamID, 
-			"participant_id", participantID, 
+		slog.ErrorContext(ctx, "failed to get participant quality metrics",
+			"stream_id", streamID,
+			"participant_id", participantID,
 			"error", err)
 		ctx = middleware.SetErrorCode(ctx, ErrCodeInternal)
 		WriteError(w, ctx, http.StatusInternalServerError, ErrCodeInternal, "Failed to retrieve quality metrics")
@@ -145,7 +145,7 @@ func (h *QualityMetricsHandler) GetParticipantQualityMetrics(w http.ResponseWrit
 // This endpoint is typically called periodically by a background job or external monitor.
 func (h *QualityMetricsHandler) CollectStreamQualityMetrics(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	
+
 	// Require authenticated user
 	userDID := middleware.GetUserDID(ctx)
 	if userDID == "" {
@@ -153,7 +153,7 @@ func (h *QualityMetricsHandler) CollectStreamQualityMetrics(w http.ResponseWrite
 		WriteError(w, ctx, http.StatusUnauthorized, ErrCodeAuthFailed, "Authentication required")
 		return
 	}
-	
+
 	// Extract stream ID from URL path
 	// Expected: /streams/{id}/quality-metrics/collect
 	pathParts := strings.Split(strings.TrimPrefix(r.URL.Path, "/streams/"), "/")
@@ -203,8 +203,8 @@ func (h *QualityMetricsHandler) CollectStreamQualityMetrics(w http.ResponseWrite
 	// Get all participants from LiveKit
 	participants, err := h.roomService.GetAllParticipantStats(ctx, session.RoomName)
 	if err != nil {
-		slog.ErrorContext(ctx, "failed to get participant stats from LiveKit", 
-			"room_name", session.RoomName, 
+		slog.ErrorContext(ctx, "failed to get participant stats from LiveKit",
+			"room_name", session.RoomName,
 			"error", err)
 		ctx = middleware.SetErrorCode(ctx, ErrCodeInternal)
 		WriteError(w, ctx, http.StatusInternalServerError, ErrCodeInternal, "Failed to retrieve participant stats")
@@ -218,11 +218,11 @@ func (h *QualityMetricsHandler) CollectStreamQualityMetrics(w http.ResponseWrite
 
 	for _, participant := range participants {
 		metrics := extractQualityMetrics(streamID, participant, measuredAt)
-		
+
 		// Store metrics
 		if err := h.metricsRepo.RecordMetrics(metrics); err != nil {
-			slog.ErrorContext(ctx, "failed to record quality metrics", 
-				"participant_id", participant.Identity, 
+			slog.ErrorContext(ctx, "failed to record quality metrics",
+				"participant_id", participant.Identity,
 				"error", err)
 			continue
 		}
@@ -235,7 +235,7 @@ func (h *QualityMetricsHandler) CollectStreamQualityMetrics(w http.ResponseWrite
 		if metrics.HasPoorNetworkQuality() {
 			alertsTriggered++
 			h.streamMetrics.IncQualityAlerts()
-			
+
 			slog.WarnContext(ctx, "poor network quality detected",
 				"stream_id", streamID,
 				"participant_id", participant.Identity,
@@ -261,7 +261,7 @@ func (h *QualityMetricsHandler) CollectStreamQualityMetrics(w http.ResponseWrite
 // GET /streams/{id}/quality-metrics/high-packet-loss
 func (h *QualityMetricsHandler) GetHighPacketLossParticipants(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	
+
 	// Require authenticated user
 	userDID := middleware.GetUserDID(ctx)
 	if userDID == "" {
@@ -269,7 +269,7 @@ func (h *QualityMetricsHandler) GetHighPacketLossParticipants(w http.ResponseWri
 		WriteError(w, ctx, http.StatusUnauthorized, ErrCodeAuthFailed, "Authentication required")
 		return
 	}
-	
+
 	// Extract stream ID from URL path
 	// Expected: /streams/{id}/quality-metrics/high-packet-loss
 	pathParts := strings.Split(strings.TrimPrefix(r.URL.Path, "/streams/"), "/")
@@ -291,8 +291,8 @@ func (h *QualityMetricsHandler) GetHighPacketLossParticipants(w http.ResponseWri
 
 	participants, err := h.metricsRepo.GetParticipantsWithHighPacketLoss(streamID, sinceMinutes)
 	if err != nil {
-		slog.ErrorContext(ctx, "failed to get participants with high packet loss", 
-			"stream_id", streamID, 
+		slog.ErrorContext(ctx, "failed to get participants with high packet loss",
+			"stream_id", streamID,
 			"error", err)
 		ctx = middleware.SetErrorCode(ctx, ErrCodeInternal)
 		WriteError(w, ctx, http.StatusInternalServerError, ErrCodeInternal, "Failed to retrieve participants")
@@ -301,20 +301,20 @@ func (h *QualityMetricsHandler) GetHighPacketLossParticipants(w http.ResponseWri
 
 	w.Header().Set("Content-Type", "application/json")
 	if err := json.NewEncoder(w).Encode(map[string]interface{}{
-		"stream_id":      streamID,
-		"since_minutes":  sinceMinutes,
-		"participants":   participants,
-		"count":          len(participants),
+		"stream_id":     streamID,
+		"since_minutes": sinceMinutes,
+		"participants":  participants,
+		"count":         len(participants),
 	}); err != nil {
 		slog.ErrorContext(ctx, "failed to encode response", "error", err)
 	}
 }
 
 // extractQualityMetrics extracts quality metrics from LiveKit ParticipantInfo.
-// 
+//
 // NOTE: This is a placeholder implementation. The actual extraction of quality
 // metrics from LiveKit's ParticipantInfo depends on the specific fields available
-// in the version of livekit/protocol being used. 
+// in the version of livekit/protocol being used.
 //
 // To implement full extraction, inspect ParticipantInfo.Tracks and extract:
 // - Bitrate from track.Bitrate or track stats
@@ -324,11 +324,12 @@ func (h *QualityMetricsHandler) GetHighPacketLossParticipants(w http.ResponseWri
 // - RTT from connection stats
 //
 // Example (requires protocol-specific implementation):
-//   for _, track := range participant.Tracks {
-//       if track.Type == livekit.TrackType_AUDIO && track.Stats != nil {
-//           // Extract from track.Stats fields based on protocol version
-//       }
-//   }
+//
+//	for _, track := range participant.Tracks {
+//	    if track.Type == livekit.TrackType_AUDIO && track.Stats != nil {
+//	        // Extract from track.Stats fields based on protocol version
+//	    }
+//	}
 func extractQualityMetrics(streamID string, participant *livekit.ParticipantInfo, measuredAt time.Time) *stream.QualityMetrics {
 	metrics := &stream.QualityMetrics{
 		StreamSessionID: streamID,

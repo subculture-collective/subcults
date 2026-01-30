@@ -176,7 +176,7 @@ func TestProvider_Tracer(t *testing.T) {
 
 func TestProvider_Shutdown_Nil(t *testing.T) {
 	provider := &Provider{}
-	
+
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 

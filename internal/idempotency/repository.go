@@ -24,12 +24,12 @@ func NewInMemoryRepository() *InMemoryRepository {
 func (r *InMemoryRepository) Get(key string) (*IdempotencyKey, error) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
-	
+
 	record, ok := r.keys[key]
 	if !ok {
 		return nil, ErrKeyNotFound
 	}
-	
+
 	// Return a copy to prevent external mutation
 	return r.copyRecord(record), nil
 }
@@ -40,23 +40,23 @@ func (r *InMemoryRepository) Store(record *IdempotencyKey) error {
 	if err := ValidateKey(record.Key); err != nil {
 		return err
 	}
-	
+
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	
+
 	// Check if key already exists
 	if _, exists := r.keys[record.Key]; exists {
 		return ErrKeyExists
 	}
-	
+
 	// Set created_at if not provided
 	if record.CreatedAt.IsZero() {
 		record.CreatedAt = time.Now()
 	}
-	
+
 	// Store a copy to prevent external mutation
 	r.keys[record.Key] = r.copyRecord(record)
-	
+
 	return nil
 }
 
@@ -65,17 +65,17 @@ func (r *InMemoryRepository) Store(record *IdempotencyKey) error {
 func (r *InMemoryRepository) DeleteOlderThan(duration time.Duration) (int64, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	
+
 	cutoffTime := time.Now().Add(-duration)
 	deleted := int64(0)
-	
+
 	for key, record := range r.keys {
 		if record.CreatedAt.Before(cutoffTime) {
 			delete(r.keys, key)
 			deleted++
 		}
 	}
-	
+
 	return deleted, nil
 }
 
@@ -84,7 +84,7 @@ func (r *InMemoryRepository) copyRecord(record *IdempotencyKey) *IdempotencyKey 
 	if record == nil {
 		return nil
 	}
-	
+
 	copied := &IdempotencyKey{
 		Key:                record.Key,
 		Method:             record.Method,
@@ -95,11 +95,11 @@ func (r *InMemoryRepository) copyRecord(record *IdempotencyKey) *IdempotencyKey 
 		ResponseBody:       record.ResponseBody,
 		ResponseStatusCode: record.ResponseStatusCode,
 	}
-	
+
 	if record.PaymentID != nil {
 		paymentID := *record.PaymentID
 		copied.PaymentID = &paymentID
 	}
-	
+
 	return copied
 }

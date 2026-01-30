@@ -218,14 +218,14 @@ func (h *StreamHandlers) CreateStream(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		// Check if this is a unique constraint violation (concurrent stream attempt)
 		// Different database drivers return different error types, so we check the error message
-		if strings.Contains(err.Error(), "duplicate") || strings.Contains(err.Error(), "unique") || 
-		   strings.Contains(err.Error(), "idx_stream_scene_active_unique") || 
-		   strings.Contains(err.Error(), "idx_stream_event_active_unique") {
+		if strings.Contains(err.Error(), "duplicate") || strings.Contains(err.Error(), "unique") ||
+			strings.Contains(err.Error(), "idx_stream_scene_active_unique") ||
+			strings.Contains(err.Error(), "idx_stream_event_active_unique") {
 			ctx = middleware.SetErrorCode(ctx, ErrCodeConflict)
 			WriteError(w, ctx, http.StatusConflict, ErrCodeConflict, "An active stream already exists")
 			return
 		}
-		
+
 		slog.ErrorContext(ctx, "failed to create stream session",
 			"error", err,
 			"user_did", userDID,

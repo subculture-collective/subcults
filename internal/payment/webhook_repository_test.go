@@ -144,7 +144,7 @@ func TestRecordEvent_ConcurrentDuplicates(t *testing.T) {
 		go func() {
 			defer wg.Done()
 			err := repo.RecordEvent(eventID, "test.event")
-			
+
 			countMutex.Lock()
 			if err == nil {
 				successCount++
@@ -244,4 +244,3 @@ func TestRecordEvent_EmptyEventID(t *testing.T) {
 		t.Errorf("expected ErrEventAlreadyProcessed for duplicate empty ID, got %v", err)
 	}
 }
-

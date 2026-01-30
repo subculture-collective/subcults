@@ -26,7 +26,7 @@ type WebhookRepository interface {
 	// Returns ErrEventAlreadyProcessed if the event was already recorded.
 	// Idempotent: calling with the same event_id multiple times returns ErrEventAlreadyProcessed.
 	RecordEvent(eventID, eventType string) error
-	
+
 	// HasProcessed checks if an event has already been processed.
 	HasProcessed(eventID string) (bool, error)
 }

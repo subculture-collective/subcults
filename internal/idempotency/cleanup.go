@@ -19,11 +19,11 @@ func CleanupOldKeys(repo Repository, expiry time.Duration) (int64, error) {
 		slog.Error("failed to cleanup old idempotency keys", "error", err)
 		return 0, err
 	}
-	
+
 	if deleted > 0 {
 		slog.Info("cleaned up old idempotency keys", "deleted", deleted, "older_than", expiry)
 	}
-	
+
 	return deleted, nil
 }
 
@@ -40,12 +40,12 @@ func CleanupOldKeys(repo Repository, expiry time.Duration) (int64, error) {
 func RunPeriodicCleanup(repo Repository, interval time.Duration, expiry time.Duration, stopChan <-chan struct{}) {
 	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
-	
+
 	// Run cleanup immediately on start
 	if _, err := CleanupOldKeys(repo, expiry); err != nil {
 		slog.Error("initial cleanup failed", "error", err)
 	}
-	
+
 	for {
 		select {
 		case <-ticker.C:

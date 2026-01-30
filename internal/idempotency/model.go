@@ -27,13 +27,13 @@ const (
 var (
 	// ErrKeyNotFound is returned when an idempotency key is not found.
 	ErrKeyNotFound = errors.New("idempotency key not found")
-	
+
 	// ErrKeyExists is returned when attempting to create a duplicate key.
 	ErrKeyExists = errors.New("idempotency key already exists")
-	
+
 	// ErrInvalidKey is returned when the key is invalid.
 	ErrInvalidKey = errors.New("invalid idempotency key")
-	
+
 	// ErrKeyTooLong is returned when the key exceeds maximum length.
 	ErrKeyTooLong = errors.New("idempotency key exceeds maximum length of 64 characters")
 )
@@ -43,15 +43,15 @@ const MaxKeyLength = 64
 
 // IdempotencyKey represents a stored idempotency key with cached response.
 type IdempotencyKey struct {
-	Key                string     `json:"key"`
-	Method             string     `json:"method"`
-	Route              string     `json:"route"`
-	CreatedAt          time.Time  `json:"created_at"`
-	PaymentID          *string    `json:"payment_id,omitempty"`
-	ResponseHash       string     `json:"response_hash"`
-	Status             string     `json:"status"`
-	ResponseBody       string     `json:"response_body"`
-	ResponseStatusCode int        `json:"response_status_code"`
+	Key                string    `json:"key"`
+	Method             string    `json:"method"`
+	Route              string    `json:"route"`
+	CreatedAt          time.Time `json:"created_at"`
+	PaymentID          *string   `json:"payment_id,omitempty"`
+	ResponseHash       string    `json:"response_hash"`
+	Status             string    `json:"status"`
+	ResponseBody       string    `json:"response_body"`
+	ResponseStatusCode int       `json:"response_status_code"`
 }
 
 // ValidateKey checks if an idempotency key is valid.
@@ -79,11 +79,11 @@ type Repository interface {
 	// Get retrieves an idempotency key by its key value.
 	// Returns ErrKeyNotFound if the key doesn't exist.
 	Get(key string) (*IdempotencyKey, error)
-	
+
 	// Store saves a new idempotency key.
 	// Returns ErrKeyExists if the key already exists.
 	Store(record *IdempotencyKey) error
-	
+
 	// DeleteOlderThan removes idempotency keys older than the specified duration.
 	// This is used for cleanup jobs to prevent unbounded storage growth.
 	DeleteOlderThan(duration time.Duration) (int64, error)

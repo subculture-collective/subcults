@@ -143,19 +143,19 @@ func TestIntegration_EndToEndRecordProcessing(t *testing.T) {
 	handler := func(msgType int, payload []byte) error {
 		// Filter the record
 		result := filter.FilterCBOR(payload)
-		
+
 		mu.Lock()
 		processedRecords = append(processedRecords, result)
 		mu.Unlock()
 
 		metrics.IncMessagesProcessed()
-		
+
 		if result.Valid {
 			metrics.IncUpserts()
 		} else {
 			metrics.IncMessagesError()
 		}
-		
+
 		return nil
 	}
 
@@ -198,15 +198,15 @@ func TestIntegration_EndToEndRecordProcessing(t *testing.T) {
 	for _, result := range processedRecords {
 		t.Logf("Record: DID=%s, Collection=%s, Operation=%s, Valid=%v, Matched=%v",
 			result.DID, result.Collection, result.Operation, result.Valid, result.Matched)
-		
+
 		if result.Collection == CollectionScene && result.Valid && result.Operation != "delete" {
 			validScenes++
 		} else if result.Collection == CollectionEvent && result.Valid {
 			validEvents++
 		} else if !result.Matched {
 			filtered++
-		} 
-		
+		}
+
 		if result.Operation == "delete" && result.Matched {
 			deletes++
 		}

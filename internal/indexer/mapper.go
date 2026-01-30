@@ -22,13 +22,13 @@ var (
 
 // ATProtoSceneRecord represents the AT Protocol scene record structure.
 type ATProtoSceneRecord struct {
-	Name         string                 `json:"name"`
-	Description  *string                `json:"description,omitempty"`
-	Location     *ATProtoLocation       `json:"location,omitempty"`
-	Tags         []string               `json:"tags,omitempty"`
-	Visibility   *string                `json:"visibility,omitempty"`
-	Palette      *ATProtoPalette        `json:"palette,omitempty"`
-	ExtraFields  map[string]interface{} `json:"-"` // Capture unmapped fields
+	Name        string                 `json:"name"`
+	Description *string                `json:"description,omitempty"`
+	Location    *ATProtoLocation       `json:"location,omitempty"`
+	Tags        []string               `json:"tags,omitempty"`
+	Visibility  *string                `json:"visibility,omitempty"`
+	Palette     *ATProtoPalette        `json:"palette,omitempty"`
+	ExtraFields map[string]interface{} `json:"-"` // Capture unmapped fields
 }
 
 // ATProtoLocation represents location data in AT Protocol records.
@@ -49,33 +49,33 @@ type ATProtoPalette struct {
 
 // ATProtoEventRecord represents the AT Protocol event record structure.
 type ATProtoEventRecord struct {
-	Name         string           `json:"name"` // Will map to "title" in domain model
-	SceneID      string           `json:"sceneId"`
-	Description  *string          `json:"description,omitempty"`
-	Location     *ATProtoLocation `json:"location,omitempty"`
-	Tags         []string         `json:"tags,omitempty"`
-	Status       *string          `json:"status,omitempty"`
-	StartsAt     string           `json:"startsAt"` // ISO 8601 timestamp
-	EndsAt       *string          `json:"endsAt,omitempty"`
+	Name        string           `json:"name"` // Will map to "title" in domain model
+	SceneID     string           `json:"sceneId"`
+	Description *string          `json:"description,omitempty"`
+	Location    *ATProtoLocation `json:"location,omitempty"`
+	Tags        []string         `json:"tags,omitempty"`
+	Status      *string          `json:"status,omitempty"`
+	StartsAt    string           `json:"startsAt"` // ISO 8601 timestamp
+	EndsAt      *string          `json:"endsAt,omitempty"`
 }
 
 // ATProtoPostRecord represents the AT Protocol post record structure.
 type ATProtoPostRecord struct {
-	Text        string                `json:"text"`
-	SceneID     *string               `json:"sceneId,omitempty"`
-	EventID     *string               `json:"eventId,omitempty"`
-	Attachments []ATProtoAttachment   `json:"attachments,omitempty"`
-	Labels      []string              `json:"labels,omitempty"`
+	Text        string              `json:"text"`
+	SceneID     *string             `json:"sceneId,omitempty"`
+	EventID     *string             `json:"eventId,omitempty"`
+	Attachments []ATProtoAttachment `json:"attachments,omitempty"`
+	Labels      []string            `json:"labels,omitempty"`
 }
 
 // ATProtoAttachment represents an attachment in AT Protocol post records.
 type ATProtoAttachment struct {
-	URL           *string  `json:"url,omitempty"`
-	Key           *string  `json:"key,omitempty"`
-	Type          *string  `json:"type,omitempty"`
-	SizeBytes     *int64   `json:"sizeBytes,omitempty"`
-	Width         *int     `json:"width,omitempty"`
-	Height        *int     `json:"height,omitempty"`
+	URL             *string  `json:"url,omitempty"`
+	Key             *string  `json:"key,omitempty"`
+	Type            *string  `json:"type,omitempty"`
+	SizeBytes       *int64   `json:"sizeBytes,omitempty"`
+	Width           *int     `json:"width,omitempty"`
+	Height          *int     `json:"height,omitempty"`
 	DurationSeconds *float64 `json:"durationSeconds,omitempty"`
 }
 
@@ -134,7 +134,7 @@ func MapSceneRecord(record *FilterResult) (*scene.Scene, error) {
 			Lat: atProtoScene.Location.Lat,
 			Lng: atProtoScene.Location.Lng,
 		}
-		
+
 		// Generate coarse geohash for location-based search
 		// Use precision 6 for coarse geohash (~1.2km x 0.6km)
 		domainScene.CoarseGeohash = geo.Encode(
@@ -142,7 +142,7 @@ func MapSceneRecord(record *FilterResult) (*scene.Scene, error) {
 			atProtoScene.Location.Lng,
 			6,
 		)
-		
+
 		// Enforce location consent - clears PrecisePoint if not allowed
 		domainScene.EnforceLocationConsent()
 	} else {
@@ -234,14 +234,14 @@ func MapEventRecord(record *FilterResult) (*scene.Event, error) {
 			Lat: atProtoEvent.Location.Lat,
 			Lng: atProtoEvent.Location.Lng,
 		}
-		
+
 		// Generate coarse geohash for location-based search
 		domainEvent.CoarseGeohash = geo.Encode(
 			atProtoEvent.Location.Lat,
 			atProtoEvent.Location.Lng,
 			6,
 		)
-		
+
 		// Enforce location consent
 		domainEvent.EnforceLocationConsent()
 	} else {
@@ -347,7 +347,7 @@ func MapAllianceRecord(record *FilterResult) (*alliance.Alliance, error) {
 	// Build domain model
 	domainAlliance := &alliance.Alliance{
 		// FromSceneID and ToSceneID will be populated by caller after lookup
-		Weight:     float64PtrValue(atProtoAlliance.Weight, 1.0), // Default weight is 1.0
+		Weight:     float64PtrValue(atProtoAlliance.Weight, 1.0),     // Default weight is 1.0
 		Status:     stringPtrValue(atProtoAlliance.Status, "active"), // Default status
 		Reason:     atProtoAlliance.Reason,
 		RecordDID:  &record.DID,

@@ -19,7 +19,7 @@ import (
 var (
 	// ErrRecordExists is returned when attempting to insert a duplicate record.
 	ErrRecordExists = errors.New("record already exists")
-	
+
 	// ErrTransactionFailed is returned when a transaction cannot be completed.
 	ErrTransactionFailed = errors.New("transaction failed")
 )
@@ -29,10 +29,10 @@ type RecordRepository interface {
 	// UpsertRecord atomically inserts or updates a record with idempotency.
 	// Returns the record ID and a boolean indicating if it was newly created (true) or updated (false).
 	UpsertRecord(ctx context.Context, record *FilterResult) (string, bool, error)
-	
+
 	// DeleteRecord atomically removes a record.
 	DeleteRecord(ctx context.Context, did, collection, rkey string) error
-	
+
 	// CheckIdempotencyKey verifies if an operation has already been processed.
 	CheckIdempotencyKey(ctx context.Context, key string) (bool, error)
 }
@@ -278,7 +278,7 @@ func (r *PostgresRecordRepository) upsertScene(ctx context.Context, tx *sql.Tx, 
 				$8, $9, $10, $11, $12, $13, NOW(), NOW()
 			)
 		`
-		
+
 		// Prepare point coordinates (nullable)
 		// Note: ST_MakePoint expects (longitude, latitude) order
 		var lng, lat *float64
@@ -286,7 +286,7 @@ func (r *PostgresRecordRepository) upsertScene(ctx context.Context, tx *sql.Tx, 
 			lng = &domainScene.PrecisePoint.Lng
 			lat = &domainScene.PrecisePoint.Lat
 		}
-		
+
 		// Prepare palette JSON (nullable)
 		// Align with database default '{}'::jsonb when no palette is provided
 		var paletteJSON []byte
@@ -298,7 +298,7 @@ func (r *PostgresRecordRepository) upsertScene(ctx context.Context, tx *sql.Tx, 
 		} else {
 			paletteJSON = []byte("{}")
 		}
-		
+
 		_, err = tx.ExecContext(ctx, insertQuery,
 			newID,
 			domainScene.Name,
@@ -340,7 +340,7 @@ func (r *PostgresRecordRepository) upsertScene(ctx context.Context, tx *sql.Tx, 
 			deleted_at = NULL
 		WHERE id = $1
 	`
-	
+
 	// Prepare point coordinates (nullable)
 	// Note: ST_MakePoint expects (longitude, latitude) order
 	var lng, lat *float64
@@ -348,7 +348,7 @@ func (r *PostgresRecordRepository) upsertScene(ctx context.Context, tx *sql.Tx, 
 		lng = &domainScene.PrecisePoint.Lng
 		lat = &domainScene.PrecisePoint.Lat
 	}
-	
+
 	// Prepare palette JSON (nullable)
 	// Align with database default '{}'::jsonb when no palette is provided
 	var paletteJSON []byte
@@ -360,7 +360,7 @@ func (r *PostgresRecordRepository) upsertScene(ctx context.Context, tx *sql.Tx, 
 	} else {
 		paletteJSON = []byte("{}")
 	}
-	
+
 	_, err = tx.ExecContext(ctx, updateQuery,
 		existingID,
 		domainScene.Name,
@@ -432,7 +432,7 @@ func (r *PostgresRecordRepository) upsertEvent(ctx context.Context, tx *sql.Tx, 
 				$8, $9, $10, $11, $12, $13, $14, NOW(), NOW()
 			)
 		`
-		
+
 		// Prepare point coordinates (nullable)
 		// Note: ST_MakePoint expects (longitude, latitude) order
 		var lng, lat *float64
@@ -440,7 +440,7 @@ func (r *PostgresRecordRepository) upsertEvent(ctx context.Context, tx *sql.Tx, 
 			lng = &domainEvent.PrecisePoint.Lng
 			lat = &domainEvent.PrecisePoint.Lat
 		}
-		
+
 		_, err = tx.ExecContext(ctx, insertQuery,
 			newID,
 			sceneUUID,
@@ -485,7 +485,7 @@ func (r *PostgresRecordRepository) upsertEvent(ctx context.Context, tx *sql.Tx, 
 			deleted_at = NULL
 		WHERE id = $1
 	`
-	
+
 	// Prepare point coordinates (nullable)
 	// Note: ST_MakePoint expects (longitude, latitude) order
 	var lng, lat *float64
@@ -493,7 +493,7 @@ func (r *PostgresRecordRepository) upsertEvent(ctx context.Context, tx *sql.Tx, 
 		lng = &domainEvent.PrecisePoint.Lng
 		lat = &domainEvent.PrecisePoint.Lat
 	}
-	
+
 	_, err = tx.ExecContext(ctx, updateQuery,
 		existingID,
 		sceneUUID,
@@ -576,7 +576,7 @@ func (r *PostgresRecordRepository) upsertPost(ctx context.Context, tx *sql.Tx, r
 				record_did, record_rkey, created_at, updated_at
 			) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, NOW(), NOW())
 		`
-		
+
 		// Prepare attachments JSON
 		var attachmentsJSON []byte
 		if len(domainPost.Attachments) > 0 {
@@ -587,7 +587,7 @@ func (r *PostgresRecordRepository) upsertPost(ctx context.Context, tx *sql.Tx, r
 		} else {
 			attachmentsJSON = []byte("[]")
 		}
-		
+
 		_, err = tx.ExecContext(ctx, insertQuery,
 			newID,
 			sceneUUID,
@@ -619,7 +619,7 @@ func (r *PostgresRecordRepository) upsertPost(ctx context.Context, tx *sql.Tx, r
 			deleted_at = NULL
 		WHERE id = $1
 	`
-	
+
 	// Prepare attachments JSON
 	var attachmentsJSON []byte
 	if len(domainPost.Attachments) > 0 {
@@ -630,7 +630,7 @@ func (r *PostgresRecordRepository) upsertPost(ctx context.Context, tx *sql.Tx, r
 	} else {
 		attachmentsJSON = []byte("[]")
 	}
-	
+
 	_, err = tx.ExecContext(ctx, updateQuery,
 		existingID,
 		sceneUUID,
@@ -701,7 +701,7 @@ func (r *PostgresRecordRepository) upsertAlliance(ctx context.Context, tx *sql.T
 				record_did, record_rkey, created_at, updated_at
 			) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, NOW(), NOW())
 		`
-		
+
 		_, err = tx.ExecContext(ctx, insertQuery,
 			newID,
 			fromSceneUUID,
@@ -734,7 +734,7 @@ func (r *PostgresRecordRepository) upsertAlliance(ctx context.Context, tx *sql.T
 			deleted_at = NULL
 		WHERE id = $1
 	`
-	
+
 	_, err = tx.ExecContext(ctx, updateQuery,
 		existingID,
 		fromSceneUUID,

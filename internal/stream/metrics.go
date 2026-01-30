@@ -10,15 +10,15 @@ const (
 	MetricStreamJoins       = "stream_joins_total"
 	MetricStreamLeaves      = "stream_leaves_total"
 	MetricStreamJoinLatency = "stream_join_latency_seconds"
-	
+
 	// Audio quality metrics
-	MetricAudioBitrate       = "stream_audio_bitrate_kbps"
-	MetricAudioJitter        = "stream_audio_jitter_ms"
-	MetricAudioPacketLoss    = "stream_audio_packet_loss_percent"
-	MetricAudioLevel         = "stream_audio_level"
-	MetricNetworkRTT         = "stream_network_rtt_ms"
-	MetricQualityAlerts      = "stream_quality_alerts_total"
-	MetricHighPacketLoss     = "stream_high_packet_loss_total"
+	MetricAudioBitrate    = "stream_audio_bitrate_kbps"
+	MetricAudioJitter     = "stream_audio_jitter_ms"
+	MetricAudioPacketLoss = "stream_audio_packet_loss_percent"
+	MetricAudioLevel      = "stream_audio_level"
+	MetricNetworkRTT      = "stream_network_rtt_ms"
+	MetricQualityAlerts   = "stream_quality_alerts_total"
+	MetricHighPacketLoss  = "stream_high_packet_loss_total"
 )
 
 // Metrics contains Prometheus metrics for streaming sessions.
@@ -27,15 +27,15 @@ type Metrics struct {
 	streamJoins       prometheus.Counter
 	streamLeaves      prometheus.Counter
 	streamJoinLatency prometheus.Histogram
-	
+
 	// Audio quality metrics
-	audioBitrate      prometheus.Histogram
-	audioJitter       prometheus.Histogram
-	audioPacketLoss   prometheus.Histogram
-	audioLevel        prometheus.Histogram
-	networkRTT        prometheus.Histogram
-	qualityAlerts     prometheus.Counter
-	highPacketLoss    prometheus.Counter
+	audioBitrate    prometheus.Histogram
+	audioJitter     prometheus.Histogram
+	audioPacketLoss prometheus.Histogram
+	audioLevel      prometheus.Histogram
+	networkRTT      prometheus.Histogram
+	qualityAlerts   prometheus.Counter
+	highPacketLoss  prometheus.Counter
 }
 
 // NewMetrics creates and returns a new Metrics instance with all collectors initialized.

@@ -21,7 +21,7 @@ func TestCreateCheckoutSession_WithIdempotency(t *testing.T) {
 	sceneRepo := scene.NewInMemorySceneRepository()
 	paymentRepo := payment.NewInMemoryPaymentRepository()
 	idempotencyRepo := idempotency.NewInMemoryRepository()
-	
+
 	// Track how many times checkout session is created
 	createCount := 0
 	mockClient := &mockStripeClient{
@@ -33,7 +33,7 @@ func TestCreateCheckoutSession_WithIdempotency(t *testing.T) {
 			}, nil
 		},
 	}
-	
+
 	handlers := NewPaymentHandlers(
 		sceneRepo,
 		paymentRepo,
@@ -143,7 +143,7 @@ func TestCreateCheckoutSession_MissingIdempotencyKey(t *testing.T) {
 	paymentRepo := payment.NewInMemoryPaymentRepository()
 	idempotencyRepo := idempotency.NewInMemoryRepository()
 	mockClient := &mockStripeClient{}
-	
+
 	handlers := NewPaymentHandlers(
 		sceneRepo,
 		paymentRepo,
@@ -211,7 +211,7 @@ func TestCreateCheckoutSession_IdempotencyKeyTooLong(t *testing.T) {
 	paymentRepo := payment.NewInMemoryPaymentRepository()
 	idempotencyRepo := idempotency.NewInMemoryRepository()
 	mockClient := &mockStripeClient{}
-	
+
 	handlers := NewPaymentHandlers(
 		sceneRepo,
 		paymentRepo,
@@ -280,7 +280,7 @@ func TestCreateCheckoutSession_DifferentIdempotencyKeys(t *testing.T) {
 	sceneRepo := scene.NewInMemorySceneRepository()
 	paymentRepo := payment.NewInMemoryPaymentRepository()
 	idempotencyRepo := idempotency.NewInMemoryRepository()
-	
+
 	sessionCounter := 0
 	mockClient := &mockStripeClient{
 		createCheckoutSessionFunc: func(params *payment.CheckoutSessionParams) (*stripe.CheckoutSession, error) {
@@ -292,7 +292,7 @@ func TestCreateCheckoutSession_DifferentIdempotencyKeys(t *testing.T) {
 			}, nil
 		},
 	}
-	
+
 	handlers := NewPaymentHandlers(
 		sceneRepo,
 		paymentRepo,

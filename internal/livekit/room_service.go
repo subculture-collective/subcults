@@ -13,7 +13,7 @@ import (
 var (
 	// ErrRoomServiceNotConfigured is returned when room service operations are attempted without proper configuration.
 	ErrRoomServiceNotConfigured = errors.New("livekit room service not configured")
-	
+
 	// ErrRoomNotFound is returned when a requested room does not exist in LiveKit.
 	ErrRoomNotFound = errors.New("room not found")
 )

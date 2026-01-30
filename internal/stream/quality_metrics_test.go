@@ -6,9 +6,9 @@ import (
 
 func TestQualityMetrics_HasHighPacketLoss(t *testing.T) {
 	tests := []struct {
-		name        string
-		packetLoss  *float64
-		wantAlert   bool
+		name       string
+		packetLoss *float64
+		wantAlert  bool
 	}{
 		{
 			name:       "nil packet loss",
@@ -47,7 +47,7 @@ func TestQualityMetrics_HasHighPacketLoss(t *testing.T) {
 			q := &QualityMetrics{
 				PacketLossPercent: tt.packetLoss,
 			}
-			
+
 			if got := q.HasHighPacketLoss(); got != tt.wantAlert {
 				t.Errorf("HasHighPacketLoss() = %v, want %v", got, tt.wantAlert)
 			}
@@ -57,9 +57,9 @@ func TestQualityMetrics_HasHighPacketLoss(t *testing.T) {
 
 func TestQualityMetrics_HasPoorNetworkQuality(t *testing.T) {
 	tests := []struct {
-		name       string
-		metrics    *QualityMetrics
-		wantPoor   bool
+		name     string
+		metrics  *QualityMetrics
+		wantPoor bool
 	}{
 		{
 			name: "all metrics good",
