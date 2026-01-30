@@ -79,7 +79,7 @@ Legacy Epic → Canonical Epic
 ## Files Changed
 
 ```
-docs/AT_PROTOCOL_SCHEMA.md            (NEW)    370+ lines
+docs/AT_PROTOCOL_SCHEMA.md            (NEW)    306 lines
 docs/EPIC_DEPENDENCY_UPDATES.md       (EDIT)     6 lines changed
 docs/IMPLEMENTATION_SUMMARY_EPIC_NORMALIZATION.md (EDIT)
 internal/indexer/README.md             (EDIT)    12 lines changed
