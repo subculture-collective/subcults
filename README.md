@@ -75,6 +75,7 @@ subcults/
 - Go 1.21+
 - Node.js 18+
 - Docker & Docker Compose
+- libvips 8.x+ (for image processing, optional for API-only development)
 
 ### Setup
 
