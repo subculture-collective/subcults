@@ -153,7 +153,7 @@ func main() {
 	analyticsRepo := stream.NewInMemoryAnalyticsRepository(streamRepo)
 	postRepo := post.NewInMemoryPostRepository()
 	membershipRepo := membership.NewInMemoryMembershipRepository()
-	
+
 	// Initialize event broadcaster for WebSocket participant updates
 	eventBroadcaster := stream.NewEventBroadcaster()
 
@@ -192,7 +192,7 @@ func main() {
 			os.Exit(1)
 		}
 		redisClient = redis.NewClient(opt)
-		
+
 		// Test connection
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
@@ -200,14 +200,14 @@ func main() {
 			logger.Error("failed to connect to Redis", "error", err)
 			os.Exit(1)
 		}
-		
+
 		rateLimitStore = middleware.NewRedisRateLimitStoreWithMetrics(redisClient, rateLimitMetrics)
 		logger.Info("rate limiting initialized with Redis backend")
 	} else {
 		// Use in-memory rate limiting for single-instance deployments
 		inMemStore := middleware.NewInMemoryRateLimitStore()
 		rateLimitStore = inMemStore
-		
+
 		// Start periodic cleanup to prevent unbounded memory growth from expired buckets
 		cleanupInterval := 5 * time.Minute // Clean up every 5 minutes
 		go func() {
@@ -218,7 +218,7 @@ func main() {
 				logger.Debug("cleaned up expired rate limit buckets")
 			}
 		}()
-		
+
 		logger.Warn("rate limiting initialized with in-memory backend (not suitable for distributed deployments)")
 	}
 
@@ -307,7 +307,7 @@ func main() {
 	stripeAPIKey := os.Getenv("STRIPE_API_KEY")
 	stripeOnboardingReturnURL := os.Getenv("STRIPE_ONBOARDING_RETURN_URL")
 	stripeOnboardingRefreshURL := os.Getenv("STRIPE_ONBOARDING_REFRESH_URL")
-	
+
 	// Parse application fee percentage (default: 5.0%)
 	stripeApplicationFeePercent := 5.0
 	if feePercentStr := os.Getenv("STRIPE_APPLICATION_FEE_PERCENT"); feePercentStr != "" {
@@ -317,7 +317,7 @@ func main() {
 			logger.Warn("invalid STRIPE_APPLICATION_FEE_PERCENT, using default 5.0%", "error", err)
 		}
 	}
-	
+
 	// Validate fee percentage
 	if stripeApplicationFeePercent < 0 || stripeApplicationFeePercent >= 100 {
 		logger.Error("invalid STRIPE_APPLICATION_FEE_PERCENT: must be between 0 and 100", "value", stripeApplicationFeePercent)
@@ -328,12 +328,12 @@ func main() {
 	var webhookHandlers *api.WebhookHandlers
 	var idempotencyMiddleware func(http.Handler) http.Handler
 	stripeWebhookSecret := os.Getenv("STRIPE_WEBHOOK_SECRET")
-	
+
 	if stripeAPIKey != "" && stripeOnboardingReturnURL != "" && stripeOnboardingRefreshURL != "" {
 		stripeClient := payment.NewStripeClient(stripeAPIKey)
 		paymentRepo := payment.NewInMemoryPaymentRepository()
 		webhookRepo := payment.NewInMemoryWebhookRepository()
-		
+
 		// Initialize idempotency repository for payment operations
 		idempotencyRepo := idempotency.NewInMemoryRepository()
 		idempotencyRoutes := map[string]bool{
@@ -341,7 +341,7 @@ func main() {
 		}
 		idempotencyMiddleware = middleware.IdempotencyMiddleware(idempotencyRepo, idempotencyRoutes)
 		logger.Info("idempotency middleware initialized", "routes", idempotencyRoutes)
-		
+
 		paymentHandlers = api.NewPaymentHandlers(
 			sceneRepo,
 			paymentRepo,
@@ -351,7 +351,7 @@ func main() {
 			stripeApplicationFeePercent,
 		)
 		logger.Info("Stripe payment handlers initialized", "application_fee_percent", stripeApplicationFeePercent)
-		
+
 		// Initialize webhook handler if secret is configured
 		if stripeWebhookSecret != "" {
 			webhookHandlers = api.NewWebhookHandlers(
@@ -371,6 +371,8 @@ func main() {
 	// Initialize handlers
 	// Pass trustScoreStore to eventHandlers to enable trust-weighted ranking
 	trustStoreAdapter := api.NewTrustScoreStoreAdapter(trustScoreStore)
+	sceneHandlers := api.NewSceneHandlers(sceneRepo, membershipRepo, streamRepo)
+	membershipHandlers := api.NewMembershipHandlers(membershipRepo, sceneRepo, auditRepo)
 	eventHandlers := api.NewEventHandlers(eventRepo, sceneRepo, auditRepo, rsvpRepo, streamRepo, trustStoreAdapter)
 	rsvpHandlers := api.NewRSVPHandlers(rsvpRepo, eventRepo)
 	streamHandlers := api.NewStreamHandlers(streamRepo, participantRepo, analyticsRepo, sceneRepo, eventRepo, auditRepo, streamMetrics, eventBroadcaster, roomService)
@@ -391,6 +393,10 @@ func main() {
 		RequestsPerWindow: 5,
 		WindowDuration:    time.Hour,
 	}
+	sceneCreationLimit := middleware.RateLimitConfig{
+		RequestsPerWindow: 10,
+		WindowDuration:    time.Hour,
+	}
 	generalLimit := middleware.RateLimitConfig{
 		RequestsPerWindow: 1000,
 		WindowDuration:    time.Minute,
@@ -405,7 +411,7 @@ func main() {
 			eventHandlers.CreateEvent(w, r)
 		}),
 	)
-	
+
 	mux.HandleFunc("/events", func(w http.ResponseWriter, r *http.Request) {
 		switch r.Method {
 		case http.MethodPost:
@@ -458,19 +464,95 @@ func main() {
 		}
 	})
 
-	// Scene feed route
+	// Scene routes
+	// Scene creation (with rate limiting: 10 req/hour per user)
+	sceneCreationHandler := middleware.RateLimiter(rateLimitStore, sceneCreationLimit, middleware.UserKeyFunc(), rateLimitMetrics)(
+		http.HandlerFunc(sceneHandlers.CreateScene),
+	)
+
+	mux.HandleFunc("/scenes", func(w http.ResponseWriter, r *http.Request) {
+		switch r.Method {
+		case http.MethodPost:
+			sceneCreationHandler.ServeHTTP(w, r)
+		default:
+			ctx := middleware.SetErrorCode(r.Context(), api.ErrCodeBadRequest)
+			api.WriteError(w, ctx, http.StatusMethodNotAllowed, api.ErrCodeBadRequest, "Method not allowed")
+		}
+	})
+
+	mux.HandleFunc("/scenes/owned", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet {
+			ctx := middleware.SetErrorCode(r.Context(), api.ErrCodeBadRequest)
+			api.WriteError(w, ctx, http.StatusMethodNotAllowed, api.ErrCodeBadRequest, "Method not allowed")
+			return
+		}
+		sceneHandlers.ListOwnedScenes(w, r)
+	})
+
+	// Ensure trailing-slash variant /scenes/owned/ does not fall through to the
+	// /scenes/ catch-all, where "owned" would be treated as a scene ID.
+	mux.HandleFunc("/scenes/owned/", func(w http.ResponseWriter, r *http.Request) {
+		// Normalize to the canonical path without trailing slash.
+		http.Redirect(w, r, "/scenes/owned", http.StatusMovedPermanently)
+	})
+
+	// Scene resource routes: /scenes/{id}, /scenes/{id}/feed, /scenes/{id}/palette, /scenes/{id}/membership/*
 	mux.HandleFunc("/scenes/", func(w http.ResponseWriter, r *http.Request) {
-		// Parse path to check for feed endpoint
-		// Expected pattern: /scenes/{id}/feed
+		// Parse path to determine which endpoint to route to
 		pathParts := strings.Split(strings.TrimPrefix(r.URL.Path, "/scenes/"), "/")
 
-		// Check if this is a feed request: /scenes/{id}/feed
-		if len(pathParts) == 2 && pathParts[0] != "" && pathParts[1] == "feed" && r.Method == http.MethodGet {
+		if len(pathParts) == 0 || pathParts[0] == "" {
+			ctx := middleware.SetErrorCode(r.Context(), api.ErrCodeBadRequest)
+			api.WriteError(w, ctx, http.StatusBadRequest, api.ErrCodeBadRequest, "Scene ID is required")
+			return
+		}
+
+		// Scene feed: /scenes/{id}/feed
+		if len(pathParts) == 2 && pathParts[1] == "feed" && r.Method == http.MethodGet {
 			postHandlers.GetSceneFeed(w, r)
 			return
 		}
 
-		// No other scene endpoints yet, return 404
+		// Scene palette: /scenes/{id}/palette
+		if len(pathParts) == 2 && pathParts[1] == "palette" && r.Method == http.MethodPatch {
+			sceneHandlers.UpdateScenePalette(w, r)
+			return
+		}
+
+		// Membership request: /scenes/{id}/membership/request
+		if len(pathParts) == 3 && pathParts[1] == "membership" && pathParts[2] == "request" && r.Method == http.MethodPost {
+			membershipHandlers.RequestMembership(w, r)
+			return
+		}
+
+		// Membership approve/reject: /scenes/{id}/membership/{userDid}/approve|reject
+		if len(pathParts) == 4 && pathParts[1] == "membership" && r.Method == http.MethodPost {
+			if pathParts[3] == "approve" {
+				membershipHandlers.ApproveMembership(w, r)
+				return
+			} else if pathParts[3] == "reject" {
+				membershipHandlers.RejectMembership(w, r)
+				return
+			}
+		}
+
+		// Scene CRUD: /scenes/{id}
+		if len(pathParts) == 1 {
+			switch r.Method {
+			case http.MethodGet:
+				sceneHandlers.GetScene(w, r)
+			case http.MethodPatch:
+				sceneHandlers.UpdateScene(w, r)
+			case http.MethodDelete:
+				sceneHandlers.DeleteScene(w, r)
+			default:
+				ctx := middleware.SetErrorCode(r.Context(), api.ErrCodeBadRequest)
+				api.WriteError(w, ctx, http.StatusMethodNotAllowed, api.ErrCodeBadRequest, "Method not allowed")
+			}
+			return
+		}
+
+		// No matching endpoint
 		ctx := middleware.SetErrorCode(r.Context(), api.ErrCodeNotFound)
 		api.WriteError(w, ctx, http.StatusNotFound, api.ErrCodeNotFound, "The requested resource was not found")
 	})
@@ -683,7 +765,7 @@ func main() {
 			}
 			paymentHandlers.OnboardScene(w, r)
 		})
-		
+
 		// Wrap checkout handler with idempotency middleware
 		checkoutHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			if r.Method != http.MethodPost {
@@ -693,14 +775,14 @@ func main() {
 			}
 			paymentHandlers.CreateCheckoutSession(w, r)
 		})
-		
+
 		if idempotencyMiddleware != nil {
 			// Apply idempotency middleware - returns http.Handler
 			mux.Handle("/payments/checkout", idempotencyMiddleware(checkoutHandler))
 		} else {
 			mux.Handle("/payments/checkout", checkoutHandler)
 		}
-		
+
 		mux.HandleFunc("/payments/status", func(w http.ResponseWriter, r *http.Request) {
 			if r.Method != http.MethodGet {
 				ctx := middleware.SetErrorCode(r.Context(), api.ErrCodeBadRequest)
@@ -738,9 +820,9 @@ func main() {
 	healthHandlers := api.NewHealthHandlers(api.HealthHandlersConfig{
 		// Database, LiveKit, and Stripe checkers would be configured here when using real services
 		// For now, using in-memory repos and optional services, so checkers are nil
-		DBChecker:      nil, // Will be configured when using real database
-		LiveKitChecker: nil, // Will be configured when LiveKit health check is implemented
-		StripeChecker:  nil, // Will be configured when Stripe health check is implemented
+		DBChecker:      nil,  // Will be configured when using real database
+		LiveKitChecker: nil,  // Will be configured when LiveKit health check is implemented
+		StripeChecker:  nil,  // Will be configured when Stripe health check is implemented
 		MetricsEnabled: true, // Prometheus metrics are registered
 	})
 	mux.HandleFunc("/health", healthHandlers.Health)
@@ -774,20 +856,20 @@ func main() {
 	// 4. RequestID - generates/extracts request IDs for tracing
 	// 5. Logging - logs requests with all context
 	var handler http.Handler = mux
-	
+
 	// Apply middleware in reverse order of execution
 	// Logging is applied first (innermost, executes last)
 	handler = middleware.Logging(logger)(handler)
-	
+
 	// Then RequestID
 	handler = middleware.RequestID(handler)
-	
+
 	// Then HTTP metrics
 	handler = middleware.HTTPMetrics(rateLimitMetrics)(handler)
-	
+
 	// Then rate limiting
 	handler = middleware.RateLimiter(rateLimitStore, generalLimit, middleware.IPKeyFunc(), rateLimitMetrics)(handler)
-	
+
 	// Finally, tracing (outermost, executes first) - only if enabled
 	if tracingEnabled {
 		handler = middleware.Tracing("subcults-api")(handler)
