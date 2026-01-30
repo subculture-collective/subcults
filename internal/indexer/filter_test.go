@@ -361,8 +361,16 @@ func TestRecordFilter_Filter_ValidPostRecord(t *testing.T) {
 		payload string
 	}{
 		{
-			name:    "minimal post",
+			name:    "minimal post with sceneId",
 			payload: `{"text":"Check out this venue!","sceneId":"scene123"}`,
+		},
+		{
+			name:    "post with eventId only",
+			payload: `{"text":"Amazing performance!","eventId":"event789"}`,
+		},
+		{
+			name:    "post with both sceneId and eventId",
+			payload: `{"text":"Can't wait!","sceneId":"scene456","eventId":"event123"}`,
 		},
 		{
 			name:    "post with extra fields",
@@ -402,7 +410,7 @@ func TestRecordFilter_Filter_InvalidPostRecord(t *testing.T) {
 			expectedErr: ErrMissingField,
 		},
 		{
-			name:        "missing sceneId",
+			name:        "missing both sceneId and eventId",
 			payload:     `{"text":"Hello world"}`,
 			expectedErr: ErrMissingField,
 		},
@@ -412,9 +420,19 @@ func TestRecordFilter_Filter_InvalidPostRecord(t *testing.T) {
 			expectedErr: ErrInvalidFieldType,
 		},
 		{
-			name:        "sceneId not string",
+			name:        "sceneId not string (null)",
 			payload:     `{"text":"Hello","sceneId":null}`,
-			expectedErr: ErrInvalidFieldType,
+			expectedErr: ErrMissingField,
+		},
+		{
+			name:        "eventId not string (null)",
+			payload:     `{"text":"Hello","eventId":null}`,
+			expectedErr: ErrMissingField,
+		},
+		{
+			name:        "both references are null",
+			payload:     `{"text":"Hello","sceneId":null,"eventId":null}`,
+			expectedErr: ErrMissingField,
 		},
 	}
 
