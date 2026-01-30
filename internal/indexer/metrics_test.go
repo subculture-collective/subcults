@@ -15,8 +15,8 @@ func TestNewMetrics(t *testing.T) {
 
 	// Verify all collectors are initialized
 	collectors := m.Collectors()
-	if len(collectors) != 12 {
-		t.Errorf("expected 12 collectors, got %d", len(collectors))
+	if len(collectors) != 13 {
+		t.Errorf("expected 13 collectors, got %d", len(collectors))
 	}
 }
 
@@ -47,6 +47,7 @@ func TestMetrics_Register(t *testing.T) {
 			MetricPendingMessages:      false,
 			MetricProcessingLag:        false,
 			MetricReconnectionAttempts: false,
+			MetricReconnectionSuccess:  false,
 			MetricDatabaseWritesFailed: false,
 		}
 
@@ -399,6 +400,24 @@ func TestMetrics_IncReconnectionAttempts(t *testing.T) {
 	final := getCounterValue(m.reconnectionAttempts)
 	if final != 15 {
 		t.Errorf("final value = %f, want 15", final)
+	}
+}
+
+func TestMetrics_IncReconnectionSuccess(t *testing.T) {
+	m := NewMetrics()
+
+	initial := getCounterValue(m.reconnectionSuccess)
+	if initial != 0 {
+		t.Errorf("initial value = %f, want 0", initial)
+	}
+
+	for i := 0; i < 12; i++ {
+		m.IncReconnectionSuccess()
+	}
+
+	final := getCounterValue(m.reconnectionSuccess)
+	if final != 12 {
+		t.Errorf("final value = %f, want 12", final)
 	}
 }
 

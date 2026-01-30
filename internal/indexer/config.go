@@ -9,9 +9,10 @@ import (
 
 // Default values for WebSocket reconnection configuration.
 const (
-	DefaultBaseDelay    = 100 * time.Millisecond
-	DefaultMaxDelay     = 30 * time.Second
-	DefaultJitterFactor = 0.5 // 50% jitter
+	DefaultBaseDelay       = 100 * time.Millisecond
+	DefaultMaxDelay        = 30 * time.Second
+	DefaultJitterFactor    = 0.5 // 50% jitter
+	DefaultMaxRetryAttempts = 5   // Max retry attempts before alerting
 )
 
 // Configuration errors.
@@ -36,16 +37,21 @@ type Config struct {
 	// JitterFactor is the fraction of delay to randomize (0.0 to 1.0).
 	// A value of 0.5 means the actual delay will be in [delay*0.75, delay*1.25].
 	JitterFactor float64
+
+	// MaxRetryAttempts is the maximum number of consecutive reconnection attempts
+	// before logging an alert. Set to 0 to disable the limit.
+	MaxRetryAttempts int64
 }
 
 // DefaultConfig returns a Config with sensible default values.
 // The URL must be provided by the caller.
 func DefaultConfig(url string) Config {
 	return Config{
-		URL:          url,
-		BaseDelay:    DefaultBaseDelay,
-		MaxDelay:     DefaultMaxDelay,
-		JitterFactor: DefaultJitterFactor,
+		URL:              url,
+		BaseDelay:        DefaultBaseDelay,
+		MaxDelay:         DefaultMaxDelay,
+		JitterFactor:     DefaultJitterFactor,
+		MaxRetryAttempts: DefaultMaxRetryAttempts,
 	}
 }
 
