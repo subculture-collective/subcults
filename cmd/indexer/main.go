@@ -3,6 +3,7 @@ package main
 
 import (
 	"context"
+	"database/sql"
 	"flag"
 	"fmt"
 	"log/slog"
@@ -12,6 +13,7 @@ import (
 	"syscall"
 	"time"
 
+	_ "github.com/lib/pq" // Postgres driver
 	"github.com/onnwee/subcults/internal/indexer"
 	"github.com/onnwee/subcults/internal/middleware"
 	"github.com/prometheus/client_golang/prometheus"
@@ -100,7 +102,57 @@ func main() {
 
 	config := indexer.DefaultConfig(jetstreamURL)
 
-	// Message handler (placeholder - will be replaced with actual record processing)
+	// Initialize repository based on DATABASE_URL environment variable
+	var repo indexer.RecordRepository
+	var cleanupService interface {
+		Start(context.Context)
+		Stop()
+	}
+
+	databaseURL := os.Getenv("DATABASE_URL")
+	if databaseURL != "" {
+		// Use Postgres repository when DATABASE_URL is provided
+		db, err := sql.Open("postgres", databaseURL)
+		if err != nil {
+			logger.Error("failed to connect to database", "error", err)
+			os.Exit(1)
+		}
+		defer db.Close()
+
+		// Test connection
+		if err := db.Ping(); err != nil {
+			logger.Error("failed to ping database", "error", err)
+			os.Exit(1)
+		}
+
+		logger.Info("using Postgres repository", "database_url", databaseURL)
+		repo = indexer.NewPostgresRecordRepository(db, logger)
+		
+		// Use Postgres cleanup service
+		cleanupConfig := indexer.DefaultCleanupConfig()
+		cleanupService = indexer.NewCleanupService(db, logger, cleanupConfig)
+	} else {
+		// Fall back to in-memory repository for testing
+		logger.Warn("DATABASE_URL not set, using in-memory repository (data will not persist)")
+		memRepo := indexer.NewInMemoryRecordRepository(logger)
+		repo = memRepo
+		
+		// Use in-memory cleanup service
+		cleanupConfig := indexer.DefaultCleanupConfig()
+		cleanupService = indexer.NewInMemoryCleanupService(memRepo, logger, cleanupConfig)
+	}
+
+	filter := indexer.NewRecordFilter(indexer.NewFilterMetrics())
+
+	// Create main context for the application
+	// All child contexts will be derived from this for proper shutdown coordination
+	appCtx, appCancel := context.WithCancel(context.Background())
+	defer appCancel()
+
+	// Start cleanup service with app context
+	cleanupService.Start(appCtx)
+
+	// Message handler - now with transactional database persistence
 	handler := func(messageType int, payload []byte) error {
 		start := time.Now()
 
@@ -121,21 +173,76 @@ func main() {
 				slog.Duration("lag", lag))
 		}
 
-		// TODO: Implement actual record filtering and database persistence
-		// For now, just increment the processed counter
+		// Filter and validate the record
+		result := filter.FilterCBOR(payload)
 		metrics.IncMessagesProcessed()
+
+		// If record doesn't match our lexicon, skip
+		if !result.Matched {
+			return nil
+		}
+
+		// If record failed validation, log and increment error counter
+		if !result.Valid {
+			metrics.IncMessagesError()
+			logger.Warn("record validation failed",
+				slog.String("collection", result.Collection),
+				slog.String("did", result.DID),
+				slog.String("rkey", result.RKey),
+				slog.String("error", result.Error.Error()))
+			return nil // Don't fail the entire stream for validation errors
+		}
+
+		// Handle delete operations
+		if result.Operation == "delete" {
+			if err := repo.DeleteRecord(appCtx, result.DID, result.Collection, result.RKey); err != nil {
+				metrics.IncDatabaseWritesFailed()
+				logger.Error("failed to delete record",
+					slog.String("collection", result.Collection),
+					slog.String("did", result.DID),
+					slog.String("rkey", result.RKey),
+					slog.String("error", err.Error()))
+				return nil // Don't fail stream on delete errors
+			}
+			logger.Info("record deleted",
+				slog.String("collection", result.Collection),
+				slog.String("did", result.DID),
+				slog.String("rkey", result.RKey))
+			return nil
+		}
+
+		// Upsert record with transaction support
+		recordID, isNew, err := repo.UpsertRecord(appCtx, &result)
+		if err != nil {
+			metrics.IncDatabaseWritesFailed()
+			logger.Error("failed to upsert record",
+				slog.String("collection", result.Collection),
+				slog.String("did", result.DID),
+				slog.String("rkey", result.RKey),
+				slog.String("error", err.Error()))
+			return nil // Don't fail stream on upsert errors
+		}
+
+		// If record was skipped due to idempotency, don't count as upsert
+		if recordID == "" {
+			logger.Debug("record skipped (idempotent)",
+				slog.String("collection", result.Collection),
+				slog.String("did", result.DID),
+				slog.String("rkey", result.RKey))
+			return nil
+		}
+
+		// Record successful upsert
+		metrics.IncUpserts()
+		logger.Info("record upserted",
+			slog.String("record_id", recordID),
+			slog.String("collection", result.Collection),
+			slog.String("did", result.DID),
+			slog.String("rkey", result.RKey),
+			slog.Bool("is_new", isNew))
 
 		// Record ingestion latency
 		metrics.ObserveIngestLatency(time.Since(start).Seconds())
-
-		// Example of how to track database failures:
-		// if err := database.Write(record); err != nil {
-		//     metrics.IncDatabaseWritesFailed()
-		//     logger.Error("database write failed",
-		//         slog.String("error", err.Error()))
-		//     return err
-		// }
-		// metrics.IncUpserts()
 
 		return nil
 	}
@@ -147,13 +254,11 @@ func main() {
 	}
 
 	// Start Jetstream client in background
-	clientCtx, clientCancel := context.WithCancel(context.Background())
-	defer clientCancel()
-
 	clientDone := make(chan error, 1)
 	go func() {
 		logger.Info("starting jetstream client", "url", jetstreamURL)
-		clientDone <- client.Run(clientCtx)
+		// Client uses app context for proper shutdown coordination
+		clientDone <- client.Run(appCtx)
 	}()
 
 	// Wait for interrupt signal for graceful shutdown
@@ -169,8 +274,13 @@ func main() {
 
 	logger.Info("shutting down indexer...")
 
-	// Cancel client context
-	clientCancel()
+	// Cancel app context to trigger graceful shutdown of all components
+	// This will stop: cleanup service, client, and any in-flight DB operations
+	appCancel()
+
+	// Stop cleanup service
+	logger.Info("stopping cleanup service")
+	cleanupService.Stop()
 
 	// Wait for client to finish with longer timeout to account for drain
 	select {
