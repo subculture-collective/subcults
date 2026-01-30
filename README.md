@@ -300,6 +300,9 @@ Variables are organized into logical groups:
 **Jetstream (AT Protocol)**
 - **`JETSTREAM_URL`** (required) - WebSocket endpoint for Jetstream subscription
   - Default: `wss://jetstream1.us-east.bsky.network/subscribe`
+  - The indexer automatically reconnects with exponential backoff on connection failures
+  - Resumes from last processed sequence to prevent message loss
+  - See [Jetstream Reconnection Documentation](./docs/jetstream-reconnection.md) for details
 
 #### Observability (Optional)
 - **`METRICS_PORT`** - Prometheus metrics endpoint port

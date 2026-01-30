@@ -10,6 +10,8 @@ After the roadmap revamp in #416, several epic descriptions still referenced:
 - Legacy epics (#5, #8, #19, #20, #23, #18, #21, #310, #311, #12, #16)
 - Deprecated Roadmap #1
 
+Additionally, issue #305 (Jetstream Indexer) referenced #8 for "AT Protocol record schema", but #8 was a legacy Search epic and not the schema source, creating a dependency gap.
+
 This created dependency confusion and made it difficult to track the true critical path.
 
 ## Solution
@@ -22,11 +24,19 @@ This created dependency confusion and made it difficult to track the true critic
    - Reference consolidation map from #416
    - Copy-paste ready text for repository maintainers
 
-2. **Updated Repository Documentation**
+2. **Created AT Protocol Schema Documentation** (`docs/AT_PROTOCOL_SCHEMA.md`)
+   - Comprehensive documentation of all `app.subcult.*` collections
+   - Field requirements and validation rules
+   - Integration with indexer implementation
+   - Resolves the dependency gap from #305 → #8
+
+3. **Updated Repository Documentation**
    - `docs/LOGGING.md`: Changed #19 → #307 (Observability), added #416 reference
    - `internal/indexer/BACKPRESSURE.md`: Added #416 reference
+   - `docs/EPIC_DEPENDENCY_UPDATES.md`: Updated #305 to reference AT Protocol schema doc
+   - `internal/indexer/README.md`: Added links to AT Protocol schema documentation
 
-3. **Verified No Other References**
+4. **Verified No Other References**
    - Scanned all markdown files in `docs/` and `internal/`
    - Confirmed Epic #6 (Privacy & Safety) references are correct (canonical epic)
    - Confirmed no other legacy epic references in documentation
@@ -37,7 +47,7 @@ GitHub issue descriptions cannot be updated programmatically due to API permissi
 
 | Issue | Epic Name | Key Changes |
 |-------|-----------|-------------|
-| #305 | Jetstream Indexer | #8→#304, #19→#307, #5 removed, +#416 |
+| #305 | Jetstream Indexer | #8 removed (replaced with AT_PROTOCOL_SCHEMA.md), #19→#307, #5 removed, +#416 |
 | #304 | Search & Discovery | #14 removed, #21→#303, #19→#307, #20→#308, +#416 |
 | #307 | Observability | #19 removed, #20→#308, #23→#385, +#416 |
 | #306 | LiveKit Streaming | #23 removed, #19→#307, +#416 |
@@ -69,10 +79,10 @@ Legacy Epic → Canonical Epic
 ## Files Changed
 
 ```
-docs/EPIC_DEPENDENCY_UPDATES.md  (NEW)    324+ lines
-docs/LOGGING.md                  (EDIT)     4 lines changed
-internal/indexer/BACKPRESSURE.md (EDIT)     3 lines changed
-docs/IMPLEMENTATION_SUMMARY_EPIC_NORMALIZATION.md (NEW)
+docs/AT_PROTOCOL_SCHEMA.md            (NEW)    306 lines
+docs/EPIC_DEPENDENCY_UPDATES.md       (EDIT)     6 lines changed
+docs/IMPLEMENTATION_SUMMARY_EPIC_NORMALIZATION.md (EDIT)
+internal/indexer/README.md             (EDIT)    12 lines changed
 ```
 
 ## Verification

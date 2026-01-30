@@ -19,6 +19,7 @@ const (
 	MetricPendingMessages      = "indexer_pending_messages"
 	MetricProcessingLag        = "indexer_processing_lag_seconds"
 	MetricReconnectionAttempts = "indexer_reconnection_attempts_total"
+	MetricReconnectionSuccess  = "indexer_reconnection_success_total"
 	MetricDatabaseWritesFailed = "indexer_database_writes_failed_total"
 )
 
@@ -36,6 +37,7 @@ type Metrics struct {
 	pendingMessages      prometheus.Gauge
 	processingLag        prometheus.Gauge
 	reconnectionAttempts prometheus.Counter
+	reconnectionSuccess  prometheus.Counter
 	databaseWritesFailed prometheus.Counter
 }
 
@@ -89,6 +91,10 @@ func NewMetrics() *Metrics {
 			Name: MetricReconnectionAttempts,
 			Help: "Total number of reconnection attempts to Jetstream",
 		}),
+		reconnectionSuccess: prometheus.NewCounter(prometheus.CounterOpts{
+			Name: MetricReconnectionSuccess,
+			Help: "Total number of successful reconnections to Jetstream",
+		}),
 		databaseWritesFailed: prometheus.NewCounter(prometheus.CounterOpts{
 			Name: MetricDatabaseWritesFailed,
 			Help: "Total number of failed database write operations",
@@ -111,6 +117,7 @@ func (m *Metrics) Register(reg prometheus.Registerer) error {
 		m.pendingMessages,
 		m.processingLag,
 		m.reconnectionAttempts,
+		m.reconnectionSuccess,
 		m.databaseWritesFailed,
 	}
 
@@ -177,6 +184,11 @@ func (m *Metrics) IncReconnectionAttempts() {
 	m.reconnectionAttempts.Inc()
 }
 
+// IncReconnectionSuccess increments the reconnection success counter.
+func (m *Metrics) IncReconnectionSuccess() {
+	m.reconnectionSuccess.Inc()
+}
+
 // IncDatabaseWritesFailed increments the database writes failed counter.
 func (m *Metrics) IncDatabaseWritesFailed() {
 	m.databaseWritesFailed.Inc()
@@ -196,6 +208,7 @@ func (m *Metrics) Collectors() []prometheus.Collector {
 		m.pendingMessages,
 		m.processingLag,
 		m.reconnectionAttempts,
+		m.reconnectionSuccess,
 		m.databaseWritesFailed,
 	}
 }

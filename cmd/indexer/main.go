@@ -104,6 +104,7 @@ func main() {
 
 	// Initialize repository based on DATABASE_URL environment variable
 	var repo indexer.RecordRepository
+	var sequenceTracker indexer.SequenceTracker
 	var cleanupService interface {
 		Start(context.Context)
 		Stop()
@@ -127,6 +128,7 @@ func main() {
 
 		logger.Info("using Postgres repository", "database_url", databaseURL)
 		repo = indexer.NewPostgresRecordRepository(db, logger)
+		sequenceTracker = indexer.NewPostgresSequenceTracker(db, logger)
 
 		// Use Postgres cleanup service
 		cleanupConfig := indexer.DefaultCleanupConfig()
@@ -136,11 +138,9 @@ func main() {
 		logger.Warn("DATABASE_URL not set, using in-memory repository (data will not persist)")
 		memRepo := indexer.NewInMemoryRecordRepository(logger)
 		repo = memRepo
-
-		// Use in-memory cleanup service
+		sequenceTracker = indexer.NewInMemorySequenceTracker(logger)
 		cleanupConfig := indexer.DefaultCleanupConfig()
 		cleanupService = indexer.NewInMemoryCleanupService(memRepo, logger, cleanupConfig)
-	}
 
 	filter := indexer.NewRecordFilter(indexer.NewFilterMetrics())
 
@@ -152,7 +152,7 @@ func main() {
 	// Start cleanup service with app context
 	cleanupService.Start(appCtx)
 
-	// Message handler - now with transactional database persistence
+	// Message handler - now with transactional database persistence and sequence tracking
 	handler := func(messageType int, payload []byte) error {
 		start := time.Now()
 
@@ -177,8 +177,15 @@ func main() {
 		result := filter.FilterCBOR(payload)
 		metrics.IncMessagesProcessed()
 
-		// If record doesn't match our lexicon, skip
+		// If record doesn't match our lexicon, skip (but still update sequence)
 		if !result.Matched {
+			// Update sequence even for non-matched records to avoid re-processing
+			if msg != nil && msg.TimeUS > 0 {
+				if err := sequenceTracker.UpdateSequence(appCtx, msg.TimeUS); err != nil {
+					logger.Warn("failed to update sequence for non-matched record",
+						slog.String("error", err.Error()))
+				}
+			}
 			return nil
 		}
 
@@ -190,6 +197,13 @@ func main() {
 				slog.String("did", result.DID),
 				slog.String("rkey", result.RKey),
 				slog.String("error", result.Error.Error()))
+			// Update sequence even for invalid records to avoid re-processing
+			if msg != nil && msg.TimeUS > 0 {
+				if err := sequenceTracker.UpdateSequence(appCtx, msg.TimeUS); err != nil {
+					logger.Warn("failed to update sequence for invalid record",
+						slog.String("error", err.Error()))
+				}
+			}
 			return nil // Don't fail the entire stream for validation errors
 		}
 
@@ -208,6 +222,14 @@ func main() {
 				slog.String("collection", result.Collection),
 				slog.String("did", result.DID),
 				slog.String("rkey", result.RKey))
+
+			// Update sequence after successful delete
+			if msg != nil && msg.TimeUS > 0 {
+				if err := sequenceTracker.UpdateSequence(appCtx, msg.TimeUS); err != nil {
+					logger.Error("failed to update sequence after delete",
+						slog.String("error", err.Error()))
+				}
+			}
 			return nil
 		}
 
@@ -229,6 +251,13 @@ func main() {
 				slog.String("collection", result.Collection),
 				slog.String("did", result.DID),
 				slog.String("rkey", result.RKey))
+			// Update sequence even for idempotent records to avoid re-processing
+			if msg != nil && msg.TimeUS > 0 {
+				if err := sequenceTracker.UpdateSequence(appCtx, msg.TimeUS); err != nil {
+					logger.Warn("failed to update sequence for idempotent record",
+						slog.String("error", err.Error()))
+				}
+			}
 			return nil
 		}
 
@@ -244,13 +273,33 @@ func main() {
 		// Record ingestion latency
 		metrics.ObserveIngestLatency(time.Since(start).Seconds())
 
+		// Update sequence after successful processing
+		if msg != nil && msg.TimeUS > 0 {
+			if err := sequenceTracker.UpdateSequence(appCtx, msg.TimeUS); err != nil {
+				logger.Error("failed to update sequence after upsert",
+					slog.String("error", err.Error()))
+			}
+		}
+
 		return nil
 	}
 
-	client, err := indexer.NewClientWithMetrics(config, handler, logger, metrics)
+	client, err := indexer.NewClientWithSequenceTracker(config, handler, logger, metrics, sequenceTracker)
 	if err != nil {
 		logger.Error("failed to create jetstream client", "error", err)
 		os.Exit(1)
+	}
+
+	// Log resume status on startup
+	lastSeq, err := sequenceTracker.GetLastSequence(appCtx)
+	if err != nil {
+		logger.Warn("failed to get last sequence on startup", "error", err)
+	} else if lastSeq > 0 {
+		logger.Info("will resume from last processed sequence",
+			slog.Int64("cursor", lastSeq),
+			slog.Time("last_message_time", time.Unix(0, lastSeq*1000)))
+	} else {
+		logger.Info("starting from beginning (no previous sequence found)")
 	}
 
 	// Start Jetstream client in background
