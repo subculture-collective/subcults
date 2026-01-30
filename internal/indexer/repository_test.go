@@ -158,7 +158,7 @@ func TestInMemoryRepository_DeleteRecord(t *testing.T) {
 	}
 
 	// Insert record
-	_, _, err := repo.UpsertRecord(ctx, record)
+	firstID, _, err := repo.UpsertRecord(ctx, record)
 	if err != nil {
 		t.Fatalf("UpsertRecord() error = %v", err)
 	}
@@ -181,14 +181,19 @@ func TestInMemoryRepository_DeleteRecord(t *testing.T) {
 		t.Error("Expected isNew=false for duplicate revision (idempotency key preserved)")
 	}
 
-	// However, inserting a NEW revision should work
+	// However, inserting a NEW revision should work and reuse the same stable ID
 	record.Rev = "rev2"
 	recordID, isNew, err = repo.UpsertRecord(ctx, record)
 	if err != nil {
 		t.Fatalf("UpsertRecord() new revision error = %v", err)
 	}
-	if !isNew {
-		t.Error("Expected isNew=true for new revision after deletion")
+	// With stable IDs, we expect the same ID to be returned
+	if recordID != firstID {
+		t.Errorf("Expected same stable ID after deletion and reinsertion, got %s != %s", recordID, firstID)
+	}
+	// Since the record key already existed (was deleted), isNew should be false
+	if isNew {
+		t.Error("Expected isNew=false for existing record key (stable ID reused)")
 	}
 	if recordID == "" {
 		t.Error("Expected non-empty recordID for new revision")

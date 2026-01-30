@@ -3,6 +3,7 @@ package main
 
 import (
 	"context"
+	"database/sql"
 	"flag"
 	"fmt"
 	"log/slog"
@@ -12,6 +13,7 @@ import (
 	"syscall"
 	"time"
 
+	_ "github.com/lib/pq" // Postgres driver
 	"github.com/onnwee/subcults/internal/indexer"
 	"github.com/onnwee/subcults/internal/middleware"
 	"github.com/prometheus/client_golang/prometheus"
@@ -100,24 +102,55 @@ func main() {
 
 	config := indexer.DefaultConfig(jetstreamURL)
 
-	// Initialize database connection from DATABASE_URL environment variable
-	// For now, use in-memory repository for testing
-	// TODO: Switch to Postgres repository when DATABASE_URL is provided
-	repo := indexer.NewInMemoryRecordRepository(logger)
+	// Initialize repository based on DATABASE_URL environment variable
+	var repo indexer.RecordRepository
+	var cleanupService interface {
+		Start(context.Context)
+		Stop()
+	}
+
+	databaseURL := os.Getenv("DATABASE_URL")
+	if databaseURL != "" {
+		// Use Postgres repository when DATABASE_URL is provided
+		db, err := sql.Open("postgres", databaseURL)
+		if err != nil {
+			logger.Error("failed to connect to database", "error", err)
+			os.Exit(1)
+		}
+		defer db.Close()
+
+		// Test connection
+		if err := db.Ping(); err != nil {
+			logger.Error("failed to ping database", "error", err)
+			os.Exit(1)
+		}
+
+		logger.Info("using Postgres repository", "database_url", databaseURL)
+		repo = indexer.NewPostgresRecordRepository(db, logger)
+		
+		// Use Postgres cleanup service
+		cleanupConfig := indexer.DefaultCleanupConfig()
+		cleanupService = indexer.NewCleanupService(db, logger, cleanupConfig)
+	} else {
+		// Fall back to in-memory repository for testing
+		logger.Warn("DATABASE_URL not set, using in-memory repository (data will not persist)")
+		memRepo := indexer.NewInMemoryRecordRepository(logger)
+		repo = memRepo
+		
+		// Use in-memory cleanup service
+		cleanupConfig := indexer.DefaultCleanupConfig()
+		cleanupService = indexer.NewInMemoryCleanupService(memRepo, logger, cleanupConfig)
+	}
+
 	filter := indexer.NewRecordFilter(indexer.NewFilterMetrics())
 
-	// Initialize cleanup service for idempotency key retention
-	cleanupConfig := indexer.DefaultCleanupConfig()
-	cleanupService := indexer.NewInMemoryCleanupService(repo, logger, cleanupConfig)
-	
-	// Start cleanup service
-	cleanupCtx, cleanupCancel := context.WithCancel(context.Background())
-	defer cleanupCancel()
-	cleanupService.Start(cleanupCtx)
+	// Create main context for the application
+	// All child contexts will be derived from this for proper shutdown coordination
+	appCtx, appCancel := context.WithCancel(context.Background())
+	defer appCancel()
 
-	// Create a shared context for the handler that will be cancelled on shutdown
-	handlerCtx, handlerCancel := context.WithCancel(context.Background())
-	defer handlerCancel()
+	// Start cleanup service with app context
+	cleanupService.Start(appCtx)
 
 	// Message handler - now with transactional database persistence
 	handler := func(messageType int, payload []byte) error {
@@ -162,7 +195,7 @@ func main() {
 
 		// Handle delete operations
 		if result.Operation == "delete" {
-			if err := repo.DeleteRecord(handlerCtx, result.DID, result.Collection, result.RKey); err != nil {
+			if err := repo.DeleteRecord(appCtx, result.DID, result.Collection, result.RKey); err != nil {
 				metrics.IncDatabaseWritesFailed()
 				logger.Error("failed to delete record",
 					slog.String("collection", result.Collection),
@@ -179,7 +212,7 @@ func main() {
 		}
 
 		// Upsert record with transaction support
-		recordID, isNew, err := repo.UpsertRecord(handlerCtx, &result)
+		recordID, isNew, err := repo.UpsertRecord(appCtx, &result)
 		if err != nil {
 			metrics.IncDatabaseWritesFailed()
 			logger.Error("failed to upsert record",
@@ -221,13 +254,11 @@ func main() {
 	}
 
 	// Start Jetstream client in background
-	clientCtx, clientCancel := context.WithCancel(context.Background())
-	defer clientCancel()
-
 	clientDone := make(chan error, 1)
 	go func() {
 		logger.Info("starting jetstream client", "url", jetstreamURL)
-		clientDone <- client.Run(clientCtx)
+		// Client uses app context for proper shutdown coordination
+		clientDone <- client.Run(appCtx)
 	}()
 
 	// Wait for interrupt signal for graceful shutdown
@@ -243,8 +274,13 @@ func main() {
 
 	logger.Info("shutting down indexer...")
 
-	// Cancel client context
-	clientCancel()
+	// Cancel app context to trigger graceful shutdown of all components
+	// This will stop: cleanup service, client, and any in-flight DB operations
+	appCancel()
+
+	// Stop cleanup service
+	logger.Info("stopping cleanup service")
+	cleanupService.Stop()
 
 	// Wait for client to finish with longer timeout to account for drain
 	select {

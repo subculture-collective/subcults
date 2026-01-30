@@ -111,6 +111,16 @@ func (s *CleanupService) run(ctx context.Context) {
 }
 
 // cleanup deletes old idempotency keys from the database.
+//
+// IMPORTANT: Cleanup retention strategy considerations:
+// - Default 24h retention may be too short for long replay/backfill scenarios
+// - If replaying from an old cursor (>24h), records can be reprocessed including deleted content
+// - For production with replay requirements, consider:
+//   1. Longer retention (e.g., 7-30 days) to cover expected replay windows
+//   2. Indefinite retention for delete operations to prevent re-ingestion
+//   3. Separate high-water mark / tombstone mechanism for correctness across long replays
+// - Current implementation prioritizes privacy (minimal retention) over replay correctness
+// - Adjust RetentionPeriod based on your replay patterns and correctness requirements
 func (s *CleanupService) cleanup(ctx context.Context) error {
 	start := time.Now()
 

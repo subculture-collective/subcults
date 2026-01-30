@@ -76,14 +76,11 @@ func (r *PostgresRecordRepository) UpsertRecord(ctx context.Context, record *Fil
 		return "", false, fmt.Errorf("failed to begin transaction: %w", err)
 	}
 
-	// Ensure transaction is rolled back on error
+	// Always attempt rollback on function exit (no-op after successful commit)
 	defer func() {
-		if err != nil {
-			if rbErr := tx.Rollback(); rbErr != nil {
-				r.logger.Error("failed to rollback transaction",
-					slog.String("error", rbErr.Error()),
-					slog.String("original_error", err.Error()))
-			}
+		if err := tx.Rollback(); err != nil && err != sql.ErrTxDone {
+			r.logger.Warn("failed to rollback transaction",
+				slog.String("error", err.Error()))
 		}
 	}()
 
@@ -96,10 +93,10 @@ func (r *PostgresRecordRepository) UpsertRecord(ctx context.Context, record *Fil
 	err = tx.QueryRowContext(ctx, checkQuery, idempotencyKey).Scan(&existingKey)
 	if err == nil {
 		// Record already processed, commit and return existing state
-		if commitErr := tx.Commit(); commitErr != nil {
+		if err := tx.Commit(); err != nil {
 			r.logger.Error("failed to commit idempotency check",
-				slog.String("error", commitErr.Error()))
-			return "", false, fmt.Errorf("failed to commit: %w", commitErr)
+				slog.String("error", err.Error()))
+			return "", false, fmt.Errorf("failed to commit: %w", err)
 		}
 		r.logger.Debug("skipping duplicate record (already processed)",
 			slog.String("idempotency_key", idempotencyKey),
@@ -169,11 +166,12 @@ func (r *PostgresRecordRepository) UpsertRecord(ctx context.Context, record *Fil
 	return recordID, isNew, nil
 }
 
-// DeleteRecord atomically removes a record with transaction support.
+// DeleteRecord atomically soft-deletes a record with transaction support.
 // Note: Idempotency keys are NOT cleaned up on delete. This is intentional to prevent
 // re-ingestion of deleted records. If a record is deleted and then the same revision
 // is replayed from Jetstream, it will be correctly skipped due to the existing
 // idempotency key. This protects against accidental re-ingestion of deleted content.
+// Uses soft delete (UPDATE ... SET deleted_at = NOW()) to match repository patterns.
 func (r *PostgresRecordRepository) DeleteRecord(ctx context.Context, did, collection, rkey string) error {
 	// Begin transaction
 	tx, err := r.db.BeginTx(ctx, &sql.TxOptions{
@@ -185,24 +183,23 @@ func (r *PostgresRecordRepository) DeleteRecord(ctx context.Context, did, collec
 		return fmt.Errorf("failed to begin transaction: %w", err)
 	}
 
+	// Always attempt rollback on function exit (no-op after successful commit)
 	defer func() {
-		if err != nil {
-			if rbErr := tx.Rollback(); rbErr != nil {
-				r.logger.Error("failed to rollback delete transaction",
-					slog.String("error", rbErr.Error()))
-			}
+		if err := tx.Rollback(); err != nil && err != sql.ErrTxDone {
+			r.logger.Warn("failed to rollback delete transaction",
+				slog.String("error", err.Error()))
 		}
 	}()
 
-	// Delete from appropriate table
+	// Soft delete from appropriate table
 	var query string
 	switch collection {
 	case CollectionScene:
-		query = `DELETE FROM scenes WHERE record_did = $1 AND record_rkey = $2`
+		query = `UPDATE scenes SET deleted_at = NOW(), updated_at = NOW() WHERE record_did = $1 AND record_rkey = $2 AND deleted_at IS NULL`
 	case CollectionEvent:
-		query = `DELETE FROM events WHERE record_did = $1 AND record_rkey = $2`
+		query = `UPDATE events SET deleted_at = NOW(), updated_at = NOW() WHERE record_did = $1 AND record_rkey = $2 AND deleted_at IS NULL`
 	case CollectionPost:
-		query = `DELETE FROM posts WHERE record_did = $1 AND record_rkey = $2`
+		query = `UPDATE posts SET deleted_at = NOW(), updated_at = NOW() WHERE record_did = $1 AND record_rkey = $2 AND deleted_at IS NULL`
 	default:
 		return fmt.Errorf("unsupported collection for delete: %s", collection)
 	}
@@ -223,7 +220,7 @@ func (r *PostgresRecordRepository) DeleteRecord(ctx context.Context, did, collec
 		return fmt.Errorf("failed to commit: %w", err)
 	}
 
-	r.logger.Info("record deleted successfully",
+	r.logger.Info("record soft-deleted successfully",
 		slog.String("collection", collection),
 		slog.String("did", did),
 		slog.String("rkey", rkey),
@@ -244,20 +241,33 @@ func (r *PostgresRecordRepository) CheckIdempotencyKey(ctx context.Context, key 
 }
 
 // upsertScene handles scene-specific upsert logic.
+// NOTE: This is a placeholder implementation that stores minimal metadata.
+// Full implementation should parse record.Record JSON and populate all required fields:
+// - name (VARCHAR(255) NOT NULL)
+// - owner_did (VARCHAR(255) NOT NULL) - should be record.DID
+// - coarse_geohash (VARCHAR(20)) - required per migration 000009
+// - description, colors, location data, etc.
+// For now, this stores just the tracking fields to enable basic ingestion testing.
 func (r *PostgresRecordRepository) upsertScene(ctx context.Context, tx *sql.Tx, record *FilterResult) (string, bool, error) {
-	// Check if record exists
+	// Check if record exists (including soft-deleted)
 	var existingID string
-	checkQuery := `SELECT id FROM scenes WHERE record_did = $1 AND record_rkey = $2`
-	err := tx.QueryRowContext(ctx, checkQuery, record.DID, record.RKey).Scan(&existingID)
+	var deletedAt sql.NullTime
+	checkQuery := `SELECT id, deleted_at FROM scenes WHERE record_did = $1 AND record_rkey = $2`
+	err := tx.QueryRowContext(ctx, checkQuery, record.DID, record.RKey).Scan(&existingID, &deletedAt)
 
 	if err == sql.ErrNoRows {
-		// Insert new record
+		// Insert new record - this is a minimal placeholder implementation
+		// TODO: Parse record.Record JSON and extract: name, description, location, etc.
 		newID := uuid.New().String()
 		insertQuery := `
-			INSERT INTO scenes (id, record_did, record_rkey, created_at, updated_at)
-			VALUES ($1, $2, $3, NOW(), NOW())
+			INSERT INTO scenes (id, name, owner_did, coarse_geohash, record_did, record_rkey, created_at, updated_at)
+			VALUES ($1, $2, $3, $4, $5, $6, NOW(), NOW())
 		`
-		_, err = tx.ExecContext(ctx, insertQuery, newID, record.DID, record.RKey)
+		// Placeholder values - real implementation should parse JSON
+		name := "Scene (placeholder)" // TODO: parse from record.Record
+		coarseGeohash := "u4pruyd"    // TODO: calculate from location data
+		
+		_, err = tx.ExecContext(ctx, insertQuery, newID, name, record.DID, coarseGeohash, record.DID, record.RKey)
 		if err != nil {
 			return "", false, fmt.Errorf("failed to insert scene: %w", err)
 		}
@@ -267,7 +277,8 @@ func (r *PostgresRecordRepository) upsertScene(ctx context.Context, tx *sql.Tx, 
 	}
 
 	// Update existing record
-	updateQuery := `UPDATE scenes SET updated_at = NOW() WHERE id = $1`
+	// TODO: Parse record.Record and update relevant fields
+	updateQuery := `UPDATE scenes SET updated_at = NOW(), deleted_at = NULL WHERE id = $1`
 	_, err = tx.ExecContext(ctx, updateQuery, existingID)
 	if err != nil {
 		return "", false, fmt.Errorf("failed to update scene: %w", err)
@@ -277,18 +288,34 @@ func (r *PostgresRecordRepository) upsertScene(ctx context.Context, tx *sql.Tx, 
 }
 
 // upsertEvent handles event-specific upsert logic.
+// NOTE: This is a placeholder implementation that stores minimal metadata.
+// Full implementation should parse record.Record JSON and populate all required fields:
+// - title (VARCHAR(255) NOT NULL) - renamed from 'name' per migration 000005
+// - scene_id (UUID NOT NULL FK) - requires lookup of scene by sceneId from record
+// - starts_at (TIMESTAMPTZ NOT NULL)
+// - description, location, ends_at, etc.
+// For now, this stores just the tracking fields to enable basic ingestion testing.
 func (r *PostgresRecordRepository) upsertEvent(ctx context.Context, tx *sql.Tx, record *FilterResult) (string, bool, error) {
 	var existingID string
-	checkQuery := `SELECT id FROM events WHERE record_did = $1 AND record_rkey = $2`
-	err := tx.QueryRowContext(ctx, checkQuery, record.DID, record.RKey).Scan(&existingID)
+	var deletedAt sql.NullTime
+	checkQuery := `SELECT id, deleted_at FROM events WHERE record_did = $1 AND record_rkey = $2`
+	err := tx.QueryRowContext(ctx, checkQuery, record.DID, record.RKey).Scan(&existingID, &deletedAt)
 
 	if err == sql.ErrNoRows {
+		// Insert new record - this is a minimal placeholder implementation
+		// TODO: Parse record.Record JSON and extract: title, sceneId, starts_at, etc.
+		// TODO: Lookup scene_id UUID from sceneId (record_did + record_rkey)
 		newID := uuid.New().String()
 		insertQuery := `
-			INSERT INTO events (id, record_did, record_rkey, created_at, updated_at)
-			VALUES ($1, $2, $3, NOW(), NOW())
+			INSERT INTO events (id, scene_id, title, starts_at, record_did, record_rkey, created_at, updated_at)
+			VALUES ($1, $2, $3, $4, $5, $6, NOW(), NOW())
 		`
-		_, err = tx.ExecContext(ctx, insertQuery, newID, record.DID, record.RKey)
+		// Placeholder values - real implementation should parse JSON and lookup scene
+		title := "Event (placeholder)"     // TODO: parse from record.Record
+		sceneID := uuid.New().String()     // TODO: lookup from sceneId in record
+		startsAt := "2024-01-01T00:00:00Z" // TODO: parse from record.Record
+		
+		_, err = tx.ExecContext(ctx, insertQuery, newID, sceneID, title, startsAt, record.DID, record.RKey)
 		if err != nil {
 			return "", false, fmt.Errorf("failed to insert event: %w", err)
 		}
@@ -297,7 +324,9 @@ func (r *PostgresRecordRepository) upsertEvent(ctx context.Context, tx *sql.Tx, 
 		return "", false, fmt.Errorf("failed to check event existence: %w", err)
 	}
 
-	updateQuery := `UPDATE events SET updated_at = NOW() WHERE id = $1`
+	// Update existing record
+	// TODO: Parse record.Record and update relevant fields
+	updateQuery := `UPDATE events SET updated_at = NOW(), deleted_at = NULL WHERE id = $1`
 	_, err = tx.ExecContext(ctx, updateQuery, existingID)
 	if err != nil {
 		return "", false, fmt.Errorf("failed to update event: %w", err)
@@ -307,18 +336,32 @@ func (r *PostgresRecordRepository) upsertEvent(ctx context.Context, tx *sql.Tx, 
 }
 
 // upsertPost handles post-specific upsert logic.
+// NOTE: This is a placeholder implementation that stores minimal metadata.
+// Full implementation should parse record.Record JSON and populate all required fields:
+// - text (TEXT NOT NULL) - renamed from 'content' per migration 000003
+// - author_did (VARCHAR(255) NOT NULL) - should be record.DID
+// - scene_id or event_id (at least one NOT NULL) - requires lookup from sceneId/eventId
+// For now, this stores just the tracking fields to enable basic ingestion testing.
 func (r *PostgresRecordRepository) upsertPost(ctx context.Context, tx *sql.Tx, record *FilterResult) (string, bool, error) {
 	var existingID string
-	checkQuery := `SELECT id FROM posts WHERE record_did = $1 AND record_rkey = $2`
-	err := tx.QueryRowContext(ctx, checkQuery, record.DID, record.RKey).Scan(&existingID)
+	var deletedAt sql.NullTime
+	checkQuery := `SELECT id, deleted_at FROM posts WHERE record_did = $1 AND record_rkey = $2`
+	err := tx.QueryRowContext(ctx, checkQuery, record.DID, record.RKey).Scan(&existingID, &deletedAt)
 
 	if err == sql.ErrNoRows {
+		// Insert new record - this is a minimal placeholder implementation
+		// TODO: Parse record.Record JSON and extract: text, sceneId or eventId
+		// TODO: Lookup scene_id/event_id UUIDs from identifiers in record
 		newID := uuid.New().String()
 		insertQuery := `
-			INSERT INTO posts (id, record_did, record_rkey, created_at)
-			VALUES ($1, $2, $3, NOW())
+			INSERT INTO posts (id, scene_id, author_did, text, record_did, record_rkey, created_at, updated_at)
+			VALUES ($1, $2, $3, $4, $5, $6, NOW(), NOW())
 		`
-		_, err = tx.ExecContext(ctx, insertQuery, newID, record.DID, record.RKey)
+		// Placeholder values - real implementation should parse JSON and lookup references
+		text := "Post content (placeholder)" // TODO: parse from record.Record
+		sceneID := uuid.New().String()       // TODO: lookup from sceneId or eventId in record
+		
+		_, err = tx.ExecContext(ctx, insertQuery, newID, sceneID, record.DID, text, record.DID, record.RKey)
 		if err != nil {
 			return "", false, fmt.Errorf("failed to insert post: %w", err)
 		}
@@ -327,15 +370,32 @@ func (r *PostgresRecordRepository) upsertPost(ctx context.Context, tx *sql.Tx, r
 		return "", false, fmt.Errorf("failed to check post existence: %w", err)
 	}
 
-	// Posts don't typically have updates in the same way, but we'll touch the record
+	// Update existing record
+	// TODO: Parse record.Record and update text, attachment_url, etc.
+	updateQuery := `UPDATE posts SET updated_at = NOW(), deleted_at = NULL WHERE id = $1`
+	_, err = tx.ExecContext(ctx, updateQuery, existingID)
+	if err != nil {
+		return "", false, fmt.Errorf("failed to update post: %w", err)
+	}
+
 	return existingID, false, nil
 }
 
 // generateIdempotencyKey creates a deterministic key from record metadata.
-// Format: SHA256(did + collection + rkey + rev)
+// Format: SHA256(did + "\x00" + collection + "\x00" + rkey + "\x00" + rev)
+// Uses NUL (\x00) separators to ensure unambiguous parsing (components cannot contain NUL bytes).
 func generateIdempotencyKey(did, collection, rkey, rev string) string {
-	data := fmt.Sprintf("%s:%s:%s:%s", did, collection, rkey, rev)
-	hash := sha256.Sum256([]byte(data))
+	// Build preimage with NUL separators for unambiguous hashing
+	data := make([]byte, 0, len(did)+len(collection)+len(rkey)+len(rev)+3) // 3 NUL separators
+	data = append(data, did...)
+	data = append(data, 0)
+	data = append(data, collection...)
+	data = append(data, 0)
+	data = append(data, rkey...)
+	data = append(data, 0)
+	data = append(data, rev...)
+
+	hash := sha256.Sum256(data)
 	return hex.EncodeToString(hash[:])
 }
 
@@ -343,6 +403,7 @@ func generateIdempotencyKey(did, collection, rkey, rev string) string {
 type InMemoryRecordRepository struct {
 	mu              sync.RWMutex
 	records         map[string]*FilterResult
+	recordIDs       map[string]string // Maps composite key to stable record ID
 	idempotencyKeys map[string]bool
 	logger          *slog.Logger
 }
@@ -354,6 +415,7 @@ func NewInMemoryRecordRepository(logger *slog.Logger) *InMemoryRecordRepository 
 	}
 	return &InMemoryRecordRepository{
 		records:         make(map[string]*FilterResult),
+		recordIDs:       make(map[string]string),
 		idempotencyKeys: make(map[string]bool),
 		logger:          logger,
 	}
@@ -380,14 +442,21 @@ func (r *InMemoryRecordRepository) UpsertRecord(ctx context.Context, record *Fil
 	// Generate composite key
 	key := fmt.Sprintf("%s:%s:%s", record.DID, record.Collection, record.RKey)
 
-	// Check if record exists
-	_, exists := r.records[key]
+	// Check if record exists and get/create stable ID
+	recordID, exists := r.recordIDs[key]
+	if !exists {
+		recordID = uuid.New().String()
+		r.recordIDs[key] = recordID
+	}
 
-	// Store record
-	r.records[key] = record
+	// Store a deep copy of the record to avoid external mutation and data races
+	copyRecord := *record
+	if record.Record != nil {
+		copyRecord.Record = append([]byte(nil), record.Record...)
+	}
+	r.records[key] = &copyRecord
 	r.idempotencyKeys[idempotencyKey] = true
 
-	recordID := uuid.New().String()
 	r.logger.Info("record upserted in memory",
 		slog.String("record_id", recordID),
 		slog.Bool("is_new", !exists))
