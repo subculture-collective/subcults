@@ -268,10 +268,19 @@ func (r *PostgresRecordRepository) upsertScene(ctx context.Context, tx *sql.Tx, 
 				id, name, description, owner_did, allow_precise, precise_point, 
 				coarse_geohash, tags, visibility, palette, record_did, record_rkey,
 				created_at, updated_at
-			) VALUES ($1, $2, $3, $4, $5, ST_SetSRID(ST_MakePoint($6, $7), 4326), $8, $9, $10, $11, $12, $13, NOW(), NOW())
+			) VALUES (
+				$1, $2, $3, $4, $5,
+				CASE
+					WHEN $6 IS NOT NULL AND $7 IS NOT NULL
+						THEN ST_SetSRID(ST_MakePoint($6, $7), 4326)
+					ELSE NULL
+				END,
+				$8, $9, $10, $11, $12, $13, NOW(), NOW()
+			)
 		`
 		
 		// Prepare point coordinates (nullable)
+		// Note: ST_MakePoint expects (longitude, latitude) order
 		var lng, lat *float64
 		if domainScene.PrecisePoint != nil && domainScene.AllowPrecise {
 			lng = &domainScene.PrecisePoint.Lng
@@ -279,12 +288,15 @@ func (r *PostgresRecordRepository) upsertScene(ctx context.Context, tx *sql.Tx, 
 		}
 		
 		// Prepare palette JSON (nullable)
+		// Align with database default '{}'::jsonb when no palette is provided
 		var paletteJSON []byte
 		if domainScene.Palette != nil {
 			paletteJSON, err = json.Marshal(domainScene.Palette)
 			if err != nil {
 				return "", false, fmt.Errorf("failed to marshal palette: %w", err)
 			}
+		} else {
+			paletteJSON = []byte("{}")
 		}
 		
 		_, err = tx.ExecContext(ctx, insertQuery,
@@ -293,7 +305,7 @@ func (r *PostgresRecordRepository) upsertScene(ctx context.Context, tx *sql.Tx, 
 			domainScene.Description,
 			domainScene.OwnerDID,
 			domainScene.AllowPrecise,
-			lng, lat, // Will be NULL if either is nil
+			lng, lat, // ST_MakePoint(lng, lat) - longitude first, latitude second
 			domainScene.CoarseGeohash,
 			domainScene.Tags,
 			domainScene.Visibility,
@@ -315,7 +327,11 @@ func (r *PostgresRecordRepository) upsertScene(ctx context.Context, tx *sql.Tx, 
 			name = $2,
 			description = $3,
 			allow_precise = $4,
-			precise_point = ST_SetSRID(ST_MakePoint($5, $6), 4326),
+			precise_point = CASE
+				WHEN $5 IS NOT NULL AND $6 IS NOT NULL
+					THEN ST_SetSRID(ST_MakePoint($5, $6), 4326)
+				ELSE NULL
+			END,
 			coarse_geohash = $7,
 			tags = $8,
 			visibility = $9,
@@ -326,6 +342,7 @@ func (r *PostgresRecordRepository) upsertScene(ctx context.Context, tx *sql.Tx, 
 	`
 	
 	// Prepare point coordinates (nullable)
+	// Note: ST_MakePoint expects (longitude, latitude) order
 	var lng, lat *float64
 	if domainScene.PrecisePoint != nil && domainScene.AllowPrecise {
 		lng = &domainScene.PrecisePoint.Lng
@@ -333,12 +350,15 @@ func (r *PostgresRecordRepository) upsertScene(ctx context.Context, tx *sql.Tx, 
 	}
 	
 	// Prepare palette JSON (nullable)
+	// Align with database default '{}'::jsonb when no palette is provided
 	var paletteJSON []byte
 	if domainScene.Palette != nil {
 		paletteJSON, err = json.Marshal(domainScene.Palette)
 		if err != nil {
 			return "", false, fmt.Errorf("failed to marshal palette: %w", err)
 		}
+	} else {
+		paletteJSON = []byte("{}")
 	}
 	
 	_, err = tx.ExecContext(ctx, updateQuery,
@@ -346,7 +366,7 @@ func (r *PostgresRecordRepository) upsertScene(ctx context.Context, tx *sql.Tx, 
 		domainScene.Name,
 		domainScene.Description,
 		domainScene.AllowPrecise,
-		lng, lat,
+		lng, lat, // ST_MakePoint(lng, lat) - longitude first, latitude second
 		domainScene.CoarseGeohash,
 		domainScene.Tags,
 		domainScene.Visibility,
@@ -402,10 +422,19 @@ func (r *PostgresRecordRepository) upsertEvent(ctx context.Context, tx *sql.Tx, 
 				id, scene_id, title, description, allow_precise, precise_point,
 				coarse_geohash, tags, status, starts_at, ends_at,
 				record_did, record_rkey, created_at, updated_at
-			) VALUES ($1, $2, $3, $4, $5, ST_SetSRID(ST_MakePoint($6, $7), 4326), $8, $9, $10, $11, $12, $13, $14, NOW(), NOW())
+			) VALUES (
+				$1, $2, $3, $4, $5,
+				CASE
+					WHEN $6 IS NOT NULL AND $7 IS NOT NULL
+						THEN ST_SetSRID(ST_MakePoint($6, $7), 4326)
+					ELSE NULL
+				END,
+				$8, $9, $10, $11, $12, $13, $14, NOW(), NOW()
+			)
 		`
 		
 		// Prepare point coordinates (nullable)
+		// Note: ST_MakePoint expects (longitude, latitude) order
 		var lng, lat *float64
 		if domainEvent.PrecisePoint != nil && domainEvent.AllowPrecise {
 			lng = &domainEvent.PrecisePoint.Lng
@@ -418,7 +447,7 @@ func (r *PostgresRecordRepository) upsertEvent(ctx context.Context, tx *sql.Tx, 
 			domainEvent.Title,
 			domainEvent.Description,
 			domainEvent.AllowPrecise,
-			lng, lat,
+			lng, lat, // ST_MakePoint(lng, lat) - longitude first, latitude second
 			domainEvent.CoarseGeohash,
 			domainEvent.Tags,
 			domainEvent.Status,
@@ -442,7 +471,11 @@ func (r *PostgresRecordRepository) upsertEvent(ctx context.Context, tx *sql.Tx, 
 			title = $3,
 			description = $4,
 			allow_precise = $5,
-			precise_point = ST_SetSRID(ST_MakePoint($6, $7), 4326),
+			precise_point = CASE
+				WHEN $6 IS NOT NULL AND $7 IS NOT NULL
+					THEN ST_SetSRID(ST_MakePoint($6, $7), 4326)
+				ELSE NULL
+			END,
 			coarse_geohash = $8,
 			tags = $9,
 			status = $10,
@@ -454,6 +487,7 @@ func (r *PostgresRecordRepository) upsertEvent(ctx context.Context, tx *sql.Tx, 
 	`
 	
 	// Prepare point coordinates (nullable)
+	// Note: ST_MakePoint expects (longitude, latitude) order
 	var lng, lat *float64
 	if domainEvent.PrecisePoint != nil && domainEvent.AllowPrecise {
 		lng = &domainEvent.PrecisePoint.Lng
@@ -466,7 +500,7 @@ func (r *PostgresRecordRepository) upsertEvent(ctx context.Context, tx *sql.Tx, 
 		domainEvent.Title,
 		domainEvent.Description,
 		domainEvent.AllowPrecise,
-		lng, lat,
+		lng, lat, // ST_MakePoint(lng, lat) - longitude first, latitude second
 		domainEvent.CoarseGeohash,
 		domainEvent.Tags,
 		domainEvent.Status,
@@ -622,40 +656,41 @@ func (r *PostgresRecordRepository) upsertAlliance(ctx context.Context, tx *sql.T
 		return "", false, fmt.Errorf("failed to map alliance record: %w", err)
 	}
 
+	// Check if alliance exists first (including soft-deleted)
+	var existingID string
+	var deletedAt sql.NullTime
+	checkQuery := `SELECT id, deleted_at FROM alliances WHERE record_did = $1 AND record_rkey = $2`
+	err = tx.QueryRowContext(ctx, checkQuery, record.DID, record.RKey).Scan(&existingID, &deletedAt)
+
 	// Parse the AT Protocol record to get fromSceneId and toSceneId for lookup
+	// Only perform lookups once, shared by both insert and update paths
 	var atProtoAlliance struct {
 		FromSceneID string `json:"fromSceneId"`
 		ToSceneID   string `json:"toSceneId"`
 	}
-	if err := json.Unmarshal(record.Record, &atProtoAlliance); err != nil {
-		return "", false, fmt.Errorf("failed to parse alliance record for references: %w", err)
+	if err2 := json.Unmarshal(record.Record, &atProtoAlliance); err2 != nil {
+		return "", false, fmt.Errorf("failed to parse alliance record for references: %w", err2)
 	}
 
 	// Lookup from_scene_id UUID
 	var fromSceneUUID string
 	fromSceneQuery := `SELECT id FROM scenes WHERE record_rkey = $1 AND deleted_at IS NULL LIMIT 1`
-	err = tx.QueryRowContext(ctx, fromSceneQuery, atProtoAlliance.FromSceneID).Scan(&fromSceneUUID)
-	if err == sql.ErrNoRows {
+	err2 := tx.QueryRowContext(ctx, fromSceneQuery, atProtoAlliance.FromSceneID).Scan(&fromSceneUUID)
+	if err2 == sql.ErrNoRows {
 		return "", false, fmt.Errorf("from_scene not found: fromSceneId=%s", atProtoAlliance.FromSceneID)
-	} else if err != nil {
-		return "", false, fmt.Errorf("failed to lookup from_scene: %w", err)
+	} else if err2 != nil {
+		return "", false, fmt.Errorf("failed to lookup from_scene: %w", err2)
 	}
 
 	// Lookup to_scene_id UUID
 	var toSceneUUID string
 	toSceneQuery := `SELECT id FROM scenes WHERE record_rkey = $1 AND deleted_at IS NULL LIMIT 1`
-	err = tx.QueryRowContext(ctx, toSceneQuery, atProtoAlliance.ToSceneID).Scan(&toSceneUUID)
-	if err == sql.ErrNoRows {
+	err2 = tx.QueryRowContext(ctx, toSceneQuery, atProtoAlliance.ToSceneID).Scan(&toSceneUUID)
+	if err2 == sql.ErrNoRows {
 		return "", false, fmt.Errorf("to_scene not found: toSceneId=%s", atProtoAlliance.ToSceneID)
-	} else if err != nil {
-		return "", false, fmt.Errorf("failed to lookup to_scene: %w", err)
+	} else if err2 != nil {
+		return "", false, fmt.Errorf("failed to lookup to_scene: %w", err2)
 	}
-
-	// Check if alliance exists (including soft-deleted)
-	var existingID string
-	var deletedAt sql.NullTime
-	checkQuery := `SELECT id, deleted_at FROM alliances WHERE record_did = $1 AND record_rkey = $2`
-	err = tx.QueryRowContext(ctx, checkQuery, record.DID, record.RKey).Scan(&existingID, &deletedAt)
 
 	if err == sql.ErrNoRows {
 		// Insert new alliance
