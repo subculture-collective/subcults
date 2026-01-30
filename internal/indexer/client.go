@@ -4,8 +4,10 @@ package indexer
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 	"math/rand"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -29,11 +31,13 @@ type MessageHandler func(messageType int, payload []byte) error
 // Client is a resilient WebSocket client for connecting to Jetstream.
 // It automatically reconnects with exponential backoff and jitter.
 // Implements backpressure handling to prevent queue explosion.
+// Supports resume from last processed sequence using cursor parameter.
 type Client struct {
-	config  Config
-	handler MessageHandler
-	logger  *slog.Logger
-	metrics *Metrics
+	config          Config
+	handler         MessageHandler
+	logger          *slog.Logger
+	metrics         *Metrics
+	sequenceTracker SequenceTracker
 
 	mu               sync.Mutex
 	rng              *rand.Rand // protected by mu
@@ -66,7 +70,16 @@ func NewClient(config Config, handler MessageHandler, logger *slog.Logger) (*Cli
 // NewClientWithMetrics creates a new Jetstream WebSocket client with metrics support.
 // The handler function will be called for each incoming message.
 // If metrics is provided, backpressure events will be recorded.
+// If sequenceTracker is provided, the client will resume from the last processed sequence.
 func NewClientWithMetrics(config Config, handler MessageHandler, logger *slog.Logger, metrics *Metrics) (*Client, error) {
+	return NewClientWithSequenceTracker(config, handler, logger, metrics, nil)
+}
+
+// NewClientWithSequenceTracker creates a new Jetstream WebSocket client with full features.
+// The handler function will be called for each incoming message.
+// If metrics is provided, backpressure and reconnection events will be recorded.
+// If sequenceTracker is provided, the client will resume from the last processed sequence on reconnect.
+func NewClientWithSequenceTracker(config Config, handler MessageHandler, logger *slog.Logger, metrics *Metrics, sequenceTracker SequenceTracker) (*Client, error) {
 	if err := config.Validate(); err != nil {
 		return nil, err
 	}
@@ -74,17 +87,19 @@ func NewClientWithMetrics(config Config, handler MessageHandler, logger *slog.Lo
 		logger = slog.Default()
 	}
 	return &Client{
-		config:       config,
-		handler:      handler,
-		logger:       logger,
-		metrics:      metrics,
-		rng:          rand.New(rand.NewSource(time.Now().UnixNano())),
-		messageQueue: make(chan queuedMessage, QueueBufferSize),
+		config:          config,
+		handler:         handler,
+		logger:          logger,
+		metrics:         metrics,
+		sequenceTracker: sequenceTracker,
+		rng:             rand.New(rand.NewSource(time.Now().UnixNano())),
+		messageQueue:    make(chan queuedMessage, QueueBufferSize),
 	}, nil
 }
 
 // Run starts the WebSocket client and blocks until the context is cancelled.
 // It will automatically reconnect with exponential backoff on connection failures.
+// Supports resume from last processed sequence if a SequenceTracker is configured.
 func (c *Client) Run(ctx context.Context) error {
 	// Start message processor goroutine
 	processorCtx, processorCancel := context.WithCancel(ctx)
@@ -119,6 +134,15 @@ func (c *Client) Run(ctx context.Context) error {
 				slog.String("error", err.Error()),
 				slog.Int64("attempt", attempt))
 
+			// Check if we've exceeded max retry attempts
+			if c.config.MaxRetryAttempts > 0 && attempt >= c.config.MaxRetryAttempts {
+				c.logger.Error("max reconnection attempts reached - alerting required",
+					slog.Int64("max_attempts", c.config.MaxRetryAttempts),
+					slog.Int64("current_attempt", attempt),
+					slog.String("error", err.Error()))
+				// Continue trying to reconnect, but log at error level to alert monitoring
+			}
+
 			// Schedule reconnect with backoff
 			delay := c.computeBackoff()
 			atomic.AddInt64(&c.reconnectCount, 1)
@@ -137,7 +161,14 @@ func (c *Client) Run(ctx context.Context) error {
 		}
 
 		// Reset reconnect count on successful connection
-		atomic.StoreInt64(&c.reconnectCount, 0)
+		prevCount := atomic.SwapInt64(&c.reconnectCount, 0)
+		
+		// Track successful reconnection (only if this was actually a reconnect, not initial connect)
+		if prevCount > 0 && c.metrics != nil {
+			c.metrics.IncReconnectionSuccess()
+			c.logger.Info("reconnection successful",
+				slog.Int64("previous_attempts", prevCount))
+		}
 
 		// Read messages until connection closes
 		c.readLoop(ctx)
@@ -145,14 +176,36 @@ func (c *Client) Run(ctx context.Context) error {
 }
 
 // connect establishes a WebSocket connection to the Jetstream endpoint.
+// If a SequenceTracker is configured, it will add a cursor parameter to resume from the last sequence.
 func (c *Client) connect(ctx context.Context) error {
+	url := c.config.URL
+
+	// Add cursor parameter if we have a sequence tracker
+	if c.sequenceTracker != nil {
+		lastSeq, err := c.sequenceTracker.GetLastSequence(ctx)
+		if err != nil {
+			c.logger.Warn("failed to get last sequence for resume",
+				slog.String("error", err.Error()))
+		} else if lastSeq > 0 {
+			// Add cursor query parameter to resume from last sequence
+			// Jetstream uses time_us as the cursor value
+			if strings.Contains(url, "?") {
+				url = fmt.Sprintf("%s&cursor=%d", url, lastSeq)
+			} else {
+				url = fmt.Sprintf("%s?cursor=%d", url, lastSeq)
+			}
+			c.logger.Info("resuming from last sequence",
+				slog.Int64("cursor", lastSeq))
+		}
+	}
+
 	c.logger.Info("connecting to jetstream", slog.String("url", c.config.URL))
 
 	dialer := websocket.Dialer{
 		HandshakeTimeout: 10 * time.Second,
 	}
 
-	conn, _, err := dialer.DialContext(ctx, c.config.URL, nil)
+	conn, _, err := dialer.DialContext(ctx, url, nil)
 	if err != nil {
 		return err
 	}
@@ -391,4 +444,15 @@ func (c *Client) IsConnected() bool {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	return c.isConnected
+}
+
+// UpdateSequence updates the last processed sequence number.
+// This should be called by the message handler after successfully processing a message.
+// The sequence is extracted from the TimeUS field of JetstreamMessage.
+func (c *Client) UpdateSequence(ctx context.Context, sequence int64) error {
+	if c.sequenceTracker == nil {
+		return nil // No tracker configured, nothing to do
+	}
+
+	return c.sequenceTracker.UpdateSequence(ctx, sequence)
 }
