@@ -371,6 +371,8 @@ func main() {
 	// Initialize handlers
 	// Pass trustScoreStore to eventHandlers to enable trust-weighted ranking
 	trustStoreAdapter := api.NewTrustScoreStoreAdapter(trustScoreStore)
+	sceneHandlers := api.NewSceneHandlers(sceneRepo, membershipRepo, streamRepo)
+	membershipHandlers := api.NewMembershipHandlers(membershipRepo, sceneRepo, auditRepo)
 	eventHandlers := api.NewEventHandlers(eventRepo, sceneRepo, auditRepo, rsvpRepo, streamRepo, trustStoreAdapter)
 	rsvpHandlers := api.NewRSVPHandlers(rsvpRepo, eventRepo)
 	streamHandlers := api.NewStreamHandlers(streamRepo, participantRepo, analyticsRepo, sceneRepo, eventRepo, auditRepo, streamMetrics, eventBroadcaster, roomService)
@@ -389,6 +391,10 @@ func main() {
 	}
 	eventCreationLimit := middleware.RateLimitConfig{
 		RequestsPerWindow: 5,
+		WindowDuration:    time.Hour,
+	}
+	sceneCreationLimit := middleware.RateLimitConfig{
+		RequestsPerWindow: 10,
 		WindowDuration:    time.Hour,
 	}
 	generalLimit := middleware.RateLimitConfig{
@@ -458,19 +464,95 @@ func main() {
 		}
 	})
 
-	// Scene feed route
+	// Scene routes
+	// Scene creation (with rate limiting: 10 req/hour per user)
+	sceneCreationHandler := middleware.RateLimiter(rateLimitStore, sceneCreationLimit, middleware.UserKeyFunc(), rateLimitMetrics)(
+		http.HandlerFunc(sceneHandlers.CreateScene),
+	)
+
+	mux.HandleFunc("/scenes", func(w http.ResponseWriter, r *http.Request) {
+		switch r.Method {
+		case http.MethodPost:
+			sceneCreationHandler.ServeHTTP(w, r)
+		default:
+			ctx := middleware.SetErrorCode(r.Context(), api.ErrCodeBadRequest)
+			api.WriteError(w, ctx, http.StatusMethodNotAllowed, api.ErrCodeBadRequest, "Method not allowed")
+		}
+	})
+
+	mux.HandleFunc("/scenes/owned", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet {
+			ctx := middleware.SetErrorCode(r.Context(), api.ErrCodeBadRequest)
+			api.WriteError(w, ctx, http.StatusMethodNotAllowed, api.ErrCodeBadRequest, "Method not allowed")
+			return
+		}
+		sceneHandlers.ListOwnedScenes(w, r)
+	})
+
+	// Ensure trailing-slash variant /scenes/owned/ does not fall through to the
+	// /scenes/ catch-all, where "owned" would be treated as a scene ID.
+	mux.HandleFunc("/scenes/owned/", func(w http.ResponseWriter, r *http.Request) {
+		// Normalize to the canonical path without trailing slash.
+		http.Redirect(w, r, "/scenes/owned", http.StatusMovedPermanently)
+	})
+
+	// Scene resource routes: /scenes/{id}, /scenes/{id}/feed, /scenes/{id}/palette, /scenes/{id}/membership/*
 	mux.HandleFunc("/scenes/", func(w http.ResponseWriter, r *http.Request) {
-		// Parse path to check for feed endpoint
-		// Expected pattern: /scenes/{id}/feed
+		// Parse path to determine which endpoint to route to
 		pathParts := strings.Split(strings.TrimPrefix(r.URL.Path, "/scenes/"), "/")
 
-		// Check if this is a feed request: /scenes/{id}/feed
-		if len(pathParts) == 2 && pathParts[0] != "" && pathParts[1] == "feed" && r.Method == http.MethodGet {
+		if len(pathParts) == 0 || pathParts[0] == "" {
+			ctx := middleware.SetErrorCode(r.Context(), api.ErrCodeBadRequest)
+			api.WriteError(w, ctx, http.StatusBadRequest, api.ErrCodeBadRequest, "Scene ID is required")
+			return
+		}
+
+		// Scene feed: /scenes/{id}/feed
+		if len(pathParts) == 2 && pathParts[1] == "feed" && r.Method == http.MethodGet {
 			postHandlers.GetSceneFeed(w, r)
 			return
 		}
 
-		// No other scene endpoints yet, return 404
+		// Scene palette: /scenes/{id}/palette
+		if len(pathParts) == 2 && pathParts[1] == "palette" && r.Method == http.MethodPatch {
+			sceneHandlers.UpdateScenePalette(w, r)
+			return
+		}
+
+		// Membership request: /scenes/{id}/membership/request
+		if len(pathParts) == 3 && pathParts[1] == "membership" && pathParts[2] == "request" && r.Method == http.MethodPost {
+			membershipHandlers.RequestMembership(w, r)
+			return
+		}
+
+		// Membership approve/reject: /scenes/{id}/membership/{userDid}/approve|reject
+		if len(pathParts) == 4 && pathParts[1] == "membership" && r.Method == http.MethodPost {
+			if pathParts[3] == "approve" {
+				membershipHandlers.ApproveMembership(w, r)
+				return
+			} else if pathParts[3] == "reject" {
+				membershipHandlers.RejectMembership(w, r)
+				return
+			}
+		}
+
+		// Scene CRUD: /scenes/{id}
+		if len(pathParts) == 1 {
+			switch r.Method {
+			case http.MethodGet:
+				sceneHandlers.GetScene(w, r)
+			case http.MethodPatch:
+				sceneHandlers.UpdateScene(w, r)
+			case http.MethodDelete:
+				sceneHandlers.DeleteScene(w, r)
+			default:
+				ctx := middleware.SetErrorCode(r.Context(), api.ErrCodeBadRequest)
+				api.WriteError(w, ctx, http.StatusMethodNotAllowed, api.ErrCodeBadRequest, "Method not allowed")
+			}
+			return
+		}
+
+		// No matching endpoint
 		ctx := middleware.SetErrorCode(r.Context(), api.ErrCodeNotFound)
 		api.WriteError(w, ctx, http.StatusNotFound, api.ErrCodeNotFound, "The requested resource was not found")
 	})
