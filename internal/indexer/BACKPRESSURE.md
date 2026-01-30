@@ -280,7 +280,8 @@ Potential improvements:
 
 ## References
 
-- [Jetstream Indexer Epic #305](https://github.com/subculture-collective/subcults/issues/305)
+- [Jetstream Indexer Epic #305](https://github.com/subculture-collective/subcults/issues/305) (canonical)
 - [Backpressure Logic Issue #371](https://github.com/subculture-collective/subcults/issues/371)
 - [Client Implementation](./client.go)
 - [Backpressure Tests](./client_test.go)
+- [Canonical Roadmap #416](https://github.com/subculture-collective/subcults/issues/416)

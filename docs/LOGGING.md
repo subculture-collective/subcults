@@ -218,6 +218,6 @@ slog.Error("operation failed", "error", err)
 
 ## Related
 
-- Issue: [subculture-collective/subcults#307](https://github.com/subculture-collective/subcults/issues/307) - Observability, Monitoring & Operations
+- Epic: [subculture-collective/subcults#307](https://github.com/subculture-collective/subcults/issues/307) - Observability, Monitoring & Operations (canonical)
 - Issue: [subculture-collective/subcults#121](https://github.com/subculture-collective/subcults/issues/121) - Logging standardization
-- Epic: [subculture-collective/subcults#19](https://github.com/subculture-collective/subcults/issues/19) - Observability epic
+- Roadmap: [subculture-collective/subcults#416](https://github.com/subculture-collective/subcults/issues/416) - Canonical Roadmap
