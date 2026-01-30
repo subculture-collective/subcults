@@ -16,7 +16,7 @@ func TestClient_SequenceTracking_Resume(t *testing.T) {
 	// Create a sequence tracker with an initial sequence
 	tracker := NewInMemorySequenceTracker(newTestLogger())
 	ctx := context.Background()
-	
+
 	// Set initial sequence to simulate previous run
 	initialSeq := int64(1234567890)
 	if err := tracker.UpdateSequence(ctx, initialSeq); err != nil {
@@ -28,7 +28,7 @@ func TestClient_SequenceTracking_Resume(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// Capture the cursor parameter
 		receivedCursor = r.URL.Query().Get("cursor")
-		
+
 		// Upgrade to WebSocket
 		upgrader := websocket.Upgrader{
 			CheckOrigin: func(r *http.Request) bool { return true },
@@ -47,7 +47,7 @@ func TestClient_SequenceTracking_Resume(t *testing.T) {
 		}
 		cborData, _ := EncodeCBOR(msg)
 		_ = conn.WriteMessage(websocket.BinaryMessage, cborData)
-		
+
 		// Keep connection alive briefly
 		time.Sleep(100 * time.Millisecond)
 	}))
@@ -198,7 +198,7 @@ func TestClient_ReconnectionSuccess_TracksMetric(t *testing.T) {
 // TestClient_SequenceTracking_UpdateAfterProcessing tests that sequence is updated after message processing
 func TestClient_SequenceTracking_UpdateAfterProcessing(t *testing.T) {
 	tracker := NewInMemorySequenceTracker(newTestLogger())
-	
+
 	testSeq := int64(9876543210)
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		upgrader := websocket.Upgrader{
@@ -218,7 +218,7 @@ func TestClient_SequenceTracking_UpdateAfterProcessing(t *testing.T) {
 		}
 		cborData, _ := EncodeCBOR(msg)
 		_ = conn.WriteMessage(websocket.BinaryMessage, cborData)
-		
+
 		time.Sleep(200 * time.Millisecond)
 	}))
 	defer server.Close()

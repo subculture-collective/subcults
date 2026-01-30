@@ -143,211 +143,212 @@ func main() {
 		cleanupService = indexer.NewInMemoryCleanupService(memRepo, logger, cleanupConfig)
 	}
 
-	filter := indexer.NewRecordFilter(indexer.NewFilterMetrics())
+		filter := indexer.NewRecordFilter(indexer.NewFilterMetrics())
 
-	// Create main context for the application
-	// All child contexts will be derived from this for proper shutdown coordination
-	appCtx, appCancel := context.WithCancel(context.Background())
-	defer appCancel()
+		// Create main context for the application
+		// All child contexts will be derived from this for proper shutdown coordination
+		appCtx, appCancel := context.WithCancel(context.Background())
+		defer appCancel()
 
-	// Start cleanup service with app context
-	cleanupService.Start(appCtx)
+		// Start cleanup service with app context
+		cleanupService.Start(appCtx)
 
-	// Message handler - now with transactional database persistence and sequence tracking
-	handler := func(messageType int, payload []byte) error {
-		start := time.Now()
+		// Message handler - now with transactional database persistence and sequence tracking
+		handler := func(messageType int, payload []byte) error {
+			start := time.Now()
 
-		// Decode CBOR message to extract timestamp for lag calculation
-		msg, err := indexer.DecodeCBORMessage(payload)
-		if err != nil {
-			// Log error with context but don't fail - continue processing
-			logger.Debug("failed to decode message for lag calculation",
-				slog.String("error", err.Error()))
-		} else if msg != nil && msg.TimeUS > 0 {
-			// Calculate processing lag: current time - message timestamp
-			messageTime := time.Unix(0, msg.TimeUS*1000) // Convert microseconds to nanoseconds
-			lag := time.Since(messageTime)
-			metrics.SetProcessingLag(lag.Seconds())
+			// Decode CBOR message to extract timestamp for lag calculation
+			msg, err := indexer.DecodeCBORMessage(payload)
+			if err != nil {
+				// Log error with context but don't fail - continue processing
+				logger.Debug("failed to decode message for lag calculation",
+					slog.String("error", err.Error()))
+			} else if msg != nil && msg.TimeUS > 0 {
+				// Calculate processing lag: current time - message timestamp
+				messageTime := time.Unix(0, msg.TimeUS*1000) // Convert microseconds to nanoseconds
+				lag := time.Since(messageTime)
+				metrics.SetProcessingLag(lag.Seconds())
 
-			logger.Debug("processing message",
-				slog.String("kind", msg.Kind),
-				slog.Duration("lag", lag))
-		}
-
-		// Filter and validate the record
-		result := filter.FilterCBOR(payload)
-		metrics.IncMessagesProcessed()
-
-		// If record doesn't match our lexicon, skip (but still update sequence)
-		if !result.Matched {
-			// Update sequence even for non-matched records to avoid re-processing
-			if msg != nil && msg.TimeUS > 0 {
-				if err := sequenceTracker.UpdateSequence(appCtx, msg.TimeUS); err != nil {
-					logger.Warn("failed to update sequence for non-matched record",
-						slog.String("error", err.Error()))
-				}
+				logger.Debug("processing message",
+					slog.String("kind", msg.Kind),
+					slog.Duration("lag", lag))
 			}
-			return nil
-		}
 
-		// If record failed validation, log and increment error counter
-		if !result.Valid {
-			metrics.IncMessagesError()
-			logger.Warn("record validation failed",
-				slog.String("collection", result.Collection),
-				slog.String("did", result.DID),
-				slog.String("rkey", result.RKey),
-				slog.String("error", result.Error.Error()))
-			// Update sequence even for invalid records to avoid re-processing
-			if msg != nil && msg.TimeUS > 0 {
-				if err := sequenceTracker.UpdateSequence(appCtx, msg.TimeUS); err != nil {
-					logger.Warn("failed to update sequence for invalid record",
-						slog.String("error", err.Error()))
+			// Filter and validate the record
+			result := filter.FilterCBOR(payload)
+			metrics.IncMessagesProcessed()
+
+			// If record doesn't match our lexicon, skip (but still update sequence)
+			if !result.Matched {
+				// Update sequence even for non-matched records to avoid re-processing
+				if msg != nil && msg.TimeUS > 0 {
+					if err := sequenceTracker.UpdateSequence(appCtx, msg.TimeUS); err != nil {
+						logger.Warn("failed to update sequence for non-matched record",
+							slog.String("error", err.Error()))
+					}
 				}
+				return nil
 			}
-			return nil // Don't fail the entire stream for validation errors
-		}
 
-		// Handle delete operations
-		if result.Operation == "delete" {
-			if err := repo.DeleteRecord(appCtx, result.DID, result.Collection, result.RKey); err != nil {
+			// If record failed validation, log and increment error counter
+			if !result.Valid {
+				metrics.IncMessagesError()
+				logger.Warn("record validation failed",
+					slog.String("collection", result.Collection),
+					slog.String("did", result.DID),
+					slog.String("rkey", result.RKey),
+					slog.String("error", result.Error.Error()))
+				// Update sequence even for invalid records to avoid re-processing
+				if msg != nil && msg.TimeUS > 0 {
+					if err := sequenceTracker.UpdateSequence(appCtx, msg.TimeUS); err != nil {
+						logger.Warn("failed to update sequence for invalid record",
+							slog.String("error", err.Error()))
+					}
+				}
+				return nil // Don't fail the entire stream for validation errors
+			}
+
+			// Handle delete operations
+			if result.Operation == "delete" {
+				if err := repo.DeleteRecord(appCtx, result.DID, result.Collection, result.RKey); err != nil {
+					metrics.IncDatabaseWritesFailed()
+					logger.Error("failed to delete record",
+						slog.String("collection", result.Collection),
+						slog.String("did", result.DID),
+						slog.String("rkey", result.RKey),
+						slog.String("error", err.Error()))
+					return nil // Don't fail stream on delete errors
+				}
+				logger.Info("record deleted",
+					slog.String("collection", result.Collection),
+					slog.String("did", result.DID),
+					slog.String("rkey", result.RKey))
+
+				// Update sequence after successful delete
+				if msg != nil && msg.TimeUS > 0 {
+					if err := sequenceTracker.UpdateSequence(appCtx, msg.TimeUS); err != nil {
+						logger.Error("failed to update sequence after delete",
+							slog.String("error", err.Error()))
+					}
+				}
+				return nil
+			}
+
+			// Upsert record with transaction support
+			recordID, isNew, err := repo.UpsertRecord(appCtx, &result)
+			if err != nil {
 				metrics.IncDatabaseWritesFailed()
-				logger.Error("failed to delete record",
+				logger.Error("failed to upsert record",
 					slog.String("collection", result.Collection),
 					slog.String("did", result.DID),
 					slog.String("rkey", result.RKey),
 					slog.String("error", err.Error()))
-				return nil // Don't fail stream on delete errors
+				return nil // Don't fail stream on upsert errors
 			}
-			logger.Info("record deleted",
-				slog.String("collection", result.Collection),
-				slog.String("did", result.DID),
-				slog.String("rkey", result.RKey))
 
-			// Update sequence after successful delete
-			if msg != nil && msg.TimeUS > 0 {
-				if err := sequenceTracker.UpdateSequence(appCtx, msg.TimeUS); err != nil {
-					logger.Error("failed to update sequence after delete",
-						slog.String("error", err.Error()))
+			// If record was skipped due to idempotency, don't count as upsert
+			if recordID == "" {
+				logger.Debug("record skipped (idempotent)",
+					slog.String("collection", result.Collection),
+					slog.String("did", result.DID),
+					slog.String("rkey", result.RKey))
+				// Update sequence even for idempotent records to avoid re-processing
+				if msg != nil && msg.TimeUS > 0 {
+					if err := sequenceTracker.UpdateSequence(appCtx, msg.TimeUS); err != nil {
+						logger.Warn("failed to update sequence for idempotent record",
+							slog.String("error", err.Error()))
+					}
 				}
+				return nil
 			}
-			return nil
-		}
 
-		// Upsert record with transaction support
-		recordID, isNew, err := repo.UpsertRecord(appCtx, &result)
-		if err != nil {
-			metrics.IncDatabaseWritesFailed()
-			logger.Error("failed to upsert record",
+			// Record successful upsert
+			metrics.IncUpserts()
+			logger.Info("record upserted",
+				slog.String("record_id", recordID),
 				slog.String("collection", result.Collection),
 				slog.String("did", result.DID),
 				slog.String("rkey", result.RKey),
-				slog.String("error", err.Error()))
-			return nil // Don't fail stream on upsert errors
-		}
+				slog.Bool("is_new", isNew))
 
-		// If record was skipped due to idempotency, don't count as upsert
-		if recordID == "" {
-			logger.Debug("record skipped (idempotent)",
-				slog.String("collection", result.Collection),
-				slog.String("did", result.DID),
-				slog.String("rkey", result.RKey))
-			// Update sequence even for idempotent records to avoid re-processing
+			// Record ingestion latency
+			metrics.ObserveIngestLatency(time.Since(start).Seconds())
+
+			// Update sequence after successful processing
 			if msg != nil && msg.TimeUS > 0 {
 				if err := sequenceTracker.UpdateSequence(appCtx, msg.TimeUS); err != nil {
-					logger.Warn("failed to update sequence for idempotent record",
+					logger.Error("failed to update sequence after upsert",
 						slog.String("error", err.Error()))
 				}
 			}
+
 			return nil
 		}
 
-		// Record successful upsert
-		metrics.IncUpserts()
-		logger.Info("record upserted",
-			slog.String("record_id", recordID),
-			slog.String("collection", result.Collection),
-			slog.String("did", result.DID),
-			slog.String("rkey", result.RKey),
-			slog.Bool("is_new", isNew))
-
-		// Record ingestion latency
-		metrics.ObserveIngestLatency(time.Since(start).Seconds())
-
-		// Update sequence after successful processing
-		if msg != nil && msg.TimeUS > 0 {
-			if err := sequenceTracker.UpdateSequence(appCtx, msg.TimeUS); err != nil {
-				logger.Error("failed to update sequence after upsert",
-					slog.String("error", err.Error()))
-			}
+		client, err := indexer.NewClientWithSequenceTracker(config, handler, logger, metrics, sequenceTracker)
+		if err != nil {
+			logger.Error("failed to create jetstream client", "error", err)
+			os.Exit(1)
 		}
 
-		return nil
+		// Log resume status on startup
+		lastSeq, err := sequenceTracker.GetLastSequence(appCtx)
+		if err != nil {
+			logger.Warn("failed to get last sequence on startup", "error", err)
+		} else if lastSeq > 0 {
+			logger.Info("will resume from last processed sequence",
+				slog.Int64("cursor", lastSeq),
+				slog.Time("last_message_time", time.Unix(0, lastSeq*1000)))
+		} else {
+			logger.Info("starting from beginning (no previous sequence found)")
+		}
+
+		// Start Jetstream client in background
+		clientDone := make(chan error, 1)
+		go func() {
+			logger.Info("starting jetstream client", "url", jetstreamURL)
+			// Client uses app context for proper shutdown coordination
+			clientDone <- client.Run(appCtx)
+		}()
+
+		// Wait for interrupt signal for graceful shutdown
+		quit := make(chan os.Signal, 1)
+		signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
+
+		select {
+		case <-quit:
+			logger.Info("received shutdown signal")
+		case err := <-clientDone:
+			logger.Error("jetstream client exited unexpectedly", "error", err)
+		}
+
+		logger.Info("shutting down indexer...")
+
+		// Cancel app context to trigger graceful shutdown of all components
+		// This will stop: cleanup service, client, and any in-flight DB operations
+		appCancel()
+
+		// Stop cleanup service
+		logger.Info("stopping cleanup service")
+		cleanupService.Stop()
+
+		// Wait for client to finish with longer timeout to account for drain
+		select {
+		case <-clientDone:
+			logger.Info("jetstream client stopped")
+		case <-time.After(15 * time.Second):
+			logger.Warn("jetstream client shutdown timeout exceeded")
+		}
+
+		// Create context with timeout for metrics server shutdown
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+
+		if err := metricsServer.Shutdown(ctx); err != nil {
+			logger.Error("metrics server forced to shutdown", "error", err)
+			os.Exit(1)
+		}
+
+		logger.Info("indexer stopped")
 	}
-
-	client, err := indexer.NewClientWithSequenceTracker(config, handler, logger, metrics, sequenceTracker)
-	if err != nil {
-		logger.Error("failed to create jetstream client", "error", err)
-		os.Exit(1)
-	}
-
-	// Log resume status on startup
-	lastSeq, err := sequenceTracker.GetLastSequence(appCtx)
-	if err != nil {
-		logger.Warn("failed to get last sequence on startup", "error", err)
-	} else if lastSeq > 0 {
-		logger.Info("will resume from last processed sequence",
-			slog.Int64("cursor", lastSeq),
-			slog.Time("last_message_time", time.Unix(0, lastSeq*1000)))
-	} else {
-		logger.Info("starting from beginning (no previous sequence found)")
-	}
-
-	// Start Jetstream client in background
-	clientDone := make(chan error, 1)
-	go func() {
-		logger.Info("starting jetstream client", "url", jetstreamURL)
-		// Client uses app context for proper shutdown coordination
-		clientDone <- client.Run(appCtx)
-	}()
-
-	// Wait for interrupt signal for graceful shutdown
-	quit := make(chan os.Signal, 1)
-	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
-
-	select {
-	case <-quit:
-		logger.Info("received shutdown signal")
-	case err := <-clientDone:
-		logger.Error("jetstream client exited unexpectedly", "error", err)
-	}
-
-	logger.Info("shutting down indexer...")
-
-	// Cancel app context to trigger graceful shutdown of all components
-	// This will stop: cleanup service, client, and any in-flight DB operations
-	appCancel()
-
-	// Stop cleanup service
-	logger.Info("stopping cleanup service")
-	cleanupService.Stop()
-
-	// Wait for client to finish with longer timeout to account for drain
-	select {
-	case <-clientDone:
-		logger.Info("jetstream client stopped")
-	case <-time.After(15 * time.Second):
-		logger.Warn("jetstream client shutdown timeout exceeded")
-	}
-
-	// Create context with timeout for metrics server shutdown
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-
-	if err := metricsServer.Shutdown(ctx); err != nil {
-		logger.Error("metrics server forced to shutdown", "error", err)
-		os.Exit(1)
-	}
-
-	logger.Info("indexer stopped")
 }

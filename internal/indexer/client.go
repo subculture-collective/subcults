@@ -162,7 +162,7 @@ func (c *Client) Run(ctx context.Context) error {
 
 		// Reset reconnect count on successful connection
 		prevCount := atomic.SwapInt64(&c.reconnectCount, 0)
-		
+
 		// Track successful reconnection (only if this was actually a reconnect, not initial connect)
 		if prevCount > 0 && c.metrics != nil {
 			c.metrics.IncReconnectionSuccess()

@@ -133,13 +133,13 @@ func (t *InMemorySequenceTracker) GetLastSequence(ctx context.Context) (int64, e
 func (t *InMemorySequenceTracker) UpdateSequence(ctx context.Context, sequence int64) error {
 	t.mu.Lock()
 	defer t.mu.Unlock()
-	
+
 	// Only update if new sequence is greater (monotonically increasing)
 	if sequence > t.sequence {
 		t.sequence = sequence
 		t.logger.Debug("updated sequence cursor",
 			slog.Int64("cursor", sequence))
 	}
-	
+
 	return nil
 }

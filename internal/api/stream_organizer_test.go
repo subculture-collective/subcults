@@ -15,11 +15,6 @@ import (
 	"github.com/onnwee/subcults/internal/stream"
 )
 
-// ptrString is a helper to create string pointers.
-func ptrString(s string) *string {
-	return &s
-}
-
 // TestMuteParticipant_Unauthorized tests that non-host cannot mute participants.
 func TestMuteParticipant_Unauthorized(t *testing.T) {
 	streamRepo := stream.NewInMemorySessionRepository()
