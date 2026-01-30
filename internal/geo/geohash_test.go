@@ -192,3 +192,58 @@ func TestDefaultPrecision(t *testing.T) {
 		t.Errorf("DefaultPrecision = %d, want 6", DefaultPrecision)
 	}
 }
+
+func TestEncode(t *testing.T) {
+tests := []struct {
+name      string
+lat       float64
+lng       float64
+precision int
+want      string
+}{
+{
+name:      "Seattle",
+lat:       47.6062,
+lng:       -122.3321,
+precision: 6,
+want:      "c23nb6",
+},
+{
+name:      "Berlin",
+lat:       52.5200,
+lng:       13.4050,
+precision: 6,
+want:      "u33dc0",
+},
+{
+name:      "London",
+lat:       51.5074,
+lng:       -0.1278,
+precision: 6,
+want:      "gcpvj0",
+},
+{
+name:      "precision 5",
+lat:       47.6062,
+lng:       -122.3321,
+precision: 5,
+want:      "c23nb",
+},
+{
+name:      "default precision",
+lat:       47.6062,
+lng:       -122.3321,
+precision: 0, // Should use DefaultPrecision = 6
+want:      "c23nb6",
+},
+}
+
+for _, tt := range tests {
+t.Run(tt.name, func(t *testing.T) {
+got := Encode(tt.lat, tt.lng, tt.precision)
+if got != tt.want {
+t.Errorf("Encode(%f, %f, %d) = %q, want %q", tt.lat, tt.lng, tt.precision, got, tt.want)
+}
+})
+}
+}

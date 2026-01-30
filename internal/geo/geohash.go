@@ -20,6 +20,68 @@ var validGeohashChars = map[rune]bool{
 	'y': true, 'z': true,
 }
 
+// base32 is the geohash base32 alphabet.
+const base32 = "0123456789bcdefghjkmnpqrstuvwxyz"
+
+// Encode encodes latitude and longitude into a geohash string with the specified precision.
+// Uses the standard geohash algorithm with base32 encoding.
+//
+// Parameters:
+//   - lat: latitude in degrees (-90 to 90)
+//   - lng: longitude in degrees (-180 to 180)
+//   - precision: desired geohash length (typically 5-12 characters)
+//
+// Returns:
+//   - Geohash string of the specified length
+func Encode(lat, lng float64, precision int) string {
+	if precision < 1 {
+		precision = DefaultPrecision
+	}
+
+	latRange := [2]float64{-90.0, 90.0}
+	lngRange := [2]float64{-180.0, 180.0}
+
+	var geohash strings.Builder
+	geohash.Grow(precision)
+
+	bits := 0
+	var ch uint
+
+	even := true
+	for geohash.Len() < precision {
+		if even {
+			// Longitude
+			mid := (lngRange[0] + lngRange[1]) / 2
+			if lng > mid {
+				ch |= (1 << (4 - bits))
+				lngRange[0] = mid
+			} else {
+				lngRange[1] = mid
+			}
+		} else {
+			// Latitude
+			mid := (latRange[0] + latRange[1]) / 2
+			if lat > mid {
+				ch |= (1 << (4 - bits))
+				latRange[0] = mid
+			} else {
+				latRange[1] = mid
+			}
+		}
+
+		even = !even
+		bits++
+
+		if bits == 5 {
+			geohash.WriteByte(base32[ch])
+			bits = 0
+			ch = 0
+		}
+	}
+
+	return geohash.String()
+}
+
 // RoundGeohash truncates a geohash string to the specified precision for privacy.
 // It ensures coarse location display by limiting the geohash resolution.
 //
