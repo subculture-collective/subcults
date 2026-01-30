@@ -95,6 +95,7 @@ type FilterResult struct {
 	Record     json.RawMessage // The validated record JSON
 	DID        string          // Decentralized identifier of the record owner (from CBOR parsing)
 	RKey       string          // Record key (from CBOR parsing)
+	Rev        string          // Revision string for this commit (from CBOR parsing)
 	Operation  string          // Operation type: create, update, delete (from CBOR parsing)
 	Error      error           // Validation error, if any
 }
@@ -152,6 +153,7 @@ func (f *RecordFilter) FilterCBOR(cborData []byte) FilterResult {
 	result.DID = parsed.DID
 	result.Collection = parsed.Collection
 	result.RKey = parsed.RKey
+	result.Rev = parsed.Rev
 	result.Operation = parsed.Operation
 
 	// Check if collection matches our lexicon namespace

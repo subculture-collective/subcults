@@ -66,6 +66,7 @@ type ParsedRecord struct {
 	DID        string // Decentralized identifier of the record owner
 	Collection string // Lexicon collection type
 	RKey       string // Record key
+	Rev        string // Revision string for this commit
 	Operation  string // Operation type: create, update, delete
 	Record     []byte // JSON-encoded record payload (decoded from CBOR)
 }
@@ -143,6 +144,7 @@ func ParseRecord(data []byte) (*ParsedRecord, error) {
 			DID:        commit.DID,
 			Collection: commit.Collection,
 			RKey:       commit.RKey,
+			Rev:        commit.Rev,
 			Operation:  commit.Operation,
 			Record:     nil,
 		}, nil
@@ -180,6 +182,7 @@ func ParseRecord(data []byte) (*ParsedRecord, error) {
 		DID:        commit.DID,
 		Collection: commit.Collection,
 		RKey:       commit.RKey,
+		Rev:        commit.Rev,
 		Operation:  commit.Operation,
 		Record:     jsonData,
 	}, nil
