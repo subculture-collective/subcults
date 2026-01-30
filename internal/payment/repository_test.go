@@ -402,30 +402,30 @@ func TestStatusTransitions_TableDriven(t *testing.T) {
 		{StatusPending, StatusSucceeded, true},
 		{StatusPending, StatusFailed, true},
 		{StatusPending, StatusCanceled, true},
-		
+
 		// Valid transition from succeeded
 		{StatusSucceeded, StatusRefunded, true},
-		
+
 		// Invalid transitions from pending
 		{StatusPending, StatusRefunded, false},
-		
+
 		// Invalid transitions from succeeded
 		{StatusSucceeded, StatusPending, false},
 		{StatusSucceeded, StatusFailed, false},
 		{StatusSucceeded, StatusCanceled, false},
-		
+
 		// Invalid transitions from failed
 		{StatusFailed, StatusPending, false},
 		{StatusFailed, StatusSucceeded, false},
 		{StatusFailed, StatusCanceled, false},
 		{StatusFailed, StatusRefunded, false},
-		
+
 		// Invalid transitions from canceled
 		{StatusCanceled, StatusPending, false},
 		{StatusCanceled, StatusSucceeded, false},
 		{StatusCanceled, StatusFailed, false},
 		{StatusCanceled, StatusRefunded, false},
-		
+
 		// Invalid transitions from refunded
 		{StatusRefunded, StatusPending, false},
 		{StatusRefunded, StatusSucceeded, false},
@@ -443,7 +443,6 @@ func TestStatusTransitions_TableDriven(t *testing.T) {
 		})
 	}
 }
-
 
 // TestMarkCanceled_Success tests successful cancellation of a pending payment.
 func TestMarkCanceled_Success(t *testing.T) {

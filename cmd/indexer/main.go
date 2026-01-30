@@ -127,7 +127,7 @@ func main() {
 
 		logger.Info("using Postgres repository", "database_url", databaseURL)
 		repo = indexer.NewPostgresRecordRepository(db, logger)
-		
+
 		// Use Postgres cleanup service
 		cleanupConfig := indexer.DefaultCleanupConfig()
 		cleanupService = indexer.NewCleanupService(db, logger, cleanupConfig)
@@ -136,7 +136,7 @@ func main() {
 		logger.Warn("DATABASE_URL not set, using in-memory repository (data will not persist)")
 		memRepo := indexer.NewInMemoryRecordRepository(logger)
 		repo = memRepo
-		
+
 		// Use in-memory cleanup service
 		cleanupConfig := indexer.DefaultCleanupConfig()
 		cleanupService = indexer.NewInMemoryCleanupService(memRepo, logger, cleanupConfig)

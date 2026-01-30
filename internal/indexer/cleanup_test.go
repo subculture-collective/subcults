@@ -75,7 +75,7 @@ func TestInMemoryCleanupService_ContextCancellation(t *testing.T) {
 // TestInMemoryCleanupService_CustomConfig tests cleanup service with custom configuration.
 func TestInMemoryCleanupService_CustomConfig(t *testing.T) {
 	repo := NewInMemoryRecordRepository(newTestLogger())
-	
+
 	config := CleanupConfig{
 		RetentionPeriod: 1 * time.Hour,
 		CleanupInterval: 30 * time.Second,
@@ -102,7 +102,7 @@ func TestInMemoryCleanupService_CustomConfig(t *testing.T) {
 // TestInMemoryCleanupService_ZeroConfigUsesDefaults tests that zero values use defaults.
 func TestInMemoryCleanupService_ZeroConfigUsesDefaults(t *testing.T) {
 	repo := NewInMemoryRecordRepository(newTestLogger())
-	
+
 	config := CleanupConfig{
 		// Zero values - should use defaults
 	}

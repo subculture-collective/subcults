@@ -93,7 +93,6 @@ func (c *StripeClient) CreateCheckoutSession(params *CheckoutSessionParams) (*st
 	// after the session is created. To work around this, webhook handlers should
 	// look up payment records by payment_intent_id in the database rather than
 	// relying on metadata. This is documented in webhook_handlers.go.
-	
+
 	return sess, nil
 }
-

@@ -8,19 +8,19 @@ import (
 // QualityMetrics represents audio quality measurements for a stream participant.
 // These metrics are used to monitor network conditions and adapt quality settings.
 type QualityMetrics struct {
-	ID              string    `json:"id"`
-	StreamSessionID string    `json:"stream_session_id"`
-	ParticipantID   string    `json:"participant_id"`
-	
+	ID              string `json:"id"`
+	StreamSessionID string `json:"stream_session_id"`
+	ParticipantID   string `json:"participant_id"`
+
 	// Audio quality metrics
-	BitrateKbps        *float64 `json:"bitrate_kbps,omitempty"`        // Audio bitrate in kilobits per second
-	JitterMs           *float64 `json:"jitter_ms,omitempty"`           // Jitter (packet delay variation) in milliseconds
-	PacketLossPercent  *float64 `json:"packet_loss_percent,omitempty"` // Packet loss percentage (0-100)
-	AudioLevel         *float64 `json:"audio_level,omitempty"`         // Audio level (0.0-1.0, where 1.0 is loudest)
-	
+	BitrateKbps       *float64 `json:"bitrate_kbps,omitempty"`        // Audio bitrate in kilobits per second
+	JitterMs          *float64 `json:"jitter_ms,omitempty"`           // Jitter (packet delay variation) in milliseconds
+	PacketLossPercent *float64 `json:"packet_loss_percent,omitempty"` // Packet loss percentage (0-100)
+	AudioLevel        *float64 `json:"audio_level,omitempty"`         // Audio level (0.0-1.0, where 1.0 is loudest)
+
 	// Network quality indicators
 	RTTMs *float64 `json:"rtt_ms,omitempty"` // Round-trip time in milliseconds
-	
+
 	MeasuredAt time.Time `json:"measured_at"`
 }
 
@@ -39,15 +39,15 @@ func (q *QualityMetrics) HasPoorNetworkQuality() bool {
 	if q.HasHighPacketLoss() {
 		return true
 	}
-	
+
 	if q.JitterMs != nil && *q.JitterMs > 30.0 {
 		return true
 	}
-	
+
 	if q.RTTMs != nil && *q.RTTMs > 300.0 {
 		return true
 	}
-	
+
 	return false
 }
 
@@ -67,18 +67,18 @@ type QualityAlert struct {
 type QualityMetricsRepository interface {
 	// RecordMetrics stores audio quality metrics for a participant.
 	RecordMetrics(metrics *QualityMetrics) error
-	
+
 	// GetLatestMetrics retrieves the most recent quality metrics for a participant.
 	GetLatestMetrics(streamSessionID, participantID string) (*QualityMetrics, error)
-	
+
 	// GetMetricsBySession retrieves all quality metrics for a stream session.
 	// Results are ordered by measured_at DESC, with optional limit.
 	GetMetricsBySession(streamSessionID string, limit int) ([]*QualityMetrics, error)
-	
+
 	// GetMetricsTimeSeries retrieves quality metrics for a participant within a time range.
 	// Useful for visualizing quality trends over time.
 	GetMetricsTimeSeries(streamSessionID, participantID string, start, end time.Time) ([]*QualityMetrics, error)
-	
+
 	// GetParticipantsWithHighPacketLoss returns participants with recent packet loss > 5%.
 	// Used to identify participants needing quality adaptation.
 	GetParticipantsWithHighPacketLoss(streamSessionID string, sinceMinutes int) ([]string, error)

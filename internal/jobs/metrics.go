@@ -7,9 +7,9 @@ import (
 
 // Metrics names as constants for consistency.
 const (
-	MetricBackgroundJobsTotal          = "background_jobs_total"
-	MetricBackgroundJobsDuration       = "background_jobs_duration_seconds"
-	MetricBackgroundJobErrorsTotal     = "background_job_errors_total"
+	MetricBackgroundJobsTotal      = "background_jobs_total"
+	MetricBackgroundJobsDuration   = "background_jobs_duration_seconds"
+	MetricBackgroundJobErrorsTotal = "background_job_errors_total"
 )
 
 // Job type constants for labeling.

@@ -36,16 +36,16 @@ func TestMetrics_Register(t *testing.T) {
 		}
 
 		expectedNames := map[string]bool{
-			MetricStreamJoins:        false,
-			MetricStreamLeaves:       false,
-			MetricStreamJoinLatency:  false,
-			MetricAudioBitrate:       false,
-			MetricAudioJitter:        false,
-			MetricAudioPacketLoss:    false,
-			MetricAudioLevel:         false,
-			MetricNetworkRTT:         false,
-			MetricQualityAlerts:      false,
-			MetricHighPacketLoss:     false,
+			MetricStreamJoins:       false,
+			MetricStreamLeaves:      false,
+			MetricStreamJoinLatency: false,
+			MetricAudioBitrate:      false,
+			MetricAudioJitter:       false,
+			MetricAudioPacketLoss:   false,
+			MetricAudioLevel:        false,
+			MetricNetworkRTT:        false,
+			MetricQualityAlerts:     false,
+			MetricHighPacketLoss:    false,
 		}
 
 		for _, family := range families {
@@ -204,71 +204,69 @@ func TestMetrics_Concurrency(t *testing.T) {
 	}
 }
 
-
 // BenchmarkMetrics_ObserveAudioBitrate benchmarks bitrate observations.
 func BenchmarkMetrics_ObserveAudioBitrate(b *testing.B) {
-m := NewMetrics()
-b.ResetTimer()
-for i := 0; i < b.N; i++ {
-m.ObserveAudioBitrate(128.5)
-}
+	m := NewMetrics()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		m.ObserveAudioBitrate(128.5)
+	}
 }
 
 // BenchmarkMetrics_ObserveAudioJitter benchmarks jitter observations.
 func BenchmarkMetrics_ObserveAudioJitter(b *testing.B) {
-m := NewMetrics()
-b.ResetTimer()
-for i := 0; i < b.N; i++ {
-m.ObserveAudioJitter(12.3)
-}
+	m := NewMetrics()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		m.ObserveAudioJitter(12.3)
+	}
 }
 
 // BenchmarkMetrics_IncQualityAlerts benchmarks quality alert increments.
 func BenchmarkMetrics_IncQualityAlerts(b *testing.B) {
-m := NewMetrics()
-b.ResetTimer()
-for i := 0; i < b.N; i++ {
-m.IncQualityAlerts()
+	m := NewMetrics()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		m.IncQualityAlerts()
+	}
 }
-}
-
 
 // TestMetrics_PacketLossThreshold tests the 5% packet loss threshold behavior.
 func TestMetrics_PacketLossThreshold(t *testing.T) {
-// Note: These tests verify the ObserveAudioPacketLoss method executes without panic.
-// The actual metric values are tracked internally by Prometheus and cannot be easily
-// inspected in unit tests. Integration tests with a Prometheus registry would be
-// needed to fully validate the metric recording behavior.
-m := NewMetrics()
+	// Note: These tests verify the ObserveAudioPacketLoss method executes without panic.
+	// The actual metric values are tracked internally by Prometheus and cannot be easily
+	// inspected in unit tests. Integration tests with a Prometheus registry would be
+	// needed to fully validate the metric recording behavior.
+	m := NewMetrics()
 
-tests := []struct {
-name       string
-packetLoss float64
-}{
-{
-name:       "low_packet_loss",
-packetLoss: 2.0,
-},
-{
-name:       "threshold_packet_loss",
-packetLoss: 5.0,
-},
-{
-name:       "high_packet_loss",
-packetLoss: 5.1,
-},
-{
-name:       "very_high_packet_loss",
-packetLoss: 20.0,
-},
-}
+	tests := []struct {
+		name       string
+		packetLoss float64
+	}{
+		{
+			name:       "low_packet_loss",
+			packetLoss: 2.0,
+		},
+		{
+			name:       "threshold_packet_loss",
+			packetLoss: 5.0,
+		},
+		{
+			name:       "high_packet_loss",
+			packetLoss: 5.1,
+		},
+		{
+			name:       "very_high_packet_loss",
+			packetLoss: 20.0,
+		},
+	}
 
-for _, tt := range tests {
-t.Run(tt.name, func(t *testing.T) {
-// ObserveAudioPacketLoss should trigger the alert counter
-// for packet loss > 5%
-m.ObserveAudioPacketLoss(tt.packetLoss)
-// No panic means the metric was recorded successfully
-})
-}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// ObserveAudioPacketLoss should trigger the alert counter
+			// for packet loss > 5%
+			m.ObserveAudioPacketLoss(tt.packetLoss)
+			// No panic means the metric was recorded successfully
+		})
+	}
 }

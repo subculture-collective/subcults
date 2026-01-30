@@ -37,7 +37,7 @@ func TestValidateKey(t *testing.T) {
 			expectErr: nil,
 		},
 	}
-	
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			err := ValidateKey(tt.key)
@@ -62,16 +62,16 @@ func TestComputeResponseHash(t *testing.T) {
 			responseBody: `{"status":"ok"}`,
 		},
 	}
-	
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			hash := ComputeResponseHash(tt.responseBody)
-			
+
 			// Just verify it's not empty and has correct length (SHA256 is 64 hex chars)
 			if len(hash) != 64 {
 				t.Errorf("ComputeResponseHash() hash length = %d, want 64", len(hash))
 			}
-			
+
 			// Verify consistency - same input produces same hash
 			hash2 := ComputeResponseHash(tt.responseBody)
 			if hash != hash2 {
@@ -84,7 +84,7 @@ func TestComputeResponseHash(t *testing.T) {
 func TestComputeResponseHash_Uniqueness(t *testing.T) {
 	hash1 := ComputeResponseHash(`{"session_url":"https://example.com/1"}`)
 	hash2 := ComputeResponseHash(`{"session_url":"https://example.com/2"}`)
-	
+
 	if hash1 == hash2 {
 		t.Error("Different responses should produce different hashes")
 	}

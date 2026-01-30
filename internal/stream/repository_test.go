@@ -1127,133 +1127,133 @@ func TestSessionRepository_UpdateActiveParticipantCount_EdgeCases(t *testing.T) 
 // Benchmark tests for performance-sensitive operations
 // BenchmarkCreateStreamSession benchmarks stream session creation.
 func BenchmarkCreateStreamSession(b *testing.B) {
-repo := NewInMemorySessionRepository()
-sceneID := "bench-scene"
+	repo := NewInMemorySessionRepository()
+	sceneID := "bench-scene"
 
-b.ResetTimer()
-for i := 0; i < b.N; i++ {
-hostDID := "did:plc:host" + string(rune(i))
-if _, _, err := repo.CreateStreamSession(&sceneID, nil, hostDID); err != nil {
-b.Fatalf("CreateStreamSession failed: %v", err)
-}
-}
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		hostDID := "did:plc:host" + string(rune(i))
+		if _, _, err := repo.CreateStreamSession(&sceneID, nil, hostDID); err != nil {
+			b.Fatalf("CreateStreamSession failed: %v", err)
+		}
+	}
 }
 
 // BenchmarkGetByID benchmarks session retrieval by ID.
 func BenchmarkGetByID(b *testing.B) {
-repo := NewInMemorySessionRepository()
-sceneID := "bench-scene"
-id, _, err := repo.CreateStreamSession(&sceneID, nil, "did:plc:host")
-if err != nil {
-b.Fatalf("CreateStreamSession failed: %v", err)
-}
+	repo := NewInMemorySessionRepository()
+	sceneID := "bench-scene"
+	id, _, err := repo.CreateStreamSession(&sceneID, nil, "did:plc:host")
+	if err != nil {
+		b.Fatalf("CreateStreamSession failed: %v", err)
+	}
 
-b.ResetTimer()
-for i := 0; i < b.N; i++ {
-if _, err := repo.GetByID(id); err != nil {
-b.Fatalf("GetByID failed: %v", err)
-}
-}
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		if _, err := repo.GetByID(id); err != nil {
+			b.Fatalf("GetByID failed: %v", err)
+		}
+	}
 }
 
 // BenchmarkGetActiveStreamForEvent benchmarks single event stream lookup.
 func BenchmarkGetActiveStreamForEvent(b *testing.B) {
-repo := NewInMemorySessionRepository()
-eventID := "bench-event"
-if _, _, err := repo.CreateStreamSession(nil, &eventID, "did:plc:host"); err != nil {
-b.Fatalf("CreateStreamSession failed: %v", err)
-}
+	repo := NewInMemorySessionRepository()
+	eventID := "bench-event"
+	if _, _, err := repo.CreateStreamSession(nil, &eventID, "did:plc:host"); err != nil {
+		b.Fatalf("CreateStreamSession failed: %v", err)
+	}
 
-b.ResetTimer()
-for i := 0; i < b.N; i++ {
-if _, err := repo.GetActiveStreamForEvent(eventID); err != nil {
-b.Fatalf("GetActiveStreamForEvent failed: %v", err)
-}
-}
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		if _, err := repo.GetActiveStreamForEvent(eventID); err != nil {
+			b.Fatalf("GetActiveStreamForEvent failed: %v", err)
+		}
+	}
 }
 
 // BenchmarkGetActiveStreamsForEvents benchmarks batch event stream lookup.
 func BenchmarkGetActiveStreamsForEvents(b *testing.B) {
-repo := NewInMemorySessionRepository()
+	repo := NewInMemorySessionRepository()
 
-// Create 100 active streams for different events
-eventIDs := make([]string, 100)
-for i := 0; i < 100; i++ {
-eventID := "bench-event-" + string(rune(i))
-eventIDs[i] = eventID
-if _, _, err := repo.CreateStreamSession(nil, &eventID, "did:plc:host"); err != nil {
-b.Fatalf("CreateStreamSession failed: %v", err)
-}
-}
+	// Create 100 active streams for different events
+	eventIDs := make([]string, 100)
+	for i := 0; i < 100; i++ {
+		eventID := "bench-event-" + string(rune(i))
+		eventIDs[i] = eventID
+		if _, _, err := repo.CreateStreamSession(nil, &eventID, "did:plc:host"); err != nil {
+			b.Fatalf("CreateStreamSession failed: %v", err)
+		}
+	}
 
-b.ResetTimer()
-for i := 0; i < b.N; i++ {
-if _, err := repo.GetActiveStreamsForEvents(eventIDs); err != nil {
-b.Fatalf("GetActiveStreamsForEvents failed: %v", err)
-}
-}
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		if _, err := repo.GetActiveStreamsForEvents(eventIDs); err != nil {
+			b.Fatalf("GetActiveStreamsForEvents failed: %v", err)
+		}
+	}
 }
 
 // BenchmarkRecordJoinLeave benchmarks participant join/leave tracking.
 func BenchmarkRecordJoinLeave(b *testing.B) {
-repo := NewInMemorySessionRepository()
-sceneID := "bench-scene"
-id, _, err := repo.CreateStreamSession(&sceneID, nil, "did:plc:host")
-if err != nil {
-b.Fatalf("CreateStreamSession failed: %v", err)
-}
+	repo := NewInMemorySessionRepository()
+	sceneID := "bench-scene"
+	id, _, err := repo.CreateStreamSession(&sceneID, nil, "did:plc:host")
+	if err != nil {
+		b.Fatalf("CreateStreamSession failed: %v", err)
+	}
 
-b.ResetTimer()
-for i := 0; i < b.N; i++ {
-if i%2 == 0 {
-if err := repo.RecordJoin(id); err != nil {
-b.Fatalf("RecordJoin failed: %v", err)
-}
-} else {
-if err := repo.RecordLeave(id); err != nil {
-b.Fatalf("RecordLeave failed: %v", err)
-}
-}
-}
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		if i%2 == 0 {
+			if err := repo.RecordJoin(id); err != nil {
+				b.Fatalf("RecordJoin failed: %v", err)
+			}
+		} else {
+			if err := repo.RecordLeave(id); err != nil {
+				b.Fatalf("RecordLeave failed: %v", err)
+			}
+		}
+	}
 }
 
 // BenchmarkSetLockStatus benchmarks lock status updates.
 func BenchmarkSetLockStatus(b *testing.B) {
-repo := NewInMemorySessionRepository()
-sceneID := "bench-scene"
-id, _, err := repo.CreateStreamSession(&sceneID, nil, "did:plc:host")
-if err != nil {
-b.Fatalf("CreateStreamSession failed: %v", err)
-}
+	repo := NewInMemorySessionRepository()
+	sceneID := "bench-scene"
+	id, _, err := repo.CreateStreamSession(&sceneID, nil, "did:plc:host")
+	if err != nil {
+		b.Fatalf("CreateStreamSession failed: %v", err)
+	}
 
-b.ResetTimer()
-for i := 0; i < b.N; i++ {
-if err := repo.SetLockStatus(id, i%2 == 0); err != nil {
-b.Fatalf("SetLockStatus failed: %v", err)
-}
-}
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		if err := repo.SetLockStatus(id, i%2 == 0); err != nil {
+			b.Fatalf("SetLockStatus failed: %v", err)
+		}
+	}
 }
 
 // BenchmarkSetFeaturedParticipant benchmarks featured participant updates.
 func BenchmarkSetFeaturedParticipant(b *testing.B) {
-repo := NewInMemorySessionRepository()
-sceneID := "bench-scene"
-id, _, err := repo.CreateStreamSession(&sceneID, nil, "did:plc:host")
-if err != nil {
-b.Fatalf("CreateStreamSession failed: %v", err)
-}
-participantID := "participant-featured"
+	repo := NewInMemorySessionRepository()
+	sceneID := "bench-scene"
+	id, _, err := repo.CreateStreamSession(&sceneID, nil, "did:plc:host")
+	if err != nil {
+		b.Fatalf("CreateStreamSession failed: %v", err)
+	}
+	participantID := "participant-featured"
 
-b.ResetTimer()
-for i := 0; i < b.N; i++ {
-if i%2 == 0 {
-if err := repo.SetFeaturedParticipant(id, &participantID); err != nil {
-b.Fatalf("SetFeaturedParticipant failed: %v", err)
-}
-} else {
-if err := repo.SetFeaturedParticipant(id, nil); err != nil {
-b.Fatalf("SetFeaturedParticipant failed: %v", err)
-}
-}
-}
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		if i%2 == 0 {
+			if err := repo.SetFeaturedParticipant(id, &participantID); err != nil {
+				b.Fatalf("SetFeaturedParticipant failed: %v", err)
+			}
+		} else {
+			if err := repo.SetFeaturedParticipant(id, nil); err != nil {
+				b.Fatalf("SetFeaturedParticipant failed: %v", err)
+			}
+		}
+	}
 }

@@ -16,10 +16,10 @@ import (
 
 // WebhookHandlers holds dependencies for webhook-related HTTP handlers.
 type WebhookHandlers struct {
-	webhookSecret   string
-	paymentRepo     payment.PaymentRepository
-	webhookRepo     payment.WebhookRepository
-	sceneRepo       scene.SceneRepository
+	webhookSecret string
+	paymentRepo   payment.PaymentRepository
+	webhookRepo   payment.WebhookRepository
+	sceneRepo     scene.SceneRepository
 }
 
 // NewWebhookHandlers creates a new WebhookHandlers instance.
@@ -160,14 +160,14 @@ func (h *WebhookHandlers) handlePaymentIntentSucceeded(ctx context.Context, even
 	// we cannot set metadata at session creation time. Instead, in a production
 	// implementation with a database, we would query:
 	//   SELECT * FROM payment_records WHERE payment_intent_id = paymentIntent.ID
-	// 
+	//
 	// For the in-memory implementation, we require session_id in metadata.
 	// This is a known limitation documented in stripe.go.
 	sessionID := ""
 	if paymentIntent.Metadata != nil {
 		sessionID = paymentIntent.Metadata["session_id"]
 	}
-	
+
 	if sessionID == "" {
 		slog.ErrorContext(ctx, "payment intent succeeded but session_id not found in metadata",
 			"payment_intent_id", paymentIntent.ID,
@@ -262,7 +262,7 @@ func (h *WebhookHandlers) handleAccountUpdated(ctx context.Context, event stripe
 
 	// Check if capabilities are now active
 	// For Express accounts, we check if transfers capability is active
-	transfersActive := account.Capabilities != nil && 
+	transfersActive := account.Capabilities != nil &&
 		account.Capabilities.Transfers == stripe.AccountCapabilityStatusActive
 
 	if !transfersActive {

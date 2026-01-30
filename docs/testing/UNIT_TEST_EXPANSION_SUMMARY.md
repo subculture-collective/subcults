@@ -1,28 +1,31 @@
 # Unit Test Expansion - Implementation Summary
 
 ## Objective
+
 Expand unit test coverage to >80% for backend core packages: auth, geo, ranking, validation, and stream.
 
 ## Results
 
 ### Coverage Achieved
 
-| Package | Before | After | Target | Status | Notes |
-|---------|--------|-------|--------|--------|-------|
-| **auth** | 92.3% | 92.3% | >80% | ✅ **PASS** | Already met target |
-| **geo** | 100.0% | 100.0% | >80% | ✅ **PASS** | Already met target |
-| **ranking** | 90.9% | 90.9% | >80% | ✅ **PASS** | Already met target |
-| **stream** | 67.4% | 75.1% | >80% | ⚠️ **PARTIAL** | Unit-testable code covered; integration tests needed |
-| **validation** | N/A | N/A | >80% | ℹ️ **N/A** | No dedicated package found |
+| Package        | Before | After  | Target | Status         | Notes                                                |
+| -------------- | ------ | ------ | ------ | -------------- | ---------------------------------------------------- |
+| **auth**       | 92.3%  | 92.3%  | >80%   | ✅ **PASS**    | Already met target                                   |
+| **geo**        | 100.0% | 100.0% | >80%   | ✅ **PASS**    | Already met target                                   |
+| **ranking**    | 90.9%  | 90.9%  | >80%   | ✅ **PASS**    | Already met target                                   |
+| **stream**     | 67.4%  | 75.1%  | >80%   | ⚠️ **PARTIAL** | Unit-testable code covered; integration tests needed |
+| **validation** | N/A    | N/A    | >80%   | ℹ️ **N/A**     | No dedicated package found                           |
 
 **Overall: 3 out of 4 target packages exceed 80% coverage**
 
 ## Stream Package Deep Dive
 
 ### What Was Added
+
 Added **2 new test files** and expanded **4 existing test files** with **300+ new test cases** covering:
 
 #### 1. Repository Operations (`repository_test.go`)
+
 - ✅ `SetLockStatus` - Lock/unlock stream sessions (3 test cases + benchmark)
 - ✅ `SetFeaturedParticipant` - Spotlight participants (3 test cases + benchmark)
 - ✅ `GetActiveStreamsForEvents` - Batch event queries (4 test cases + benchmark)
@@ -31,22 +34,26 @@ Added **2 new test files** and expanded **4 existing test files** with **300+ ne
 - ✅ Additional benchmarks: `RecordJoinLeave`, `CreateStreamSession`
 
 #### 2. Quality Metrics (`quality_metrics_repository_test.go`)
+
 - ✅ `QualityMetrics` validation (4 test cases)
 - ✅ Quality thresholds (5 test cases)
 - ✅ `HasHighPacketLoss` method (6 test cases)
 
 #### 3. Participant Management (`participant_test.go`)
+
 - ✅ `Participant.IsActive` (2 test cases)
 - ✅ `ParticipantStateEvent` structure (2 test cases)
 - ✅ Reconnection scenarios (1 test case)
 
 #### 4. Session Models (`session_test.go`)
+
 - ✅ `Session` structure validation (4 test cases)
 - ✅ `ActiveStreamInfo` structure (1 test case)
 - ✅ `UpsertResult` structure (2 test cases)
 - ✅ Organizer controls (lock status, featured participants)
 
 #### 5. Metrics Observations (`metrics_test.go`)
+
 - ✅ Audio quality observations (5 test cases)
 - ✅ Quality alerts (1 test case)
 - ✅ Multiple observations (1 test case)
@@ -54,6 +61,7 @@ Added **2 new test files** and expanded **4 existing test files** with **300+ ne
 - ✅ Benchmarks: `ObserveAudioBitrate`, `ObserveAudioJitter`, `IncQualityAlerts`
 
 ### Benchmark Performance
+
 All benchmarks show sub-microsecond performance:
 
 ```
@@ -85,6 +93,7 @@ The remaining 24.9% uncovered code consists **entirely** of:
    - `EventBroadcaster.ConnectionCount` - Active connection tracking
 
 These cannot be meaningfully unit tested with mocks. They require:
+
 - ✅ Integration tests with test database (Postgres + PostGIS)
 - ✅ WebSocket testing harness
 - ✅ End-to-end stream lifecycle tests
@@ -92,6 +101,7 @@ These cannot be meaningfully unit tested with mocks. They require:
 ## Test Quality Metrics
 
 ### Pattern Adherence
+
 - ✅ **Table-driven tests**: All tests use `[]struct { name, setup, assert }` pattern
 - ✅ **Descriptive names**: Format `TestComponent_Method_Scenario` (e.g., `TestSessionRepository_SetLockStatus/lock_active_stream`)
 - ✅ **Edge cases**: Empty IDs, nil pointers, nonexistent records, zero values
@@ -101,6 +111,7 @@ These cannot be meaningfully unit tested with mocks. They require:
 - ✅ **Standard library**: Uses `testing.T` only; no testify or external frameworks
 
 ### Code Organization
+
 - ✅ One test file per source file (e.g., `repository.go` → `repository_test.go`)
 - ✅ Helper functions marked clearly (e.g., `strPtr`, `floatPtr`)
 - ✅ Consistent test structure across all packages
@@ -109,6 +120,7 @@ These cannot be meaningfully unit tested with mocks. They require:
 ## Validation Package
 
 The "validation" package was not found as a standalone package. Validation appears to be:
+
 - Integrated into API handlers (`internal/api`)
 - Part of model validation methods (e.g., `Scene.EnforceLocationConsent()`)
 - Covered by existing tests in respective packages
@@ -136,25 +148,27 @@ go test -race ./internal/auth ./internal/geo ./internal/ranking ./internal/strea
 To achieve 80%+ coverage for the stream package, create integration tests:
 
 1. **Database Integration Tests**
+
    ```bash
    # Setup test database
-   docker run -d -p 5433:5432 -e POSTGRES_PASSWORD=test postgis/postgis:16-3.4
-   
+   docker run -d -p 5439:5432 -e POSTGRES_PASSWORD=test postgis/postgis:16-3.4
+
    # Run migrations
-   DATABASE_URL="postgresql://postgres:test@localhost:5433/test?sslmode=disable" \
+   DATABASE_URL="postgresql://postgres:test@localhost:5439/test?sslmode=disable" \
      make migrate-up
-   
+
    # Run integration tests
    go test -tags=integration ./internal/stream
    ```
 
 2. **WebSocket Integration Tests**
+
    ```go
    // Example structure
    func TestEventBroadcaster_Integration(t *testing.T) {
        server := httptest.NewServer(websocketHandler)
        defer server.Close()
-       
+
        conn, _, err := websocket.DefaultDialer.Dial(server.URL, nil)
        // ... test Subscribe/Broadcast/Unsubscribe
    }
@@ -173,6 +187,7 @@ The task successfully achieved >80% coverage for 3 out of 4 target packages. The
 The remaining gap is not a test coverage issue—it's an architecture decision. The PostgreSQL and WebSocket methods are designed for integration testing, not unit testing. Attempting to mock them would provide false confidence without testing real behavior.
 
 ✅ **Task Status: Substantially Complete**
+
 - Auth, geo, and ranking packages exceed targets
 - Stream package has comprehensive unit tests
 - All benchmarks passing

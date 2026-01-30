@@ -11,7 +11,7 @@ import (
 func TestMapSceneRecord_ValidMinimal(t *testing.T) {
 	// Minimal valid scene record
 	sceneJSON := `{"name":"Underground Techno"}`
-	
+
 	record := &FilterResult{
 		DID:        "did:plc:scene123",
 		Collection: CollectionScene,
@@ -72,7 +72,7 @@ func TestMapSceneRecord_ValidComplete(t *testing.T) {
 			"text": "#000000"
 		}
 	}`
-	
+
 	record := &FilterResult{
 		DID:        "did:plc:scene123",
 		Collection: CollectionScene,
@@ -130,7 +130,7 @@ func TestMapSceneRecord_LocationConsentEnforced(t *testing.T) {
 			"allowPrecise": false
 		}
 	}`
-	
+
 	record := &FilterResult{
 		DID:        "did:plc:scene456",
 		Collection: CollectionScene,
@@ -159,7 +159,7 @@ func TestMapSceneRecord_LocationConsentEnforced(t *testing.T) {
 
 func TestMapSceneRecord_MissingName(t *testing.T) {
 	sceneJSON := `{"description":"No name"}`
-	
+
 	record := &FilterResult{
 		DID:        "did:plc:scene789",
 		Collection: CollectionScene,
@@ -204,7 +204,7 @@ func TestMapEventRecord_ValidMinimal(t *testing.T) {
 		"sceneId": "scene123",
 		"startsAt": "2024-06-15T20:00:00Z"
 	}`
-	
+
 	record := &FilterResult{
 		DID:        "did:plc:event456",
 		Collection: CollectionEvent,
@@ -252,7 +252,7 @@ func TestMapEventRecord_ValidComplete(t *testing.T) {
 		"tags": ["rave", "techno"],
 		"status": "live"
 	}`
-	
+
 	record := &FilterResult{
 		DID:        "did:plc:event789",
 		Collection: CollectionEvent,
@@ -323,7 +323,7 @@ func TestMapEventRecord_InvalidTimestamp(t *testing.T) {
 		"sceneId": "scene1",
 		"startsAt": "not-a-timestamp"
 	}`
-	
+
 	record := &FilterResult{
 		DID:        "did:plc:event",
 		Collection: CollectionEvent,
@@ -344,7 +344,7 @@ func TestMapPostRecord_ValidMinimal(t *testing.T) {
 		"text": "Great night!",
 		"sceneId": "scene123"
 	}`
-	
+
 	record := &FilterResult{
 		DID:        "did:plc:user789",
 		Collection: CollectionPost,
@@ -393,7 +393,7 @@ func TestMapPostRecord_ValidComplete(t *testing.T) {
 		],
 		"labels": ["featured", "photo"]
 	}`
-	
+
 	record := &FilterResult{
 		DID:        "did:plc:user999",
 		Collection: CollectionPost,
@@ -435,7 +435,7 @@ func TestMapPostRecord_ValidComplete(t *testing.T) {
 
 func TestMapPostRecord_MissingText(t *testing.T) {
 	postJSON := `{"sceneId":"scene1"}`
-	
+
 	record := &FilterResult{
 		DID:        "did:plc:user",
 		Collection: CollectionPost,
@@ -453,7 +453,7 @@ func TestMapPostRecord_MissingText(t *testing.T) {
 
 func TestMapPostRecord_MissingSceneAndEvent(t *testing.T) {
 	postJSON := `{"text":"Hello"}`
-	
+
 	record := &FilterResult{
 		DID:        "did:plc:user",
 		Collection: CollectionPost,
@@ -474,7 +474,7 @@ func TestMapAllianceRecord_ValidMinimal(t *testing.T) {
 		"fromSceneId": "scene123",
 		"toSceneId": "scene456"
 	}`
-	
+
 	record := &FilterResult{
 		DID:        "did:plc:scene123",
 		Collection: "app.subcult.alliance",
@@ -518,7 +518,7 @@ func TestMapAllianceRecord_ValidComplete(t *testing.T) {
 		"reason": "Collaboration request",
 		"since": "2024-01-01T00:00:00Z"
 	}`
-	
+
 	record := &FilterResult{
 		DID:        "did:plc:scene123",
 		Collection: "app.subcult.alliance",
@@ -583,7 +583,7 @@ func TestMapAllianceRecord_InvalidTimestamp(t *testing.T) {
 		"toSceneId": "scene2",
 		"since": "invalid-timestamp"
 	}`
-	
+
 	record := &FilterResult{
 		DID:        "did:plc:scene",
 		Collection: "app.subcult.alliance",

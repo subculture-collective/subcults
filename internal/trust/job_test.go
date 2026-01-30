@@ -701,9 +701,9 @@ func BenchmarkRecompute(b *testing.B) {
 // mockJobMetrics is a mock implementation of JobMetrics for testing.
 // Note: This implementation is NOT thread-safe. Use only in single-threaded tests.
 type mockJobMetrics struct {
-	jobsTotal       map[string]map[string]int
-	jobsDuration    map[string][]float64
-	jobErrors       map[string]map[string]int
+	jobsTotal    map[string]map[string]int
+	jobsDuration map[string][]float64
+	jobErrors    map[string]map[string]int
 }
 
 func newMockJobMetrics() *mockJobMetrics {

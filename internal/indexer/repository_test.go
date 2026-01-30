@@ -208,7 +208,7 @@ func TestInMemoryRepository_CheckIdempotencyKey(t *testing.T) {
 	record := &FilterResult{
 		DID:        "did:plc:idemptest",
 		Collection: CollectionScene, // Changed from CollectionMembership
-		RKey:       "scene1",         // Changed from member1
+		RKey:       "scene1",        // Changed from member1
 		Rev:        "rev1",
 		Operation:  "create",
 		Valid:      true,

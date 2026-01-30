@@ -21,10 +21,10 @@ type HealthHandlers struct {
 	// External service checkers (optional)
 	livekitChecker HealthChecker
 	stripeChecker  HealthChecker
-	
+
 	// Database checker (optional, for when real DB is used)
 	dbChecker HealthChecker
-	
+
 	// Metrics availability
 	metricsEnabled bool
 }

@@ -153,7 +153,7 @@ func main() {
 	analyticsRepo := stream.NewInMemoryAnalyticsRepository(streamRepo)
 	postRepo := post.NewInMemoryPostRepository()
 	membershipRepo := membership.NewInMemoryMembershipRepository()
-	
+
 	// Initialize event broadcaster for WebSocket participant updates
 	eventBroadcaster := stream.NewEventBroadcaster()
 
@@ -192,7 +192,7 @@ func main() {
 			os.Exit(1)
 		}
 		redisClient = redis.NewClient(opt)
-		
+
 		// Test connection
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
@@ -200,14 +200,14 @@ func main() {
 			logger.Error("failed to connect to Redis", "error", err)
 			os.Exit(1)
 		}
-		
+
 		rateLimitStore = middleware.NewRedisRateLimitStoreWithMetrics(redisClient, rateLimitMetrics)
 		logger.Info("rate limiting initialized with Redis backend")
 	} else {
 		// Use in-memory rate limiting for single-instance deployments
 		inMemStore := middleware.NewInMemoryRateLimitStore()
 		rateLimitStore = inMemStore
-		
+
 		// Start periodic cleanup to prevent unbounded memory growth from expired buckets
 		cleanupInterval := 5 * time.Minute // Clean up every 5 minutes
 		go func() {
@@ -218,7 +218,7 @@ func main() {
 				logger.Debug("cleaned up expired rate limit buckets")
 			}
 		}()
-		
+
 		logger.Warn("rate limiting initialized with in-memory backend (not suitable for distributed deployments)")
 	}
 
@@ -307,7 +307,7 @@ func main() {
 	stripeAPIKey := os.Getenv("STRIPE_API_KEY")
 	stripeOnboardingReturnURL := os.Getenv("STRIPE_ONBOARDING_RETURN_URL")
 	stripeOnboardingRefreshURL := os.Getenv("STRIPE_ONBOARDING_REFRESH_URL")
-	
+
 	// Parse application fee percentage (default: 5.0%)
 	stripeApplicationFeePercent := 5.0
 	if feePercentStr := os.Getenv("STRIPE_APPLICATION_FEE_PERCENT"); feePercentStr != "" {
@@ -317,7 +317,7 @@ func main() {
 			logger.Warn("invalid STRIPE_APPLICATION_FEE_PERCENT, using default 5.0%", "error", err)
 		}
 	}
-	
+
 	// Validate fee percentage
 	if stripeApplicationFeePercent < 0 || stripeApplicationFeePercent >= 100 {
 		logger.Error("invalid STRIPE_APPLICATION_FEE_PERCENT: must be between 0 and 100", "value", stripeApplicationFeePercent)
@@ -328,12 +328,12 @@ func main() {
 	var webhookHandlers *api.WebhookHandlers
 	var idempotencyMiddleware func(http.Handler) http.Handler
 	stripeWebhookSecret := os.Getenv("STRIPE_WEBHOOK_SECRET")
-	
+
 	if stripeAPIKey != "" && stripeOnboardingReturnURL != "" && stripeOnboardingRefreshURL != "" {
 		stripeClient := payment.NewStripeClient(stripeAPIKey)
 		paymentRepo := payment.NewInMemoryPaymentRepository()
 		webhookRepo := payment.NewInMemoryWebhookRepository()
-		
+
 		// Initialize idempotency repository for payment operations
 		idempotencyRepo := idempotency.NewInMemoryRepository()
 		idempotencyRoutes := map[string]bool{
@@ -341,7 +341,7 @@ func main() {
 		}
 		idempotencyMiddleware = middleware.IdempotencyMiddleware(idempotencyRepo, idempotencyRoutes)
 		logger.Info("idempotency middleware initialized", "routes", idempotencyRoutes)
-		
+
 		paymentHandlers = api.NewPaymentHandlers(
 			sceneRepo,
 			paymentRepo,
@@ -351,7 +351,7 @@ func main() {
 			stripeApplicationFeePercent,
 		)
 		logger.Info("Stripe payment handlers initialized", "application_fee_percent", stripeApplicationFeePercent)
-		
+
 		// Initialize webhook handler if secret is configured
 		if stripeWebhookSecret != "" {
 			webhookHandlers = api.NewWebhookHandlers(
@@ -405,7 +405,7 @@ func main() {
 			eventHandlers.CreateEvent(w, r)
 		}),
 	)
-	
+
 	mux.HandleFunc("/events", func(w http.ResponseWriter, r *http.Request) {
 		switch r.Method {
 		case http.MethodPost:
@@ -683,7 +683,7 @@ func main() {
 			}
 			paymentHandlers.OnboardScene(w, r)
 		})
-		
+
 		// Wrap checkout handler with idempotency middleware
 		checkoutHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			if r.Method != http.MethodPost {
@@ -693,14 +693,14 @@ func main() {
 			}
 			paymentHandlers.CreateCheckoutSession(w, r)
 		})
-		
+
 		if idempotencyMiddleware != nil {
 			// Apply idempotency middleware - returns http.Handler
 			mux.Handle("/payments/checkout", idempotencyMiddleware(checkoutHandler))
 		} else {
 			mux.Handle("/payments/checkout", checkoutHandler)
 		}
-		
+
 		mux.HandleFunc("/payments/status", func(w http.ResponseWriter, r *http.Request) {
 			if r.Method != http.MethodGet {
 				ctx := middleware.SetErrorCode(r.Context(), api.ErrCodeBadRequest)
@@ -738,9 +738,9 @@ func main() {
 	healthHandlers := api.NewHealthHandlers(api.HealthHandlersConfig{
 		// Database, LiveKit, and Stripe checkers would be configured here when using real services
 		// For now, using in-memory repos and optional services, so checkers are nil
-		DBChecker:      nil, // Will be configured when using real database
-		LiveKitChecker: nil, // Will be configured when LiveKit health check is implemented
-		StripeChecker:  nil, // Will be configured when Stripe health check is implemented
+		DBChecker:      nil,  // Will be configured when using real database
+		LiveKitChecker: nil,  // Will be configured when LiveKit health check is implemented
+		StripeChecker:  nil,  // Will be configured when Stripe health check is implemented
 		MetricsEnabled: true, // Prometheus metrics are registered
 	})
 	mux.HandleFunc("/health", healthHandlers.Health)
@@ -774,20 +774,20 @@ func main() {
 	// 4. RequestID - generates/extracts request IDs for tracing
 	// 5. Logging - logs requests with all context
 	var handler http.Handler = mux
-	
+
 	// Apply middleware in reverse order of execution
 	// Logging is applied first (innermost, executes last)
 	handler = middleware.Logging(logger)(handler)
-	
+
 	// Then RequestID
 	handler = middleware.RequestID(handler)
-	
+
 	// Then HTTP metrics
 	handler = middleware.HTTPMetrics(rateLimitMetrics)(handler)
-	
+
 	// Then rate limiting
 	handler = middleware.RateLimiter(rateLimitStore, generalLimit, middleware.IPKeyFunc(), rateLimitMetrics)(handler)
-	
+
 	// Finally, tracing (outermost, executes first) - only if enabled
 	if tracingEnabled {
 		handler = middleware.Tracing("subcults-api")(handler)

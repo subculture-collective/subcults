@@ -143,7 +143,7 @@ func maskEndpoint(endpoint string) string {
 	if endpoint == "" {
 		return "<not set>"
 	}
-	
+
 	// Try to parse as URL to check for userinfo
 	// Handle both full URLs (http://...) and host:port format
 	var fullURL string
@@ -153,13 +153,13 @@ func maskEndpoint(endpoint string) string {
 		// Assume http for parsing purposes
 		fullURL = "http://" + endpoint
 	}
-	
+
 	parsed, err := url.Parse(fullURL)
 	if err != nil {
 		// If parsing fails, just return the endpoint as-is
 		return endpoint
 	}
-	
+
 	// Check if there's userinfo (credentials)
 	if parsed.User != nil {
 		// Mask the password
@@ -175,7 +175,7 @@ func maskEndpoint(endpoint string) string {
 			return maskedURL + " (credentials redacted)"
 		}
 	}
-	
+
 	return endpoint
 }
 
