@@ -33,8 +33,8 @@ All endpoints are now **registered and functional** in `cmd/api/main.go`:
 | Endpoint | Method | Description | Authorization |
 |----------|--------|-------------|---------------|
 | `/scenes/{id}/membership/request` | POST | Request membership | Authenticated user |
-| `/scenes/{id}/membership/{userId}/approve` | POST | Approve request | Scene owner only |
-| `/scenes/{id}/membership/{userId}/reject` | POST | Reject request | Scene owner only |
+| `/scenes/{id}/membership/{userDid}/approve` | POST | Approve request | Scene owner only |
+| `/scenes/{id}/membership/{userDid}/reject` | POST | Reject request | Scene owner only |
 
 ---
 

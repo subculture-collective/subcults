@@ -489,6 +489,13 @@ func main() {
 		sceneHandlers.ListOwnedScenes(w, r)
 	})
 
+	// Ensure trailing-slash variant /scenes/owned/ does not fall through to the
+	// /scenes/ catch-all, where "owned" would be treated as a scene ID.
+	mux.HandleFunc("/scenes/owned/", func(w http.ResponseWriter, r *http.Request) {
+		// Normalize to the canonical path without trailing slash.
+		http.Redirect(w, r, "/scenes/owned", http.StatusMovedPermanently)
+	})
+
 	// Scene resource routes: /scenes/{id}, /scenes/{id}/feed, /scenes/{id}/palette, /scenes/{id}/membership/*
 	mux.HandleFunc("/scenes/", func(w http.ResponseWriter, r *http.Request) {
 		// Parse path to determine which endpoint to route to
