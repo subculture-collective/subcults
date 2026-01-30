@@ -9,6 +9,7 @@ Based on the consolidation map in Issue #416, the following issue descriptions n
 ### Dependencies
 - ✅ Core entities: Scenes, Events, Posts (#10, #15, #17)
 - ✅ Database migrations (#4)
+- ✅ AT Protocol record schema (docs/AT_PROTOCOL_SCHEMA.md)
 - ⏳ Observability infrastructure (#307 - metrics collection)
 - ⏳ Error logging (#298-302)
 ```
@@ -24,7 +25,8 @@ Based on the consolidation map in Issue #416, the following issue descriptions n
 ```
 
 **Changes:**
-- Removed #8 (AT Protocol records) - deprecated
+- Removed #8 (AT Protocol records) - deprecated; replaced with explicit schema documentation
+- Added AT Protocol schema documentation (docs/AT_PROTOCOL_SCHEMA.md)
 - Changed #19 → #307 (Observability, Monitoring & Operations)
 - Removed #5 self-reference (parent issue)
 - Added #416 (Canonical Roadmap) reference
