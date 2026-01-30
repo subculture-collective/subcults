@@ -14,6 +14,8 @@ import (
 	"database/sql"
 	"os"
 	"testing"
+
+	_ "github.com/lib/pq" // PostgreSQL driver; imported for side-effects (driver registration)
 )
 
 // TestMigration000026_FTSImmutableWrapper verifies that the IMMUTABLE wrapper function
@@ -379,5 +381,135 @@ func TestMigration000026_FTSIndexExists(t *testing.T) {
 		if !exists {
 			t.Errorf("Expected index %s to exist", indexName)
 		}
+	}
+}
+
+// TestMigration000026_FTSStemming verifies that PostgreSQL FTS automatic word stemming
+// works correctly as documented in the README. Tests that stem variants match.
+func TestMigration000026_FTSStemming(t *testing.T) {
+	dbURL := os.Getenv("DATABASE_URL")
+	if dbURL == "" {
+		t.Skip("DATABASE_URL not set; skipping integration test")
+	}
+
+	db, err := sql.Open("postgres", dbURL)
+	if err != nil {
+		t.Fatalf("failed to open database: %v", err)
+	}
+	defer db.Close()
+
+	if err := db.Ping(); err != nil {
+		t.Fatalf("failed to ping database: %v", err)
+	}
+
+	// Create test scene first (required FK)
+	var sceneID string
+	err = db.QueryRow(`
+		INSERT INTO scenes (name, owner_did, allow_precise, coarse_geohash)
+		VALUES ('Stemming Test Scene', 'did:example:stemming', false, 's00000')
+		RETURNING id
+	`).Scan(&sceneID)
+	if err != nil {
+		t.Fatalf("failed to insert test scene: %v", err)
+	}
+	defer func() {
+		_, _ = db.Exec("DELETE FROM scenes WHERE id = $1", sceneID)
+	}()
+
+	// Test 1: Insert post with "warehouses" and search for "warehouse"
+	var postID1 string
+	err = db.QueryRow(`
+		INSERT INTO posts (scene_id, author_did, text)
+		VALUES (
+			$1,
+			'did:example:author1',
+			'The industrial warehouses downtown have incredible acoustics for underground shows.'
+		)
+		RETURNING id
+	`, sceneID).Scan(&postID1)
+	if err != nil {
+		t.Fatalf("failed to insert test post 1: %v", err)
+	}
+	defer func() {
+		_, _ = db.Exec("DELETE FROM posts WHERE id = $1", postID1)
+	}()
+
+	// Search for "warehouse" (singular) should match "warehouses" (plural)
+	var count int
+	err = db.QueryRow(`
+		SELECT COUNT(*) FROM posts
+		WHERE to_tsvector_immutable(COALESCE(text, ''))
+		@@ to_tsquery('english', 'warehouse')
+		AND id = $1
+	`, postID1).Scan(&count)
+	if err != nil {
+		t.Fatalf("failed to search for 'warehouse': %v", err)
+	}
+	if count != 1 {
+		t.Errorf("Expected 1 result when searching 'warehouse' to match 'warehouses', got %d", count)
+	}
+
+	// Test 2: Insert post with "electronic" and search for "electronics"
+	var postID2 string
+	err = db.QueryRow(`
+		INSERT INTO posts (scene_id, author_did, text)
+		VALUES (
+			$1,
+			'did:example:author2',
+			'Our collective focuses on electronic music production and performance.'
+		)
+		RETURNING id
+	`, sceneID).Scan(&postID2)
+	if err != nil {
+		t.Fatalf("failed to insert test post 2: %v", err)
+	}
+	defer func() {
+		_, _ = db.Exec("DELETE FROM posts WHERE id = $1", postID2)
+	}()
+
+	// Search for "electronics" (plural) should match "electronic" (singular)
+	err = db.QueryRow(`
+		SELECT COUNT(*) FROM posts
+		WHERE to_tsvector_immutable(COALESCE(text, ''))
+		@@ to_tsquery('english', 'electronics')
+		AND id = $1
+	`, postID2).Scan(&count)
+	if err != nil {
+		t.Fatalf("failed to search for 'electronics': %v", err)
+	}
+	if count != 1 {
+		t.Errorf("Expected 1 result when searching 'electronics' to match 'electronic', got %d", count)
+	}
+
+	// Test 3: Verify stemming with verb forms - "warehousing" should match "warehouse"
+	var postID3 string
+	err = db.QueryRow(`
+		INSERT INTO posts (scene_id, author_did, text)
+		VALUES (
+			$1,
+			'did:example:author3',
+			'We are warehousing our equipment at the venue for the weekend.'
+		)
+		RETURNING id
+	`, sceneID).Scan(&postID3)
+	if err != nil {
+		t.Fatalf("failed to insert test post 3: %v", err)
+	}
+	defer func() {
+		_, _ = db.Exec("DELETE FROM posts WHERE id = $1", postID3)
+	}()
+
+	// Search for "warehouse" should match "warehousing" (verb form)
+	err = db.QueryRow(`
+		SELECT COUNT(*) FROM posts
+		WHERE to_tsvector_immutable(COALESCE(text, ''))
+		@@ to_tsquery('english', 'warehouse')
+		AND id = $1
+	`, postID3).Scan(&count)
+	if err != nil {
+		t.Fatalf("failed to search for 'warehouse' matching 'warehousing': %v", err)
+	}
+	if count != 1 {
+		t.Errorf("Expected 1 result when searching 'warehouse' to match 'warehousing', got %d", count)
 	}
 }
