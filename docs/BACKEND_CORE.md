@@ -2,7 +2,7 @@
 
 ## Overview
 
-This document describes the Backend Core implementation (Epic #3), which provides the foundational Go API service with chi router, middleware stack, configuration management, JWT authentication, and standardized error handling.
+This document describes the Backend Core implementation (Epic #3), which provides the foundational Go API service with `http.ServeMux`-based routing, middleware stack, configuration management, JWT authentication, and standardized error handling.
 
 ## Architecture
 
