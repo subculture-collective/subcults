@@ -106,6 +106,19 @@ func main() {
 	repo := indexer.NewInMemoryRecordRepository(logger)
 	filter := indexer.NewRecordFilter(indexer.NewFilterMetrics())
 
+	// Initialize cleanup service for idempotency key retention
+	cleanupConfig := indexer.DefaultCleanupConfig()
+	cleanupService := indexer.NewInMemoryCleanupService(repo, logger, cleanupConfig)
+	
+	// Start cleanup service
+	cleanupCtx, cleanupCancel := context.WithCancel(context.Background())
+	defer cleanupCancel()
+	cleanupService.Start(cleanupCtx)
+
+	// Create a shared context for the handler that will be cancelled on shutdown
+	handlerCtx, handlerCancel := context.WithCancel(context.Background())
+	defer handlerCancel()
+
 	// Message handler - now with transactional database persistence
 	handler := func(messageType int, payload []byte) error {
 		start := time.Now()
@@ -149,7 +162,7 @@ func main() {
 
 		// Handle delete operations
 		if result.Operation == "delete" {
-			if err := repo.DeleteRecord(context.Background(), result.DID, result.Collection, result.RKey); err != nil {
+			if err := repo.DeleteRecord(handlerCtx, result.DID, result.Collection, result.RKey); err != nil {
 				metrics.IncDatabaseWritesFailed()
 				logger.Error("failed to delete record",
 					slog.String("collection", result.Collection),
@@ -166,7 +179,7 @@ func main() {
 		}
 
 		// Upsert record with transaction support
-		recordID, isNew, err := repo.UpsertRecord(context.Background(), &result)
+		recordID, isNew, err := repo.UpsertRecord(handlerCtx, &result)
 		if err != nil {
 			metrics.IncDatabaseWritesFailed()
 			logger.Error("failed to upsert record",

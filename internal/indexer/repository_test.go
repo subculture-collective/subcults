@@ -140,6 +140,8 @@ func TestInMemoryRepository_DifferentCollections(t *testing.T) {
 }
 
 // TestInMemoryRepository_DeleteRecord tests record deletion.
+// Note: Idempotency keys are intentionally NOT cleaned up on delete to prevent
+// re-ingestion of deleted content. A new revision can still be inserted.
 func TestInMemoryRepository_DeleteRecord(t *testing.T) {
 	repo := NewInMemoryRecordRepository(newTestLogger())
 	ctx := context.Background()
@@ -152,7 +154,7 @@ func TestInMemoryRepository_DeleteRecord(t *testing.T) {
 		Operation:  "create",
 		Valid:      true,
 		Matched:    true,
-		Record:     []byte(`{"text":"Test post"}`),
+		Record:     []byte(`{"text":"Test post","sceneId":"scene1"}`),
 	}
 
 	// Insert record
@@ -167,14 +169,29 @@ func TestInMemoryRepository_DeleteRecord(t *testing.T) {
 		t.Fatalf("DeleteRecord() error = %v", err)
 	}
 
-	// Insert again with different rev should be treated as new
-	record.Rev = "rev2"
-	_, isNew, err := repo.UpsertRecord(ctx, record)
+	// Trying to insert the same revision again should be skipped (idempotency key preserved)
+	recordID, isNew, err := repo.UpsertRecord(ctx, record)
 	if err != nil {
-		t.Fatalf("UpsertRecord() after delete error = %v", err)
+		t.Fatalf("UpsertRecord() same revision after delete error = %v", err)
+	}
+	if recordID != "" {
+		t.Error("Expected empty recordID for duplicate revision after delete")
+	}
+	if isNew {
+		t.Error("Expected isNew=false for duplicate revision (idempotency key preserved)")
+	}
+
+	// However, inserting a NEW revision should work
+	record.Rev = "rev2"
+	recordID, isNew, err = repo.UpsertRecord(ctx, record)
+	if err != nil {
+		t.Fatalf("UpsertRecord() new revision error = %v", err)
 	}
 	if !isNew {
-		t.Error("Expected isNew=true after deletion and reinsertion")
+		t.Error("Expected isNew=true for new revision after deletion")
+	}
+	if recordID == "" {
+		t.Error("Expected non-empty recordID for new revision")
 	}
 }
 

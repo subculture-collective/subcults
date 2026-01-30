@@ -170,6 +170,10 @@ func (r *PostgresRecordRepository) UpsertRecord(ctx context.Context, record *Fil
 }
 
 // DeleteRecord atomically removes a record with transaction support.
+// Note: Idempotency keys are NOT cleaned up on delete. This is intentional to prevent
+// re-ingestion of deleted records. If a record is deleted and then the same revision
+// is replayed from Jetstream, it will be correctly skipped due to the existing
+// idempotency key. This protects against accidental re-ingestion of deleted content.
 func (r *PostgresRecordRepository) DeleteRecord(ctx context.Context, did, collection, rkey string) error {
 	// Begin transaction
 	tx, err := r.db.BeginTx(ctx, &sql.TxOptions{
@@ -392,6 +396,8 @@ func (r *InMemoryRecordRepository) UpsertRecord(ctx context.Context, record *Fil
 }
 
 // DeleteRecord implements the interface for in-memory storage.
+// Note: Idempotency keys are NOT cleaned up on delete, consistent with Postgres behavior.
+// This prevents re-ingestion of deleted records if the same revision is replayed.
 func (r *InMemoryRecordRepository) DeleteRecord(ctx context.Context, did, collection, rkey string) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
