@@ -13,6 +13,7 @@ import (
 	"github.com/onnwee/subcults/internal/audit"
 	"github.com/onnwee/subcults/internal/livekit"
 	"github.com/onnwee/subcults/internal/middleware"
+	"github.com/onnwee/subcults/internal/stream"
 )
 
 func TestIssueToken_Success(t *testing.T) {
@@ -405,20 +406,20 @@ func TestGenerateParticipantID(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := generateParticipantID(tt.did)
+			result := stream.GenerateParticipantID(tt.did)
 			if !strings.HasPrefix(result, "user-") {
 				t.Errorf("expected participant ID to start with 'user-', got %s", result)
 			}
 
 			// Verify determinism: same DID should produce same ID
-			result2 := generateParticipantID(tt.did)
+			result2 := stream.GenerateParticipantID(tt.did)
 			if result != result2 {
 				t.Errorf("expected deterministic ID generation, got %s and %s", result, result2)
 			}
 
 			// Verify different DIDs produce different IDs (when not truncated)
 			differentDID := tt.did + "x"
-			result3 := generateParticipantID(differentDID)
+			result3 := stream.GenerateParticipantID(differentDID)
 
 			// Only check if they're different when the change would be preserved after truncation
 			// For long identifiers that get truncated, the extra 'x' might be cut off

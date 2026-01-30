@@ -3,14 +3,14 @@
  * Common test helpers and setup
  */
 
-import { ReactNode } from 'react';
-import { createMemoryRouter, RouterProvider } from 'react-router-dom';
+import { createMemoryRouter, RouterProvider, RouteObject } from 'react-router-dom';
 
 /**
  * Create a memory router with v7 future flags enabled
  * This prevents "Future Flag Warning" messages in tests
  */
-export function createTestRouter(routes: any[], initialEntries?: string[]) {
+// eslint-disable-next-line react-refresh/only-export-components
+export function createTestRouter(routes: RouteObject[], initialEntries?: string[]) {
   return createMemoryRouter(routes, {
     initialEntries,
     future: {
@@ -21,14 +21,15 @@ export function createTestRouter(routes: any[], initialEntries?: string[]) {
 }
 
 /**
+ * Wrapper component props
+ */
+export interface TestRouterProviderProps {
+  router: ReturnType<typeof createTestRouter>;
+}
+
+/**
  * Wrapper component for tests using createTestRouter
  */
-export function TestRouterProvider({
-  router,
-  children,
-}: {
-  router: ReturnType<typeof createTestRouter>;
-  children?: ReactNode;
-}) {
+export function TestRouterProvider({ router }: TestRouterProviderProps) {
   return <RouterProvider router={router} />;
 }

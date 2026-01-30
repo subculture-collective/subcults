@@ -1090,10 +1090,9 @@ func TestCreateStream_ConcurrentStartPrevention_Event(t *testing.T) {
 	testEvent := &scene.Event{
 		ID:            uuid.New().String(),
 		SceneID:       testScene.ID,
-		Name:          "Test Event",
+		Title:         "Test Event",
 		CoarseGeohash: "dr5regw",
 		StartsAt:      startsAt,
-		CreatedAt:     time.Now(),
 	}
 	if err := eventRepo.Insert(testEvent); err != nil {
 		t.Fatalf("failed to insert event: %v", err)

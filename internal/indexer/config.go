@@ -9,9 +9,9 @@ import (
 
 // Default values for WebSocket reconnection configuration.
 const (
-	DefaultBaseDelay       = 100 * time.Millisecond
-	DefaultMaxDelay        = 30 * time.Second
-	DefaultJitterFactor    = 0.5 // 50% jitter
+	DefaultBaseDelay        = 100 * time.Millisecond
+	DefaultMaxDelay         = 30 * time.Second
+	DefaultJitterFactor     = 0.5 // 50% jitter
 	DefaultMaxRetryAttempts = 5   // Max retry attempts before alerting
 )
 

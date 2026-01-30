@@ -105,9 +105,8 @@ func TestPostgresSequenceTracker_MonotonicUpdates(t *testing.T) {
 	// This is a unit test that verifies the monotonic behavior of PostgresSequenceTracker
 	// by checking that out-of-order sequences don't cause the cursor to go backwards.
 	// Note: This test uses an in-memory mock to avoid requiring a real database.
-	
+
 	// For now, we'll document the expected behavior and defer full integration tests
 	// to a separate integration test suite that requires DATABASE_URL.
 	t.Skip("PostgresSequenceTracker integration tests require DATABASE_URL - see postgis_test.go pattern")
 }
-
