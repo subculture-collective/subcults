@@ -11,6 +11,8 @@ The indexer consumes real-time AT Protocol commit streams from Jetstream, valida
 - **Graceful failure handling**: Individual failures don't crash the stream
 - **Privacy compliance**: Automatic cleanup of processing metadata
 
+**AT Protocol Schema**: See [docs/AT_PROTOCOL_SCHEMA.md](../../docs/AT_PROTOCOL_SCHEMA.md) for complete record schema definitions and validation rules.
+
 ## Architecture
 
 ```
@@ -54,6 +56,9 @@ Supported collections:
 - `app.subcult.scene` - Music scenes
 - `app.subcult.event` - Events at scenes
 - `app.subcult.post` - Scene-related posts
+- `app.subcult.alliance` - Trust relationships between scenes
+
+**Schema Details**: See [AT Protocol Schema documentation](../../docs/AT_PROTOCOL_SCHEMA.md) for complete field requirements and validation rules.
 
 #### 3. CleanupService
 
@@ -411,6 +416,7 @@ tx, err := db.BeginTx(ctx, &sql.TxOptions{
 
 ## References
 
+- **AT Protocol Schema**: [docs/AT_PROTOCOL_SCHEMA.md](../../docs/AT_PROTOCOL_SCHEMA.md) - Subcults record schema definitions
 - AT Protocol Spec: https://atproto.com/specs/repository
 - Jetstream Docs: https://github.com/ericvolp12/jetstream
 - Migration 000025: `migrations/000025_ingestion_idempotency.up.sql`
