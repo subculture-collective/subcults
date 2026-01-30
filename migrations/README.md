@@ -96,6 +96,8 @@ make migrate-down
 | 000007 | audit_logs | Audit logs table for privacy-compliant access logging. Records scene/event/post access with retention policies. |
 | 000008 | at_protocol_record_keys | Adds record_did and record_rkey columns to all entity tables (scenes, events, posts, memberships, alliances, stream_sessions) with unique constraints for idempotent ingestion. Maps (did + rkey) to internal UUID for upsert operations. |
 | 000009 | enhance_scenes_table | Enhances scenes table with tags array, visibility CHECK constraint (public/private/unlisted), palette JSONB (replaces primary_color/secondary_color), owner_user_id FK, and FTS generated column. Makes coarse_geohash NOT NULL for privacy-conscious discovery. |
+| 000010-000025 | Various | Additional migrations for scene names, event RSVPs, stream analytics, payment records, webhook events, idempotency keys, stream participants, and quality metrics. |
+| 000026 | add_fts_immutable_wrapper | Creates IMMUTABLE wrapper function for to_tsvector to enable GIN indexes on full-text search expressions. Adds FTS GIN indexes on scenes (name+description+tags), events (title+tags), and posts (text). Resolves PostgreSQL immutability constraints that prevented direct FTS indexing. |
 
 ## Writing New Migrations
 
@@ -141,6 +143,64 @@ CONSTRAINT chk_precise_consent CHECK (
 - `allow_precise = TRUE`: Precise coordinates may be stored
 
 See `internal/scene/model.go` for the Go-side enforcement via `EnforceLocationConsent()`.
+
+## Full-Text Search (FTS)
+
+The database includes GIN indexes for full-text search on key entity fields:
+
+### Searchable Fields
+
+- **scenes**: `name + description + tags`
+- **events**: `title + tags`
+- **posts**: `text`
+
+### Using FTS in Queries
+
+Full-text search uses the `to_tsvector_immutable()` wrapper function and PostgreSQL's `@@` operator:
+
+```sql
+-- Search scenes by keyword
+SELECT * FROM scenes
+WHERE to_tsvector_immutable(
+    COALESCE(name, '') || ' ' ||
+    COALESCE(description, '') || ' ' ||
+    COALESCE(array_to_string(tags, ' '), '')
+) @@ to_tsquery('english', 'techno')
+AND deleted_at IS NULL;
+
+-- Search events with multiple terms
+SELECT * FROM events
+WHERE to_tsvector_immutable(
+    COALESCE(title, '') || ' ' ||
+    COALESCE(array_to_string(tags, ' '), '')
+) @@ to_tsquery('english', 'underground & electronic')
+AND deleted_at IS NULL AND cancelled_at IS NULL;
+
+-- Search posts
+SELECT * FROM posts
+WHERE to_tsvector_immutable(COALESCE(text, ''))
+@@ to_tsquery('english', 'warehouse')
+AND deleted_at IS NULL;
+```
+
+### Query Operators
+
+- `&` - AND (both terms must match)
+- `|` - OR (either term can match)
+- `!` - NOT (term must not match)
+- `<->` - FOLLOWED BY (terms must be adjacent)
+
+Example: `'techno & (warehouse | underground) & !mainstream'`
+
+### Stemming
+
+PostgreSQL's FTS automatically handles word stemming:
+- "electronic" matches "electronics", "electronically"
+- "warehouse" matches "warehouses", "warehousing"
+
+The `to_tsvector_immutable()` wrapper ensures GIN indexes can be created on FTS expressions by marking the function as IMMUTABLE with a hard-coded 'english' configuration.
+
+
 
 ## Troubleshooting
 
