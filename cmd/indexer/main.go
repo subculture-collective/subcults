@@ -141,6 +141,7 @@ func main() {
 		sequenceTracker = indexer.NewInMemorySequenceTracker(logger)
 		cleanupConfig := indexer.DefaultCleanupConfig()
 		cleanupService = indexer.NewInMemoryCleanupService(memRepo, logger, cleanupConfig)
+	}
 
 	filter := indexer.NewRecordFilter(indexer.NewFilterMetrics())
 
