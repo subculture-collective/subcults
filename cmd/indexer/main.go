@@ -100,7 +100,13 @@ func main() {
 
 	config := indexer.DefaultConfig(jetstreamURL)
 
-	// Message handler (placeholder - will be replaced with actual record processing)
+	// Initialize database connection from DATABASE_URL environment variable
+	// For now, use in-memory repository for testing
+	// TODO: Switch to Postgres repository when DATABASE_URL is provided
+	repo := indexer.NewInMemoryRecordRepository(logger)
+	filter := indexer.NewRecordFilter(indexer.NewFilterMetrics())
+
+	// Message handler - now with transactional database persistence
 	handler := func(messageType int, payload []byte) error {
 		start := time.Now()
 
@@ -121,21 +127,76 @@ func main() {
 				slog.Duration("lag", lag))
 		}
 
-		// TODO: Implement actual record filtering and database persistence
-		// For now, just increment the processed counter
+		// Filter and validate the record
+		result := filter.FilterCBOR(payload)
 		metrics.IncMessagesProcessed()
+
+		// If record doesn't match our lexicon, skip
+		if !result.Matched {
+			return nil
+		}
+
+		// If record failed validation, log and increment error counter
+		if !result.Valid {
+			metrics.IncMessagesError()
+			logger.Warn("record validation failed",
+				slog.String("collection", result.Collection),
+				slog.String("did", result.DID),
+				slog.String("rkey", result.RKey),
+				slog.String("error", result.Error.Error()))
+			return nil // Don't fail the entire stream for validation errors
+		}
+
+		// Handle delete operations
+		if result.Operation == "delete" {
+			if err := repo.DeleteRecord(context.Background(), result.DID, result.Collection, result.RKey); err != nil {
+				metrics.IncDatabaseWritesFailed()
+				logger.Error("failed to delete record",
+					slog.String("collection", result.Collection),
+					slog.String("did", result.DID),
+					slog.String("rkey", result.RKey),
+					slog.String("error", err.Error()))
+				return nil // Don't fail stream on delete errors
+			}
+			logger.Info("record deleted",
+				slog.String("collection", result.Collection),
+				slog.String("did", result.DID),
+				slog.String("rkey", result.RKey))
+			return nil
+		}
+
+		// Upsert record with transaction support
+		recordID, isNew, err := repo.UpsertRecord(context.Background(), &result)
+		if err != nil {
+			metrics.IncDatabaseWritesFailed()
+			logger.Error("failed to upsert record",
+				slog.String("collection", result.Collection),
+				slog.String("did", result.DID),
+				slog.String("rkey", result.RKey),
+				slog.String("error", err.Error()))
+			return nil // Don't fail stream on upsert errors
+		}
+
+		// If record was skipped due to idempotency, don't count as upsert
+		if recordID == "" {
+			logger.Debug("record skipped (idempotent)",
+				slog.String("collection", result.Collection),
+				slog.String("did", result.DID),
+				slog.String("rkey", result.RKey))
+			return nil
+		}
+
+		// Record successful upsert
+		metrics.IncUpserts()
+		logger.Info("record upserted",
+			slog.String("record_id", recordID),
+			slog.String("collection", result.Collection),
+			slog.String("did", result.DID),
+			slog.String("rkey", result.RKey),
+			slog.Bool("is_new", isNew))
 
 		// Record ingestion latency
 		metrics.ObserveIngestLatency(time.Since(start).Seconds())
-
-		// Example of how to track database failures:
-		// if err := database.Write(record); err != nil {
-		//     metrics.IncDatabaseWritesFailed()
-		//     logger.Error("database write failed",
-		//         slog.String("error", err.Error()))
-		//     return err
-		// }
-		// metrics.IncUpserts()
 
 		return nil
 	}
