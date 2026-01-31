@@ -439,7 +439,7 @@ func main() {
 	streamHandlers := api.NewStreamHandlers(streamRepo, participantRepo, analyticsRepo, sceneRepo, eventRepo, auditRepo, streamMetrics, eventBroadcaster, roomService)
 	postHandlers := api.NewPostHandlers(postRepo, sceneRepo, membershipRepo, metadataService)
 	trustHandlers := api.NewTrustHandlers(sceneRepo, trustDataSource, trustScoreStore, trustDirtyTracker)
-	allianceHandlers := api.NewAllianceHandlers(allianceRepo, sceneRepo)
+	allianceHandlers := api.NewAllianceHandlers(allianceRepo, sceneRepo, trustDataSource, trustDirtyTracker)
 	searchHandlers := api.NewSearchHandlers(sceneRepo, postRepo, trustStoreAdapter)
 
 	// Define rate limit configurations per endpoint
@@ -456,6 +456,10 @@ func main() {
 		WindowDuration:    time.Hour,
 	}
 	sceneCreationLimit := middleware.RateLimitConfig{
+		RequestsPerWindow: 10,
+		WindowDuration:    time.Hour,
+	}
+	allianceCreationLimit := middleware.RateLimitConfig{
 		RequestsPerWindow: 10,
 		WindowDuration:    time.Hour,
 	}
@@ -869,13 +873,18 @@ func main() {
 	}
 
 	// Alliance routes
+	// Alliance creation (with rate limiting: 10 req/hour per user)
+	allianceCreationHandler := middleware.RateLimiter(rateLimitStore, allianceCreationLimit, middleware.UserKeyFunc(), rateLimitMetrics)(
+		http.HandlerFunc(allianceHandlers.CreateAlliance),
+	)
+
 	mux.HandleFunc("/alliances", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost {
 			ctx := middleware.SetErrorCode(r.Context(), api.ErrCodeBadRequest)
 			api.WriteError(w, ctx, http.StatusMethodNotAllowed, api.ErrCodeBadRequest, "Method not allowed")
 			return
 		}
-		allianceHandlers.CreateAlliance(w, r)
+		allianceCreationHandler.ServeHTTP(w, r)
 	})
 
 	mux.HandleFunc("/alliances/", func(w http.ResponseWriter, r *http.Request) {

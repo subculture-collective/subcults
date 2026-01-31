@@ -11,13 +11,16 @@ import (
 	"github.com/onnwee/subcults/internal/alliance"
 	"github.com/onnwee/subcults/internal/middleware"
 	"github.com/onnwee/subcults/internal/scene"
+	"github.com/onnwee/subcults/internal/trust"
 )
 
 // newTestAllianceHandlers creates handlers with in-memory repositories for testing.
 func newTestAllianceHandlers() *AllianceHandlers {
 	allianceRepo := alliance.NewInMemoryAllianceRepository()
 	sceneRepo := scene.NewInMemorySceneRepository()
-	return NewAllianceHandlers(allianceRepo, sceneRepo)
+	trustDataSource := trust.NewInMemoryDataSource()
+	trustDirtyTracker := trust.NewDirtyTracker()
+	return NewAllianceHandlers(allianceRepo, sceneRepo, trustDataSource, trustDirtyTracker)
 }
 
 // createTestScene creates a scene for testing.
