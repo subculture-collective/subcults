@@ -573,8 +573,157 @@ Comprehensive pagination tests verify:
 
 See `internal/scene/pagination_test.go` and `internal/post/pagination_test.go` for full test coverage.
 
+## Payment Endpoints
+
+The payment system uses Stripe Connect for direct scene monetization with transparent platform fees.
+
+### POST /payments/onboard
+
+Creates a Stripe Connect Express onboarding link for scene owners to enable payment processing.
+
+**Authentication**: Required (JWT)
+
+**Request Body**:
+```json
+{
+  "scene_id": "uuid"
+}
+```
+
+**Response** (200 OK):
+```json
+{
+  "url": "https://connect.stripe.com/setup/s/...",
+  "expires_at": "2026-01-27T15:30:00Z"
+}
+```
+
+**Error Codes**:
+- `unauthorized` (401) - Authentication required
+- `bad_request` (400) - Missing or invalid scene_id
+- `not_found` (404) - Scene not found
+- `forbidden` (403) - User is not the scene owner
+- `already_onboarded` (400) - Scene already has connected account
+- `internal_error` (500) - Stripe API error
+
+See [Payment Handlers](./PAYMENT_HANDLERS.md) for detailed documentation.
+
+### POST /payments/checkout
+
+Creates a Stripe Checkout Session for event tickets or merchandise with platform fee.
+
+**Authentication**: Required (JWT)
+
+**Headers**:
+- `Idempotency-Key` (required) - Unique key to prevent duplicate charges (max 64 chars, recommend UUIDv4)
+
+**Request Body**:
+```json
+{
+  "scene_id": "uuid",
+  "event_id": "uuid (optional)",
+  "items": [
+    {
+      "price_id": "price_xxx",
+      "quantity": 2
+    }
+  ],
+  "success_url": "https://example.com/success",
+  "cancel_url": "https://example.com/cancel"
+}
+```
+
+**Response** (200 OK):
+```json
+{
+  "session_url": "https://checkout.stripe.com/pay/cs_test_...",
+  "session_id": "cs_test_..."
+}
+```
+
+**Error Codes**:
+- `unauthorized` (401) - Authentication required
+- `missing_idempotency_key` (400) - Idempotency-Key header required
+- `idempotency_key_too_long` (400) - Key exceeds 64 characters
+- `bad_request` (400) - Missing required fields or invalid data
+- `not_onboarded` (400) - Scene must be onboarded before accepting payments
+- `not_found` (404) - Scene not found
+- `internal_error` (500) - Stripe API error
+
+**Idempotency**: Duplicate requests with the same `Idempotency-Key` return the cached response without creating a new checkout session. Keys expire after 24 hours.
+
+### GET /payments/status
+
+Retrieves the current status of a payment by checkout session ID.
+
+**Authentication**: Required (JWT)
+
+**Query Parameters**:
+- `sessionId` (required) - Stripe Checkout Session ID
+
+**Response** (200 OK):
+```json
+{
+  "status": "succeeded",
+  "amount_cents": 10000,
+  "fee_cents": 500,
+  "currency": "usd",
+  "updated_at": "2026-01-27T15:30:00Z"
+}
+```
+
+**Status Values**:
+- `pending` - Payment not yet completed
+- `succeeded` - Payment successfully processed
+- `failed` - Payment failed
+- `canceled` - Payment canceled by user
+- `refunded` - Payment refunded
+
+**Error Codes**:
+- `unauthorized` (401) - Authentication required
+- `bad_request` (400) - Missing sessionId parameter
+- `payment_not_found` (404) - Payment record not found
+- `forbidden` (403) - Only payment creator or scene owner can access status
+- `internal_error` (500) - Database error
+
+**Authorization**: Only the user who created the payment or the scene owner can retrieve payment status.
+
+**Caching**: Terminal statuses (succeeded, failed, canceled, refunded) include `Cache-Control: private, max-age=5` to reduce polling overhead.
+
+### POST /internal/stripe (Webhook)
+
+Processes Stripe webhook events for payment status updates. This endpoint is for Stripe's internal use only.
+
+**Authentication**: Stripe signature verification (via `Stripe-Signature` header)
+
+**Supported Events**:
+- `checkout.session.completed` - Checkout session completed
+- `payment_intent.succeeded` - Payment successfully processed
+- `payment_intent.payment_failed` - Payment failed
+- `account.updated` - Connect account status changed
+
+**Response**: Always returns 200 OK to acknowledge receipt
+
+See [Stripe Webhooks](./STRIPE_WEBHOOKS.md) for detailed documentation.
+
+### Payment Status Transitions
+
+The payment system enforces a strict state machine to prevent invalid transitions:
+
+```
+pending -> succeeded, failed, canceled
+succeeded -> refunded
+```
+
+All other transitions are rejected with `invalid_status_transition` error.
+
+See [Payment Status Transitions](./PAYMENT_STATUS_TRANSITIONS.md) for detailed state machine documentation.
+
 ## Related Documentation
 
 - [Architecture Overview](./ARCHITECTURE.md) - System architecture and design decisions
 - [Privacy Guidelines](./PRIVACY.md) - Privacy-first design principles
 - [Auth Flow](./ARCHITECTURE.md#authentication) - Authentication and authorization flow
+- [Payment Handlers](./PAYMENT_HANDLERS.md) - Detailed payment endpoint documentation
+- [Stripe Webhooks](./STRIPE_WEBHOOKS.md) - Webhook processing and security
+- [Idempotency](./idempotency.md) - Idempotency key middleware documentation
