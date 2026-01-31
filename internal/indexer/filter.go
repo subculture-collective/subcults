@@ -265,21 +265,48 @@ func validateEventRecord(payload []byte) error {
 // PostRecord documents the expected structure of an app.subcult.post record.
 // Note: This type is for documentation only. Validation uses map-based checking
 // to allow extra fields while enforcing required field presence and types.
+// At least one of SceneID or EventID must be present.
 type PostRecord struct {
-	Text    string `json:"text"`
-	SceneID string `json:"sceneId"`
+	Text    string  `json:"text"`
+	SceneID *string `json:"sceneId,omitempty"`
+	EventID *string `json:"eventId,omitempty"`
 }
 
 // validatePostRecord validates a post record's required fields.
+// Requires: text field (mandatory)
+// Requires: at least one of sceneId or eventId (not both can be missing)
 func validatePostRecord(payload []byte) error {
 	var record map[string]interface{}
 	if err := json.Unmarshal(payload, &record); err != nil {
 		return ErrMalformedJSON
 	}
+	
+	// Validate required text field
 	if err := validateStringField(record, "text"); err != nil {
 		return err
 	}
-	return validateStringField(record, "sceneId")
+	
+	// At least one of sceneId or eventId must be present
+	hasSceneID := false
+	hasEventID := false
+	
+	if sceneID, exists := record["sceneId"]; exists {
+		if _, ok := sceneID.(string); ok {
+			hasSceneID = true
+		}
+	}
+	
+	if eventID, exists := record["eventId"]; exists {
+		if _, ok := eventID.(string); ok {
+			hasEventID = true
+		}
+	}
+	
+	if !hasSceneID && !hasEventID {
+		return ErrMissingField
+	}
+	
+	return nil
 }
 
 // AllianceRecord documents the expected structure of an app.subcult.alliance record.
