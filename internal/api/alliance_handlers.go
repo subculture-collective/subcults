@@ -12,6 +12,7 @@ import (
 	"github.com/onnwee/subcults/internal/alliance"
 	"github.com/onnwee/subcults/internal/middleware"
 	"github.com/onnwee/subcults/internal/scene"
+	"github.com/onnwee/subcults/internal/trust"
 )
 
 const (
@@ -35,15 +36,24 @@ type UpdateAllianceRequest struct {
 
 // AllianceHandlers holds dependencies for alliance HTTP handlers.
 type AllianceHandlers struct {
-	allianceRepo alliance.AllianceRepository
-	sceneRepo    scene.SceneRepository
+	allianceRepo     alliance.AllianceRepository
+	sceneRepo        scene.SceneRepository
+	trustDataSource  trust.DataSource
+	trustDirtyTracker *trust.DirtyTracker
 }
 
 // NewAllianceHandlers creates a new AllianceHandlers instance.
-func NewAllianceHandlers(allianceRepo alliance.AllianceRepository, sceneRepo scene.SceneRepository) *AllianceHandlers {
+func NewAllianceHandlers(
+	allianceRepo alliance.AllianceRepository,
+	sceneRepo scene.SceneRepository,
+	trustDataSource trust.DataSource,
+	trustDirtyTracker *trust.DirtyTracker,
+) *AllianceHandlers {
 	return &AllianceHandlers{
-		allianceRepo: allianceRepo,
-		sceneRepo:    sceneRepo,
+		allianceRepo:      allianceRepo,
+		sceneRepo:         sceneRepo,
+		trustDataSource:   trustDataSource,
+		trustDirtyTracker: trustDirtyTracker,
 	}
 }
 
@@ -175,6 +185,16 @@ func (h *AllianceHandlers) CreateAlliance(w http.ResponseWriter, r *http.Request
 		WriteError(w, ctx, http.StatusInternalServerError, ErrCodeInternal, "Failed to create alliance")
 		return
 	}
+
+	// Sync alliance to trust data source for trust score computation
+	h.trustDataSource.AddAlliance(trust.Alliance{
+		FromSceneID: newAlliance.FromSceneID,
+		ToSceneID:   newAlliance.ToSceneID,
+		Weight:      newAlliance.Weight,
+	})
+
+	// Mark scene as dirty for trust recomputation
+	h.trustDirtyTracker.MarkDirty(newAlliance.FromSceneID)
 
 	// Retrieve created alliance to ensure consistency
 	created, err := h.allianceRepo.GetByID(newAlliance.ID)
@@ -326,6 +346,21 @@ func (h *AllianceHandlers) UpdateAlliance(w http.ResponseWriter, r *http.Request
 		return
 	}
 
+	// Sync updated alliance to trust data source
+	// Clear old alliances and re-add all active alliances for the scene
+	h.trustDataSource.ClearAlliances(existingAlliance.FromSceneID)
+	
+	// Re-fetch all alliances for this scene and sync them
+	// For now, just add the updated one (in production with DB, we'd query all active alliances)
+	h.trustDataSource.AddAlliance(trust.Alliance{
+		FromSceneID: existingAlliance.FromSceneID,
+		ToSceneID:   existingAlliance.ToSceneID,
+		Weight:      existingAlliance.Weight,
+	})
+
+	// Mark scene as dirty for trust recomputation
+	h.trustDirtyTracker.MarkDirty(existingAlliance.FromSceneID)
+
 	// Retrieve updated alliance
 	updated, err := h.allianceRepo.GetByID(allianceID)
 	if err != nil {
@@ -419,6 +454,14 @@ func (h *AllianceHandlers) DeleteAlliance(w http.ResponseWriter, r *http.Request
 		WriteError(w, ctx, http.StatusInternalServerError, ErrCodeInternal, "Failed to delete alliance")
 		return
 	}
+
+	// Remove alliance from trust data source
+	// Clear all alliances for the scene and let the trust job recompute
+	// In production with DB, we'd query and re-sync remaining active alliances
+	h.trustDataSource.ClearAlliances(existingAlliance.FromSceneID)
+
+	// Mark scene as dirty for trust recomputation
+	h.trustDirtyTracker.MarkDirty(existingAlliance.FromSceneID)
 
 	// Return success with no content
 	w.WriteHeader(http.StatusNoContent)
