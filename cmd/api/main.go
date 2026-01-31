@@ -18,10 +18,12 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/redis/go-redis/v9"
 
+	"github.com/onnwee/subcults/internal/alliance"
 	"github.com/onnwee/subcults/internal/api"
 	"github.com/onnwee/subcults/internal/attachment"
 	"github.com/onnwee/subcults/internal/audit"
 	"github.com/onnwee/subcults/internal/idempotency"
+	"github.com/onnwee/subcults/internal/jobs"
 	"github.com/onnwee/subcults/internal/livekit"
 	"github.com/onnwee/subcults/internal/membership"
 	"github.com/onnwee/subcults/internal/middleware"
@@ -153,6 +155,7 @@ func main() {
 	analyticsRepo := stream.NewInMemoryAnalyticsRepository(streamRepo)
 	postRepo := post.NewInMemoryPostRepository()
 	membershipRepo := membership.NewInMemoryMembershipRepository()
+	allianceRepo := alliance.NewInMemoryAllianceRepository()
 
 	// Initialize event broadcaster for WebSocket participant updates
 	eventBroadcaster := stream.NewEventBroadcaster()
@@ -170,6 +173,64 @@ func main() {
 		os.Exit(1)
 	}
 	logger.Info("stream metrics registered")
+
+	// Initialize job metrics
+	jobMetrics := jobs.NewMetrics()
+	if err := jobMetrics.Register(promRegistry); err != nil {
+		logger.Error("failed to register job metrics", "error", err)
+		os.Exit(1)
+	}
+	logger.Info("job metrics registered")
+
+	// Initialize trust metrics
+	trustMetrics := trust.NewMetrics()
+	if err := trustMetrics.Register(promRegistry); err != nil {
+		logger.Error("failed to register trust metrics", "error", err)
+		os.Exit(1)
+	}
+	logger.Info("trust metrics registered")
+
+	// Parse trust recompute job configuration
+	recomputeInterval := trust.DefaultRecomputeInterval
+	if val := os.Getenv("TRUST_RECOMPUTE_INTERVAL"); val != "" {
+		if duration, err := time.ParseDuration(val); err == nil {
+			recomputeInterval = duration
+		} else {
+			logger.Warn("invalid TRUST_RECOMPUTE_INTERVAL, using default",
+				"value", val,
+				"error", err,
+				"default", recomputeInterval)
+		}
+	}
+
+	recomputeTimeout := trust.DefaultRecomputeTimeout
+	if val := os.Getenv("TRUST_RECOMPUTE_TIMEOUT"); val != "" {
+		if duration, err := time.ParseDuration(val); err == nil {
+			recomputeTimeout = duration
+		} else {
+			logger.Warn("invalid TRUST_RECOMPUTE_TIMEOUT, using default",
+				"value", val,
+				"error", err,
+				"default", recomputeTimeout)
+		}
+	}
+
+	// Initialize trust recompute job
+	trustRecomputeJob := trust.NewRecomputeJob(
+		trust.RecomputeJobConfig{
+			Interval:   recomputeInterval,
+			Logger:     logger,
+			Metrics:    trustMetrics,
+			JobMetrics: jobMetrics,
+			Timeout:    recomputeTimeout,
+		},
+		trustDirtyTracker,
+		trustDataSource,
+		trustScoreStore,
+	)
+	logger.Info("trust recompute job initialized",
+		"interval", recomputeInterval,
+		"timeout", recomputeTimeout)
 
 	// Initialize HTTP and rate limiting metrics
 	rateLimitMetrics := middleware.NewMetrics()
@@ -378,6 +439,7 @@ func main() {
 	streamHandlers := api.NewStreamHandlers(streamRepo, participantRepo, analyticsRepo, sceneRepo, eventRepo, auditRepo, streamMetrics, eventBroadcaster, roomService)
 	postHandlers := api.NewPostHandlers(postRepo, sceneRepo, membershipRepo, metadataService)
 	trustHandlers := api.NewTrustHandlers(sceneRepo, trustDataSource, trustScoreStore, trustDirtyTracker)
+	allianceHandlers := api.NewAllianceHandlers(allianceRepo, sceneRepo)
 	searchHandlers := api.NewSearchHandlers(sceneRepo, postRepo, trustStoreAdapter)
 
 	// Define rate limit configurations per endpoint
@@ -806,6 +868,30 @@ func main() {
 		})
 	}
 
+	// Alliance routes
+	mux.HandleFunc("/alliances", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			ctx := middleware.SetErrorCode(r.Context(), api.ErrCodeBadRequest)
+			api.WriteError(w, ctx, http.StatusMethodNotAllowed, api.ErrCodeBadRequest, "Method not allowed")
+			return
+		}
+		allianceHandlers.CreateAlliance(w, r)
+	})
+
+	mux.HandleFunc("/alliances/", func(w http.ResponseWriter, r *http.Request) {
+		switch r.Method {
+		case http.MethodGet:
+			allianceHandlers.GetAlliance(w, r)
+		case http.MethodPatch:
+			allianceHandlers.UpdateAlliance(w, r)
+		case http.MethodDelete:
+			allianceHandlers.DeleteAlliance(w, r)
+		default:
+			ctx := middleware.SetErrorCode(r.Context(), api.ErrCodeBadRequest)
+			api.WriteError(w, ctx, http.StatusMethodNotAllowed, api.ErrCodeBadRequest, "Method not allowed")
+		}
+	})
+
 	// Trust score routes
 	mux.HandleFunc("/trust/", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodGet {
@@ -892,12 +978,23 @@ func main() {
 		}
 	}()
 
+	// Start trust recompute job
+	if err := trustRecomputeJob.Start(context.Background()); err != nil {
+		logger.Error("failed to start trust recompute job", "error", err)
+		os.Exit(1)
+	}
+	logger.Info("trust recompute job started")
+
 	// Wait for interrupt signal for graceful shutdown
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 	<-quit
 
 	logger.Info("shutting down server...")
+
+	// Stop trust recompute job
+	trustRecomputeJob.Stop()
+	logger.Info("trust recompute job stopped")
 
 	// Create context with timeout for shutdown
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
