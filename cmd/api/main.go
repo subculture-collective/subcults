@@ -923,6 +923,10 @@ func main() {
 	mux.HandleFunc("/health", healthHandlers.Health)
 	mux.HandleFunc("/ready", healthHandlers.Ready)
 
+	// Telemetry endpoints for frontend performance metrics
+	telemetryHandlers := api.NewTelemetryHandlers()
+	mux.HandleFunc("/api/telemetry/metrics", telemetryHandlers.PostMetrics)
+
 	// Placeholder root endpoint
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		// Only handle exact root path, everything else returns 404

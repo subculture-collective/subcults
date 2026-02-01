@@ -5,6 +5,8 @@ import './i18n' // Initialize i18n
 import App from './App.tsx'
 import { initializeNotificationService } from './lib/notification-service'
 import { errorLogger } from './lib/error-logger'
+import { initPerformanceMonitoring } from './lib/performance-metrics'
+import { useSettingsStore } from './stores/settingsStore'
 
 // Global error handlers for uncaught errors and promise rejections
 window.addEventListener('error', (event) => {
@@ -48,6 +50,14 @@ initializeNotificationService({
   vapidPublicKey: VAPID_PUBLIC_KEY || '',
   apiEndpoint: NOTIFICATION_API_ENDPOINT,
 });
+
+// Initialize performance monitoring with telemetry preferences
+// Load settings first to respect user's opt-out preference
+const settingsState = useSettingsStore.getState();
+settingsState.initializeSettings();
+const { telemetryOptOut } = useSettingsStore.getState();
+
+initPerformanceMonitoring(telemetryOptOut);
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
