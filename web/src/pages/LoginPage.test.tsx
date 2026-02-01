@@ -200,8 +200,8 @@ describe('LoginPage', () => {
       const mockLogin = vi.mocked(authService.login);
       
       // Create a promise that we can control
-      let resolveLogin: (value: any) => void;
-      const loginPromise = new Promise((resolve) => {
+      let resolveLogin: ((value: { did: string; role: string }) => void) | undefined;
+      const loginPromise = new Promise<{ did: string; role: string }>((resolve) => {
         resolveLogin = resolve;
       });
       mockLogin.mockReturnValue(loginPromise);
