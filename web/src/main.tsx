@@ -5,6 +5,7 @@ import './i18n' // Initialize i18n
 import App from './App.tsx'
 import { initializeNotificationService } from './lib/notification-service'
 import { errorLogger } from './lib/error-logger'
+import { initializePerformanceMonitoring } from './lib/performance'
 
 // Global error handlers for uncaught errors and promise rejections
 window.addEventListener('error', (event) => {
@@ -48,6 +49,9 @@ initializeNotificationService({
   vapidPublicKey: VAPID_PUBLIC_KEY || '',
   apiEndpoint: NOTIFICATION_API_ENDPOINT,
 });
+
+// Initialize performance monitoring
+initializePerformanceMonitoring();
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
