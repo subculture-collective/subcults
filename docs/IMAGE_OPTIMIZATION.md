@@ -9,7 +9,7 @@ Subcults implements modern image optimization techniques to ensure fast loading 
 - **WebP format** with JPEG fallback for broad browser support
 - **Responsive images** using srcset and sizes attributes
 - **Lazy loading** with Intersection Observer API
-- **CloudFlare R2 CDN** integration for fast global delivery
+- **Cloudflare R2 CDN** integration for fast global delivery
 - **Optimized components** for avatars and scene covers
 
 ## Components
@@ -223,10 +223,10 @@ VITE_R2_CDN_URL=https://cdn.subcults.com
 # or use R2 public URL: https://pub-xxxxx.r2.dev
 ```
 
-### Setting up CloudFlare R2
+### Setting up Cloudflare R2
 
 1. **Create R2 Bucket**
-   - Log into CloudFlare dashboard
+   - Log into Cloudflare dashboard
    - Navigate to R2 Object Storage
    - Create a new bucket (e.g., `subcults-media`)
 
@@ -247,13 +247,19 @@ VITE_R2_CDN_URL=https://cdn.subcults.com
 
 ### Image Transformations
 
-CloudFlare R2 supports URL-based image transformations when using their Image Resizing service:
+**Note**: Cloudflare R2 itself does not provide built-in image transformation capabilities. The query parameters shown below are handled by your API proxy (`/api/media`) or Cloudflare Workers implementation. You have three options for implementing transformations:
+
+1. **Cloudflare Images** (separate paid product) in front of R2
+2. **API proxy** at `/api/media` that processes transformations
+3. **Cloudflare Workers** with R2 bindings for on-the-fly transformations
+
+The `imageUrl.ts` utilities generate transformation URLs with query parameters that your chosen implementation should handle:
 
 ```
 https://cdn.subcults.com/posts/123/image.jpg?w=640&f=webp&q=80
 ```
 
-Supported parameters:
+Expected transformation parameters:
 - `w` - Width in pixels
 - `h` - Height in pixels
 - `f` - Format (webp, jpeg, png)
@@ -464,7 +470,7 @@ function ImageGallery({ images }) {
 
 ## Related Documentation
 
-- [CloudFlare R2 Documentation](https://developers.cloudflare.com/r2/)
+- [Cloudflare R2 Documentation](https://developers.cloudflare.com/r2/)
 - [Web.dev Image Optimization](https://web.dev/fast/#optimize-your-images)
 - [MDN Picture Element](https://developer.mozilla.org/en-US/docs/Web/HTML/Element/picture)
 - [Lighthouse Performance](https://developer.chrome.com/docs/lighthouse/performance/)

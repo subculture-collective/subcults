@@ -71,7 +71,7 @@ module.exports = {
         'resource-summary:stylesheet:size': ['warn', { maxNumericValue: 50000 }], // 50KB
         'resource-summary:document:size': ['warn', { maxNumericValue: 20000 }], // 20KB
         'resource-summary:image:size': ['warn', { maxNumericValue: 500000 }], // 500KB total images
-        'resource-summary:total:size': ['warn', { maxNumericValue: 1000000 }], // 1MB total
+        'resource-summary:total:size': ['warn', { maxNumericValue: 1000000 }], // 1MB total payload (scripts + styles + images). Increased from 500KB to support image-heavy pages with optimized images; separate image budget (500KB) controls image-specific size.
       },
       
       // Fail build on any errors (not warnings)

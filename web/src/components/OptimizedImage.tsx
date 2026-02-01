@@ -4,6 +4,7 @@
  */
 
 import React, { useState, useEffect, useRef } from 'react';
+import { generateSrcSet as generateImageSrcSet } from '../utils/imageUrl';
 
 export interface OptimizedImageProps {
   /**
@@ -67,21 +68,6 @@ export interface OptimizedImageProps {
 }
 
 /**
- * Generate srcset from base URL with different sizes
- */
-function generateSrcSet(src: string, format: 'webp' | 'jpeg' = 'jpeg'): string {
-  const widths = [320, 640, 768, 1024, 1280, 1536, 2048];
-  const ext = format === 'webp' ? '.webp' : '.jpg';
-  
-  // If src already has an extension, replace it; otherwise append
-  const baseSrc = src.replace(/\.(jpg|jpeg|png|webp)$/i, '');
-  
-  return widths
-    .map((w) => `${baseSrc}-${w}w${ext} ${w}w`)
-    .join(', ');
-}
-
-/**
  * OptimizedImage provides automatic WebP support with JPEG fallback,
  * responsive srcsets, and lazy loading
  */
@@ -110,6 +96,9 @@ export const OptimizedImage: React.FC<OptimizedImageProps> = ({
   useEffect(() => {
     if (!lazy || priority || isInView) return;
 
+    const currentElement = imgRef.current;
+    if (!currentElement) return;
+
     const observer = new IntersectionObserver(
       (entries) => {
         entries.forEach((entry) => {
@@ -125,9 +114,7 @@ export const OptimizedImage: React.FC<OptimizedImageProps> = ({
       }
     );
 
-    if (imgRef.current) {
-      observer.observe(imgRef.current);
-    }
+    observer.observe(currentElement);
 
     return () => {
       observer.disconnect();
@@ -148,8 +135,8 @@ export const OptimizedImage: React.FC<OptimizedImageProps> = ({
   const aspectRatio = width && height ? `${width} / ${height}` : undefined;
 
   // Generate srcsets if not provided
-  const jpegSrcSet = customSrcSet || generateSrcSet(src, 'jpeg');
-  const webpSrcSetValue = customWebpSrcSet || generateSrcSet(src, 'webp');
+  const jpegSrcSet = customSrcSet || generateImageSrcSet(src, [320, 640, 768, 1024, 1280, 1536, 2048], 'jpeg', 80);
+  const webpSrcSetValue = customWebpSrcSet || generateImageSrcSet(src, [320, 640, 768, 1024, 1280, 1536, 2048], 'webp', 80);
 
   // Default sizes if not provided
   const sizesValue = sizes || '100vw';
@@ -157,7 +144,7 @@ export const OptimizedImage: React.FC<OptimizedImageProps> = ({
   return (
     <picture>
       {/* WebP source for modern browsers */}
-      {isInView && (
+      {isInView && !hasError && (
         <source
           type="image/webp"
           srcSet={webpSrcSetValue}
@@ -166,28 +153,29 @@ export const OptimizedImage: React.FC<OptimizedImageProps> = ({
       )}
 
       {/* JPEG fallback for older browsers */}
-      <img
-        ref={imgRef}
-        src={isInView ? src : undefined}
-        srcSet={isInView ? jpegSrcSet : undefined}
-        sizes={isInView ? sizesValue : undefined}
-        alt={alt}
-        width={width}
-        height={height}
-        loading={priority ? 'eager' : lazy ? 'lazy' : 'eager'}
-        decoding="async"
-        onLoad={handleLoad}
-        onError={handleError}
-        className={className}
-        style={{
-          objectFit,
-          objectPosition,
-          aspectRatio,
-          opacity: isLoaded ? 1 : 0,
-          transition: 'opacity 0.3s ease-in-out',
-        }}
-        aria-hidden={hasError}
-      />
+      {!hasError && (
+        <img
+          ref={imgRef}
+          src={isInView ? src : undefined}
+          srcSet={isInView ? jpegSrcSet : undefined}
+          sizes={isInView ? sizesValue : undefined}
+          alt={alt}
+          width={width}
+          height={height}
+          loading={priority ? 'eager' : lazy ? 'lazy' : 'eager'}
+          decoding="async"
+          onLoad={handleLoad}
+          onError={handleError}
+          className={className}
+          style={{
+            objectFit,
+            objectPosition,
+            aspectRatio,
+            opacity: isLoaded ? 1 : 0,
+            transition: 'opacity 0.3s ease-in-out',
+          }}
+        />
+      )}
 
       {/* Error state */}
       {hasError && (

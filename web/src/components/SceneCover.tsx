@@ -69,6 +69,9 @@ export const SceneCover: React.FC<SceneCoverProps> = ({
   React.useEffect(() => {
     if (priority || isInView) return;
 
+    const currentElement = containerRef.current;
+    if (!currentElement) return;
+
     const observer = new IntersectionObserver(
       (entries) => {
         entries.forEach((entry) => {
@@ -84,9 +87,7 @@ export const SceneCover: React.FC<SceneCoverProps> = ({
       }
     );
 
-    if (containerRef.current) {
-      observer.observe(containerRef.current);
-    }
+    observer.observe(currentElement);
 
     return () => {
       observer.disconnect();
