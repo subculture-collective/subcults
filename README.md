@@ -373,6 +373,17 @@ Subcult is built with privacy as a core principle. See [docs/PRIVACY.md](docs/PR
 - User authentication and rate limiting
 - Web Push notifications (opt-in only, see [docs/web-push-notifications.md](docs/web-push-notifications.md))
 
+## Performance Monitoring
+
+Subcult implements comprehensive performance monitoring to ensure a fast, responsive user experience. See [docs/PERFORMANCE_MONITORING.md](docs/PERFORMANCE_MONITORING.md) for details on:
+
+- Core Web Vitals tracking (FCP, LCP, CLS, INP, TTFB)
+- Performance budgets and enforcement
+- Lighthouse CI integration in GitHub Actions
+- Bundle size analysis and optimization
+- Real-time performance dashboard (development mode)
+- Usage examples: [docs/PERFORMANCE_EXAMPLES.md](docs/PERFORMANCE_EXAMPLES.md)
+
 ## License
 
 To be defined. (Planned: permissive OSS; Apache-2.0 or MIT.)

@@ -19,13 +19,13 @@ jobs:
     name: Lighthouse CI
     runs-on: ubuntu-latest
     timeout-minutes: 15
-    
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
         with:
           fetch-depth: 0  # Fetch all history for bundle size comparison
-      
+
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
@@ -34,15 +34,15 @@ jobs:
           cache-dependency-path: |
             web/package-lock.json
             package-lock.json
-      
+
       - name: Install root dependencies
         run: npm ci
-      
+
       - name: Install frontend dependencies
         run: |
           cd web
           npm ci
-      
+
       - name: Build frontend
         run: |
           cd web
@@ -50,12 +50,12 @@ jobs:
         env:
           # Set production env vars for build
           NODE_ENV: production
-      
+
       - name: Run Lighthouse CI
         run: npx @lhci/cli@0.13.x autorun
         env:
           LHCI_GITHUB_APP_TOKEN: ${{ secrets.LHCI_GITHUB_APP_TOKEN }}
-      
+
       - name: Upload Lighthouse reports
         if: always()
         uses: actions/upload-artifact@v4
@@ -63,17 +63,17 @@ jobs:
           name: lighthouse-reports
           path: .lighthouseci
           retention-days: 30
-      
+
       - name: Check bundle size
         run: |
           cd web
           # Generate bundle analysis
           npm run build
-          
+
           # Check if stats file exists
           if [ -f "dist/stats.html" ]; then
             echo "✅ Bundle analysis generated at dist/stats.html"
-            
+
             # Extract and display key metrics (gzipped sizes)
             echo "📊 Bundle size analysis:"
             find dist -name "*.js" -o -name "*.css" | while read file; do
@@ -83,7 +83,7 @@ jobs:
           else
             echo "⚠️ Bundle analysis file not found"
           fi
-      
+
       - name: Upload bundle stats
         if: always()
         uses: actions/upload-artifact@v4
@@ -96,55 +96,55 @@ jobs:
     name: Performance Budget Check
     runs-on: ubuntu-latest
     timeout-minutes: 10
-    
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-      
+
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '18'
           cache: 'npm'
           cache-dependency-path: web/package-lock.json
-      
+
       - name: Install frontend dependencies
         run: |
           cd web
           npm ci
-      
+
       - name: Build frontend
         run: |
           cd web
           npm run build
-      
+
       - name: Check bundle sizes
         run: |
           cd web/dist
-          
+
           echo "📦 Checking bundle sizes against budgets..."
           echo ""
-          
+
           # Define budgets (in KB, gzipped)
           MAIN_JS_BUDGET=200
           MAIN_CSS_BUDGET=50
           VENDOR_JS_BUDGET=300
           TOTAL_JS_BUDGET=500
-          
+
           # Calculate actual sizes (gzipped)
           total_js=0
           budget_exceeded=0
-          
+
           # Check main JS bundles
           for file in assets/*.js; do
             if [ -f "$file" ]; then
               # Get gzipped size in KB
               size=$(gzip -c "$file" | wc -c | awk '{print int($1/1024)}')
               total_js=$((total_js + size))
-              
+
               filename=$(basename "$file")
               echo "  📄 $filename: ${size}KB"
-              
+
               # Check if it's the main bundle (usually contains "index")
               if [[ "$filename" == *"index"* ]]; then
                 if [ $size -gt $MAIN_JS_BUDGET ]; then
@@ -156,14 +156,14 @@ jobs:
               fi
             fi
           done
-          
+
           # Check CSS bundles
           for file in assets/*.css; do
             if [ -f "$file" ]; then
               size=$(gzip -c "$file" | wc -c | awk '{print int($1/1024)}')
               filename=$(basename "$file")
               echo "  🎨 $filename: ${size}KB"
-              
+
               if [ $size -gt $MAIN_CSS_BUDGET ]; then
                 echo "    ⚠️ Exceeds CSS budget of ${MAIN_CSS_BUDGET}KB"
               else
@@ -171,18 +171,18 @@ jobs:
               fi
             fi
           done
-          
+
           # Check total JS size
           echo ""
           echo "📊 Total JavaScript: ${total_js}KB (budget: ${TOTAL_JS_BUDGET}KB)"
-          
+
           if [ $total_js -gt $TOTAL_JS_BUDGET ]; then
             echo "❌ Total JS exceeds budget!"
             budget_exceeded=1
           else
             echo "✅ Total JS within budget"
           fi
-          
+
           # Exit with error if budget exceeded
           if [ $budget_exceeded -eq 1 ]; then
             echo ""
