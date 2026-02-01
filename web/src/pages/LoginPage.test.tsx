@@ -1,230 +1,389 @@
 /**
- * LoginPage Component Tests
- * Tests authentication form behavior and navigation
+ * LoginPage Tests
+ * Validates login form rendering, user interactions, and authentication flow
  */
 
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { createMemoryRouter, RouterProvider } from 'react-router-dom';
 import { LoginPage } from './LoginPage';
 import { authStore } from '../stores/authStore';
+import * as authService from '../lib/auth-service';
 
-// Mock navigate to test navigation behavior
-const mockNavigate = vi.fn();
-vi.mock('react-router-dom', async () => {
-  const actual = await vi.importActual('react-router-dom');
-  return {
-    ...actual,
-    useNavigate: () => mockNavigate,
-  };
-});
+// Mock auth service
+vi.mock('../lib/auth-service', () => ({
+  login: vi.fn(),
+}));
+
+const renderLoginPage = (initialPath = '/account/login') => {
+  const router = createMemoryRouter(
+    [
+      {
+        path: '/',
+        element: <div>Home Page</div>,
+      },
+      {
+        path: '/account/login',
+        element: <LoginPage />,
+      },
+      {
+        path: '/account',
+        element: <div>Account Page</div>,
+      },
+    ],
+    {
+      initialEntries: [initialPath],
+      future: {
+        v7_startTransition: true,
+        v7_relativeSplatPath: true,
+      },
+    }
+  );
+
+  return render(<RouterProvider router={router} />);
+};
 
 describe('LoginPage', () => {
   beforeEach(() => {
-    vi.clearAllMocks();
-    mockNavigate.mockClear();
-    // Reset auth state to logged out
     authStore.logout();
+    vi.clearAllMocks();
+    // Clear localStorage
+    localStorage.clear();
   });
 
-  const renderLoginPage = (initialEntries = ['/login']) => {
-    const router = createMemoryRouter(
-      [
-        {
-          path: '/login',
-          element: <LoginPage />,
-        },
-        {
-          path: '/',
-          element: <div>Home Page</div>,
-        },
-        {
-          path: '/admin',
-          element: <div>Admin Page</div>,
-        },
-      ],
-      {
-        initialEntries,
-        future: {
-          v7_startTransition: true,
-          v7_relativeSplatPath: true,
-        },
-      }
-    );
-
-    return render(<RouterProvider router={router} />);
-  };
+  afterEach(() => {
+    authStore.logout();
+    localStorage.clear();
+  });
 
   describe('Rendering', () => {
-    it('should render login heading', () => {
+    it('renders login form with all required fields', () => {
       renderLoginPage();
-      expect(screen.getByRole('heading', { name: /login/i })).toBeInTheDocument();
+
+      expect(screen.getByRole('heading', { name: /welcome to subcults/i })).toBeInTheDocument();
+      expect(screen.getByLabelText(/username or email/i)).toBeInTheDocument();
+      expect(screen.getByLabelText(/^password$/i)).toBeInTheDocument();
+      expect(screen.getByRole('checkbox', { name: /remember me/i })).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: /sign in/i })).toBeInTheDocument();
     });
 
-    it('should render placeholder login message', () => {
+    it('renders forgot password link', () => {
       renderLoginPage();
-      expect(
-        screen.getByText(/Placeholder login - click to simulate authentication/i)
-      ).toBeInTheDocument();
+
+      const forgotPasswordLink = screen.getByRole('link', { name: /forgot password/i });
+      expect(forgotPasswordLink).toBeInTheDocument();
+      expect(forgotPasswordLink).toHaveAttribute('href', '#');
+      expect(forgotPasswordLink).toHaveAttribute('title', 'Coming soon');
     });
 
-    it('should render login as user button', () => {
+    it('renders sign up link', () => {
       renderLoginPage();
-      expect(screen.getByRole('button', { name: /Login as User/i })).toBeInTheDocument();
+
+      const signUpLink = screen.getByRole('link', { name: /sign up/i });
+      expect(signUpLink).toBeInTheDocument();
+      expect(signUpLink).toHaveAttribute('href', '#');
+      expect(signUpLink).toHaveAttribute('title', 'Coming soon');
     });
 
-    it('should render login as admin button', () => {
-      renderLoginPage();
-      expect(screen.getByRole('button', { name: /Login as Admin/i })).toBeInTheDocument();
-    });
-  });
-
-  describe('User Authentication', () => {
-    it('should authenticate user when login as user is clicked', async () => {
-      const user = userEvent.setup();
+    it('renders password visibility toggle button', () => {
       renderLoginPage();
 
-      const userButton = screen.getByRole('button', { name: /Login as User/i });
-      await user.click(userButton);
-
-      // Verify auth state changed
-      const state = authStore.getState();
-      expect(state.isAuthenticated).toBe(true);
-      expect(state.user?.role).toBe('user');
-    });
-
-    it('should authenticate admin when login as admin is clicked', async () => {
-      const user = userEvent.setup();
-      renderLoginPage();
-
-      const adminButton = screen.getByRole('button', { name: /Login as Admin/i });
-      await user.click(adminButton);
-
-      // Verify auth state changed
-      const state = authStore.getState();
-      expect(state.isAuthenticated).toBe(true);
-      expect(state.user?.role).toBe('admin');
-      expect(state.isAdmin).toBe(true);
+      const toggleButton = screen.getByLabelText(/show password/i);
+      expect(toggleButton).toBeInTheDocument();
     });
   });
 
-  describe('Navigation', () => {
-    it('should navigate away after user login', async () => {
+  describe('Form Interactions', () => {
+    it('allows user to type in username field', async () => {
       const user = userEvent.setup();
       renderLoginPage();
 
-      const userButton = screen.getByRole('button', { name: /Login as User/i });
-      await user.click(userButton);
+      const usernameInput = screen.getByLabelText(/username or email/i);
+      await user.type(usernameInput, 'testuser');
 
-      // Verify navigation occurred
-      await waitFor(() => {
-        expect(mockNavigate).toHaveBeenCalled();
-      });
+      expect(usernameInput).toHaveValue('testuser');
     });
 
-    it('should navigate away after admin login', async () => {
+    it('allows user to type in password field', async () => {
       const user = userEvent.setup();
       renderLoginPage();
 
-      const adminButton = screen.getByRole('button', { name: /Login as Admin/i });
-      await user.click(adminButton);
+      const passwordInput = screen.getByLabelText(/^password$/i);
+      await user.type(passwordInput, 'password123');
 
-      // Verify navigation occurred
-      await waitFor(() => {
-        expect(mockNavigate).toHaveBeenCalled();
+      expect(passwordInput).toHaveValue('password123');
+    });
+
+    it('toggles password visibility', async () => {
+      const user = userEvent.setup();
+      renderLoginPage();
+
+      const passwordInput = screen.getByLabelText(/^password$/i) as HTMLInputElement;
+      const toggleButton = screen.getByLabelText(/show password/i);
+
+      // Initially hidden
+      expect(passwordInput.type).toBe('password');
+
+      // Click to show
+      await user.click(toggleButton);
+      expect(passwordInput.type).toBe('text');
+      expect(screen.getByLabelText(/hide password/i)).toBeInTheDocument();
+
+      // Click to hide again
+      await user.click(toggleButton);
+      expect(passwordInput.type).toBe('password');
+    });
+
+    it('toggles remember me checkbox', async () => {
+      const user = userEvent.setup();
+      renderLoginPage();
+
+      const checkbox = screen.getByRole('checkbox', { name: /remember me/i });
+
+      expect(checkbox).not.toBeChecked();
+
+      await user.click(checkbox);
+      expect(checkbox).toBeChecked();
+
+      await user.click(checkbox);
+      expect(checkbox).not.toBeChecked();
+    });
+
+    it('disables submit button when form is empty', () => {
+      renderLoginPage();
+
+      const submitButton = screen.getByRole('button', { name: /sign in/i });
+      expect(submitButton).toBeDisabled();
+    });
+
+    it('enables submit button when form is filled', async () => {
+      const user = userEvent.setup();
+      renderLoginPage();
+
+      const usernameInput = screen.getByLabelText(/username or email/i);
+      const passwordInput = screen.getByLabelText(/^password$/i);
+      const submitButton = screen.getByRole('button', { name: /sign in/i });
+
+      await user.type(usernameInput, 'testuser');
+      await user.type(passwordInput, 'password123');
+
+      expect(submitButton).toBeEnabled();
+    });
+  });
+
+  describe('Form Submission', () => {
+    it('calls login service with correct credentials', async () => {
+      const user = userEvent.setup();
+      const mockLogin = vi.mocked(authService.login);
+      mockLogin.mockResolvedValue({
+        did: 'did:example:testuser',
+        role: 'user',
+      });
+
+      renderLoginPage();
+
+      const usernameInput = screen.getByLabelText(/username or email/i);
+      const passwordInput = screen.getByLabelText(/^password$/i);
+      const submitButton = screen.getByRole('button', { name: /sign in/i });
+
+      await user.type(usernameInput, 'testuser');
+      await user.type(passwordInput, 'password123');
+      await user.click(submitButton);
+
+      expect(mockLogin).toHaveBeenCalledWith({
+        username: 'testuser',
+        password: 'password123',
       });
     });
 
-    it('should navigate to the intended page after login', async () => {
+    it('shows loading state during login', async () => {
       const user = userEvent.setup();
-      // Simulate user trying to visit /admin but being redirected to /login
-      renderLoginPage([
-        {
-          pathname: '/login',
-          state: { from: { pathname: '/admin' } },
-        },
-      ]);
-
-      const adminButton = screen.getByRole('button', { name: /Login as Admin/i });
-      await user.click(adminButton);
-
-      // Should navigate to the originally requested page
-      await waitFor(() => {
-        expect(mockNavigate).toHaveBeenCalledWith('/admin', { replace: true });
+      const mockLogin = vi.mocked(authService.login);
+      
+      // Create a promise that we can control
+      let resolveLogin: ((value: { did: string; role: string }) => void) | undefined;
+      const loginPromise = new Promise<{ did: string; role: string }>((resolve) => {
+        resolveLogin = resolve;
       });
+      mockLogin.mockReturnValue(loginPromise);
+
+      renderLoginPage();
+
+      const usernameInput = screen.getByLabelText(/username or email/i);
+      const passwordInput = screen.getByLabelText(/^password$/i);
+      const submitButton = screen.getByRole('button', { name: /sign in/i });
+
+      await user.type(usernameInput, 'testuser');
+      await user.type(passwordInput, 'password123');
+      await user.click(submitButton);
+
+      // Should show loading state
+      expect(screen.getByRole('button', { name: /signing in/i })).toBeInTheDocument();
+      expect(submitButton).toBeDisabled();
+
+      // Resolve the login
+      resolveLogin!({ did: 'did:example:testuser', role: 'user' });
+      
+      await waitFor(() => {
+        expect(screen.queryByRole('button', { name: /signing in/i })).not.toBeInTheDocument();
+      });
+    });
+
+    it('displays error message on login failure', async () => {
+      const user = userEvent.setup();
+      const mockLogin = vi.mocked(authService.login);
+      mockLogin.mockRejectedValue(new Error('Invalid credentials'));
+
+      renderLoginPage();
+
+      const usernameInput = screen.getByLabelText(/username or email/i);
+      const passwordInput = screen.getByLabelText(/^password$/i);
+      const submitButton = screen.getByRole('button', { name: /sign in/i });
+
+      await user.type(usernameInput, 'testuser');
+      await user.type(passwordInput, 'wrongpassword');
+      await user.click(submitButton);
+
+      await waitFor(() => {
+        expect(screen.getByText(/invalid credentials/i)).toBeInTheDocument();
+      });
+    });
+
+    it('displays generic error message for non-Error objects', async () => {
+      const user = userEvent.setup();
+      const mockLogin = vi.mocked(authService.login);
+      mockLogin.mockRejectedValue('Some string error');
+
+      renderLoginPage();
+
+      const usernameInput = screen.getByLabelText(/username or email/i);
+      const passwordInput = screen.getByLabelText(/^password$/i);
+      const submitButton = screen.getByRole('button', { name: /sign in/i });
+
+      await user.type(usernameInput, 'testuser');
+      await user.type(passwordInput, 'password');
+      await user.click(submitButton);
+
+      await waitFor(() => {
+        expect(screen.getByText(/login failed/i)).toBeInTheDocument();
+      });
+    });
+  });
+
+  describe('Remember Me Functionality', () => {
+    it('saves username to localStorage when remember me is checked', async () => {
+      const user = userEvent.setup();
+      const mockLogin = vi.mocked(authService.login);
+      mockLogin.mockResolvedValue({
+        did: 'did:example:testuser',
+        role: 'user',
+      });
+
+      renderLoginPage();
+
+      const usernameInput = screen.getByLabelText(/username or email/i);
+      const passwordInput = screen.getByLabelText(/^password$/i);
+      const rememberMeCheckbox = screen.getByRole('checkbox', { name: /remember me/i });
+      const submitButton = screen.getByRole('button', { name: /sign in/i });
+
+      await user.type(usernameInput, 'testuser');
+      await user.type(passwordInput, 'password123');
+      await user.click(rememberMeCheckbox);
+      await user.click(submitButton);
+
+      await waitFor(() => {
+        expect(localStorage.getItem('subcults-remembered-username')).toBe('testuser');
+      });
+    });
+
+    it('does not save username when remember me is unchecked', async () => {
+      const user = userEvent.setup();
+      const mockLogin = vi.mocked(authService.login);
+      mockLogin.mockResolvedValue({
+        did: 'did:example:testuser',
+        role: 'user',
+      });
+
+      renderLoginPage();
+
+      const usernameInput = screen.getByLabelText(/username or email/i);
+      const passwordInput = screen.getByLabelText(/^password$/i);
+      const submitButton = screen.getByRole('button', { name: /sign in/i });
+
+      await user.type(usernameInput, 'testuser');
+      await user.type(passwordInput, 'password123');
+      await user.click(submitButton);
+
+      await waitFor(() => {
+        expect(mockLogin).toHaveBeenCalled();
+      });
+
+      expect(localStorage.getItem('subcults-remembered-username')).toBeNull();
+    });
+
+    it('loads saved username on mount', () => {
+      localStorage.setItem('subcults-remembered-username', 'saveduser');
+
+      renderLoginPage();
+
+      const usernameInput = screen.getByLabelText(/username or email/i) as HTMLInputElement;
+      const rememberMeCheckbox = screen.getByRole('checkbox', { name: /remember me/i });
+
+      expect(usernameInput.value).toBe('saveduser');
+      expect(rememberMeCheckbox).toBeChecked();
     });
   });
 
   describe('Accessibility', () => {
-    it('should have accessible buttons', () => {
+    it('has proper form labels', () => {
       renderLoginPage();
 
-      const userButton = screen.getByRole('button', { name: /Login as User/i });
-      const adminButton = screen.getByRole('button', { name: /Login as Admin/i });
+      const usernameInput = screen.getByLabelText(/username or email/i);
+      const passwordInput = screen.getByLabelText(/^password$/i);
 
-      expect(userButton).toBeEnabled();
-      expect(adminButton).toBeEnabled();
+      expect(usernameInput).toHaveAttribute('id', 'username');
+      expect(passwordInput).toHaveAttribute('id', 'password');
     });
 
-    it('should have proper heading hierarchy', () => {
+    it('marks required fields', () => {
       renderLoginPage();
 
-      const heading = screen.getByRole('heading', { name: /login/i });
-      expect(heading.tagName).toBe('H1');
-    });
-  });
+      const usernameInput = screen.getByLabelText(/username or email/i);
+      const passwordInput = screen.getByLabelText(/^password$/i);
 
-  describe('Keyboard Navigation', () => {
-    it('should allow keyboard navigation between buttons', async () => {
+      expect(usernameInput).toBeRequired();
+      expect(passwordInput).toBeRequired();
+    });
+
+    it('uses proper autocomplete attributes', () => {
+      renderLoginPage();
+
+      const usernameInput = screen.getByLabelText(/username or email/i);
+      const passwordInput = screen.getByLabelText(/^password$/i);
+
+      expect(usernameInput).toHaveAttribute('autocomplete', 'username');
+      expect(passwordInput).toHaveAttribute('autocomplete', 'current-password');
+    });
+
+    it('displays error with role="alert"', async () => {
       const user = userEvent.setup();
+      const mockLogin = vi.mocked(authService.login);
+      mockLogin.mockRejectedValue(new Error('Test error'));
+
       renderLoginPage();
 
-      const userButton = screen.getByRole('button', { name: /Login as User/i });
-      const adminButton = screen.getByRole('button', { name: /Login as Admin/i });
+      const usernameInput = screen.getByLabelText(/username or email/i);
+      const passwordInput = screen.getByLabelText(/^password$/i);
+      const submitButton = screen.getByRole('button', { name: /sign in/i });
 
-      // Tab to first button
-      await user.tab();
-      expect(userButton).toHaveFocus();
+      await user.type(usernameInput, 'testuser');
+      await user.type(passwordInput, 'password');
+      await user.click(submitButton);
 
-      // Tab to second button
-      await user.tab();
-      expect(adminButton).toHaveFocus();
-    });
-
-    it('should activate button with Enter key', async () => {
-      const user = userEvent.setup();
-      renderLoginPage();
-
-      const userButton = screen.getByRole('button', { name: /Login as User/i });
-
-      // Focus and activate with Enter
-      await user.tab();
-      expect(userButton).toHaveFocus();
-      await user.keyboard('{Enter}');
-
-      // Verify auth state changed
       await waitFor(() => {
-        const state = authStore.getState();
-        expect(state.isAuthenticated).toBe(true);
-      });
-    });
-
-    it('should activate button with Space key', async () => {
-      const user = userEvent.setup();
-      renderLoginPage();
-
-      const userButton = screen.getByRole('button', { name: /Login as User/i });
-
-      // Focus and activate with Space
-      await user.tab();
-      expect(userButton).toHaveFocus();
-      await user.keyboard(' ');
-
-      // Verify auth state changed
-      await waitFor(() => {
-        const state = authStore.getState();
-        expect(state.isAuthenticated).toBe(true);
+        const alert = screen.getByRole('alert');
+        expect(alert).toBeInTheDocument();
       });
     });
   });
