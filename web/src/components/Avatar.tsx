@@ -4,7 +4,7 @@
  */
 
 import React from 'react';
-import { getAvatarUrl, AvatarSize, AVATAR_SIZES } from '../utils/imageUrl';
+import { getAvatarUrl, type AvatarSize, AVATAR_SIZES } from '../utils/imageUrl';
 
 export interface AvatarProps {
   /**

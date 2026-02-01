@@ -4,7 +4,7 @@
  */
 
 import React from 'react';
-import { getCoverUrl, generateSrcSet, CoverSize } from '../utils/imageUrl';
+import { getCoverUrl, generateSrcSet, type CoverSize } from '../utils/imageUrl';
 
 export interface SceneCoverProps {
   /**
