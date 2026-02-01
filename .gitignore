@@ -97,9 +97,6 @@ e2e-report/
 e2e-results.json
 stream-load-test-results.json
 
-# Lighthouse CI
-.lighthouseci/
-
 # Performance and profiling
 *.prof
 *.pprof
