@@ -30,6 +30,10 @@ export { useLiveAudio, type UseLiveAudioOptions, type UseLiveAudioResult } from 
 
 // Search hooks
 export { useSearch, type UseSearchResult, type UseSearchOptions } from './useSearch';
+export { useSearchHistory, type UseSearchHistoryResult, type SearchHistoryItem } from './useSearchHistory';
+
+// Keyboard hooks
+export { useKeyboardShortcut, type KeyboardShortcutOptions } from './useKeyboardShortcut';
 
 // Telemetry hooks
 export { useTelemetry, type EmitFunction } from './useTelemetry';

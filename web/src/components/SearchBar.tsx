@@ -6,6 +6,8 @@
 import { useState, useRef, useEffect, KeyboardEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useSearch } from '../hooks/useSearch';
+import { useSearchHistory } from '../hooks/useSearchHistory';
+import { useKeyboardShortcut } from '../hooks/useKeyboardShortcut';
 import type { SearchResultItem } from '../types/search';
 
 // Display constants
@@ -20,6 +22,8 @@ const ICONS = {
   POST: '📝',
   SEARCH: '🔍',
   CLEAR: '✕',
+  HISTORY: '🕐',
+  CLOSE: '✕',
 } as const;
 
 export interface SearchBarProps {
@@ -53,13 +57,28 @@ export function SearchBar({
 }: SearchBarProps) {
   const navigate = useNavigate();
   const { results, loading, error, search, clear } = useSearch();
+  const { history, addToHistory, removeFromHistory, clearHistory } = useSearchHistory();
 
   const [inputValue, setInputValue] = useState('');
   const [isOpen, setIsOpen] = useState(false);
   const [selectedIndex, setSelectedIndex] = useState(-1);
+  const [showHistory, setShowHistory] = useState(false);
 
   const inputRef = useRef<HTMLInputElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
+
+  // Register keyboard shortcut (Cmd/Ctrl+K) to focus search
+  useKeyboardShortcut(
+    {
+      key: 'k',
+      ctrlKey: true,
+      metaKey: true,
+      preventDefault: true,
+    },
+    () => {
+      inputRef.current?.focus();
+    }
+  );
 
   // Flatten results into a single array for keyboard navigation
   const flatResults: SearchResultItem[] = [
@@ -80,8 +99,11 @@ export function SearchBar({
 
     if (value.trim()) {
       setIsOpen(true);
+      setShowHistory(false);
     } else {
-      setIsOpen(false);
+      // Show history when input is empty
+      setIsOpen(history.length > 0);
+      setShowHistory(history.length > 0);
     }
   };
 
@@ -91,15 +113,22 @@ export function SearchBar({
   const handleClear = () => {
     setInputValue('');
     setIsOpen(false);
+    setShowHistory(false);
     setSelectedIndex(-1);
     clear();
     inputRef.current?.focus();
   };
 
   /**
-   * Navigate to result
+   * Navigate to result and save to history
    */
   const navigateToResult = (item: SearchResultItem) => {
+    // Save to history
+    const query = inputValue.trim();
+    if (query) {
+      addToHistory(query);
+    }
+
     if (onSelect) {
       onSelect(item);
     }
@@ -119,6 +148,30 @@ export function SearchBar({
 
     // Close dropdown and clear
     handleClear();
+  };
+
+  /**
+   * Handle clicking a history item
+   */
+  const handleHistoryClick = (historyQuery: string) => {
+    setInputValue(historyQuery);
+    setShowHistory(false);
+    search(historyQuery);
+    setIsOpen(true);
+  };
+
+  /**
+   * Handle removing a history item
+   */
+  const handleRemoveHistory = (query: string, event: React.MouseEvent) => {
+    event.stopPropagation();
+    removeFromHistory(query);
+    
+    // If no more history, close dropdown
+    if (history.length === 1) {
+      setIsOpen(false);
+      setShowHistory(false);
+    }
   };
 
   /**
@@ -254,7 +307,14 @@ export function SearchBar({
           value={inputValue}
           onChange={(e) => handleInputChange(e.target.value)}
           onKeyDown={handleKeyDown}
-          onFocus={() => inputValue.trim() && setIsOpen(true)}
+          onFocus={() => {
+            if (inputValue.trim()) {
+              setIsOpen(true);
+            } else if (history.length > 0) {
+              setIsOpen(true);
+              setShowHistory(true);
+            }
+          }}
           placeholder={placeholder}
           autoFocus={autoFocus}
           className="
@@ -295,8 +355,64 @@ export function SearchBar({
             shadow-lg max-h-96 overflow-y-auto
           "
         >
+          {/* Show Search History when input is empty */}
+          {showHistory && !inputValue.trim() && history.length > 0 && (
+            <div role="group" aria-labelledby="search-history-heading">
+              <div className="flex items-center justify-between px-3 py-2 bg-background">
+                <h3
+                  id="search-history-heading"
+                  className="text-xs font-semibold text-foreground-tertiary uppercase tracking-wider"
+                >
+                  Recent Searches
+                </h3>
+                {history.length > 0 && (
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      clearHistory();
+                      setIsOpen(false);
+                      setShowHistory(false);
+                    }}
+                    className="text-xs text-foreground-tertiary hover:text-foreground"
+                  >
+                    Clear all
+                  </button>
+                )}
+              </div>
+              {history.map((item, idx) => (
+                <button
+                  key={`${item.query}-${item.timestamp}`}
+                  onClick={() => handleHistoryClick(item.query)}
+                  className="
+                    w-full px-3 py-2 text-left flex items-center gap-3
+                    hover:bg-underground-lighter
+                    focus:outline-none focus-visible:bg-underground-lighter
+                  "
+                >
+                  <span className="text-lg flex-shrink-0" aria-hidden="true">
+                    {ICONS.HISTORY}
+                  </span>
+                  <span className="flex-1 text-sm text-foreground truncate">
+                    {item.query}
+                  </span>
+                  <button
+                    onClick={(e) => handleRemoveHistory(item.query, e)}
+                    aria-label={`Remove "${item.query}" from history`}
+                    className="
+                      text-foreground-tertiary hover:text-foreground
+                      focus:outline-none focus-visible:text-brand-primary
+                      p-1
+                    "
+                  >
+                    <span aria-hidden="true" className="text-sm">{ICONS.CLOSE}</span>
+                  </button>
+                </button>
+              ))}
+            </div>
+          )}
+
           {/* Loading State */}
-          {loading && (
+          {loading && !showHistory && (
             <div className="p-4 text-center" role="status" aria-live="polite">
               <div className="inline-block animate-spin rounded-full h-6 w-6 border-2 border-brand-primary border-t-transparent" />
               <p className="mt-2 text-sm text-foreground-secondary">Searching...</p>
@@ -304,14 +420,14 @@ export function SearchBar({
           )}
 
           {/* Error State */}
-          {error && !loading && (
+          {error && !loading && !showHistory && (
             <div className="p-4 text-center">
               <p className="text-sm text-red-500" role="alert">{error}</p>
             </div>
           )}
 
           {/* Empty State */}
-          {!loading && !error && !hasResults && inputValue.trim() && (
+          {!loading && !error && !hasResults && !showHistory && inputValue.trim() && (
             <div className="p-4 text-center">
               <p className="text-sm text-foreground-tertiary">
                 No results found for "{inputValue}"
@@ -320,7 +436,7 @@ export function SearchBar({
           )}
 
           {/* Results */}
-          {!loading && !error && hasResults && (
+          {!loading && !error && !showHistory && hasResults && (
             <>
               {/* Scenes */}
               {results.scenes.length > 0 && (
