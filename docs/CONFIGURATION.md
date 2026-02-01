@@ -140,9 +140,9 @@ Real-time AT Protocol firehose for decentralized data ingestion. Used by the ind
 - **Type**: String (WebSocket URL)
 - **Default**: `wss://jetstream1.us-east.bsky.network/subscribe`
 - **Example**: `wss://jetstream2.us-west.bsky.network/subscribe` (alternative region)
-- **Validation**: Cannot be empty; must be a valid WebSocket URL
+- **Validation**: If set, must be a valid WebSocket URL
 - **When to override**: Use default unless connecting to a custom Jetstream instance
-- **Note**: Required for indexer service; API server doesn't use this
+- **Note**: Used only by the indexer service. If `JETSTREAM_URL` is not set, the indexer falls back to the default value above. The API server does not use this variable; any validation that marks it as required for the API is a known config validation bug, not a requirement to set this env var.
 
 ## Optional Environment Variables
 
@@ -168,7 +168,7 @@ These variables have defaults and can be omitted in most cases.
 - **Example**: `production`
 - **When to override**: Set to `production` in production deployments for optimized logging
 - **Effects**:
-  - `development`: Text-formatted logs, debug level enabled
+  - `development` / `staging`: Text-formatted logs, debug level enabled
   - `production`: JSON-formatted logs, info level default, optimized for log aggregators
 
 ### Storage (Cloudflare R2)
@@ -1183,7 +1183,7 @@ If you see secrets in logs, this is a bug—please report it immediately.
 
 ## Additional Resources
 
-- **Codebase Guide**: See `.github/agents/agent-instructions.md` for architecture overview
+- **Codebase Guide**: See `.github/copilot-instructions.md` for architecture overview
 - **API Reference**: See `docs/API_REFERENCE.md` for endpoint documentation
 - **Database Schema**: See `migrations/000000_initial_schema.up.sql` for schema definition
 - **Migration Guide**: See `migrations/README.md` for migration procedures
