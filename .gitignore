@@ -103,6 +103,11 @@ stream-load-test-results.json
 perf/*.html
 perf/reports/
 
+# Lighthouse CI
+.lighthouseci/
+lhci-results/
+lighthouse-results/
+
 # Documentation build artifacts
 docs/_build/
 docs/.buildinfo
