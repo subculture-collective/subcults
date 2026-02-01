@@ -103,6 +103,14 @@ function SearchBarDemo() {
             </li>
             <li className="flex items-start gap-2">
               <span>✓</span>
+              <span>Search history with localStorage persistence (last 5 searches)</span>
+            </li>
+            <li className="flex items-start gap-2">
+              <span>✓</span>
+              <span>Global keyboard shortcut (Cmd/Ctrl+K) to focus search</span>
+            </li>
+            <li className="flex items-start gap-2">
+              <span>✓</span>
               <span>ARIA combobox pattern compliance</span>
             </li>
             <li className="flex items-start gap-2">
@@ -110,6 +118,27 @@ function SearchBarDemo() {
               <span>Dark mode support</span>
             </li>
           </ul>
+        </section>
+
+        {/* New Features Info */}
+        <section className="space-y-4">
+          <h2 className="text-xl font-semibold text-foreground">Recent Enhancements</h2>
+          <div className="bg-background-secondary rounded-lg p-6 space-y-4">
+            <div>
+              <h3 className="font-medium text-foreground mb-2">Search History</h3>
+              <p className="text-foreground-secondary text-sm">
+                Focus the search bar with an empty input to view your recent searches. 
+                The last 5 searches are saved automatically and persist across sessions.
+              </p>
+            </div>
+            <div>
+              <h3 className="font-medium text-foreground mb-2">Keyboard Shortcut</h3>
+              <p className="text-foreground-secondary text-sm">
+                Press <kbd className="px-2 py-1 bg-background border border-border rounded text-sm">Cmd/Ctrl+K</kbd> anywhere 
+                on the page to quickly focus the search bar. Perfect for power users!
+              </p>
+            </div>
+          </div>
         </section>
       </div>
     </div>
