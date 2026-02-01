@@ -79,9 +79,9 @@ describe('StreamPage - Accessibility', () => {
 
   it('should not have any accessibility violations when disconnected', async () => {
     const { container } = render(
-      <MemoryRouter initialEntries={['/streams/test-room']}>
+      <MemoryRouter initialEntries={['/stream/test-room']}>
         <Routes>
-          <Route path="/streams/:id" element={<StreamPage />} />
+          <Route path="/stream/:room" element={<StreamPage />} />
         </Routes>
       </MemoryRouter>
     );
@@ -91,9 +91,9 @@ describe('StreamPage - Accessibility', () => {
 
   it('should have proper heading hierarchy', () => {
     const { container } = render(
-      <MemoryRouter initialEntries={['/streams/test-room']}>
+      <MemoryRouter initialEntries={['/stream/test-room']}>
         <Routes>
-          <Route path="/streams/:id" element={<StreamPage />} />
+          <Route path="/stream/:room" element={<StreamPage />} />
         </Routes>
       </MemoryRouter>
     );
@@ -113,9 +113,9 @@ describe('StreamPage - Accessibility', () => {
     });
 
     const { container } = render(
-      <MemoryRouter initialEntries={['/streams/test-room']}>
+      <MemoryRouter initialEntries={['/stream/test-room']}>
         <Routes>
-          <Route path="/streams/:id" element={<StreamPage />} />
+          <Route path="/stream/:room" element={<StreamPage />} />
         </Routes>
       </MemoryRouter>
     );
@@ -127,9 +127,9 @@ describe('StreamPage - Accessibility', () => {
 
   it('should have accessible button for joining stream', () => {
     const { getByRole } = render(
-      <MemoryRouter initialEntries={['/streams/test-room']}>
+      <MemoryRouter initialEntries={['/stream/test-room']}>
         <Routes>
-          <Route path="/streams/:id" element={<StreamPage />} />
+          <Route path="/stream/:room" element={<StreamPage />} />
         </Routes>
       </MemoryRouter>
     );
@@ -141,9 +141,9 @@ describe('StreamPage - Accessibility', () => {
 
   it('should handle missing room parameter gracefully', () => {
     const { getByText } = render(
-      <MemoryRouter initialEntries={['/streams']}>
+      <MemoryRouter initialEntries={['/stream']}>
         <Routes>
-          <Route path="/streams" element={<StreamPage />} />
+          <Route path="/stream" element={<StreamPage />} />
         </Routes>
       </MemoryRouter>
     );

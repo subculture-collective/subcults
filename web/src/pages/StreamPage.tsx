@@ -22,7 +22,7 @@ import {
 import { useToasts } from '../stores/toastStore';
 
 export const StreamPage: React.FC = () => {
-  const { id } = useParams<{ id: string }>();
+  const { room } = useParams<{ room: string }>();
   const { t } = useTranslation('streaming');
   const { error: showError } = useToasts();
   
@@ -56,12 +56,12 @@ export const StreamPage: React.FC = () => {
   
   // Handle connection
   const handleConnect = async () => {
-    if (id) {
-      await connect(id);
+    if (room) {
+      await connect(room);
     }
   };
 
-  if (!id) {
+  if (!room) {
     return (
       <div style={{ padding: '2rem', textAlign: 'center' }}>
         <h1>{t('streamPage.invalidRoom')}</h1>
@@ -84,7 +84,7 @@ export const StreamPage: React.FC = () => {
           {t('streamPage.streamRoom')}
         </h1>
         <p style={{ color: '#9ca3af' }}>
-          {t('streamPage.room')}: {id}
+          {t('streamPage.room')}: {room}
         </p>
       </div>
 
