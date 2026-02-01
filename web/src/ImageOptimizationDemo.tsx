@@ -1,6 +1,10 @@
 /**
  * Image Optimization Demo
  * Showcases optimized image components with examples
+ * 
+ * NOTE: This demo uses alert() for click handlers for simplicity.
+ * Production implementations should use more user-friendly feedback mechanisms
+ * such as toasts, modals, navigation, or other UI feedback instead of browser alerts.
  */
 
 import React from 'react';
