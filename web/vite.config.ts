@@ -7,11 +7,13 @@ export default defineConfig({
   plugins: [
     react(),
     // Bundle size analysis (generates stats.html)
+    // Only run in production builds to avoid slowing down dev
     visualizer({
       filename: './dist/stats.html',
       open: false,
       gzipSize: true,
       brotliSize: true,
+      emitFile: process.env.NODE_ENV === 'production',
     }),
   ],
   server: {

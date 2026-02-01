@@ -386,7 +386,7 @@ Subcult implements comprehensive performance monitoring and budgeting:
 - **Telemetry Endpoint**: Backend API at `/api/telemetry/metrics` for aggregating performance data
 - **Bundle Analysis**: Automatic bundle size visualization with rollup-plugin-visualizer
 - **Lighthouse CI**: Automated performance audits in GitHub Actions with strict budgets
-- **Privacy-First**: Users can opt-out of telemetry via settings (default: opt-in)
+- **Privacy-First**: Users must explicitly opt-in to telemetry (default: disabled)
 
 **Performance Budgets:**
 - FCP <1.0s, LCP <2.5s, CLS <0.1, INP <200ms, TTFB <600ms

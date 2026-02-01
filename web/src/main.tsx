@@ -51,14 +51,6 @@ initializeNotificationService({
   apiEndpoint: NOTIFICATION_API_ENDPOINT,
 });
 
-// Initialize performance monitoring with telemetry preferences
-// Load settings first to respect user's opt-out preference
-const settingsState = useSettingsStore.getState();
-settingsState.initializeSettings();
-const { telemetryOptOut } = useSettingsStore.getState();
-
-initPerformanceMonitoring(telemetryOptOut);
-
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <App />

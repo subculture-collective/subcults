@@ -55,14 +55,20 @@ jobs:
           npx serve -l 9000 web/dist &
           SERVER_PID=$!
           
-          # Wait for server to start
-          sleep 5
+          # Wait for server to be ready with health check
+          echo "Waiting for server to start..."
+          timeout 30 bash -c 'until curl -sf http://localhost:9000 > /dev/null; do sleep 0.5; done' || {
+            echo "Server failed to start"
+            kill $SERVER_PID 2>/dev/null || true
+            exit 1
+          }
+          echo "Server is ready"
           
           # Run Lighthouse CI
           npx lhci autorun --config=lighthouserc.js || LHCI_EXIT_CODE=$?
           
           # Stop the server
-          kill $SERVER_PID || true
+          kill $SERVER_PID 2>/dev/null || true
           
           # Exit with Lighthouse CI exit code
           exit ${LHCI_EXIT_CODE:-0}
@@ -98,28 +104,57 @@ jobs:
             }
             
             const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
-            const results = manifest[0];
             
-            if (!results || !results.summary) {
-              console.log('No summary data available');
+            if (!Array.isArray(manifest) || manifest.length === 0) {
+              console.log('No Lighthouse runs in manifest');
+              return;
+            }
+            
+            const run = manifest[0];
+            
+            // Get LHR (Lighthouse Result) from manifest
+            let lhr = run && run.lhr;
+            if (!lhr && run && run.lhrPath) {
+              const lhrPath = path.isAbsolute(run.lhrPath)
+                ? run.lhrPath
+                : path.join(lhciDir, run.lhrPath);
+              if (!fs.existsSync(lhrPath)) {
+                console.log(`Lighthouse result file not found at ${lhrPath}`);
+                return;
+              }
+              lhr = JSON.parse(fs.readFileSync(lhrPath, 'utf8'));
+            }
+            
+            if (!lhr || !lhr.categories) {
+              console.log('No category data available in Lighthouse results');
               return;
             }
             
             // Create comment body
-            const summary = results.summary;
+            const categories = lhr.categories;
             const metrics = {
-              'Performance': summary.performance,
-              'Accessibility': summary.accessibility,
-              'Best Practices': summary['best-practices'],
-              'SEO': summary.seo,
+              'Performance': categories.performance?.score,
+              'Accessibility': categories.accessibility?.score,
+              'Best Practices': categories['best-practices']?.score,
+              'SEO': categories.seo?.score,
             };
+            
+            // Filter out any undefined scores
+            const definedMetrics = Object.fromEntries(
+              Object.entries(metrics).filter(([, score]) => typeof score === 'number')
+            );
+            
+            if (Object.keys(definedMetrics).length === 0) {
+              console.log('No valid metric scores available');
+              return;
+            }
             
             let comment = '## 🔦 Lighthouse Performance Report\n\n';
             comment += '### Scores\n\n';
             comment += '| Category | Score |\n';
             comment += '|----------|-------|\n';
             
-            for (const [category, score] of Object.entries(metrics)) {
+            for (const [category, score] of Object.entries(definedMetrics)) {
               const emoji = score >= 0.9 ? '✅' : score >= 0.5 ? '⚠️' : '❌';
               const percentage = Math.round(score * 100);
               comment += `| ${emoji} ${category} | ${percentage}% |\n`;

@@ -463,6 +463,10 @@ func main() {
 		RequestsPerWindow: 10,
 		WindowDuration:    time.Hour,
 	}
+	telemetryLimit := middleware.RateLimitConfig{
+		RequestsPerWindow: 100, // Allow 100 metrics submissions per minute (generous for legitimate use)
+		WindowDuration:    time.Minute,
+	}
 	generalLimit := middleware.RateLimitConfig{
 		RequestsPerWindow: 1000,
 		WindowDuration:    time.Minute,
@@ -923,9 +927,12 @@ func main() {
 	mux.HandleFunc("/health", healthHandlers.Health)
 	mux.HandleFunc("/ready", healthHandlers.Ready)
 
-	// Telemetry endpoints for frontend performance metrics
+	// Telemetry endpoints for frontend performance metrics (with rate limiting)
 	telemetryHandlers := api.NewTelemetryHandlers()
-	mux.HandleFunc("/api/telemetry/metrics", telemetryHandlers.PostMetrics)
+	telemetryMetricsHandler := middleware.RateLimiter(rateLimitStore, telemetryLimit, middleware.IPKeyFunc(), rateLimitMetrics)(
+		http.HandlerFunc(telemetryHandlers.PostMetrics),
+	)
+	mux.Handle("/api/telemetry/metrics", telemetryMetricsHandler)
 
 	// Placeholder root endpoint
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {

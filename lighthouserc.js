@@ -2,7 +2,7 @@ module.exports = {
   ci: {
     collect: {
       // Build directory containing static files to test
-      staticDistDir: './dist',
+      staticDistDir: './web/dist',
       
       // Number of runs per URL (more runs = more stable results)
       numberOfRuns: 3,
