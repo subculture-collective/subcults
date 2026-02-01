@@ -10,11 +10,14 @@
     "test:e2e:ui": "cd e2e && npm run test:e2e:ui",
     "test:e2e:report": "cd e2e && npm run test:e2e:report",
     "test:load": "cd e2e && npm run test:load",
+    "lighthouse": "cd web && npm run build && cd .. && lhci autorun --config=lighthouserc.js",
+    "lighthouse:local": "cd web && npm run build && cd .. && npx serve -l 9000 web/dist",
     "lint": "cd web && npm run lint",
     "format": "prettier --write .",
     "format:check": "prettier --check ."
   },
   "devDependencies": {
+    "@lhci/cli": "^0.15.1",
     "eslint": "^8.57.0",
     "prettier": "^3.3.3"
   },

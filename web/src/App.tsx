@@ -13,6 +13,7 @@ import { useStreamingStore } from './stores/streamingStore';
 import { useSettingsStore } from './stores/settingsStore';
 import { useLanguageStore } from './stores/languageStore';
 import { sessionReplay } from './lib/session-replay';
+import { initPerformanceMonitoring } from './lib/performance-metrics';
 import './App.css';
 
 function App() {
@@ -36,6 +37,10 @@ function App() {
   useEffect(() => {
     // Load settings from localStorage
     useSettingsStore.getState().initializeSettings();
+    
+    // Initialize performance monitoring after settings are loaded
+    const { telemetryOptOut } = useSettingsStore.getState();
+    initPerformanceMonitoring(telemetryOptOut);
     
     // Start session replay if user has opted in
     // (will check opt-in status internally)

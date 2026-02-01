@@ -27,9 +27,10 @@ const SETTINGS_STORAGE_KEY = 'subcults-settings';
 
 /**
  * Default settings
+ * PRIVACY-FIRST: Telemetry is OPT-IN by default (telemetryOptOut: true)
  */
 const DEFAULT_SETTINGS: SettingsState = {
-  telemetryOptOut: false,
+  telemetryOptOut: true, // Default: telemetry OFF (user must opt-in)
   sessionReplayOptIn: false, // Default OFF for privacy
 };
 

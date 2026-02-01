@@ -5,6 +5,8 @@ import './i18n' // Initialize i18n
 import App from './App.tsx'
 import { initializeNotificationService } from './lib/notification-service'
 import { errorLogger } from './lib/error-logger'
+import { initPerformanceMonitoring } from './lib/performance-metrics'
+import { useSettingsStore } from './stores/settingsStore'
 
 // Global error handlers for uncaught errors and promise rejections
 window.addEventListener('error', (event) => {
