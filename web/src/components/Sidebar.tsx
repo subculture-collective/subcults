@@ -6,6 +6,9 @@
 import { Link, useLocation } from 'react-router-dom';
 import { useAuth } from '../stores/authStore';
 
+// Read version from package.json at build time
+const VERSION = import.meta.env.VITE_APP_VERSION || '0.1.0';
+
 export interface SidebarProps {
   /**
    * Whether the sidebar is open (for mobile)
@@ -87,7 +90,7 @@ export function Sidebar({ isOpen = true, onClose, className = '' }: SidebarProps
                 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-primary
               "
             >
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <svg aria-hidden="true" className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
               </svg>
             </button>
@@ -164,7 +167,7 @@ export function Sidebar({ isOpen = true, onClose, className = '' }: SidebarProps
           {/* Footer */}
           <div className="p-4 border-t border-border">
             <p className="text-xs text-foreground-secondary text-center">
-              Subcults v0.1.0
+              Subcults v{VERSION}
             </p>
           </div>
         </div>

@@ -14,16 +14,22 @@ export interface NotificationBadgeProps {
    * Click handler
    */
   onClick?: () => void;
+  /**
+   * Number of unread notifications (optional, defaults to 0)
+   */
+  notificationCount?: number;
 }
 
 /**
  * NotificationBadge shows the current notification count
  */
-export function NotificationBadge({ className = '', onClick }: NotificationBadgeProps) {
+export function NotificationBadge({ 
+  className = '', 
+  onClick,
+  notificationCount = 0 
+}: NotificationBadgeProps) {
   const { isSubscribed } = useNotificationState();
   
-  // Mock notification count (in real app, would come from store/API)
-  const notificationCount = 0;
   const hasNotifications = notificationCount > 0;
 
   return (

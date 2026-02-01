@@ -88,7 +88,7 @@ export function ProfileDropdown({ className = '' }: ProfileDropdownProps) {
           "
           aria-hidden="true"
         >
-          {user.did.slice(4, 6).toUpperCase()}
+          {user.did.length >= 6 ? user.did.slice(4, 6).toUpperCase() : '??'}
         </div>
         
         {/* Chevron */}
