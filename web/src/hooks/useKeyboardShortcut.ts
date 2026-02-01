@@ -3,7 +3,7 @@
  * Hook for registering global keyboard shortcuts
  */
 
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 
 export interface KeyboardShortcutOptions {
   /**
@@ -59,6 +59,14 @@ export function useKeyboardShortcut(
     preventDefault = false,
   } = options;
 
+  // Use a ref to store the latest callback without re-registering the event listener
+  const callbackRef = useRef(callback);
+
+  // Update the ref whenever callback changes
+  useEffect(() => {
+    callbackRef.current = callback;
+  }, [callback]);
+
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
       // Check if the key matches
@@ -93,7 +101,8 @@ export function useKeyboardShortcut(
         event.preventDefault();
       }
 
-      callback(event);
+      // Call the latest callback from the ref
+      callbackRef.current(event);
     };
 
     document.addEventListener('keydown', handleKeyDown);
@@ -101,5 +110,5 @@ export function useKeyboardShortcut(
     return () => {
       document.removeEventListener('keydown', handleKeyDown);
     };
-  }, [key, ctrlKey, metaKey, shiftKey, altKey, preventDefault, callback]);
+  }, [key, ctrlKey, metaKey, shiftKey, altKey, preventDefault]);
 }
