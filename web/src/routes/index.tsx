@@ -90,7 +90,7 @@ const router = createBrowserRouter(
           ),
         },
         {
-          path: 'stream/:room',
+          path: 'streams/:id',
           element: (
             <RequireAuth>
               <Suspense fallback={<LoadingSkeleton />}>
