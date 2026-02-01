@@ -4,7 +4,7 @@
  */
 
 import React, { useState, useEffect } from 'react';
-import { useNavigate, useLocation, Link } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { login } from '../lib/auth-service';
 import { useAuth } from '../stores/authStore';
 
@@ -34,7 +34,7 @@ export const LoginPage: React.FC = () => {
 
   // Load saved username if "remember me" was checked previously
   useEffect(() => {
-    const savedUsername = localStorage.getItem('subcults_remembered_username');
+    const savedUsername = localStorage.getItem('subcults-remembered-username');
     if (savedUsername) {
       setUsername(savedUsername);
       setRememberMe(true);
@@ -52,9 +52,9 @@ export const LoginPage: React.FC = () => {
 
       // Save username if "remember me" is checked
       if (rememberMe) {
-        localStorage.setItem('subcults_remembered_username', username);
+        localStorage.setItem('subcults-remembered-username', username);
       } else {
-        localStorage.removeItem('subcults_remembered_username');
+        localStorage.removeItem('subcults-remembered-username');
       }
 
       // Navigate to the page they tried to visit, or home
@@ -135,13 +135,15 @@ export const LoginPage: React.FC = () => {
                 >
                   Password
                 </label>
-                <Link
-                  to="/account/forgot-password"
-                  className="text-sm text-brand-primary hover:text-brand-accent transition-colors"
-                  tabIndex={isLoading ? -1 : 0}
+                <a
+                  href="#"
+                  onClick={(e) => e.preventDefault()}
+                  className="text-sm text-brand-primary hover:text-brand-accent transition-colors opacity-50 cursor-not-allowed"
+                  tabIndex={-1}
+                  title="Coming soon"
                 >
                   Forgot password?
-                </Link>
+                </a>
               </div>
               <div className="relative">
                 <input
@@ -244,13 +246,15 @@ export const LoginPage: React.FC = () => {
           <div className="mt-6 text-center">
             <p className="text-sm text-foreground-secondary">
               Don't have an account?{' '}
-              <Link
-                to="/account/signup"
-                className="text-brand-primary hover:text-brand-accent font-medium transition-colors"
-                tabIndex={isLoading ? -1 : 0}
+              <a
+                href="#"
+                onClick={(e) => e.preventDefault()}
+                className="text-brand-primary hover:text-brand-accent font-medium transition-colors opacity-50 cursor-not-allowed"
+                tabIndex={-1}
+                title="Coming soon"
               >
                 Sign up
-              </Link>
+              </a>
             </p>
           </div>
         </div>
@@ -259,13 +263,23 @@ export const LoginPage: React.FC = () => {
         <div className="mt-6 text-center">
           <p className="text-xs text-foreground-tertiary">
             By signing in, you agree to our{' '}
-            <Link to="/terms" className="underline hover:text-foreground-secondary">
+            <a
+              href="#"
+              onClick={(e) => e.preventDefault()}
+              className="underline hover:text-foreground-secondary opacity-50 cursor-not-allowed"
+              title="Coming soon"
+            >
               Terms of Service
-            </Link>{' '}
+            </a>{' '}
             and{' '}
-            <Link to="/privacy" className="underline hover:text-foreground-secondary">
+            <a
+              href="#"
+              onClick={(e) => e.preventDefault()}
+              className="underline hover:text-foreground-secondary opacity-50 cursor-not-allowed"
+              title="Coming soon"
+            >
               Privacy Policy
-            </Link>
+            </a>
           </p>
         </div>
       </div>

@@ -73,7 +73,8 @@ describe('LoginPage', () => {
 
       const forgotPasswordLink = screen.getByRole('link', { name: /forgot password/i });
       expect(forgotPasswordLink).toBeInTheDocument();
-      expect(forgotPasswordLink).toHaveAttribute('href', '/account/forgot-password');
+      expect(forgotPasswordLink).toHaveAttribute('href', '#');
+      expect(forgotPasswordLink).toHaveAttribute('title', 'Coming soon');
     });
 
     it('renders sign up link', () => {
@@ -81,7 +82,8 @@ describe('LoginPage', () => {
 
       const signUpLink = screen.getByRole('link', { name: /sign up/i });
       expect(signUpLink).toBeInTheDocument();
-      expect(signUpLink).toHaveAttribute('href', '/account/signup');
+      expect(signUpLink).toHaveAttribute('href', '#');
+      expect(signUpLink).toHaveAttribute('title', 'Coming soon');
     });
 
     it('renders password visibility toggle button', () => {
@@ -291,7 +293,7 @@ describe('LoginPage', () => {
       await user.click(submitButton);
 
       await waitFor(() => {
-        expect(localStorage.getItem('subcults_remembered_username')).toBe('testuser');
+        expect(localStorage.getItem('subcults-remembered-username')).toBe('testuser');
       });
     });
 
@@ -317,11 +319,11 @@ describe('LoginPage', () => {
         expect(mockLogin).toHaveBeenCalled();
       });
 
-      expect(localStorage.getItem('subcults_remembered_username')).toBeNull();
+      expect(localStorage.getItem('subcults-remembered-username')).toBeNull();
     });
 
     it('loads saved username on mount', () => {
-      localStorage.setItem('subcults_remembered_username', 'saveduser');
+      localStorage.setItem('subcults-remembered-username', 'saveduser');
 
       renderLoginPage();
 
