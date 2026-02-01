@@ -3,7 +3,7 @@
  * Type definitions for global search functionality
  */
 
-import { Scene, Event } from './scene';
+import type { Scene, Event } from './scene';
 
 /**
  * Post entity (simplified for search results).

@@ -3,7 +3,7 @@
  * Global search bar with typeahead suggestions, keyboard navigation, and ARIA compliance
  */
 
-import { useState, useRef, useEffect, KeyboardEvent } from 'react';
+import { useState, useRef, useEffect, type KeyboardEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useSearch } from '../hooks/useSearch';
 import { useSearchHistory } from '../hooks/useSearchHistory';
@@ -379,34 +379,41 @@ export function SearchBar({
                   </button>
                 )}
               </div>
-              {history.map((item, idx) => (
-                <button
+              {history.map((item) => (
+                <div
                   key={`${item.query}-${item.timestamp}`}
-                  onClick={() => handleHistoryClick(item.query)}
                   className="
-                    w-full px-3 py-2 text-left flex items-center gap-3
+                    w-full px-3 py-2 flex items-center gap-3
                     hover:bg-underground-lighter
-                    focus:outline-none focus-visible:bg-underground-lighter
+                    group
                   "
                 >
-                  <span className="text-lg flex-shrink-0" aria-hidden="true">
-                    {ICONS.HISTORY}
-                  </span>
-                  <span className="flex-1 text-sm text-foreground truncate">
-                    {item.query}
-                  </span>
+                  <button
+                    onClick={() => handleHistoryClick(item.query)}
+                    className="
+                      flex items-center gap-3 flex-1 min-w-0 text-left
+                      focus:outline-none focus-visible:text-brand-primary
+                    "
+                  >
+                    <span className="text-lg flex-shrink-0" aria-hidden="true">
+                      {ICONS.HISTORY}
+                    </span>
+                    <span className="flex-1 text-sm text-foreground truncate">
+                      {item.query}
+                    </span>
+                  </button>
                   <button
                     onClick={(e) => handleRemoveHistory(item.query, e)}
                     aria-label={`Remove "${item.query}" from history`}
                     className="
                       text-foreground-tertiary hover:text-foreground
                       focus:outline-none focus-visible:text-brand-primary
-                      p-1
+                      p-1 flex-shrink-0
                     "
                   >
                     <span aria-hidden="true" className="text-sm">{ICONS.CLOSE}</span>
                   </button>
-                </button>
+                </div>
               ))}
             </div>
           )}
