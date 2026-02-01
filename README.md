@@ -118,6 +118,11 @@ Run `make help` to see all available targets:
 - `make test` - Run all tests (Go and frontend if available)
 - `make lint` - Run linters (Go vet and frontend linters)
 
+#### Performance & Quality
+- `npm run lighthouse` - Run Lighthouse performance audit (requires built frontend)
+- `npm run lighthouse:local` - Start local server for manual Lighthouse testing
+- View bundle analysis: `web/dist/stats.html` (generated after `cd web && npm run build`)
+
 #### Code Quality
 - `make fmt` - Format Go code
 - `make tidy` - Tidy Go modules
@@ -372,6 +377,22 @@ Subcult is built with privacy as a core principle. See [docs/PRIVACY.md](docs/PR
 - Access logging practices
 - User authentication and rate limiting
 - Web Push notifications (opt-in only, see [docs/web-push-notifications.md](docs/web-push-notifications.md))
+
+## Performance Monitoring
+
+Subcult implements comprehensive performance monitoring and budgeting:
+
+- **Core Web Vitals**: Automatic collection of FCP, LCP, CLS, INP, TTFB using the `web-vitals` library
+- **Telemetry Endpoint**: Backend API at `/api/telemetry/metrics` for aggregating performance data
+- **Bundle Analysis**: Automatic bundle size visualization with rollup-plugin-visualizer
+- **Lighthouse CI**: Automated performance audits in GitHub Actions with strict budgets
+- **Privacy-First**: Users can opt-out of telemetry via settings (default: opt-in)
+
+**Performance Budgets:**
+- FCP <1.0s, LCP <2.5s, CLS <0.1, INP <200ms, TTFB <600ms
+- Build fails on >10% regression
+
+See [docs/PERFORMANCE_MONITORING.md](docs/PERFORMANCE_MONITORING.md) for complete details.
 
 ## License
 
