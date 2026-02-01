@@ -401,6 +401,34 @@ Subcult implements comprehensive performance monitoring and budgeting:
 
 See [docs/PERFORMANCE_MONITORING.md](docs/PERFORMANCE_MONITORING.md) for complete details.
 
+## Legal & Privacy
+
+Subcults is built with a **privacy-first** philosophy. We provide comprehensive legal and compliance documentation:
+
+### 📋 Core Documents
+
+- **[Privacy Policy](docs/legal/PRIVACY_POLICY.md)** - Data collection, user rights, third-party services, retention periods
+- **[Terms of Service](docs/legal/TERMS_OF_SERVICE.md)** - Acceptable use, content licensing, payment terms, dispute resolution
+- **[GDPR Compliance Guide](docs/legal/GDPR_COMPLIANCE_GUIDE.md)** - EU data protection rights and procedures
+- **[Data Retention Policy](docs/legal/DATA_RETENTION_POLICY.md)** - Retention periods, archival, and deletion procedures
+
+### 🔒 Key Privacy Features
+
+- **Location Privacy:** Coarse geohash by default (~±0.61 km); precise coordinates only with explicit opt-in
+- **EXIF Stripping:** All media metadata automatically removed before storage
+- **User Controls:** Granular consent for location, telemetry, session replay
+- **Data Minimization:** No IP logging, no request body logging, no browsing history tracking
+- **Right to Be Forgotten:** Full GDPR compliance with 30-day response SLA
+
+### 📞 Contact
+
+- **Privacy Inquiries:** privacy@subcults.org
+- **Data Subject Requests:** privacy@subcults.org (Subject: "Data Request")
+- **Data Protection Officer:** dpo@subcults.org
+- **Security Issues:** security@subcults.org
+
+For technical privacy implementation details, see [docs/PRIVACY.md](docs/PRIVACY.md).
+
 ## License
 
 To be defined. (Planned: permissive OSS; Apache-2.0 or MIT.)
