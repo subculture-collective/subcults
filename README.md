@@ -247,6 +247,13 @@ The script automatically uses either the local `migrate` binary (if installed) o
 
 Subcults uses environment variables for configuration. All settings are documented in `configs/dev.env.example`.
 
+📖 **For comprehensive configuration documentation**, see **[docs/CONFIGURATION.md](docs/CONFIGURATION.md)** which covers:
+- Complete environment variable reference with validation rules
+- Feature flags documentation
+- Secret key rotation procedures
+- Third-party service setup guides
+- Development vs production configuration examples
+
 ### Quick Start
 
 1. **Copy the example file:**
@@ -254,7 +261,7 @@ Subcults uses environment variables for configuration. All settings are document
    cp configs/dev.env.example configs/dev.env
    ```
 
-2. **Fill in required values** (see [Required Variables](#required-variables) below)
+2. **Fill in required values** (see [Required Variables](#required-variables) below or [full documentation](docs/CONFIGURATION.md))
 
 3. **Start the application:**
    ```bash
