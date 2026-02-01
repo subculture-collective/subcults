@@ -137,8 +137,8 @@ This Data Retention Policy describes how Subcults retains, archives, and deletes
 - After 90 days, data is aggregated and anonymized (no user identifiers)
 - Aggregated data is retained indefinitely for trend analysis
 
-**Opt-Out:** Users can disable telemetry via Settings → Privacy → Analytics
-- **Effect:** No future events collected
+**Opt-In:** Users can enable telemetry via Settings → Privacy → Analytics (disabled by default)
+- **Effect:** Analytics events collected only when opted-in
 - **Existing Data:** Deleted immediately upon opt-out (or anonymized within 90 days)
 
 **Session Replay:**
@@ -466,9 +466,9 @@ For data retention inquiries:
 
 **Mailing Address:**  
 Subcults Data Retention Office  
-[Address to be added]  
-[City, State, ZIP]  
-[Country]
+548 Market Street, PMB 12345  
+San Francisco, CA 94104  
+United States
 
 **Response Time:** 7 business days for general inquiries, 30 days for GDPR requests
 

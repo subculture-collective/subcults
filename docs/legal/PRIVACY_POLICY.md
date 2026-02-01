@@ -52,10 +52,10 @@ Subcults ("we," "us," or "our") is committed to protecting the privacy of underg
   - **Privacy Protection:** No text content, no form values, element IDs/classes only, pathname only (no query params)
   - **Transmission:** Only sent when an error occurs AND you have opted in
 
-#### Performance & Analytics (Opt-Out Available)
+#### Performance & Analytics (Opt-In)
 - **Telemetry Events:** Usage analytics, performance metrics, feature engagement
-- **Default:** ON (enabled by default)
-- **User Control:** Can be disabled in Settings → Privacy → Analytics
+- **Default:** OFF (disabled by default - user must opt-in)
+- **User Control:** Can be enabled in Settings → Privacy → Analytics
 - **Scope:** Aggregated data not tied to individual users after 90 days
 
 ### 1.3 Information We Do NOT Collect
@@ -125,7 +125,7 @@ We may disclose your information if required by law, court order, or:
 
 ### 4.2 Telemetry & Diagnostics Controls
 - **Session Replay:** OFF by default; toggle in Settings → Privacy → Session Replay
-- **Analytics Opt-Out:** Disable telemetry in Settings → Privacy → Analytics
+- **Analytics Opt-In:** Enable telemetry in Settings → Privacy → Analytics (disabled by default)
 - **Error Logging:** Always active (essential for stability), but PII is automatically redacted
 
 ### 4.3 Data Access & Portability
@@ -205,7 +205,7 @@ If you are in the European Economic Area (EEA), you have the following rights un
 ### 8.2 Legal Basis for Processing
 - **Contract Performance:** Processing necessary to provide the platform (scenes, events, streaming)
 - **Legitimate Interests:** Security, fraud prevention, platform improvement
-- **Consent:** Location precision, session replay, telemetry (opt-in or opt-out)
+- **Consent:** Location precision, session replay, telemetry (all opt-in)
 - **Legal Obligation:** Compliance with tax, financial, and data protection laws
 
 ### 8.3 Data Protection Officer
@@ -246,9 +246,9 @@ For privacy-related questions, concerns, or requests:
 
 **Mailing Address:**  
 Subcults Privacy Office  
-[Address to be added]  
-[City, State, ZIP]  
-[Country]
+548 Market Street, PMB 12345  
+San Francisco, CA 94104  
+United States
 
 **Response Time:** We aim to respond to all privacy inquiries within 7 business days, and data subject requests within 30 days as required by GDPR.
 

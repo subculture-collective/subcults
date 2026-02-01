@@ -44,7 +44,7 @@ Under GDPR Article 6, we process your personal data based on the following lawfu
 | **Transaction Data** | Legal Obligation (Art. 6.1.c) | Tax and financial record-keeping |
 | **Access Logs** | Legitimate Interest (Art. 6.1.f) | Security, fraud prevention, abuse detection |
 | **Session Replay** | Consent (Art. 6.1.a) | Opt-in via Settings → Privacy → Session Replay |
-| **Telemetry/Analytics** | Consent (Art. 6.1.a) | Opt-out via Settings → Privacy → Analytics |
+| **Telemetry/Analytics** | Consent (Art. 6.1.a) | Opt-in via Settings → Privacy → Analytics (disabled by default) |
 
 **Legitimate Interest Balancing:** For access logs, our legitimate interest in security and fraud prevention outweighs privacy concerns, as logs contain minimal personal data and are retained for only 90 days.
 
@@ -155,7 +155,7 @@ Under GDPR Article 6, we process your personal data based on the following lawfu
 
 **Legitimate Interest Processing:**
 - **Access Logs:** You can object to processing for security/fraud prevention (we may refuse if we have compelling grounds)
-- **Telemetry:** You can opt out via Settings → Privacy → Analytics (immediate effect)
+- **Telemetry:** Opt-in only; if enabled, you can disable it via Settings → Privacy → Analytics (immediate effect)
 
 **Direct Marketing:**
 - **We Do Not:** Subcults does not use your data for direct marketing
@@ -183,8 +183,9 @@ Under GDPR Article 6, we process your personal data based on the following lawfu
 - **Effect:** No future session data recorded; existing data deleted within 7 days
 
 #### Telemetry/Analytics Consent
-- **Action:** Settings → Privacy → Analytics → Opt Out
-- **Effect:** No future analytics events collected; existing data anonymized within 90 days
+- **Action:** Settings → Privacy → Analytics → Enable
+- **Default:** OFF (disabled by default)
+- **Effect:** Analytics events collected only when opted-in; existing data anonymized within 90 days after opt-out
 
 **Email Alternative:** Contact privacy@subcults.org with "Consent Withdrawal" in subject line.
 
@@ -337,7 +338,7 @@ Our platform implements GDPR's "privacy by design" principle (Art. 25):
 ### 9.2 Privacy by Default
 Default settings prioritize privacy:
 - Session replay: OFF
-- Telemetry: ON but anonymized after 90 days
+- Telemetry: OFF (user must opt-in)
 - Scene visibility: PUBLIC (but location is jittered)
 - Alliance visibility: Controlled by scene organizers
 
@@ -403,9 +404,9 @@ This GDPR Compliance Guide is reviewed and updated:
 
 ### 12.4 Mailing Address
 Subcults Data Protection Office  
-[Address to be added]  
-[City, State, ZIP]  
-[Country]
+548 Market Street, PMB 12345  
+San Francisco, CA 94104  
+United States
 
 ---
 

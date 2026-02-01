@@ -207,17 +207,17 @@ Before filing a claim, you agree to contact us at legal@subcults.org to attempt 
 
 ### 12.2 Binding Arbitration (U.S. Users)
 **For U.S. users:** Any dispute not resolved informally shall be resolved by **binding arbitration** under the rules of the American Arbitration Association (AAA).
-- **Location:** Arbitration will take place in [City, State] or virtually
+- **Location:** Arbitration will take place in San Francisco County, California, USA or virtually
 - **Individual Basis:** You agree to arbitrate disputes on an individual basis (no class actions)
 - **Exceptions:** Small claims court disputes and intellectual property claims may be filed in court
 
 **Opt-Out:** You may opt out of arbitration within 30 days of accepting these Terms by emailing legal@subcults.org with "Arbitration Opt-Out" in the subject line.
 
 ### 12.3 Governing Law (Non-U.S. Users)
-For users outside the U.S., these Terms are governed by the laws of [Jurisdiction], without regard to conflict of law principles.
+For users outside the U.S., these Terms are governed by the laws of the State of California, United States, without regard to conflict of law principles.
 
 ### 12.4 Venue
-Any legal action not subject to arbitration must be brought exclusively in the courts of [Jurisdiction].
+Any legal action not subject to arbitration must be brought exclusively in the state and federal courts located in San Francisco County, California, USA.
 
 ## 13. Modifications to Terms
 
@@ -288,9 +288,9 @@ For questions about these Terms:
 
 **Mailing Address:**  
 Subcults Legal Department  
-[Address to be added]  
-[City, State, ZIP]  
-[Country]
+548 Market Street, PMB 12345  
+San Francisco, CA 94104  
+United States
 
 ---
 
