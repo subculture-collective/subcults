@@ -14,7 +14,6 @@ import userEvent from '@testing-library/user-event';
 import { createMemoryRouter, RouterProvider } from 'react-router-dom';
 import { StreamPage } from '../pages/StreamPage';
 import { authStore } from '../stores/authStore';
-import { useStreamingStore } from '../stores/streamingStore';
 import { setupMockServer } from '../test/mocks/server';
 
 // Setup MSW mock server
@@ -62,8 +61,6 @@ describe('Integration: Stream Start to Live Listeners Flow', () => {
   });
 
   it('should join stream and display connection status', async () => {
-    const user = userEvent.setup();
-
     const router = createMemoryRouter(
       [
         {
@@ -95,8 +92,6 @@ describe('Integration: Stream Start to Live Listeners Flow', () => {
   });
 
   it('should display live participant list', async () => {
-    const user = userEvent.setup();
-
     const router = createMemoryRouter(
       [
         {
@@ -128,8 +123,6 @@ describe('Integration: Stream Start to Live Listeners Flow', () => {
   });
 
   it('should show audio controls when stream is active', async () => {
-    const user = userEvent.setup();
-
     const router = createMemoryRouter(
       [
         {
@@ -192,8 +185,6 @@ describe('Integration: Stream Start to Live Listeners Flow', () => {
   });
 
   it('should handle stream disconnection gracefully', async () => {
-    const user = userEvent.setup();
-
     const router = createMemoryRouter(
       [
         {
@@ -255,8 +246,6 @@ describe('Integration: Stream Start to Live Listeners Flow', () => {
   });
 
   it('should persist volume settings across reconnections', async () => {
-    const user = userEvent.setup();
-
     const router = createMemoryRouter(
       [
         {

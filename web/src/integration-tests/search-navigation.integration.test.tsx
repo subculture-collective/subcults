@@ -9,7 +9,7 @@
  */
 
 import { describe, it, expect, beforeEach } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { createMemoryRouter, RouterProvider } from 'react-router-dom';
 import { HomePage } from '../pages/HomePage';
@@ -52,8 +52,6 @@ describe('Integration: Search to Navigation Flow', () => {
   });
 
   it('should perform search and display results', async () => {
-    const user = userEvent.setup();
-
     const router = createMemoryRouter(
       [
         {
@@ -82,8 +80,6 @@ describe('Integration: Search to Navigation Flow', () => {
   });
 
   it('should navigate to scene detail from search results', async () => {
-    const user = userEvent.setup();
-
     const router = createMemoryRouter(
       [
         {
@@ -115,8 +111,6 @@ describe('Integration: Search to Navigation Flow', () => {
   });
 
   it('should navigate to event detail from search results', async () => {
-    const user = userEvent.setup();
-
     const router = createMemoryRouter(
       [
         {
@@ -148,8 +142,6 @@ describe('Integration: Search to Navigation Flow', () => {
   });
 
   it('should show loading state while searching', async () => {
-    const user = userEvent.setup();
-
     const router = createMemoryRouter(
       [
         {
@@ -177,8 +169,6 @@ describe('Integration: Search to Navigation Flow', () => {
   });
 
   it('should handle empty search results', async () => {
-    const user = userEvent.setup();
-
     const router = createMemoryRouter(
       [
         {
@@ -205,8 +195,6 @@ describe('Integration: Search to Navigation Flow', () => {
   });
 
   it('should handle search errors gracefully', async () => {
-    const user = userEvent.setup();
-
     const router = createMemoryRouter(
       [
         {
@@ -234,8 +222,6 @@ describe('Integration: Search to Navigation Flow', () => {
   });
 
   it('should filter results by type (scenes vs events)', async () => {
-    const user = userEvent.setup();
-
     const router = createMemoryRouter(
       [
         {
@@ -264,8 +250,6 @@ describe('Integration: Search to Navigation Flow', () => {
   });
 
   it('should preserve search query in URL', async () => {
-    const user = userEvent.setup();
-
     const router = createMemoryRouter(
       [
         {
@@ -292,8 +276,6 @@ describe('Integration: Search to Navigation Flow', () => {
   });
 
   it('should support keyboard navigation in results', async () => {
-    const user = userEvent.setup();
-
     const router = createMemoryRouter(
       [
         {

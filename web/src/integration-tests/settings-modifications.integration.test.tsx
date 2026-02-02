@@ -15,7 +15,6 @@ import { createMemoryRouter, RouterProvider } from 'react-router-dom';
 import { SettingsPage } from '../pages/SettingsPage';
 import { authStore } from '../stores/authStore';
 import { useThemeStore } from '../stores/themeStore';
-import { useSettingsStore } from '../stores/settingsStore';
 import { setupMockServer } from '../test/mocks/server';
 
 // Setup MSW mock server
@@ -114,8 +113,6 @@ describe('Integration: Settings Page Modifications Flow', () => {
   });
 
   it('should update notification settings', async () => {
-    const user = userEvent.setup();
-
     const router = createMemoryRouter(
       [
         {
@@ -145,8 +142,6 @@ describe('Integration: Settings Page Modifications Flow', () => {
   });
 
   it('should persist settings across page reloads', async () => {
-    const user = userEvent.setup();
-
     // Set theme to dark
     useThemeStore.setState({ theme: 'dark' });
     localStorage.setItem('subcults-theme', 'dark');

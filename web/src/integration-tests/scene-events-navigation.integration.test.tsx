@@ -9,7 +9,7 @@
  */
 
 import { describe, it, expect, beforeEach } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { createMemoryRouter, RouterProvider } from 'react-router-dom';
 import { SceneDetailPage } from '../pages/SceneDetailPage';
@@ -54,8 +54,6 @@ describe('Integration: Scene Detail to Events Navigation', () => {
   });
 
   it('should navigate from scene to event detail', async () => {
-    const user = userEvent.setup();
-
     const router = createMemoryRouter(
       [
         {

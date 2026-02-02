@@ -98,8 +98,6 @@ describe('Integration: Admin Create Scene Flow', () => {
   });
 
   it('should successfully create a new scene', async () => {
-    const user = userEvent.setup();
-
     // Set admin auth state
     authStore.setUser(
       { did: 'did:example:admin', role: 'admin' },
@@ -139,8 +137,6 @@ describe('Integration: Admin Create Scene Flow', () => {
   });
 
   it('should validate scene creation form', async () => {
-    const user = userEvent.setup();
-
     // Set admin auth state
     authStore.setUser(
       { did: 'did:example:admin', role: 'admin' },

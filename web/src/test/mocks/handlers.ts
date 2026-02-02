@@ -26,10 +26,11 @@ const authHandlers = [
     
     // Simulate successful login
     return HttpResponse.json({
-      did: `did:example:${body.username}`,
-      role: body.username === 'admin' ? 'admin' : 'user',
-      access_token: 'mock-access-token',
-      refresh_token: 'mock-refresh-token',
+      accessToken: 'mock-access-token',
+      user: {
+        did: `did:example:${body.username}`,
+        role: body.username === 'admin' ? 'admin' : 'user',
+      },
     });
   }),
 
@@ -41,7 +42,11 @@ const authHandlers = [
   // Token refresh endpoint
   http.post(`${API_BASE}/auth/refresh`, () => {
     return HttpResponse.json({
-      access_token: 'mock-refreshed-access-token',
+      accessToken: 'mock-refreshed-access-token',
+      user: {
+        did: 'did:example:mock-user',
+        role: 'user',
+      },
     });
   }),
 ];
@@ -142,14 +147,19 @@ const eventHandlers = [
   http.get(`${API_BASE}/scenes/:sceneId/events`, ({ params }) => {
     const { sceneId } = params;
     
+    // Use dynamic dates relative to current time
+    const now = Date.now();
+    const sevenDaysFromNow = new Date(now + 7 * 24 * 60 * 60 * 1000);
+    const eightDaysFromNow = new Date(now + 8 * 24 * 60 * 60 * 1000);
+    
     const events = [
       {
         id: 'event-1',
         scene_id: sceneId,
         name: 'Friday Night Sessions',
         description: 'Weekly electronic music night',
-        start_time: '2024-02-16T22:00:00Z',
-        end_time: '2024-02-17T04:00:00Z',
+        start_time: new Date(sevenDaysFromNow.setHours(22, 0, 0, 0)).toISOString(),
+        end_time: new Date(sevenDaysFromNow.setHours(28, 0, 0, 0)).toISOString(), // 4am next day
         location: {
           latitude: 37.7749,
           longitude: -122.4194,
@@ -161,8 +171,8 @@ const eventHandlers = [
         scene_id: sceneId,
         name: 'Saturday Showcase',
         description: 'Live performances',
-        start_time: '2024-02-17T21:00:00Z',
-        end_time: '2024-02-18T03:00:00Z',
+        start_time: new Date(eightDaysFromNow.setHours(21, 0, 0, 0)).toISOString(),
+        end_time: new Date(eightDaysFromNow.setHours(27, 0, 0, 0)).toISOString(), // 3am next day
         location: {
           latitude: 37.7749,
           longitude: -122.4194,
@@ -178,13 +188,16 @@ const eventHandlers = [
   http.get(`${API_BASE}/events/:id`, ({ params }) => {
     const { id } = params;
     
+    // Use dynamic dates - 7 days in the future
+    const sevenDaysFromNow = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+    
     return HttpResponse.json({
       id,
       scene_id: 'scene-123',
       name: `Test Event ${id}`,
       description: 'A mock event for testing',
-      start_time: '2024-02-16T22:00:00Z',
-      end_time: '2024-02-17T04:00:00Z',
+      start_time: new Date(sevenDaysFromNow.setHours(22, 0, 0, 0)).toISOString(),
+      end_time: new Date(sevenDaysFromNow.setHours(28, 0, 0, 0)).toISOString(), // 4am next day
     });
   }),
 ];
@@ -260,7 +273,7 @@ const searchHandlers = [
           type: 'event',
           name: `${query} Event`,
           description: 'Matching event',
-          start_time: '2024-02-16T22:00:00Z',
+          start_time: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
         },
       ],
     };
