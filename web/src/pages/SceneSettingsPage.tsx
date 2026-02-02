@@ -7,8 +7,36 @@ import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useEntityStore } from '../stores/entityStore';
 import { useToastStore } from '../stores/toastStore';
+import { authStore } from '../stores/authStore';
 import { Scene, Palette } from '../types/scene';
 import { useTranslation } from 'react-i18next';
+
+// Hex color validation regex
+const HEX_COLOR_PATTERN = /^#[0-9A-Fa-f]{6}$/;
+
+// Validate hex color format
+const isValidHexColor = (color: string): boolean => {
+  return HEX_COLOR_PATTERN.test(color);
+};
+
+// Validate all colors in palette
+const validatePalette = (palette: Palette): string | null => {
+  const colorFields: Array<{ name: string; value: string }> = [
+    { name: 'Primary', value: palette.primary },
+    { name: 'Secondary', value: palette.secondary },
+    { name: 'Accent', value: palette.accent },
+    { name: 'Background', value: palette.background },
+    { name: 'Text', value: palette.text },
+  ];
+
+  for (const field of colorFields) {
+    if (!isValidHexColor(field.value)) {
+      return `${field.name} color must be a valid hex color (e.g., #3b82f6)`;
+    }
+  }
+
+  return null;
+};
 
 export const SceneSettingsPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -17,10 +45,12 @@ export const SceneSettingsPage: React.FC = () => {
   const fetchScene = useEntityStore((state) => state.fetchScene);
   const updateScene = useEntityStore((state) => state.updateScene);
   const addToast = useToastStore((state) => state.addToast);
+  const currentUser = authStore.useAuthState((state) => state.user);
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [scene, setScene] = useState<Scene | null>(null);
+  const [isOwner, setIsOwner] = useState(false);
   
   // Form state
   const [name, setName] = useState('');
@@ -36,6 +66,10 @@ export const SceneSettingsPage: React.FC = () => {
     text: '#000000',
   });
 
+  // Validation errors
+  const [nameError, setNameError] = useState<string | null>(null);
+  const [paletteError, setPaletteError] = useState<string | null>(null);
+
   // Load scene data
   useEffect(() => {
     if (!id) return;
@@ -45,6 +79,19 @@ export const SceneSettingsPage: React.FC = () => {
         setLoading(true);
         const sceneData = await fetchScene(id);
         setScene(sceneData);
+        
+        // Check if current user is the owner
+        const ownerCheck = currentUser?.did === sceneData.owner_did;
+        setIsOwner(ownerCheck);
+
+        if (!ownerCheck) {
+          addToast({
+            type: 'error',
+            message: t('errors.notSceneOwner', 'You do not have permission to edit this scene'),
+          });
+          navigate(`/scenes/${id}`);
+          return;
+        }
         
         // Populate form
         setName(sceneData.name || '');
@@ -66,15 +113,39 @@ export const SceneSettingsPage: React.FC = () => {
     };
 
     loadScene();
-  }, [id, fetchScene, navigate, addToast, t]);
+  }, [id, fetchScene, navigate, addToast, t, currentUser]);
 
   const handleSave = async () => {
-    if (!id || !scene) return;
+    if (!id || !scene || !isOwner) return;
+
+    // Validate name
+    const trimmedName = name.trim();
+    if (trimmedName.length < 3 || trimmedName.length > 64) {
+      setNameError('Scene name must be between 3 and 64 characters');
+      addToast({
+        type: 'error',
+        message: t('errors.invalidSceneName', 'Scene name must be between 3 and 64 characters'),
+      });
+      return;
+    }
+    setNameError(null);
+
+    // Validate palette
+    const paletteValidationError = validatePalette(palette);
+    if (paletteValidationError) {
+      setPaletteError(paletteValidationError);
+      addToast({
+        type: 'error',
+        message: paletteValidationError,
+      });
+      return;
+    }
+    setPaletteError(null);
 
     try {
       setSaving(true);
       await updateScene(id, {
-        name: name.trim(),
+        name: trimmedName,
         description: description.trim(),
         tags,
         visibility,
@@ -106,10 +177,24 @@ export const SceneSettingsPage: React.FC = () => {
     setTags(tags.filter((tag) => tag !== tagToRemove));
   };
 
-  const handleKeyPress = (e: React.KeyboardEvent) => {
+  const handleTagInputKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter') {
       e.preventDefault();
       handleAddTag();
+    }
+  };
+
+  const handleColorBlur = (colorName: keyof Palette, value: string) => {
+    if (!isValidHexColor(value)) {
+      // Revert to previous valid value
+      setPalette((prev) => ({
+        ...prev,
+        [colorName]: prev[colorName],
+      }));
+      addToast({
+        type: 'error',
+        message: `Invalid ${colorName} color. Please use hex format (e.g., #3b82f6)`,
+      });
     }
   };
 
@@ -169,12 +254,24 @@ export const SceneSettingsPage: React.FC = () => {
                 <input
                   type="text"
                   value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  className="w-full px-4 py-2 bg-background border border-border rounded-lg text-foreground focus:outline-none focus:ring-2 focus:ring-brand-primary"
+                  onChange={(e) => {
+                    setName(e.target.value);
+                    if (nameError) setNameError(null);
+                  }}
+                  className={`w-full px-4 py-2 bg-background border rounded-lg text-foreground focus:outline-none focus:ring-2 focus:ring-brand-primary ${
+                    nameError ? 'border-red-500' : 'border-border'
+                  }`}
                   placeholder={t('scene.namePlaceholder', 'Enter scene name')}
                   maxLength={64}
                   minLength={3}
+                  aria-invalid={nameError ? 'true' : 'false'}
+                  aria-describedby={nameError ? 'name-error' : undefined}
                 />
+                {nameError && (
+                  <p id="name-error" className="mt-1 text-sm text-red-500">
+                    {nameError}
+                  </p>
+                )}
               </div>
 
               {/* Description */}
@@ -210,7 +307,7 @@ export const SceneSettingsPage: React.FC = () => {
                     type="text"
                     value={tagInput}
                     onChange={(e) => setTagInput(e.target.value)}
-                    onKeyPress={handleKeyPress}
+                    onKeyDown={handleTagInputKeyDown}
                     className="flex-1 px-4 py-2 bg-background border border-border rounded-lg text-foreground focus:outline-none focus:ring-2 focus:ring-brand-primary"
                     placeholder={t('scene.tagPlaceholder', 'e.g., techno, underground, experimental')}
                   />
@@ -261,12 +358,13 @@ export const SceneSettingsPage: React.FC = () => {
                   checked={visibility === 'public'}
                   onChange={(e) => setVisibility(e.target.value as 'public')}
                   className="w-4 h-4 text-brand-primary"
+                  aria-describedby="visibility-public-desc"
                 />
                 <div>
                   <div className="font-medium text-foreground">
                     {t('scene.visibility.public', 'Public')}
                   </div>
-                  <div className="text-sm text-foreground-secondary">
+                  <div id="visibility-public-desc" className="text-sm text-foreground-secondary">
                     {t('scene.visibility.publicDesc', 'Visible to everyone and appears in search')}
                   </div>
                 </div>
@@ -280,12 +378,13 @@ export const SceneSettingsPage: React.FC = () => {
                   checked={visibility === 'private'}
                   onChange={(e) => setVisibility(e.target.value as 'private')}
                   className="w-4 h-4 text-brand-primary"
+                  aria-describedby="visibility-private-desc"
                 />
                 <div>
                   <div className="font-medium text-foreground">
                     {t('scene.visibility.private', 'Private')}
                   </div>
-                  <div className="text-sm text-foreground-secondary">
+                  <div id="visibility-private-desc" className="text-sm text-foreground-secondary">
                     {t('scene.visibility.privateDesc', 'Visible only to members')}
                   </div>
                 </div>
@@ -299,12 +398,13 @@ export const SceneSettingsPage: React.FC = () => {
                   checked={visibility === 'unlisted'}
                   onChange={(e) => setVisibility(e.target.value as 'unlisted')}
                   className="w-4 h-4 text-brand-primary"
+                  aria-describedby="visibility-unlisted-desc"
                 />
                 <div>
                   <div className="font-medium text-foreground">
                     {t('scene.visibility.unlisted', 'Unlisted')}
                   </div>
-                  <div className="text-sm text-foreground-secondary">
+                  <div id="visibility-unlisted-desc" className="text-sm text-foreground-secondary">
                     {t('scene.visibility.unlistedDesc', 'Hidden from search, accessible with link')}
                   </div>
                 </div>
@@ -334,6 +434,8 @@ export const SceneSettingsPage: React.FC = () => {
                     type="text"
                     value={palette.primary}
                     onChange={(e) => setPalette({ ...palette, primary: e.target.value })}
+                    onBlur={(e) => handleColorBlur('primary', e.target.value)}
+                    pattern="^#[0-9A-Fa-f]{6}$"
                     className="flex-1 px-4 py-2 bg-background border border-border rounded-lg text-foreground focus:outline-none focus:ring-2 focus:ring-brand-primary"
                     placeholder="#3b82f6"
                   />
@@ -355,6 +457,8 @@ export const SceneSettingsPage: React.FC = () => {
                     type="text"
                     value={palette.secondary}
                     onChange={(e) => setPalette({ ...palette, secondary: e.target.value })}
+                    onBlur={(e) => handleColorBlur('secondary', e.target.value)}
+                    pattern="^#[0-9A-Fa-f]{6}$"
                     className="flex-1 px-4 py-2 bg-background border border-border rounded-lg text-foreground focus:outline-none focus:ring-2 focus:ring-brand-primary"
                     placeholder="#8b5cf6"
                   />
@@ -376,6 +480,8 @@ export const SceneSettingsPage: React.FC = () => {
                     type="text"
                     value={palette.accent}
                     onChange={(e) => setPalette({ ...palette, accent: e.target.value })}
+                    onBlur={(e) => handleColorBlur('accent', e.target.value)}
+                    pattern="^#[0-9A-Fa-f]{6}$"
                     className="flex-1 px-4 py-2 bg-background border border-border rounded-lg text-foreground focus:outline-none focus:ring-2 focus:ring-brand-primary"
                     placeholder="#ec4899"
                   />
@@ -397,6 +503,8 @@ export const SceneSettingsPage: React.FC = () => {
                     type="text"
                     value={palette.background}
                     onChange={(e) => setPalette({ ...palette, background: e.target.value })}
+                    onBlur={(e) => handleColorBlur('background', e.target.value)}
+                    pattern="^#[0-9A-Fa-f]{6}$"
                     className="flex-1 px-4 py-2 bg-background border border-border rounded-lg text-foreground focus:outline-none focus:ring-2 focus:ring-brand-primary"
                     placeholder="#ffffff"
                   />
@@ -418,12 +526,20 @@ export const SceneSettingsPage: React.FC = () => {
                     type="text"
                     value={palette.text}
                     onChange={(e) => setPalette({ ...palette, text: e.target.value })}
+                    onBlur={(e) => handleColorBlur('text', e.target.value)}
+                    pattern="^#[0-9A-Fa-f]{6}$"
                     className="flex-1 px-4 py-2 bg-background border border-border rounded-lg text-foreground focus:outline-none focus:ring-2 focus:ring-brand-primary"
                     placeholder="#000000"
                   />
                 </div>
               </div>
             </div>
+
+            {paletteError && (
+              <div className="mt-4 p-3 bg-red-100 dark:bg-red-900 border border-red-500 rounded-lg">
+                <p className="text-sm text-red-700 dark:text-red-200">{paletteError}</p>
+              </div>
+            )}
 
             {/* Color Preview */}
             <div className="mt-6">

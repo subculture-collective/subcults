@@ -298,7 +298,8 @@ export const createSceneSlice: StateCreator<
 
       return updatedScene;
     } catch (error: unknown) {
-      const errorMessage = (error as Error)?.message || 'Failed to update scene';
+      const errorMessage =
+        error instanceof Error ? error.message : String(error || 'Failed to update scene');
 
       // Update cache with error
       set((state) => ({
