@@ -36,7 +36,7 @@ function filterStackTrace(stack: string | undefined): string {
 }
 
 export class ErrorBoundary extends Component<Props, State> {
-  private errorButtonRef: React.RefObject<HTMLButtonElement | null>;
+  private errorButtonRef: React.RefObject<HTMLButtonElement>;
 
   constructor(props: Props) {
     super(props);
