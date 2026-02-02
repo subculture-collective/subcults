@@ -86,7 +86,7 @@ export const AudioLevelVisualization: React.FC<AudioLevelVisualizationProps> = (
 
   const ariaLabel = isMuted
     ? t('audioLevel.muted')
-    : showSpeaking && activeBarCount > 0
+    : activeBarCount > 0 && showSpeaking
     ? t('audioLevel.speaking')
     : t('audioLevel.silent');
 
