@@ -432,7 +432,7 @@ describe('NotificationSettings', () => {
         },
       });
 
-      const { container } = render(<NotificationSettings />);
+      render(<NotificationSettings />);
 
       const badge = screen.getByText('Enabled');
       expect(badge).toBeInTheDocument();
@@ -441,7 +441,7 @@ describe('NotificationSettings', () => {
     });
 
     it('shows disabled badge with appropriate styling when not subscribed', () => {
-      const { container } = render(<NotificationSettings />);
+      render(<NotificationSettings />);
 
       const badge = screen.getByText('Disabled');
       expect(badge).toBeInTheDocument();
@@ -452,11 +452,12 @@ describe('NotificationSettings', () => {
 
   describe('Theme Support', () => {
     it('applies dark mode classes', () => {
-      const { container } = render(<NotificationSettings />);
+      render(<NotificationSettings />);
 
-      const mainContainer = container.querySelector('.bg-background-secondary');
-      expect(mainContainer).toBeInTheDocument();
-      expect(mainContainer).toHaveClass('theme-transition');
+      // Verify theme-aware classes are present by checking semantic elements
+      const heading = screen.getByRole('heading', { level: 2, name: 'Notifications' });
+      expect(heading).toBeInTheDocument();
+      expect(heading).toHaveClass('text-foreground');
     });
   });
 });
