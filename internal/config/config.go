@@ -57,6 +57,15 @@ type Config struct {
 	// Feature Flags
 	RankTrustEnabled bool `koanf:"rank_trust_enabled"` // Enable trust-weighted ranking in search/feed
 
+	// Canary Deployment
+	CanaryEnabled           bool    `koanf:"canary_enabled"`             // Enable canary deployment
+	CanaryTrafficPercent    float64 `koanf:"canary_traffic_percent"`     // Percentage of traffic to route to canary (0-100)
+	CanaryErrorThreshold    float64 `koanf:"canary_error_threshold"`     // Error rate threshold for auto-rollback (0-100)
+	CanaryLatencyThreshold  float64 `koanf:"canary_latency_threshold"`   // Latency threshold in seconds for auto-rollback
+	CanaryAutoRollback      bool    `koanf:"canary_auto_rollback"`       // Enable automatic rollback on threshold breach
+	CanaryMonitoringWindow  int     `koanf:"canary_monitoring_window"`   // Monitoring window in seconds for metrics comparison
+	CanaryVersion           string  `koanf:"canary_version"`             // Version identifier for canary deployment (e.g., "v1.2.0-canary")
+
 	// Tracing (OpenTelemetry)
 	TracingEnabled      bool    `koanf:"tracing_enabled"`       // Enable distributed tracing
 	TracingExporterType string  `koanf:"tracing_exporter_type"` // Exporter type: otlp-http, otlp-grpc
@@ -92,6 +101,13 @@ const (
 	DefaultR2MaxUploadSizeMB           = 15
 	DefaultRankTrustEnabled            = false
 	DefaultStripeApplicationFeePercent = 5.0 // 5% platform fee by default
+	DefaultCanaryEnabled               = false
+	DefaultCanaryTrafficPercent        = 5.0  // Start with 5% canary traffic
+	DefaultCanaryErrorThreshold        = 1.0  // 1% error rate triggers rollback
+	DefaultCanaryLatencyThreshold      = 2.0  // 2 seconds p95 latency threshold
+	DefaultCanaryAutoRollback          = true // Auto-rollback enabled by default
+	DefaultCanaryMonitoringWindow      = 300  // 5 minutes monitoring window
+	DefaultCanaryVersion               = "canary"
 	DefaultTracingEnabled              = false
 	DefaultTracingExporterType         = "otlp-http"
 	DefaultTracingSampleRate           = 0.1 // 10% sampling in production
@@ -199,6 +215,83 @@ func Load(configFilePath string) (*Config, []error) {
 		}
 	}
 
+	// Parse canary deployment configuration
+	canaryEnabled := DefaultCanaryEnabled
+	if k.Exists("canary_enabled") {
+		canaryEnabled = k.Bool("canary_enabled")
+	}
+	if val := os.Getenv("CANARY_ENABLED"); val != "" {
+		valLower := strings.ToLower(val)
+		switch valLower {
+		case "true", "1", "yes", "on":
+			canaryEnabled = true
+		case "false", "0", "no", "off":
+			canaryEnabled = false
+		}
+	}
+
+	canaryTrafficPercent := DefaultCanaryTrafficPercent
+	if k.Exists("canary_traffic_percent") {
+		canaryTrafficPercent = k.Float64("canary_traffic_percent")
+	}
+	if val := os.Getenv("CANARY_TRAFFIC_PERCENT"); val != "" {
+		if parsed, err := strconv.ParseFloat(val, 64); err == nil {
+			canaryTrafficPercent = parsed
+		} else {
+			loadErrs = append(loadErrs, fmt.Errorf("CANARY_TRAFFIC_PERCENT must be a valid float: %w", err))
+		}
+	}
+
+	canaryErrorThreshold := DefaultCanaryErrorThreshold
+	if k.Exists("canary_error_threshold") {
+		canaryErrorThreshold = k.Float64("canary_error_threshold")
+	}
+	if val := os.Getenv("CANARY_ERROR_THRESHOLD"); val != "" {
+		if parsed, err := strconv.ParseFloat(val, 64); err == nil {
+			canaryErrorThreshold = parsed
+		} else {
+			loadErrs = append(loadErrs, fmt.Errorf("CANARY_ERROR_THRESHOLD must be a valid float: %w", err))
+		}
+	}
+
+	canaryLatencyThreshold := DefaultCanaryLatencyThreshold
+	if k.Exists("canary_latency_threshold") {
+		canaryLatencyThreshold = k.Float64("canary_latency_threshold")
+	}
+	if val := os.Getenv("CANARY_LATENCY_THRESHOLD"); val != "" {
+		if parsed, err := strconv.ParseFloat(val, 64); err == nil {
+			canaryLatencyThreshold = parsed
+		} else {
+			loadErrs = append(loadErrs, fmt.Errorf("CANARY_LATENCY_THRESHOLD must be a valid float: %w", err))
+		}
+	}
+
+	canaryAutoRollback := DefaultCanaryAutoRollback
+	if k.Exists("canary_auto_rollback") {
+		canaryAutoRollback = k.Bool("canary_auto_rollback")
+	}
+	if val := os.Getenv("CANARY_AUTO_ROLLBACK"); val != "" {
+		valLower := strings.ToLower(val)
+		switch valLower {
+		case "true", "1", "yes", "on":
+			canaryAutoRollback = true
+		case "false", "0", "no", "off":
+			canaryAutoRollback = false
+		}
+	}
+
+	canaryMonitoringWindow := DefaultCanaryMonitoringWindow
+	if k.Exists("canary_monitoring_window") {
+		canaryMonitoringWindow = k.Int("canary_monitoring_window")
+	}
+	if val := os.Getenv("CANARY_MONITORING_WINDOW"); val != "" {
+		if parsed, err := strconv.Atoi(val); err == nil {
+			canaryMonitoringWindow = parsed
+		} else {
+			loadErrs = append(loadErrs, fmt.Errorf("CANARY_MONITORING_WINDOW must be a valid integer: %w", err))
+		}
+	}
+
 	// Build config struct, with env vars taking precedence over file values
 	cfg := &Config{
 		Port:                        port,
@@ -222,6 +315,13 @@ func Load(configFilePath string) (*Config, []error) {
 		R2MaxUploadSizeMB:           maxUploadSize,
 		RedisURL:                    getEnvOrKoanf("REDIS_URL", k, "redis_url"),
 		RankTrustEnabled:            rankTrustEnabled,
+		CanaryEnabled:               canaryEnabled,
+		CanaryTrafficPercent:        canaryTrafficPercent,
+		CanaryErrorThreshold:        canaryErrorThreshold,
+		CanaryLatencyThreshold:      canaryLatencyThreshold,
+		CanaryAutoRollback:          canaryAutoRollback,
+		CanaryMonitoringWindow:      canaryMonitoringWindow,
+		CanaryVersion:               getEnvOrDefault("CANARY_VERSION", k.String("canary_version"), DefaultCanaryVersion),
 		TracingEnabled:              tracingEnabled,
 		TracingExporterType:         getEnvOrDefault("TRACING_EXPORTER_TYPE", k.String("tracing_exporter_type"), DefaultTracingExporterType),
 		TracingOTLPEndpoint:         getEnvOrKoanf("TRACING_OTLP_ENDPOINT", k, "tracing_otlp_endpoint"),
@@ -387,6 +487,13 @@ func (c *Config) LogSummary() map[string]string {
 		"r2_max_upload_size_mb":         fmt.Sprintf("%d", c.R2MaxUploadSizeMB),
 		"redis_url":                     maskDatabaseURL(c.RedisURL),
 		"rank_trust_enabled":            fmt.Sprintf("%t", c.RankTrustEnabled),
+		"canary_enabled":                fmt.Sprintf("%t", c.CanaryEnabled),
+		"canary_traffic_percent":        fmt.Sprintf("%.2f", c.CanaryTrafficPercent),
+		"canary_error_threshold":        fmt.Sprintf("%.2f", c.CanaryErrorThreshold),
+		"canary_latency_threshold":      fmt.Sprintf("%.2f", c.CanaryLatencyThreshold),
+		"canary_auto_rollback":          fmt.Sprintf("%t", c.CanaryAutoRollback),
+		"canary_monitoring_window":      fmt.Sprintf("%d", c.CanaryMonitoringWindow),
+		"canary_version":                c.CanaryVersion,
 		"tracing_enabled":               fmt.Sprintf("%t", c.TracingEnabled),
 		"tracing_exporter_type":         c.TracingExporterType,
 		"tracing_otlp_endpoint":         c.TracingOTLPEndpoint,
