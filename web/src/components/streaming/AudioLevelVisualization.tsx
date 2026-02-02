@@ -33,18 +33,32 @@ export const AudioLevelVisualization: React.FC<AudioLevelVisualizationProps> = (
 
   // Smooth the audio level changes
   useEffect(() => {
+    let isAnimating = true;
+
     const animate = () => {
       setSmoothedLevel((prev) => {
         const target = isMuted ? 0 : level;
         const delta = target - prev;
-        return prev + delta * SMOOTHING_FACTOR;
+        const newLevel = prev + delta * SMOOTHING_FACTOR;
+        
+        // Stop animating if we're close enough to the target
+        if (Math.abs(delta) < 0.001) {
+          isAnimating = false;
+          return target;
+        }
+        
+        return newLevel;
       });
-      animationFrameRef.current = requestAnimationFrame(animate);
+
+      if (isAnimating) {
+        animationFrameRef.current = requestAnimationFrame(animate);
+      }
     };
 
     animationFrameRef.current = requestAnimationFrame(animate);
 
     return () => {
+      isAnimating = false;
       if (animationFrameRef.current !== undefined) {
         cancelAnimationFrame(animationFrameRef.current);
       }

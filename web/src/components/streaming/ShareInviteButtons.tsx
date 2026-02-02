@@ -95,7 +95,9 @@ export const ShareInviteButtons: React.FC<ShareInviteButtonsProps> = ({
           }
         }}
         onMouseLeave={(e) => {
-          e.currentTarget.style.backgroundColor = '#3b82f6';
+          if (!disabled) {
+            e.currentTarget.style.backgroundColor = '#3b82f6';
+          }
         }}
       >
         <span aria-hidden="true">📤</span>
@@ -136,40 +138,6 @@ export const ShareInviteButtons: React.FC<ShareInviteButtonsProps> = ({
       >
         <span aria-hidden="true">{copied ? '✓' : '🔗'}</span>
         {copied ? t('shareButtons.copied') : t('shareButtons.copyLink')}
-      </button>
-
-      {/* Invite Button */}
-      <button
-        onClick={handleShare}
-        disabled={disabled}
-        className="invite-button"
-        aria-label={t('shareButtons.invite')}
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: '0.5rem',
-          padding: '0.625rem 1rem',
-          fontSize: '0.875rem',
-          fontWeight: 600,
-          borderRadius: '0.5rem',
-          border: '2px solid #4b5563',
-          cursor: disabled ? 'not-allowed' : 'pointer',
-          backgroundColor: '#1f2937',
-          color: 'white',
-          transition: 'all 0.2s ease',
-          opacity: disabled ? 0.5 : 1,
-        }}
-        onMouseEnter={(e) => {
-          if (!disabled) {
-            e.currentTarget.style.borderColor = '#6b7280';
-          }
-        }}
-        onMouseLeave={(e) => {
-          e.currentTarget.style.borderColor = '#4b5563';
-        }}
-      >
-        <span aria-hidden="true">✉️</span>
-        {t('shareButtons.invite')}
       </button>
     </div>
   );

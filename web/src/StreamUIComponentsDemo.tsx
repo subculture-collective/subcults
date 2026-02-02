@@ -91,7 +91,10 @@ export function StreamUIComponentsDemo() {
 
   const handleSendMessage = (message: string) => {
     const newMessage: ChatMessage = {
-      id: Date.now().toString(),
+      id:
+        typeof crypto !== 'undefined' && 'randomUUID' in crypto
+          ? crypto.randomUUID()
+          : `${Date.now()}-${Math.random().toString(36).slice(2)}`,
       sender: 'You',
       message,
       timestamp: Date.now(),

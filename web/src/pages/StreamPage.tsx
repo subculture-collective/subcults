@@ -72,7 +72,10 @@ export const StreamPage: React.FC = () => {
   // Handle sending chat messages
   const handleSendMessage = (message: string) => {
     const newMessage: ChatMessage = {
-      id: Date.now().toString(),
+      id:
+        typeof crypto !== 'undefined' && 'randomUUID' in crypto
+          ? crypto.randomUUID()
+          : `${Date.now()}-${Math.random().toString(36).slice(2)}`,
       sender: localParticipant?.name || 'You',
       message,
       timestamp: Date.now(),
@@ -82,7 +85,7 @@ export const StreamPage: React.FC = () => {
   };
 
   // Get current stream URL for sharing
-  const streamUrl = typeof window !== 'undefined' ? window.location.href : '';
+  const streamUrl = window.location.href;
 
   if (!id) {
     return (
@@ -106,7 +109,7 @@ export const StreamPage: React.FC = () => {
       <div style={{ marginBottom: '1.5rem' }}>
         <StreamHeader
           title={`Stream ${id}`}
-          organizer="DJ Collective"
+          organizer={localParticipant?.name || 'Unknown'}
           listenerCount={participantCount}
           isLive={isConnected}
         />
@@ -144,13 +147,7 @@ export const StreamPage: React.FC = () => {
         <>
           {/* Main Content Area */}
           <div
-            style={{
-              display: 'grid',
-              gridTemplateColumns: 'minmax(0, 1fr) 350px',
-              gap: '1.5rem',
-              marginBottom: '1.5rem',
-            }}
-            className="stream-content"
+            className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_350px] gap-6 mb-6"
           >
             {/* Left Column: Controls and Participants */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
@@ -230,15 +227,6 @@ export const StreamPage: React.FC = () => {
               />
             </div>
           </div>
-
-          {/* Mobile Responsive Styles */}
-          <style>{`
-            @media (max-width: 768px) {
-              .stream-content {
-                grid-template-columns: 1fr !important;
-              }
-            }
-          `}</style>
         </>
       )}
     </div>

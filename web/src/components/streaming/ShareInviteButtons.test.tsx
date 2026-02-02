@@ -37,7 +37,7 @@ describe('ShareInviteButtons', () => {
     mockWriteText.mockResolvedValue(undefined);
   });
 
-  it('renders all three buttons', () => {
+  it('renders share and copy link buttons', () => {
     render(
       <ShareInviteButtons
         streamUrl="https://example.com/stream/123"
@@ -47,7 +47,6 @@ describe('ShareInviteButtons', () => {
 
     expect(screen.getByRole('button', { name: 'Share' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Copy Link' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Invite' })).toBeInTheDocument();
   });
 
   it('copies link to clipboard when copy button is clicked', async () => {
@@ -109,7 +108,6 @@ describe('ShareInviteButtons', () => {
 
     expect(screen.getByRole('button', { name: 'Share' })).toBeDisabled();
     expect(screen.getByRole('button', { name: 'Copy Link' })).toBeDisabled();
-    expect(screen.getByRole('button', { name: 'Invite' })).toBeDisabled();
   });
 
   it('has proper accessibility group label', () => {

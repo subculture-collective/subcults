@@ -32,9 +32,16 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  // Auto-scroll to bottom when new messages arrive
+  // Auto-scroll to bottom when new messages arrive (only if user is at bottom)
   useEffect(() => {
-    if (messagesEndRef.current && typeof messagesEndRef.current.scrollIntoView === 'function') {
+    const container = messagesEndRef.current?.parentElement;
+    if (!container || !messagesEndRef.current) return;
+
+    // Check if user is already at or near the bottom (within 100px)
+    const isNearBottom = 
+      container.scrollHeight - container.scrollTop - container.clientHeight < 100;
+
+    if (isNearBottom && typeof messagesEndRef.current.scrollIntoView === 'function') {
       messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
     }
   }, [messages]);
@@ -253,7 +260,9 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({
               }
             }}
             onMouseLeave={(e) => {
-              e.currentTarget.style.backgroundColor = '#3b82f6';
+              if (!disabled && inputValue.trim()) {
+                e.currentTarget.style.backgroundColor = '#3b82f6';
+              }
             }}
           >
             {t('chat.send')}
