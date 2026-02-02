@@ -63,7 +63,7 @@ function getVariantStyles(variant: ButtonVariant): string {
       focus-visible:ring-brand-primary
     `,
     secondary: `
-      bg-background-secondary hover:bg-underground-lighter
+      bg-background-secondary hover:bg-brand-underground-lighter
       text-foreground border-border hover:border-border-hover
       focus-visible:ring-brand-primary
     `,
@@ -73,7 +73,7 @@ function getVariantStyles(variant: ButtonVariant): string {
       focus-visible:ring-red-500
     `,
     ghost: `
-      bg-transparent hover:bg-underground-lighter
+      bg-transparent hover:bg-brand-underground-lighter
       text-foreground border-transparent hover:border-border-hover
       focus-visible:ring-brand-primary
     `,

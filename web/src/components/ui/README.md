@@ -191,9 +191,9 @@ import { LoadingSpinner, FullPageLoader } from '@/components/ui';
 **Surface Colors:**
 - Background: CSS var `--color-background`
 - Background Secondary: CSS var `--color-background-secondary`
-- Underground: `#1a1a1a`
-- Underground Light: `#242424`
-- Underground Lighter: `#2d2d2d`
+- Underground: `#1a1a1a` (Tailwind: `bg-brand-underground`)
+- Underground Light: `#242424` (Tailwind: `bg-brand-underground-light`)
+- Underground Lighter: `#2d2d2d` (Tailwind: `bg-brand-underground-lighter`)
 
 ### Typography
 
@@ -237,8 +237,7 @@ system-ui, Avenir, Helvetica, Arial, sans-serif
 **Available Animations:**
 - `animate-fade-in` - Fade in entrance
 - `animate-slide-up` - Slide up from bottom
-- `animate-slide-in` - Slide in from right (toasts)
-- `animate-slide-in-right` - Slide in from right (panels)
+- `animate-slide-in` - Slide in from right (toasts and panels)
 - `animate-spin` - Continuous rotation (spinners)
 
 ---

@@ -44,7 +44,7 @@ describe('LoadingSkeleton', () => {
     render(<LoadingSkeleton />);
     
     const loadingSkeleton = screen.getByRole('status');
-    expect(loadingSkeleton).toHaveClass('bg-underground', 'text-white');
+    expect(loadingSkeleton).toHaveClass('bg-brand-underground', 'text-white');
   });
 
   it('uses Tailwind animate-spin class', () => {

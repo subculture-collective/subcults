@@ -226,7 +226,7 @@ export function Modal({
                 className="
                   ml-4 p-1 rounded-lg
                   text-foreground-secondary hover:text-foreground
-                  hover:bg-underground-lighter
+                  hover:bg-brand-underground-lighter
                   focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-primary
                   transition-colors
                   min-h-touch min-w-touch

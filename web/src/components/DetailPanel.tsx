@@ -172,7 +172,7 @@ export function DetailPanel({
         role="dialog"
         aria-modal="true"
         aria-labelledby="detail-panel-title"
-        className="detail-panel fixed top-0 right-0 bottom-0 w-full max-w-[min(400px,100vw)] bg-underground text-white z-[1000] overflow-y-auto shadow-[-4px_0_16px_rgba(0,0,0,0.3)] animate-slide-in-right"
+        className="detail-panel fixed top-0 right-0 bottom-0 w-full max-w-[min(400px,100vw)] bg-brand-underground text-white z-[1000] overflow-y-auto shadow-[-4px_0_16px_rgba(0,0,0,0.3)] animate-slide-in"
       >
         {/* Header */}
         <div className="p-4 pb-6 border-b border-gray-700 flex items-start justify-between">
@@ -238,7 +238,7 @@ export function DetailPanel({
             )}
 
             {/* Location Privacy Notice */}
-            <div className="mt-6 p-4 bg-underground-lighter rounded-lg text-sm text-gray-400">
+            <div className="mt-6 p-4 bg-brand-underground-lighter rounded-lg text-sm text-gray-400">
               <div className="flex items-center gap-2">
                 <span>📍</span>
                 <span>
@@ -250,7 +250,7 @@ export function DetailPanel({
             </div>
 
             {/* Placeholder for future features */}
-            <div className="mt-6 p-4 bg-underground-lighter rounded-lg text-sm text-gray-400 text-center">
+            <div className="mt-6 p-4 bg-brand-underground-lighter rounded-lg text-sm text-gray-400 text-center">
               <p className="m-0">
                 More features coming soon:
                 <br />
