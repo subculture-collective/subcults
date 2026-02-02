@@ -7,7 +7,7 @@ import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useEntityStore } from '../stores/entityStore';
 import { useToastStore } from '../stores/toastStore';
-import type { Scene, Palette } from '../types/scene';
+import { Scene, Palette } from '../types/scene';
 import { useTranslation } from 'react-i18next';
 
 export const SceneSettingsPage: React.FC = () => {

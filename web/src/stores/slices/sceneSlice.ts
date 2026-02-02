@@ -6,20 +6,13 @@
 import type { StateCreator } from 'zustand';
 import { apiClient } from '../../lib/api-client';
 import type { Scene } from '../../types/scene';
-import type {
-  EntityStore,
+import type { EntityStore } from '../entityStore';
+import {
   createFreshMetadata,
   setLoadingMetadata,
   setSuccessMetadata,
   setErrorMetadata,
   getOrCreateRequest,
-} from '../entityStore';
-import {
-  createFreshMetadata as createFreshMetadataImpl,
-  setLoadingMetadata as setLoadingMetadataImpl,
-  setSuccessMetadata as setSuccessMetadataImpl,
-  setErrorMetadata as setErrorMetadataImpl,
-  getOrCreateRequest as getOrCreateRequestImpl,
 } from '../entityStore';
 
 /**
@@ -37,7 +30,7 @@ export const createSceneSlice: StateCreator<
   },
 
   fetchScene: async (id: string): Promise<Scene> => {
-    return getOrCreateRequestImpl(`scene:${id}`, async () => {
+    return getOrCreateRequest(`scene:${id}`, async () => {
       const state = get();
       const cached = state.scene.scenes[id];
 
@@ -49,7 +42,7 @@ export const createSceneSlice: StateCreator<
             ...state.scene.scenes,
             [id]: {
               data: cached?.data || ({} as Scene),
-              metadata: setLoadingMetadataImpl(cached?.metadata || createFreshMetadataImpl()),
+              metadata: setLoadingMetadata(cached?.metadata || createFreshMetadata()),
             },
           },
         },
@@ -67,7 +60,7 @@ export const createSceneSlice: StateCreator<
               ...state.scene.scenes,
               [id]: {
                 data: scene,
-                metadata: setSuccessMetadataImpl(),
+                metadata: setSuccessMetadata(),
               },
             },
           },
@@ -86,11 +79,11 @@ export const createSceneSlice: StateCreator<
               [id]: cached
                 ? {
                     ...cached,
-                    metadata: setErrorMetadataImpl(cached.metadata, errorMessage),
+                    metadata: setErrorMetadata(cached.metadata, errorMessage),
                   }
                 : {
                     data: {} as Scene,
-                    metadata: setErrorMetadataImpl(createFreshMetadataImpl(), errorMessage),
+                    metadata: setErrorMetadata(createFreshMetadata(), errorMessage),
                   },
             },
           },
@@ -109,7 +102,7 @@ export const createSceneSlice: StateCreator<
           ...state.scene.scenes,
           [scene.id]: {
             data: scene,
-            metadata: setSuccessMetadataImpl(),
+            metadata: setSuccessMetadata(),
           },
         },
       },
@@ -203,7 +196,7 @@ export const createSceneSlice: StateCreator<
             ...state.scene.scenes,
             [sceneId]: {
               data: backup,
-              metadata: cached?.metadata || createFreshMetadataImpl(),
+              metadata: cached?.metadata || createFreshMetadata(),
             },
           },
           optimisticUpdates: remainingUpdates,
@@ -279,7 +272,7 @@ export const createSceneSlice: StateCreator<
           ...state.scene.scenes,
           [id]: {
             data: cached?.data || ({} as Scene),
-            metadata: setLoadingMetadataImpl(cached?.metadata || createFreshMetadataImpl()),
+            metadata: setLoadingMetadata(cached?.metadata || createFreshMetadata()),
           },
         },
       },
@@ -297,7 +290,7 @@ export const createSceneSlice: StateCreator<
             ...state.scene.scenes,
             [id]: {
               data: updatedScene,
-              metadata: setSuccessMetadataImpl(),
+              metadata: setSuccessMetadata(),
             },
           },
         },
@@ -316,11 +309,11 @@ export const createSceneSlice: StateCreator<
             [id]: cached
               ? {
                   ...cached,
-                  metadata: setErrorMetadataImpl(cached.metadata, errorMessage),
+                  metadata: setErrorMetadata(cached.metadata, errorMessage),
                 }
               : {
                   data: {} as Scene,
-                  metadata: setErrorMetadataImpl(createFreshMetadataImpl(), errorMessage),
+                  metadata: setErrorMetadata(createFreshMetadata(), errorMessage),
                 },
           },
         },

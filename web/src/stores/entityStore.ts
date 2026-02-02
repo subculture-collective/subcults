@@ -4,7 +4,7 @@
  */
 
 import { create } from 'zustand';
-import { Scene, Event } from '../types/scene';
+import type { Scene, Event } from '../types/scene';
 import type { User } from './authStore';
 
 /**
