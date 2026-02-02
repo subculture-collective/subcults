@@ -20,6 +20,7 @@ import { Button } from '../components/ui/Button';
 import { ConfirmModal } from '../components/ui/Modal';
 import { useTheme } from '../stores/themeStore';
 import { useAuth } from '../stores/authStore';
+import { useToasts } from '../stores/toastStore';
 // TODO: Uncomment when API endpoints are implemented
 // import { apiClient } from '../lib/api-client';
 
@@ -35,6 +36,7 @@ interface UserProfile {
 export const SettingsPage: React.FC = () => {
   const theme = useTheme();
   const { user, logout } = useAuth();
+  const toast = useToasts();
   
   // Profile state
   const [profile, setProfile] = useState<UserProfile>({
@@ -70,7 +72,7 @@ export const SettingsPage: React.FC = () => {
   };
   
   // Handle avatar file selection
-  const handleAvatarSelect = useCallback((event: React.ChangeEvent<HTMLInputElement>) => {
+  const handleAvatarSelect = useCallback(async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
     
@@ -86,19 +88,27 @@ export const SettingsPage: React.FC = () => {
       return;
     }
     
-    // Create preview
-    const reader = new FileReader();
-    reader.onloadend = () => {
-      setAvatarPreview(reader.result as string);
-    };
-    reader.readAsDataURL(file);
-    
-    // Upload avatar
-    handleAvatarUpload(file);
+    // Create preview and wait for it to complete
+    try {
+      const previewUrl = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onloadend = () => resolve(reader.result as string);
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+      });
+      
+      setAvatarPreview(previewUrl);
+      
+      // Upload avatar with the preview URL
+      await handleAvatarUpload(file, previewUrl);
+    } catch (error) {
+      console.error('Failed to read file:', error);
+      setProfileError('Failed to read image file');
+    }
   }, []);
   
   // Upload avatar to backend
-  const handleAvatarUpload = async (file: File) => {
+  const handleAvatarUpload = async (file: File, previewUrl: string) => {
     setIsUploadingAvatar(true);
     setProfileError(null);
     
@@ -113,7 +123,7 @@ export const SettingsPage: React.FC = () => {
       await new Promise(resolve => setTimeout(resolve, 1000));
       
       // Update profile with new avatar URL
-      setProfile(prev => ({ ...prev, avatarUrl: avatarPreview || undefined }));
+      setProfile(prev => ({ ...prev, avatarUrl: previewUrl }));
       setProfileSaveSuccess(true);
     } catch (error) {
       console.error('Avatar upload failed:', error);
@@ -164,10 +174,10 @@ export const SettingsPage: React.FC = () => {
       // Simulate API call
       await new Promise(resolve => setTimeout(resolve, 1000));
       
-      alert('Successfully logged out of all other devices');
+      toast.success('Successfully logged out of all other devices');
     } catch (error) {
       console.error('Logout other devices failed:', error);
-      alert('Failed to logout other devices. Please try again.');
+      toast.error('Failed to logout other devices. Please try again.');
     } finally {
       setIsLoggingOutOthers(false);
     }
@@ -191,7 +201,7 @@ export const SettingsPage: React.FC = () => {
       window.location.href = '/';
     } catch (error) {
       console.error('Account deletion failed:', error);
-      alert('Failed to delete account. Please try again.');
+      toast.error('Failed to delete account. Please try again.');
       setIsDeletingAccount(false);
       setShowDeleteConfirm(false);
     }
@@ -306,6 +316,7 @@ export const SettingsPage: React.FC = () => {
                     checked={profile.allowPreciseLocation}
                     onChange={(e) => handleProfileChange('allowPreciseLocation', e.target.checked)}
                     className="sr-only peer"
+                    aria-label="Allow precise location"
                   />
                   <div className="w-11 h-6 bg-gray-200 dark:bg-gray-700 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-brand-primary rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-brand-primary"></div>
                 </label>

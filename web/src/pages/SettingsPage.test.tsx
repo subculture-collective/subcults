@@ -17,6 +17,15 @@ vi.mock('../stores/authStore', () => ({
   }),
 }));
 
+// Mock toast store
+vi.mock('../stores/toastStore', () => ({
+  useToasts: () => ({
+    success: vi.fn(),
+    error: vi.fn(),
+    info: vi.fn(),
+  }),
+}));
+
 // Mock API client
 vi.mock('../lib/api-client', () => ({
   apiClient: {
@@ -135,7 +144,7 @@ describe('SettingsPage', () => {
 
     it('should have location consent checkbox', () => {
       renderSettingsPage();
-      const checkbox = screen.getByRole('checkbox', { name: '' });
+      const checkbox = screen.getByRole('checkbox', { name: /Allow precise location/i });
       expect(checkbox).toBeInTheDocument();
     });
 
@@ -146,7 +155,7 @@ describe('SettingsPage', () => {
 
     it('should allow toggling location consent', () => {
       renderSettingsPage();
-      const checkbox = screen.getByRole('checkbox', { name: '' }) as HTMLInputElement;
+      const checkbox = screen.getByRole('checkbox', { name: /Allow precise location/i }) as HTMLInputElement;
       expect(checkbox.checked).toBe(false);
       
       fireEvent.click(checkbox);
