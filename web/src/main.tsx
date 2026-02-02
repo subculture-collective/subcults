@@ -6,6 +6,7 @@ import App from './App.tsx'
 import { initializeNotificationService } from './lib/notification-service'
 import { errorLogger } from './lib/error-logger'
 import { initPerformanceMonitoring } from './lib/performance-metrics'
+import { registerServiceWorker } from './lib/service-worker'
 import { useSettingsStore } from './stores/settingsStore'
 
 // Global error handlers for uncaught errors and promise rejections
@@ -20,19 +21,17 @@ window.addEventListener('unhandledrejection', (event) => {
   errorLogger.logError(error);
 });
 
-// Register service worker for Web Push notifications (production only)
-if (import.meta.env.PROD && 'serviceWorker' in navigator) {
-  window.addEventListener('load', () => {
-    navigator.serviceWorker
-      .register('/sw.js')
-      .then((registration) => {
-        console.log('[ServiceWorker] Registered:', registration);
-      })
-      .catch((error) => {
-        console.error('[ServiceWorker] Registration failed:', error);
-      });
+// Register service worker for offline support and Web Push notifications
+window.addEventListener('load', () => {
+  registerServiceWorker({
+    onUpdateInstalled: () => {
+      // New service worker installed, prompt user to reload
+      if (confirm('A new version of Subcults is available. Reload to update?')) {
+        window.location.reload();
+      }
+    },
   });
-}
+});
 
 // Initialize notification service with configuration
 const VAPID_PUBLIC_KEY = import.meta.env.VITE_VAPID_PUBLIC_KEY;
