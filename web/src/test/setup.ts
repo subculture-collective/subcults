@@ -43,6 +43,23 @@ vi.mock('react-i18next', () => ({
   },
 }));
 
+// Mock IntersectionObserver for OptimizedImage component
+global.IntersectionObserver = class IntersectionObserver {
+  observe = vi.fn();
+  disconnect = vi.fn();
+  unobserve = vi.fn();
+  
+  constructor(callback: IntersectionObserverCallback) {
+    // Immediately trigger intersection for all observed elements
+    setTimeout(() => {
+      callback(
+        [{ isIntersecting: true } as IntersectionObserverEntry],
+        this as any
+      );
+    }, 0);
+  }
+} as any;
+
 // Cleanup after each test
 afterEach(() => {
   cleanup();
