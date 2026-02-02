@@ -41,5 +41,49 @@
     "light": "Light mode",
     "dark": "Dark mode",
     "toggle": "Toggle theme"
+  },
+  "language": {
+    "select": "Select language",
+    "en": "English",
+    "es": "Español",
+    "fr": "Français",
+    "de": "Deutsch"
+  },
+  "navigation": {
+    "menu": "Menu",
+    "discover": "Discover",
+    "map": "Map",
+    "scenes": "Scenes",
+    "events": "Events",
+    "account": "Account",
+    "settings": "Settings",
+    "admin": "Admin",
+    "featuredScenes": "Featured Scenes",
+    "noFeaturedScenes": "No featured scenes yet"
+  },
+  "search": {
+    "placeholder": "Search scenes, events, posts...",
+    "searching": "Searching...",
+    "noResults": "No results found for \"{{query}}\"",
+    "recentSearches": "Recent Searches",
+    "clearAll": "Clear all",
+    "clearSearch": "Clear search",
+    "sections": {
+      "scenes": "Scenes",
+      "events": "Events",
+      "posts": "Posts"
+    }
+  },
+  "profile": {
+    "menu": "Profile menu",
+    "account": "Account",
+    "settings": "Settings",
+    "logout": "Logout"
+  },
+  "dateTime": {
+    "invalidDate": "Invalid date"
+  },
+  "rtl": {
+    "enabled": false
   }
 }

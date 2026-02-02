@@ -63,7 +63,8 @@ describe('Sidebar', () => {
   it('renders Discover section with navigation links', () => {
     renderSidebar();
     
-    expect(screen.getByText('Discover')).toBeInTheDocument();
+    // With i18n mock, text uses translation key
+    expect(screen.getByText('navigation.discover')).toBeInTheDocument();
     expect(screen.getByRole('link', { name: /map/i })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: /scenes/i })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: /events/i })).toBeInTheDocument();
@@ -72,7 +73,8 @@ describe('Sidebar', () => {
   it('renders Account section with Settings link', () => {
     renderSidebar();
     
-    expect(screen.getByText('Account')).toBeInTheDocument();
+    // With i18n mock, text uses translation key
+    expect(screen.getByText('navigation.account')).toBeInTheDocument();
     expect(screen.getByRole('link', { name: /settings/i })).toBeInTheDocument();
   });
 
@@ -90,7 +92,8 @@ describe('Sidebar', () => {
     
     // Only Settings should be present, not Account link
     const links = screen.getAllByRole('link');
-    const accountLinks = links.filter(link => link.textContent?.includes('Account'));
+    // With i18n mock, text uses translation key
+    const accountLinks = links.filter(link => link.textContent?.includes('navigation.account'));
     expect(accountLinks.length).toBe(0);
   });
 
@@ -113,8 +116,9 @@ describe('Sidebar', () => {
   it('renders Featured Scenes section', () => {
     renderSidebar();
     
-    expect(screen.getByText('Featured Scenes')).toBeInTheDocument();
-    expect(screen.getByText('No featured scenes yet')).toBeInTheDocument();
+    // With i18n mock, text uses translation key
+    expect(screen.getByText('navigation.featuredScenes')).toBeInTheDocument();
+    expect(screen.getByText('navigation.noFeaturedScenes')).toBeInTheDocument();
   });
 
   it('renders version in footer', () => {
@@ -162,7 +166,8 @@ describe('Sidebar', () => {
   it('shows close button on mobile', () => {
     renderSidebar({ isOpen: true });
     
-    const closeButton = screen.getByRole('button', { name: /close sidebar/i });
+    // With i18n mock, aria-label uses translation key
+    const closeButton = screen.getByRole('button', { name: 'actions.close' });
     expect(closeButton).toBeInTheDocument();
   });
 
@@ -172,7 +177,8 @@ describe('Sidebar', () => {
     
     renderSidebar({ isOpen: true, onClose: handleClose });
     
-    const closeButton = screen.getByRole('button', { name: /close sidebar/i });
+    // With i18n mock, aria-label uses translation key
+    const closeButton = screen.getByRole('button', { name: 'actions.close' });
     await user.click(closeButton);
     
     expect(handleClose).toHaveBeenCalledTimes(1);
@@ -272,13 +278,15 @@ describe('Sidebar', () => {
   it('shows menu heading on mobile', () => {
     renderSidebar({ isOpen: true });
     
-    expect(screen.getByRole('heading', { name: 'Menu', level: 2 })).toBeInTheDocument();
+    // With i18n mock, text uses translation key
+    expect(screen.getByRole('heading', { name: 'navigation.menu', level: 2 })).toBeInTheDocument();
   });
 
   it('close button SVG is hidden from screen readers', () => {
     const { container } = renderSidebar({ isOpen: true });
     
-    const closeButton = screen.getByRole('button', { name: /close sidebar/i });
+    // With i18n mock, aria-label uses translation key
+    const closeButton = screen.getByRole('button', { name: 'actions.close' });
     const svg = closeButton.querySelector('svg');
     
     expect(svg).toHaveAttribute('aria-hidden', 'true');

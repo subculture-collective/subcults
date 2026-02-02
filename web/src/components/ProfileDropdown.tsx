@@ -5,6 +5,7 @@
 
 import { useState, useRef, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { useAuth, authStore } from '../stores/authStore';
 
 export interface ProfileDropdownProps {
@@ -19,6 +20,7 @@ export interface ProfileDropdownProps {
  */
 export function ProfileDropdown({ className = '' }: ProfileDropdownProps) {
   const { user, isAdmin } = useAuth();
+  const { t } = useTranslation('common');
   const navigate = useNavigate();
   const [isOpen, setIsOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -71,6 +73,7 @@ export function ProfileDropdown({ className = '' }: ProfileDropdownProps) {
         onClick={() => setIsOpen(!isOpen)}
         aria-expanded={isOpen}
         aria-haspopup="true"
+        aria-label={t('profile.menu')}
         className="
           flex items-center gap-2 p-2 rounded-lg
           text-foreground hover:bg-underground-lighter
@@ -123,7 +126,7 @@ export function ProfileDropdown({ className = '' }: ProfileDropdownProps) {
             </p>
             {isAdmin && (
               <span className="inline-block mt-1 px-2 py-0.5 text-xs font-medium text-white bg-brand-accent rounded">
-                Admin
+                {t('navigation.admin')}
               </span>
             )}
           </div>
@@ -141,7 +144,7 @@ export function ProfileDropdown({ className = '' }: ProfileDropdownProps) {
               "
               role="menuitem"
             >
-              Account
+              {t('profile.account')}
             </Link>
             <Link
               to="/settings"
@@ -154,7 +157,7 @@ export function ProfileDropdown({ className = '' }: ProfileDropdownProps) {
               "
               role="menuitem"
             >
-              Settings
+              {t('profile.settings')}
             </Link>
             {isAdmin && (
               <Link
@@ -168,7 +171,7 @@ export function ProfileDropdown({ className = '' }: ProfileDropdownProps) {
                 "
                 role="menuitem"
               >
-                Admin Panel
+                {t('navigation.admin')}
               </Link>
             )}
           </div>
@@ -185,7 +188,7 @@ export function ProfileDropdown({ className = '' }: ProfileDropdownProps) {
               "
               role="menuitem"
             >
-              Sign out
+              {t('profile.logout')}
             </button>
           </div>
         </div>

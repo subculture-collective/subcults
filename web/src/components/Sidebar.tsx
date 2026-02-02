@@ -5,6 +5,7 @@
 
 import { Link, useLocation } from 'react-router-dom';
 import { useAuth } from '../stores/authStore';
+import { useTranslation } from 'react-i18next';
 
 // Read version from package.json at build time
 const VERSION = import.meta.env.VITE_APP_VERSION || '0.1.0';
@@ -30,17 +31,18 @@ export interface SidebarProps {
 export function Sidebar({ isOpen = true, onClose, className = '' }: SidebarProps) {
   const location = useLocation();
   const { isAuthenticated, isAdmin } = useAuth();
+  const { t } = useTranslation('common');
 
   const navItems = [
-    { path: '/', label: 'Map', icon: '🗺️' },
-    { path: '/scenes', label: 'Scenes', icon: '🎭' },
-    { path: '/events', label: 'Events', icon: '📅' },
+    { path: '/', label: t('navigation.map'), icon: '🗺️' },
+    { path: '/scenes', label: t('navigation.scenes'), icon: '🎭' },
+    { path: '/events', label: t('navigation.events'), icon: '📅' },
   ];
 
   const accountItems = [
-    ...(isAuthenticated ? [{ path: '/account', label: 'Account', icon: '👤' }] : []),
-    { path: '/settings', label: 'Settings', icon: '⚙️' },
-    ...(isAdmin ? [{ path: '/admin', label: 'Admin', icon: '🔧' }] : []),
+    ...(isAuthenticated ? [{ path: '/account', label: t('navigation.account'), icon: '👤' }] : []),
+    { path: '/settings', label: t('navigation.settings'), icon: '⚙️' },
+    ...(isAdmin ? [{ path: '/admin', label: t('navigation.admin'), icon: '🔧' }] : []),
   ];
 
   const isActive = (path: string) => {
@@ -80,10 +82,10 @@ export function Sidebar({ isOpen = true, onClose, className = '' }: SidebarProps
         <div className="flex flex-col h-full overflow-y-auto">
           {/* Header */}
           <div className="flex items-center justify-between p-4 border-b border-border lg:hidden">
-            <h2 className="text-lg font-semibold text-foreground">Menu</h2>
+            <h2 className="text-lg font-semibold text-foreground">{t('navigation.menu')}</h2>
             <button
               onClick={onClose}
-              aria-label="Close sidebar"
+              aria-label={t('actions.close')}
               className="
                 p-2 rounded-lg
                 text-foreground hover:bg-underground-lighter
@@ -100,7 +102,7 @@ export function Sidebar({ isOpen = true, onClose, className = '' }: SidebarProps
           <nav className="flex-1 p-4 space-y-1">
             <div className="mb-4">
               <h3 className="px-2 mb-2 text-xs font-semibold text-foreground-secondary uppercase tracking-wider">
-                Discover
+                {t('navigation.discover')}
               </h3>
               {navItems.map((item) => (
                 <Link
@@ -128,7 +130,7 @@ export function Sidebar({ isOpen = true, onClose, className = '' }: SidebarProps
             {accountItems.length > 0 && (
               <div className="pt-4 border-t border-border">
                 <h3 className="px-2 mb-2 text-xs font-semibold text-foreground-secondary uppercase tracking-wider">
-                  Account
+                  {t('navigation.account')}
                 </h3>
                 {accountItems.map((item) => (
                   <Link
@@ -156,10 +158,10 @@ export function Sidebar({ isOpen = true, onClose, className = '' }: SidebarProps
             {/* Featured Scenes (Placeholder) */}
             <div className="pt-4 border-t border-border">
               <h3 className="px-2 mb-2 text-xs font-semibold text-foreground-secondary uppercase tracking-wider">
-                Featured Scenes
+                {t('navigation.featuredScenes')}
               </h3>
               <div className="px-2 py-4 text-xs text-foreground-secondary text-center">
-                No featured scenes yet
+                {t('navigation.noFeaturedScenes')}
               </div>
             </div>
           </nav>

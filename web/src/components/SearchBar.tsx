@@ -5,6 +5,7 @@
 
 import { useState, useRef, useEffect, type KeyboardEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { useSearch } from '../hooks/useSearch';
 import { useSearchHistory } from '../hooks/useSearchHistory';
 import { useKeyboardShortcut } from '../hooks/useKeyboardShortcut';
@@ -50,12 +51,13 @@ export interface SearchBarProps {
  * with typeahead suggestions, keyboard navigation, and accessibility
  */
 export function SearchBar({
-  placeholder = 'Search scenes, events, posts...',
+  placeholder,
   className = '',
   onSelect,
   autoFocus = false,
 }: SearchBarProps) {
   const navigate = useNavigate();
+  const { t } = useTranslation('common');
   const { results, loading, error, search, clear } = useSearch();
   const { history, addToHistory, removeFromHistory, clearHistory } = useSearchHistory();
 
@@ -66,6 +68,9 @@ export function SearchBar({
 
   const inputRef = useRef<HTMLInputElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
+
+  // Use translated placeholder if not provided
+  const searchPlaceholder = placeholder || t('search.placeholder');
 
   // Register keyboard shortcut (Cmd/Ctrl+K) to focus search
   useKeyboardShortcut(
@@ -315,7 +320,7 @@ export function SearchBar({
               setShowHistory(true);
             }
           }}
-          placeholder={placeholder}
+          placeholder={searchPlaceholder}
           autoFocus={autoFocus}
           className="
             w-full pl-10 pr-10 py-2 rounded-lg
@@ -331,7 +336,7 @@ export function SearchBar({
         {inputValue && (
           <button
             onClick={handleClear}
-            aria-label="Clear search"
+            aria-label={t('search.clearSearch')}
             className="
               absolute inset-y-0 right-0 pr-3 flex items-center
               text-foreground-tertiary hover:text-foreground
@@ -363,7 +368,7 @@ export function SearchBar({
                   id="search-history-heading"
                   className="text-xs font-semibold text-foreground-tertiary uppercase tracking-wider"
                 >
-                  Recent Searches
+                  {t('search.recentSearches')}
                 </h3>
                 {history.length > 0 && (
                   <button
@@ -375,7 +380,7 @@ export function SearchBar({
                     }}
                     className="text-xs text-foreground-tertiary hover:text-foreground"
                   >
-                    Clear all
+                    {t('search.clearAll')}
                   </button>
                 )}
               </div>
@@ -422,7 +427,7 @@ export function SearchBar({
           {loading && !showHistory && (
             <div className="p-4 text-center" role="status" aria-live="polite">
               <div className="inline-block animate-spin rounded-full h-6 w-6 border-2 border-brand-primary border-t-transparent" />
-              <p className="mt-2 text-sm text-foreground-secondary">Searching...</p>
+              <p className="mt-2 text-sm text-foreground-secondary">{t('search.searching')}</p>
             </div>
           )}
 
@@ -437,7 +442,7 @@ export function SearchBar({
           {!loading && !error && !hasResults && !showHistory && inputValue.trim() && (
             <div className="p-4 text-center">
               <p className="text-sm text-foreground-tertiary">
-                No results found for "{inputValue}"
+                {t('search.noResults', { query: inputValue })}
               </p>
             </div>
           )}
@@ -452,7 +457,7 @@ export function SearchBar({
                     id="search-results-scenes-heading"
                     className="px-3 py-2 text-xs font-semibold text-foreground-tertiary uppercase tracking-wider bg-background"
                   >
-                    Scenes
+                    {t('search.sections.scenes')}
                   </h3>
                   {results.scenes.map((scene, idx) => {
                     const flatIdx = idx;
@@ -498,7 +503,7 @@ export function SearchBar({
                     id="search-results-events-heading"
                     className="px-3 py-2 text-xs font-semibold text-foreground-tertiary uppercase tracking-wider bg-background"
                   >
-                    Events
+                    {t('search.sections.events')}
                   </h3>
                   {results.events.map((event, idx) => {
                     const flatIdx = results.scenes.length + idx;
@@ -544,7 +549,7 @@ export function SearchBar({
                     id="search-results-posts-heading"
                     className="px-3 py-2 text-xs font-semibold text-foreground-tertiary uppercase tracking-wider bg-background"
                   >
-                    Posts
+                    {t('search.sections.posts')}
                   </h3>
                   {results.posts.map((post, idx) => {
                     const flatIdx = results.scenes.length + results.events.length + idx;
