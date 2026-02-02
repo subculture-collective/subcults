@@ -240,6 +240,77 @@ func main() {
 	}
 	logger.Info("middleware metrics registered (HTTP request metrics and rate limiting)")
 
+	// Initialize canary deployment
+	canaryEnabled := false
+	if val := os.Getenv("CANARY_ENABLED"); val != "" {
+		valLower := strings.ToLower(val)
+		canaryEnabled = valLower == "true" || valLower == "1" || valLower == "yes" || valLower == "on"
+	}
+
+	canaryTrafficPercent := 5.0 // Default: 5%
+	if val := os.Getenv("CANARY_TRAFFIC_PERCENT"); val != "" {
+		if parsed, err := strconv.ParseFloat(val, 64); err == nil {
+			canaryTrafficPercent = parsed
+		}
+	}
+
+	canaryErrorThreshold := 1.0 // Default: 1%
+	if val := os.Getenv("CANARY_ERROR_THRESHOLD"); val != "" {
+		if parsed, err := strconv.ParseFloat(val, 64); err == nil {
+			canaryErrorThreshold = parsed
+		}
+	}
+
+	canaryLatencyThreshold := 2.0 // Default: 2 seconds
+	if val := os.Getenv("CANARY_LATENCY_THRESHOLD"); val != "" {
+		if parsed, err := strconv.ParseFloat(val, 64); err == nil {
+			canaryLatencyThreshold = parsed
+		}
+	}
+
+	canaryAutoRollback := true // Default: enabled
+	if val := os.Getenv("CANARY_AUTO_ROLLBACK"); val != "" {
+		valLower := strings.ToLower(val)
+		canaryAutoRollback = valLower == "true" || valLower == "1" || valLower == "yes" || valLower == "on"
+	}
+
+	canaryMonitoringWindow := 300 // Default: 5 minutes
+	if val := os.Getenv("CANARY_MONITORING_WINDOW"); val != "" {
+		if parsed, err := strconv.Atoi(val); err == nil {
+			canaryMonitoringWindow = parsed
+		}
+	}
+
+	canaryVersion := "canary"
+	if val := os.Getenv("CANARY_VERSION"); val != "" {
+		canaryVersion = val
+	}
+
+	canaryConfig := middleware.CanaryConfig{
+		Enabled:            canaryEnabled,
+		TrafficPercent:     canaryTrafficPercent,
+		ErrorThreshold:     canaryErrorThreshold,
+		LatencyThreshold:   canaryLatencyThreshold,
+		AutoRollback:       canaryAutoRollback,
+		MonitoringWindow:   canaryMonitoringWindow,
+		Version:            canaryVersion,
+	}
+
+	canaryRouter := middleware.NewCanaryRouter(canaryConfig, logger)
+	canaryRouter.SetPrometheusMetrics(rateLimitMetrics)
+
+	if canaryEnabled {
+		logger.Info("canary deployment initialized",
+			"traffic_percent", canaryTrafficPercent,
+			"error_threshold", canaryErrorThreshold,
+			"latency_threshold", canaryLatencyThreshold,
+			"auto_rollback", canaryAutoRollback,
+			"version", canaryVersion,
+		)
+	} else {
+		logger.Info("canary deployment disabled")
+	}
+
 	// Initialize rate limiting
 	// Check if Redis URL is configured for distributed rate limiting
 	redisURL := os.Getenv("REDIS_URL")
@@ -790,6 +861,12 @@ func main() {
 	})
 	mux.Handle("/metrics", metricsHandler)
 
+	// Canary deployment management endpoints
+	canaryHandler := api.NewCanaryHandler(canaryRouter, logger)
+	mux.HandleFunc("/canary/metrics", canaryHandler.GetMetrics)
+	mux.HandleFunc("/canary/rollback", canaryHandler.Rollback)
+	mux.HandleFunc("/canary/metrics/reset", canaryHandler.ResetMetrics)
+
 	// Post routes
 	mux.HandleFunc("/posts", func(w http.ResponseWriter, r *http.Request) {
 		switch r.Method {
@@ -975,6 +1052,11 @@ func main() {
 
 	// Then rate limiting
 	handler = middleware.RateLimiter(rateLimitStore, generalLimit, middleware.IPKeyFunc(), rateLimitMetrics)(handler)
+
+	// Then canary routing (if enabled)
+	if canaryEnabled {
+		handler = canaryRouter.Middleware(handler)
+	}
 
 	// Finally, tracing (outermost, executes first) - only if enabled
 	if tracingEnabled {
