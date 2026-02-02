@@ -4,7 +4,7 @@
  */
 
 import { create } from 'zustand';
-import { Scene, Event } from '../types/scene';
+import type { Scene, Event } from '../types/scene';
 import type { User } from './authStore';
 
 /**
@@ -146,6 +146,9 @@ export interface SceneActions {
   
   // Remove scene from cache
   removeScene: (id: string) => void;
+  
+  // Update scene
+  updateScene: (id: string, updates: Partial<Scene>) => Promise<Scene>;
 }
 
 /**

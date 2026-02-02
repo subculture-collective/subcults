@@ -3,11 +3,11 @@
  * Scene-specific state management with optimistic updates
  */
 
-import { StateCreator } from 'zustand';
+import type { StateCreator } from 'zustand';
 import { apiClient } from '../../lib/api-client';
-import { Scene } from '../../types/scene';
+import type { Scene } from '../../types/scene';
+import type { EntityStore } from '../entityStore';
 import {
-  EntityStore,
   createFreshMetadata,
   setLoadingMetadata,
   setSuccessMetadata,
@@ -22,7 +22,7 @@ export const createSceneSlice: StateCreator<
   EntityStore,
   [],
   [],
-  Pick<EntityStore, 'scene' | 'fetchScene' | 'setScene' | 'markSceneStale' | 'optimisticJoinScene' | 'rollbackSceneUpdate' | 'commitSceneUpdate' | 'clearSceneError' | 'removeScene'>
+  Pick<EntityStore, 'scene' | 'fetchScene' | 'setScene' | 'markSceneStale' | 'optimisticJoinScene' | 'rollbackSceneUpdate' | 'commitSceneUpdate' | 'clearSceneError' | 'removeScene' | 'updateScene'>
 > = (set, get) => ({
   scene: {
     scenes: {},
@@ -258,5 +258,69 @@ export const createSceneSlice: StateCreator<
         },
       };
     });
+  },
+
+  updateScene: async (id: string, updates: Partial<Scene>): Promise<Scene> => {
+    const state = get();
+    const cached = state.scene.scenes[id];
+
+    // Set loading state
+    set((state) => ({
+      scene: {
+        ...state.scene,
+        scenes: {
+          ...state.scene.scenes,
+          [id]: {
+            data: cached?.data || ({} as Scene),
+            metadata: setLoadingMetadata(cached?.metadata || createFreshMetadata()),
+          },
+        },
+      },
+    }));
+
+    try {
+      // Update scene via API
+      const updatedScene = await apiClient.patch<Scene>(`/scenes/${id}`, updates);
+
+      // Update cache with fresh data
+      set((state) => ({
+        scene: {
+          ...state.scene,
+          scenes: {
+            ...state.scene.scenes,
+            [id]: {
+              data: updatedScene,
+              metadata: setSuccessMetadata(),
+            },
+          },
+        },
+      }));
+
+      return updatedScene;
+    } catch (error: unknown) {
+      const errorMessage =
+        error instanceof Error ? error.message : String(error || 'Failed to update scene');
+
+      // Update cache with error
+      set((state) => ({
+        scene: {
+          ...state.scene,
+          scenes: {
+            ...state.scene.scenes,
+            [id]: cached
+              ? {
+                  ...cached,
+                  metadata: setErrorMetadata(cached.metadata, errorMessage),
+                }
+              : {
+                  data: {} as Scene,
+                  metadata: setErrorMetadata(createFreshMetadata(), errorMessage),
+                },
+          },
+        },
+      }));
+
+      throw error;
+    }
   },
 });

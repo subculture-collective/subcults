@@ -14,6 +14,7 @@ import { RequireAdmin } from '../guards/RequireAdmin';
 // Eagerly loaded pages
 import { HomePage } from '../pages/HomePage';
 import { SceneDetailPage } from '../pages/SceneDetailPage';
+import { SceneSettingsPage } from '../pages/SceneSettingsPage';
 import { EventDetailPage } from '../pages/EventDetailPage';
 import { AccountPage } from '../pages/AccountPage';
 import { LoginPage } from '../pages/LoginPage';
@@ -54,6 +55,14 @@ const router = createBrowserRouter(
         {
           path: 'scenes/:id',
           element: <SceneDetailPage />,
+        },
+        {
+          path: 'scenes/:id/settings',
+          element: (
+            <RequireAuth>
+              <SceneSettingsPage />
+            </RequireAuth>
+          ),
         },
         {
           path: 'events/:id',

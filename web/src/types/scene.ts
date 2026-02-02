@@ -12,6 +12,9 @@ export interface Point {
 export interface Palette {
   primary: string;
   secondary: string;
+  accent: string;
+  background: string;
+  text: string;
 }
 
 /**
@@ -21,6 +24,7 @@ export interface Scene {
   id: string;
   name: string;
   description?: string;
+  owner_did?: string; // Decentralized Identifier of scene owner
   allow_precise: boolean;
   precise_point?: Point;
   coarse_geohash: string;
