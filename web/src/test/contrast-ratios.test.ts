@@ -43,15 +43,31 @@ function hexToRgb(hex: string): [number, number, number] {
 }
 
 /**
- * Parse rgba color to RGB (ignoring alpha)
+ * Parse rgba color to effective RGB over dark mode background.
+ * For rgb(...), or rgba(..., 1), this returns the original RGB values.
+ * For semi-transparent rgba, this composites over the dark background (#242424).
  */
 function rgbaToRgb(rgba: string): [number, number, number] {
-  const match = rgba.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)/);
+  const match = rgba.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)(?:,\s*([\d.]+))?\)/);
   if (!match) throw new Error(`Invalid rgba color: ${rgba}`);
+
+  const r = parseInt(match[1]);
+  const g = parseInt(match[2]);
+  const b = parseInt(match[3]);
+  const a = match[4] ? parseFloat(match[4]) : 1;
+
+  // Dark mode background color used for compositing (e.g. app shell background)
+  const darkBackground = hexToRgb('#242424');
+
+  // If fully opaque, no compositing is needed – preserve previous behavior.
+  if (a >= 1) {
+    return [r, g, b];
+  }
+
   return [
-    parseInt(match[1]),
-    parseInt(match[2]),
-    parseInt(match[3]),
+    Math.round(r * a + darkBackground[0] * (1 - a)),
+    Math.round(g * a + darkBackground[1] * (1 - a)),
+    Math.round(b * a + darkBackground[2] * (1 - a)),
   ];
 }
 
@@ -121,7 +137,7 @@ describe('WCAG AA Contrast Ratios', () => {
   describe('Dark Mode', () => {
     it('foreground on background meets WCAG AA', () => {
       const background = hexToRgb('#242424');
-      // rgba(255, 255, 255, 0.87) = approximately #dedede
+      // rgba(255, 255, 255, 0.87) composited over #242424 = rgb(227, 227, 227)
       const foreground = rgbaToRgb('rgba(255, 255, 255, 0.87)');
       
       const ratio = getContrastRatio(foreground, background);
@@ -131,7 +147,7 @@ describe('WCAG AA Contrast Ratios', () => {
 
     it('foreground-secondary on background meets WCAG AA', () => {
       const background = hexToRgb('#242424');
-      // rgba(255, 255, 255, 0.7) = approximately #b3b3b3
+      // rgba(255, 255, 255, 0.7) composited over #242424 = rgb(189, 189, 189)
       const foreground = rgbaToRgb('rgba(255, 255, 255, 0.7)');
       
       const ratio = getContrastRatio(foreground, background);
