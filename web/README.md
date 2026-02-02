@@ -43,6 +43,24 @@ React + TypeScript + Vite frontend for the Subcults platform.
 - `npm run lint` - Run ESLint
 - `npm run check:i18n` - Validate translation keys (CI check)
 
+## Accessibility
+
+Subcults is designed to meet **WCAG 2.1 Level AA** accessibility standards.
+
+- **Automated Testing**: Comprehensive axe-core test suite (28 tests, 0 violations)
+- **Keyboard Navigation**: Full keyboard accessibility across all components
+- **Screen Reader Support**: Proper ARIA labels and semantic HTML
+- **Mobile Accessibility**: Primary touch targets designed to meet 44x44px minimum
+- **Focus Management**: Proper focus handling in modals and dialogs
+- **Color Contrast**: WCAG AA compliant (4.5:1 for text, 3:1 for UI)
+
+See [ACCESSIBILITY.md](ACCESSIBILITY.md) for comprehensive accessibility documentation and [A11Y_CHECKLIST.md](A11Y_CHECKLIST.md) for the component development checklist.
+
+```bash
+# Run accessibility tests
+npm test -- src/a11y-audit.test.tsx
+```
+
 ## Components
 
 ### ClusteredMapView (Recommended)
