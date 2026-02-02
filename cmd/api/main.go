@@ -22,6 +22,7 @@ import (
 	"github.com/onnwee/subcults/internal/api"
 	"github.com/onnwee/subcults/internal/attachment"
 	"github.com/onnwee/subcults/internal/audit"
+	"github.com/onnwee/subcults/internal/config"
 	"github.com/onnwee/subcults/internal/idempotency"
 	"github.com/onnwee/subcults/internal/jobs"
 	"github.com/onnwee/subcults/internal/livekit"
@@ -239,6 +240,40 @@ func main() {
 		os.Exit(1)
 	}
 	logger.Info("middleware metrics registered (HTTP request metrics and rate limiting)")
+
+	// Load canary deployment configuration from Config struct
+	cfg, configErrs := config.Load("")
+	if len(configErrs) > 0 {
+		// Log config errors but continue - some errors may be non-critical
+		for _, err := range configErrs {
+			logger.Warn("config validation warning", "error", err)
+		}
+	}
+
+	canaryConfig := middleware.CanaryConfig{
+		Enabled:            cfg.CanaryEnabled,
+		TrafficPercent:     cfg.CanaryTrafficPercent,
+		ErrorThreshold:     cfg.CanaryErrorThreshold,
+		LatencyThreshold:   cfg.CanaryLatencyThreshold,
+		AutoRollback:       cfg.CanaryAutoRollback,
+		MonitoringWindow:   cfg.CanaryMonitoringWindow,
+		Version:            cfg.CanaryVersion,
+	}
+
+	canaryRouter := middleware.NewCanaryRouter(canaryConfig, logger)
+	canaryRouter.SetPrometheusMetrics(rateLimitMetrics)
+
+	if cfg.CanaryEnabled {
+		logger.Info("canary deployment initialized",
+			"traffic_percent", cfg.CanaryTrafficPercent,
+			"error_threshold", cfg.CanaryErrorThreshold,
+			"latency_threshold", cfg.CanaryLatencyThreshold,
+			"auto_rollback", cfg.CanaryAutoRollback,
+			"version", cfg.CanaryVersion,
+		)
+	} else {
+		logger.Info("canary deployment disabled")
+	}
 
 	// Initialize rate limiting
 	// Check if Redis URL is configured for distributed rate limiting
@@ -790,6 +825,12 @@ func main() {
 	})
 	mux.Handle("/metrics", metricsHandler)
 
+	// Canary deployment management endpoints
+	canaryHandler := api.NewCanaryHandler(canaryRouter, logger)
+	mux.HandleFunc("/canary/metrics", canaryHandler.GetMetrics)
+	mux.HandleFunc("/canary/rollback", canaryHandler.Rollback)
+	mux.HandleFunc("/canary/metrics/reset", canaryHandler.ResetMetrics)
+
 	// Post routes
 	mux.HandleFunc("/posts", func(w http.ResponseWriter, r *http.Request) {
 		switch r.Method {
@@ -975,6 +1016,11 @@ func main() {
 
 	// Then rate limiting
 	handler = middleware.RateLimiter(rateLimitStore, generalLimit, middleware.IPKeyFunc(), rateLimitMetrics)(handler)
+
+	// Then canary routing (if enabled)
+	if cfg.CanaryEnabled {
+		handler = canaryRouter.Middleware(handler)
+	}
 
 	// Finally, tracing (outermost, executes first) - only if enabled
 	if tracingEnabled {

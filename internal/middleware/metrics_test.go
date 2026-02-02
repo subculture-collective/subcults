@@ -137,8 +137,8 @@ func TestMetrics_Collectors(t *testing.T) {
 	m := NewMetrics()
 	collectors := m.Collectors()
 
-	// Should have 3 rate limit metrics + 4 HTTP metrics = 7 total
-	if len(collectors) != 7 {
-		t.Errorf("expected 7 collectors, got %d", len(collectors))
+	// Should have 3 rate limit metrics + 4 HTTP metrics + 4 canary metrics = 11 total
+	if len(collectors) != 11 {
+		t.Errorf("expected 11 collectors, got %d", len(collectors))
 	}
 }
