@@ -59,11 +59,19 @@ module.exports = {
         // Best practices score: >90
         'categories:best-practices': ['warn', { minScore: 0.9 }],
         
+        // Image optimization audits
+        'modern-image-formats': ['warn', { minScore: 0.9 }], // WebP usage
+        'uses-responsive-images': ['warn', { minScore: 0.9 }], // Properly sized images
+        'offscreen-images': ['warn', { minScore: 0.9 }], // Lazy loading
+        'uses-optimized-images': ['warn', { minScore: 0.9 }], // Image compression
+        'unsized-images': ['error', { minScore: 1.0 }], // Images must have width/height
+        
         // Bundle size budgets
         'resource-summary:script:size': ['warn', { maxNumericValue: 300000 }], // 300KB
         'resource-summary:stylesheet:size': ['warn', { maxNumericValue: 50000 }], // 50KB
         'resource-summary:document:size': ['warn', { maxNumericValue: 20000 }], // 20KB
-        'resource-summary:total:size': ['warn', { maxNumericValue: 500000 }], // 500KB total
+        'resource-summary:image:size': ['warn', { maxNumericValue: 500000 }], // 500KB total images
+        'resource-summary:total:size': ['warn', { maxNumericValue: 1000000 }], // 1MB total payload (scripts + styles + images). Increased from 500KB to support image-heavy pages with optimized images; separate image budget (500KB) controls image-specific size.
       },
       
       // Fail build on any errors (not warnings)
