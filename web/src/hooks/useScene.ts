@@ -6,7 +6,7 @@
 import { useEffect, useMemo } from 'react';
 import { useEntityStore } from '../stores/entityStore';
 import { isStale, TTL_CONFIG } from '../stores/entityStore';
-import { Scene } from '../types/scene';
+import type { Scene } from '../types/scene';
 
 export interface UseSceneResult {
   scene: Scene | null;

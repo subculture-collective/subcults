@@ -5,7 +5,7 @@
 
 import { useMemo } from 'react';
 import { useEntityStore } from '../stores/entityStore';
-import { Scene } from '../types/scene';
+import type { Scene } from '../types/scene';
 
 export interface UseScenesOptions {
   filterByOwner?: string;

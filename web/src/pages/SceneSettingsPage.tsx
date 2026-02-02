@@ -7,8 +7,8 @@ import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useEntityStore } from '../stores/entityStore';
 import { useToastStore } from '../stores/toastStore';
-import { authStore } from '../stores/authStore';
-import { Scene, Palette } from '../types/scene';
+import { useAuth } from '../stores/authStore';
+import type { Scene, Palette } from '../types/scene';
 import { useTranslation } from 'react-i18next';
 
 // Hex color validation regex
@@ -45,7 +45,7 @@ export const SceneSettingsPage: React.FC = () => {
   const fetchScene = useEntityStore((state) => state.fetchScene);
   const updateScene = useEntityStore((state) => state.updateScene);
   const addToast = useToastStore((state) => state.addToast);
-  const currentUser = authStore.useAuthState((state) => state.user);
+  const { user: currentUser } = useAuth();
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);

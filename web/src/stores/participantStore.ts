@@ -4,7 +4,6 @@
  */
 
 import { create } from 'zustand';
-import { shallow } from 'zustand/shallow';
 import type { Participant } from '../types/streaming';
 
 /**
@@ -34,7 +33,7 @@ interface ParticipantState {
   localIdentity: string | null;
 
   // Pending mute updates (for debouncing)
-  pendingMuteUpdates: Record<string, NodeJS.Timeout>;
+  pendingMuteUpdates: Record<string, ReturnType<typeof setTimeout>>;
 }
 
 /**
@@ -282,7 +281,7 @@ export function useParticipants(): Participant[] {
     return Object.values(state.participants)
       .filter((cached) => cached.data.identity !== localIdentity)
       .map((cached) => cached.data);
-  }, shallow);
+  });
 }
 
 /**

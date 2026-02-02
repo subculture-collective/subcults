@@ -48,7 +48,7 @@ export function useSearch(options: UseSearchOptions = {}): UseSearchResult {
   const [error, setError] = useState<string | null>(null);
 
   // Track debounce timeout
-  const debounceTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const debounceTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   // Track abort controller for request cancellation
   const abortControllerRef = useRef<AbortController | null>(null);
 

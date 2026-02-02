@@ -3,11 +3,13 @@
  * Event-specific state management
  */
 
-import { StateCreator } from 'zustand';
+import type { StateCreator } from 'zustand';
 import { apiClient } from '../../lib/api-client';
-import { Event } from '../../types/scene';
-import {
+import type { Event } from '../../types/scene';
+import type {
   EntityStore,
+} from '../entityStore';
+import {
   createFreshMetadata,
   setLoadingMetadata,
   setSuccessMetadata,
