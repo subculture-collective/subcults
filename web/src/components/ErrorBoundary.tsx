@@ -36,12 +36,12 @@ function filterStackTrace(stack: string | undefined): string {
 }
 
 export class ErrorBoundary extends Component<Props, State> {
-  private errorButtonRef: React.RefObject<HTMLButtonElement>;
+  private errorButtonRef: React.RefObject<HTMLButtonElement | null>;
 
   constructor(props: Props) {
     super(props);
     this.state = { hasError: false, error: null, errorInfo: null };
-    this.errorButtonRef = React.createRef<HTMLButtonElement>();
+    this.errorButtonRef = React.createRef<HTMLButtonElement | null>();
   }
 
   static getDerivedStateFromError(error: Error): Partial<State> {
