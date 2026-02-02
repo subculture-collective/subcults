@@ -24,6 +24,34 @@
     "poor": "Mauvaise",
     "unknown": "Inconnue"
   },
+  "streamHeader": {
+    "live": "EN DIRECT",
+    "organizer": "Organisateur",
+    "listeners": "{{count}} auditeur",
+    "listeners_other": "{{count}} auditeurs"
+  },
+  "audioLevel": {
+    "muted": "Muet",
+    "speaking": "Parle",
+    "silent": "Silencieux"
+  },
+  "shareButtons": {
+    "share": "Partager",
+    "shareText": "Découvrez {{title}}!",
+    "copyLink": "Copier le Lien",
+    "copied": "Copié!",
+    "invite": "Inviter",
+    "shareOptions": "Options de partage"
+  },
+  "chat": {
+    "sidebar": "Barre latérale de discussion",
+    "title": "Discussion",
+    "noMessages": "Aucun message pour le moment",
+    "you": "Vous",
+    "placeholder": "Tapez un message...",
+    "messageInput": "Entrée de message",
+    "send": "Envoyer"
+  },
   "streamPage": {
     "invalidRoom": "Salle Invalide",
     "noRoomId": "Aucun ID de salle fourni",

@@ -1,10 +1,10 @@
 /**
  * StreamPage Component
- * Live audio streaming room
+ * Live audio streaming room with enhanced UI components
  * This is lazy-loaded due to heavy dependencies
  */
 
-import React, { useMemo, useEffect } from 'react';
+import React, { useMemo, useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import {
@@ -18,8 +18,13 @@ import {
   ParticipantList,
   AudioControls,
   ConnectionIndicator,
+  StreamHeader,
+  ShareInviteButtons,
+  ChatSidebar,
+  AudioLevelVisualization,
 } from '../components/streaming';
 import { useToasts } from '../stores/toastStore';
+import type { ChatMessage } from '../components/streaming';
 
 export const StreamPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -41,6 +46,9 @@ export const StreamPage: React.FC = () => {
   const setVolume = useStreamingStore((state) => state.setVolume);
   const toggleMute = useStreamingStore((state) => state.toggleMute);
 
+  // Chat state (mock for now - will be integrated with backend later)
+  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
+
   // Show error toasts
   useEffect(() => {
     if (error) {
@@ -61,6 +69,21 @@ export const StreamPage: React.FC = () => {
     }
   };
 
+  // Handle sending chat messages
+  const handleSendMessage = (message: string) => {
+    const newMessage: ChatMessage = {
+      id: Date.now().toString(),
+      sender: localParticipant?.name || 'You',
+      message,
+      timestamp: Date.now(),
+      isLocal: true,
+    };
+    setChatMessages((prev) => [...prev, newMessage]);
+  };
+
+  // Get current stream URL for sharing
+  const streamUrl = typeof window !== 'undefined' ? window.location.href : '';
+
   if (!id) {
     return (
       <div style={{ padding: '2rem', textAlign: 'center' }}>
@@ -73,19 +96,20 @@ export const StreamPage: React.FC = () => {
   return (
     <div
       style={{
-        padding: '2rem',
-        maxWidth: '800px',
+        padding: '1rem',
+        maxWidth: '1400px',
         margin: '0 auto',
         color: 'white',
       }}
     >
-      <div style={{ marginBottom: '2rem' }}>
-        <h1 style={{ fontSize: '2rem', fontWeight: 700, marginBottom: '0.5rem' }}>
-          {t('streamPage.streamRoom')}
-        </h1>
-        <p style={{ color: '#9ca3af' }}>
-          {t('streamPage.room')}: {id}
-        </p>
+      {/* Stream Header */}
+      <div style={{ marginBottom: '1.5rem' }}>
+        <StreamHeader
+          title={`Stream ${id}`}
+          organizer="DJ Collective"
+          listenerCount={participantCount}
+          isLive={isConnected}
+        />
       </div>
 
       {/* Error Display */}
@@ -117,37 +141,105 @@ export const StreamPage: React.FC = () => {
 
       {/* Connected View */}
       {isConnected && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-          {/* Connection Quality */}
-          <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-            <ConnectionIndicator quality={connectionQuality} />
+        <>
+          {/* Main Content Area */}
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns: 'minmax(0, 1fr) 350px',
+              gap: '1.5rem',
+              marginBottom: '1.5rem',
+            }}
+            className="stream-content"
+          >
+            {/* Left Column: Controls and Participants */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+              {/* Connection Quality and Share Buttons */}
+              <div
+                style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  flexWrap: 'wrap',
+                  gap: '1rem',
+                }}
+              >
+                <ConnectionIndicator quality={connectionQuality} />
+                <ShareInviteButtons
+                  streamUrl={streamUrl}
+                  streamTitle={`Stream ${id}`}
+                />
+              </div>
+
+              {/* Audio Controls */}
+              <AudioControls
+                isMuted={isLocalMuted}
+                onToggleMute={toggleMute}
+                onLeave={disconnect}
+                onVolumeChange={setVolume}
+              />
+
+              {/* Audio Level Visualization Demo */}
+              {localParticipant && (
+                <div
+                  style={{
+                    padding: '1rem',
+                    backgroundColor: '#1f2937',
+                    borderRadius: '0.5rem',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '1rem',
+                  }}
+                >
+                  <span style={{ fontSize: '0.875rem', color: '#9ca3af' }}>
+                    Your Audio Level:
+                  </span>
+                  <AudioLevelVisualization
+                    level={localParticipant.isSpeaking ? 0.7 : 0.1}
+                    isMuted={localParticipant.isMuted}
+                    size="medium"
+                    showSpeaking={true}
+                  />
+                </div>
+              )}
+
+              {/* Participants */}
+              <div>
+                <h2
+                  style={{
+                    fontSize: '1.25rem',
+                    fontWeight: 600,
+                    marginBottom: '1rem',
+                  }}
+                >
+                  {t('streamPage.participants')} ({participantCount})
+                </h2>
+                <ParticipantList
+                  participants={participants}
+                  localParticipant={localParticipant}
+                />
+              </div>
+            </div>
+
+            {/* Right Column: Chat Sidebar */}
+            <div>
+              <ChatSidebar
+                messages={chatMessages}
+                onSendMessage={handleSendMessage}
+                maxHeight="calc(100vh - 250px)"
+              />
+            </div>
           </div>
 
-          {/* Audio Controls */}
-          <AudioControls
-            isMuted={isLocalMuted}
-            onToggleMute={toggleMute}
-            onLeave={disconnect}
-            onVolumeChange={setVolume}
-          />
-
-          {/* Participants */}
-          <div>
-            <h2
-              style={{
-                fontSize: '1.25rem',
-                fontWeight: 600,
-                marginBottom: '1rem',
-              }}
-            >
-              {t('streamPage.participants')} ({participantCount})
-            </h2>
-            <ParticipantList
-              participants={participants}
-              localParticipant={localParticipant}
-            />
-          </div>
-        </div>
+          {/* Mobile Responsive Styles */}
+          <style>{`
+            @media (max-width: 768px) {
+              .stream-content {
+                grid-template-columns: 1fr !important;
+              }
+            }
+          `}</style>
+        </>
       )}
     </div>
   );

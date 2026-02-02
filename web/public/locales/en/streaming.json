@@ -24,6 +24,34 @@
     "poor": "Poor",
     "unknown": "Unknown"
   },
+  "streamHeader": {
+    "live": "LIVE",
+    "organizer": "Organizer",
+    "listeners": "{{count}} listener",
+    "listeners_other": "{{count}} listeners"
+  },
+  "audioLevel": {
+    "muted": "Muted",
+    "speaking": "Speaking",
+    "silent": "Silent"
+  },
+  "shareButtons": {
+    "share": "Share",
+    "shareText": "Check out {{title}}!",
+    "copyLink": "Copy Link",
+    "copied": "Copied!",
+    "invite": "Invite",
+    "shareOptions": "Share options"
+  },
+  "chat": {
+    "sidebar": "Chat sidebar",
+    "title": "Chat",
+    "noMessages": "No messages yet",
+    "you": "You",
+    "placeholder": "Type a message...",
+    "messageInput": "Message input",
+    "send": "Send"
+  },
   "streamPage": {
     "invalidRoom": "Invalid Room",
     "noRoomId": "No room ID provided",
