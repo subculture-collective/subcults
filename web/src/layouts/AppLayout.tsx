@@ -11,6 +11,7 @@ import { SearchBar } from '../components/SearchBar';
 import { NotificationBadge } from '../components/NotificationBadge';
 import { ProfileDropdown } from '../components/ProfileDropdown';
 import { Sidebar } from '../components/Sidebar';
+import { DarkModeToggle } from '../components/DarkModeToggle';
 
 export const AppLayout: React.FC = () => {
   const { isAuthenticated } = useAuth();
@@ -38,6 +39,7 @@ export const AppLayout: React.FC = () => {
           flex-shrink-0
           bg-underground border-b border-border
           px-3 py-2 sm:px-4 sm:py-3
+          theme-transition
         "
       >
         <div className="flex items-center justify-between gap-2 sm:gap-4 max-w-[1600px] mx-auto">
@@ -74,6 +76,7 @@ export const AppLayout: React.FC = () => {
 
           {/* Right Actions */}
           <div className="flex items-center gap-1 sm:gap-2">
+            <DarkModeToggle />
             {isAuthenticated ? (
               <>
                 <NotificationBadge />
@@ -115,7 +118,7 @@ export const AppLayout: React.FC = () => {
         <main
           id="main-content"
           role="main"
-          className="flex-1 overflow-auto relative bg-background"
+          className="flex-1 overflow-auto relative bg-background theme-transition"
         >
           <Outlet />
         </main>
