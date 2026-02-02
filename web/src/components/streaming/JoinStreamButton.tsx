@@ -27,41 +27,27 @@ export const JoinStreamButton: React.FC<JoinStreamButtonProps> = ({
     ? t('joinButton.connected')
     : t('joinButton.join');
 
+  const buttonClass = isConnected
+    ? 'bg-green-500'
+    : isConnecting
+    ? 'bg-gray-500'
+    : 'bg-blue-500 hover:bg-blue-600';
+
   return (
     <button
       onClick={onJoin}
       disabled={disabled || isConnected || isConnecting}
-      className={`join-stream-button ${isConnected ? 'connected' : ''} ${
-        isConnecting ? 'connecting' : ''
-      }`}
+      className={`
+        join-stream-button px-6 py-3 text-base font-semibold rounded-lg
+        border-0 text-white min-w-[150px]
+        transition-all duration-200
+        focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-brand-primary
+        disabled:opacity-50 disabled:cursor-not-allowed
+        ${buttonClass}
+        ${isConnected ? 'connected' : ''}
+        ${isConnecting ? 'connecting' : ''}
+      `.trim()}
       aria-label={buttonText}
-      style={{
-        padding: '0.75rem 1.5rem',
-        fontSize: '1rem',
-        fontWeight: 600,
-        borderRadius: '0.5rem',
-        border: 'none',
-        cursor: disabled || isConnected || isConnecting ? 'not-allowed' : 'pointer',
-        backgroundColor: isConnected
-          ? '#10b981'
-          : isConnecting
-          ? '#6b7280'
-          : '#3b82f6',
-        color: 'white',
-        opacity: disabled ? 0.5 : 1,
-        transition: 'all 0.2s ease',
-        minWidth: '150px',
-      }}
-      onMouseEnter={(e) => {
-        if (!disabled && !isConnected && !isConnecting) {
-          e.currentTarget.style.backgroundColor = '#2563eb';
-        }
-      }}
-      onMouseLeave={(e) => {
-        if (!disabled && !isConnected && !isConnecting) {
-          e.currentTarget.style.backgroundColor = '#3b82f6';
-        }
-      }}
     >
       {buttonText}
     </button>
