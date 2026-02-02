@@ -166,7 +166,8 @@ describe('Sidebar', () => {
   it('shows close button on mobile', () => {
     renderSidebar({ isOpen: true });
     
-    const closeButton = screen.getByRole('button', { name: /close sidebar/i });
+    // With i18n mock, aria-label uses translation key
+    const closeButton = screen.getByRole('button', { name: 'actions.close' });
     expect(closeButton).toBeInTheDocument();
   });
 
@@ -176,7 +177,8 @@ describe('Sidebar', () => {
     
     renderSidebar({ isOpen: true, onClose: handleClose });
     
-    const closeButton = screen.getByRole('button', { name: /close sidebar/i });
+    // With i18n mock, aria-label uses translation key
+    const closeButton = screen.getByRole('button', { name: 'actions.close' });
     await user.click(closeButton);
     
     expect(handleClose).toHaveBeenCalledTimes(1);
@@ -283,7 +285,8 @@ describe('Sidebar', () => {
   it('close button SVG is hidden from screen readers', () => {
     const { container } = renderSidebar({ isOpen: true });
     
-    const closeButton = screen.getByRole('button', { name: /close sidebar/i });
+    // With i18n mock, aria-label uses translation key
+    const closeButton = screen.getByRole('button', { name: 'actions.close' });
     const svg = closeButton.querySelector('svg');
     
     expect(svg).toHaveAttribute('aria-hidden', 'true');

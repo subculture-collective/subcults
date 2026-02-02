@@ -237,9 +237,10 @@ describe('SearchBar', () => {
 
       await waitFor(
         () => {
-          expect(screen.getByText('Scenes')).toBeInTheDocument();
-          expect(screen.getByText('Events')).toBeInTheDocument();
-          expect(screen.getByText('Posts')).toBeInTheDocument();
+          // With i18n mock, section headings use translation keys
+          expect(screen.getByText('search.sections.scenes')).toBeInTheDocument();
+          expect(screen.getByText('search.sections.events')).toBeInTheDocument();
+          expect(screen.getByText('search.sections.posts')).toBeInTheDocument();
           expect(screen.getByText('Test Scene')).toBeInTheDocument();
           expect(screen.getByText('Test Event')).toBeInTheDocument();
           expect(screen.getByText('Test Post Title')).toBeInTheDocument();
@@ -288,7 +289,8 @@ describe('SearchBar', () => {
 
       await waitFor(
         () => {
-          expect(screen.getByText(/No results found for/)).toBeInTheDocument();
+          // With i18n mock, uses translation key (interpolation is ignored)
+          expect(screen.getByText('search.noResults')).toBeInTheDocument();
         },
         { timeout: 500 }
       );
@@ -543,7 +545,8 @@ describe('SearchBar', () => {
       // This is the expected behavior - the component is resilient to failures
       await waitFor(
         () => {
-          expect(screen.getByText(/No results found/)).toBeInTheDocument();
+          // With i18n mock, uses translation key
+          expect(screen.getByText('search.noResults')).toBeInTheDocument();
         },
         { timeout: 500 }
       );
@@ -591,7 +594,8 @@ describe('SearchBar', () => {
       // Wait for empty state
       await waitFor(
         () => {
-          expect(screen.getByText(/No results found/)).toBeInTheDocument();
+          // With i18n mock, uses translation key
+          expect(screen.getByText('search.noResults')).toBeInTheDocument();
         },
         { timeout: 800 }
       );
