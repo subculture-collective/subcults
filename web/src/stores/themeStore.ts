@@ -30,9 +30,14 @@ const THEME_STORAGE_KEY = 'subcults-theme';
  */
 function getInitialTheme(): { theme: Theme; isManuallySet: boolean } {
   // Check localStorage first
-  const stored = localStorage.getItem(THEME_STORAGE_KEY);
-  if (stored === 'light' || stored === 'dark') {
-    return { theme: stored, isManuallySet: true };
+  try {
+    const stored = localStorage.getItem(THEME_STORAGE_KEY);
+    if (stored === 'light' || stored === 'dark') {
+      return { theme: stored, isManuallySet: true };
+    }
+  } catch (error) {
+    // localStorage unavailable or error - continue to system preference
+    console.warn('[themeStore] Failed to read from localStorage:', error);
   }
 
   // Fall back to system preference
@@ -60,7 +65,12 @@ function applyThemeToDOM(theme: Theme): void {
  * Persist theme to localStorage
  */
 function persistTheme(theme: Theme): void {
-  localStorage.setItem(THEME_STORAGE_KEY, theme);
+  try {
+    localStorage.setItem(THEME_STORAGE_KEY, theme);
+  } catch (error) {
+    // localStorage unavailable or quota exceeded - silently fail
+    console.warn('[themeStore] Failed to persist theme to localStorage:', error);
+  }
 }
 
 /**

@@ -84,3 +84,12 @@ export {
   type Language,
   type LanguageStore,
 } from './languageStore';
+
+// Theme Store
+export {
+  useThemeStore,
+  useTheme,
+  useThemeActions,
+  type Theme,
+  type ThemeStore,
+} from './themeStore';
