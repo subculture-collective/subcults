@@ -22,6 +22,7 @@ import (
 	"github.com/onnwee/subcults/internal/api"
 	"github.com/onnwee/subcults/internal/attachment"
 	"github.com/onnwee/subcults/internal/audit"
+	"github.com/onnwee/subcults/internal/config"
 	"github.com/onnwee/subcults/internal/idempotency"
 	"github.com/onnwee/subcults/internal/jobs"
 	"github.com/onnwee/subcults/internal/livekit"
@@ -240,72 +241,35 @@ func main() {
 	}
 	logger.Info("middleware metrics registered (HTTP request metrics and rate limiting)")
 
-	// Initialize canary deployment
-	canaryEnabled := false
-	if val := os.Getenv("CANARY_ENABLED"); val != "" {
-		valLower := strings.ToLower(val)
-		canaryEnabled = valLower == "true" || valLower == "1" || valLower == "yes" || valLower == "on"
-	}
-
-	canaryTrafficPercent := 5.0 // Default: 5%
-	if val := os.Getenv("CANARY_TRAFFIC_PERCENT"); val != "" {
-		if parsed, err := strconv.ParseFloat(val, 64); err == nil {
-			canaryTrafficPercent = parsed
+	// Load canary deployment configuration from Config struct
+	cfg, configErrs := config.Load("")
+	if len(configErrs) > 0 {
+		// Log config errors but continue - some errors may be non-critical
+		for _, err := range configErrs {
+			logger.Warn("config validation warning", "error", err)
 		}
-	}
-
-	canaryErrorThreshold := 1.0 // Default: 1%
-	if val := os.Getenv("CANARY_ERROR_THRESHOLD"); val != "" {
-		if parsed, err := strconv.ParseFloat(val, 64); err == nil {
-			canaryErrorThreshold = parsed
-		}
-	}
-
-	canaryLatencyThreshold := 2.0 // Default: 2 seconds
-	if val := os.Getenv("CANARY_LATENCY_THRESHOLD"); val != "" {
-		if parsed, err := strconv.ParseFloat(val, 64); err == nil {
-			canaryLatencyThreshold = parsed
-		}
-	}
-
-	canaryAutoRollback := true // Default: enabled
-	if val := os.Getenv("CANARY_AUTO_ROLLBACK"); val != "" {
-		valLower := strings.ToLower(val)
-		canaryAutoRollback = valLower == "true" || valLower == "1" || valLower == "yes" || valLower == "on"
-	}
-
-	canaryMonitoringWindow := 300 // Default: 5 minutes
-	if val := os.Getenv("CANARY_MONITORING_WINDOW"); val != "" {
-		if parsed, err := strconv.Atoi(val); err == nil {
-			canaryMonitoringWindow = parsed
-		}
-	}
-
-	canaryVersion := "canary"
-	if val := os.Getenv("CANARY_VERSION"); val != "" {
-		canaryVersion = val
 	}
 
 	canaryConfig := middleware.CanaryConfig{
-		Enabled:            canaryEnabled,
-		TrafficPercent:     canaryTrafficPercent,
-		ErrorThreshold:     canaryErrorThreshold,
-		LatencyThreshold:   canaryLatencyThreshold,
-		AutoRollback:       canaryAutoRollback,
-		MonitoringWindow:   canaryMonitoringWindow,
-		Version:            canaryVersion,
+		Enabled:            cfg.CanaryEnabled,
+		TrafficPercent:     cfg.CanaryTrafficPercent,
+		ErrorThreshold:     cfg.CanaryErrorThreshold,
+		LatencyThreshold:   cfg.CanaryLatencyThreshold,
+		AutoRollback:       cfg.CanaryAutoRollback,
+		MonitoringWindow:   cfg.CanaryMonitoringWindow,
+		Version:            cfg.CanaryVersion,
 	}
 
 	canaryRouter := middleware.NewCanaryRouter(canaryConfig, logger)
 	canaryRouter.SetPrometheusMetrics(rateLimitMetrics)
 
-	if canaryEnabled {
+	if cfg.CanaryEnabled {
 		logger.Info("canary deployment initialized",
-			"traffic_percent", canaryTrafficPercent,
-			"error_threshold", canaryErrorThreshold,
-			"latency_threshold", canaryLatencyThreshold,
-			"auto_rollback", canaryAutoRollback,
-			"version", canaryVersion,
+			"traffic_percent", cfg.CanaryTrafficPercent,
+			"error_threshold", cfg.CanaryErrorThreshold,
+			"latency_threshold", cfg.CanaryLatencyThreshold,
+			"auto_rollback", cfg.CanaryAutoRollback,
+			"version", cfg.CanaryVersion,
 		)
 	} else {
 		logger.Info("canary deployment disabled")
@@ -1054,7 +1018,7 @@ func main() {
 	handler = middleware.RateLimiter(rateLimitStore, generalLimit, middleware.IPKeyFunc(), rateLimitMetrics)(handler)
 
 	// Then canary routing (if enabled)
-	if canaryEnabled {
+	if cfg.CanaryEnabled {
 		handler = canaryRouter.Middleware(handler)
 	}
 

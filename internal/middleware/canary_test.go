@@ -2,6 +2,7 @@
 package middleware
 
 import (
+	"fmt"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
@@ -78,7 +79,7 @@ func TestCanaryRouter_TrafficDistribution(t *testing.T) {
 
 	for i := 0; i < totalRequests; i++ {
 		req := httptest.NewRequest("GET", "/test", nil)
-		req.Header.Set("X-User-ID", string(rune(i))) // Different user ID each time
+		req.Header.Set("X-User-ID", fmt.Sprintf("user-%d", i)) // Different user ID each time
 
 		cohort := router.assignCohort(req)
 		if cohort == "canary" {
@@ -166,7 +167,7 @@ func TestCanaryRouter_MetricsRecording(t *testing.T) {
 	// Send requests to both cohorts
 	for i := 0; i < 10; i++ {
 		req := httptest.NewRequest("GET", "/test", nil)
-		req.Header.Set("X-User-ID", string(rune(i)))
+		req.Header.Set("X-User-ID", fmt.Sprintf("user-%d", i))
 		w := httptest.NewRecorder()
 		middleware.ServeHTTP(w, req)
 	}
@@ -217,7 +218,7 @@ func TestCanaryRouter_ErrorTracking(t *testing.T) {
 	// Send 100 requests
 	for i := 0; i < 100; i++ {
 		req := httptest.NewRequest("GET", "/test", nil)
-		req.Header.Set("X-User-ID", string(rune(i)))
+		req.Header.Set("X-User-ID", fmt.Sprintf("user-%d", i))
 		w := httptest.NewRecorder()
 		middleware.ServeHTTP(w, req)
 	}
@@ -263,7 +264,7 @@ func TestCanaryRouter_Rollback(t *testing.T) {
 	// With 50% traffic split, send 250 requests to ensure >100 canary requests
 	for i := 0; i < 250; i++ {
 		req := httptest.NewRequest("GET", "/test", nil)
-		req.Header.Set("X-User-ID", string(rune(i)))
+		req.Header.Set("X-User-ID", fmt.Sprintf("user-%d", i))
 		w := httptest.NewRecorder()
 		middleware.ServeHTTP(w, req)
 	}
@@ -304,7 +305,7 @@ func TestCanaryRouter_DisabledCanary(t *testing.T) {
 	// All requests should go to stable
 	for i := 0; i < 10; i++ {
 		req := httptest.NewRequest("GET", "/test", nil)
-		req.Header.Set("X-User-ID", string(rune(i)))
+		req.Header.Set("X-User-ID", fmt.Sprintf("user-%d", i))
 		w := httptest.NewRecorder()
 		middleware.ServeHTTP(w, req)
 

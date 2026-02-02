@@ -292,6 +292,14 @@ func Load(configFilePath string) (*Config, []error) {
 		}
 	}
 
+	canaryVersion := DefaultCanaryVersion
+	if k.Exists("canary_version") {
+		canaryVersion = k.String("canary_version")
+	}
+	if val := os.Getenv("CANARY_VERSION"); val != "" {
+		canaryVersion = val
+	}
+
 	// Build config struct, with env vars taking precedence over file values
 	cfg := &Config{
 		Port:                        port,
@@ -321,7 +329,7 @@ func Load(configFilePath string) (*Config, []error) {
 		CanaryLatencyThreshold:      canaryLatencyThreshold,
 		CanaryAutoRollback:          canaryAutoRollback,
 		CanaryMonitoringWindow:      canaryMonitoringWindow,
-		CanaryVersion:               getEnvOrDefault("CANARY_VERSION", k.String("canary_version"), DefaultCanaryVersion),
+		CanaryVersion:               canaryVersion,
 		TracingEnabled:              tracingEnabled,
 		TracingExporterType:         getEnvOrDefault("TRACING_EXPORTER_TYPE", k.String("tracing_exporter_type"), DefaultTracingExporterType),
 		TracingOTLPEndpoint:         getEnvOrKoanf("TRACING_OTLP_ENDPOINT", k, "tracing_otlp_endpoint"),
