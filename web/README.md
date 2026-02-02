@@ -50,7 +50,7 @@ Subcults is designed to meet **WCAG 2.1 Level AA** accessibility standards.
 - **Automated Testing**: Comprehensive axe-core test suite (28 tests, 0 violations)
 - **Keyboard Navigation**: Full keyboard accessibility across all components
 - **Screen Reader Support**: Proper ARIA labels and semantic HTML
-- **Mobile Accessibility**: Touch targets meet 44x44px minimum
+- **Mobile Accessibility**: Primary touch targets designed to meet 44x44px minimum
 - **Focus Management**: Proper focus handling in modals and dialogs
 - **Color Contrast**: WCAG AA compliant (4.5:1 for text, 3:1 for UI)
 

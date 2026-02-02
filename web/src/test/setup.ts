@@ -51,12 +51,13 @@ global.IntersectionObserver = class IntersectionObserver {
   
   constructor(callback: IntersectionObserverCallback) {
     // Immediately trigger intersection for all observed elements
-    setTimeout(() => {
+    // Use queueMicrotask for predictable timing in tests
+    queueMicrotask(() => {
       callback(
         [{ isIntersecting: true } as IntersectionObserverEntry],
         this as any
       );
-    }, 0);
+    });
   }
 } as any;
 

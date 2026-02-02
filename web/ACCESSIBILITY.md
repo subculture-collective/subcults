@@ -198,8 +198,8 @@ Loading and empty states announce to screen readers:
 
 #### Brand Colors
 Primary colors meet WCAG AA on appropriate backgrounds:
-- `#11b4da` (brand-primary) on dark backgrounds
-- White text on `#11b4da` backgrounds
+- `#646cff` (brand-primary) on dark backgrounds
+- White text on `#646cff` backgrounds
 
 #### Dark Mode
 Both light and dark themes meet contrast requirements.
