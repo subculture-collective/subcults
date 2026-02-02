@@ -71,7 +71,7 @@ export function Sidebar({ isOpen = true, onClose, className = '' }: SidebarProps
       <aside
         className={`
           fixed lg:static inset-y-0 left-0 z-50
-          w-64 bg-background-secondary border-r border-border
+          w-64 sm:w-72 bg-background-secondary border-r border-border
           transform transition-transform duration-300 ease-in-out
           lg:transform-none
           ${isOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
@@ -81,25 +81,26 @@ export function Sidebar({ isOpen = true, onClose, className = '' }: SidebarProps
       >
         <div className="flex flex-col h-full overflow-y-auto">
           {/* Header */}
-          <div className="flex items-center justify-between p-4 border-b border-border lg:hidden">
-            <h2 className="text-lg font-semibold text-foreground">{t('navigation.menu')}</h2>
+          <div className="flex items-center justify-between p-3 sm:p-4 border-b border-border lg:hidden">
+            <h2 className="text-base sm:text-lg font-semibold text-foreground">{t('navigation.menu')}</h2>
             <button
               onClick={onClose}
               aria-label={t('actions.close')}
               className="
-                p-2 rounded-lg
+                p-2 rounded-lg min-h-touch min-w-touch
                 text-foreground hover:bg-underground-lighter
                 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-primary
+                touch-manipulation
               "
             >
-              <svg aria-hidden="true" className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <svg aria-hidden="true" className="w-5 h-5 sm:w-6 sm:h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
               </svg>
             </button>
           </div>
 
           {/* Main Navigation */}
-          <nav className="flex-1 p-4 space-y-1">
+          <nav className="flex-1 p-3 sm:p-4 space-y-1">
             <div className="mb-4">
               <h3 className="px-2 mb-2 text-xs font-semibold text-foreground-secondary uppercase tracking-wider">
                 {t('navigation.discover')}
@@ -110,9 +111,10 @@ export function Sidebar({ isOpen = true, onClose, className = '' }: SidebarProps
                   to={item.path}
                   onClick={handleLinkClick}
                   className={`
-                    flex items-center gap-3 px-3 py-2 rounded-lg
+                    flex items-center gap-3 px-3 py-2.5 sm:py-2 rounded-lg min-h-touch
                     text-sm font-medium
                     transition-colors
+                    touch-manipulation
                     ${
                       isActive(item.path)
                         ? 'bg-brand-primary text-white'
@@ -120,7 +122,7 @@ export function Sidebar({ isOpen = true, onClose, className = '' }: SidebarProps
                     }
                   `}
                 >
-                  <span className="text-lg" aria-hidden="true">{item.icon}</span>
+                  <span className="text-base sm:text-lg" aria-hidden="true">{item.icon}</span>
                   <span>{item.label}</span>
                 </Link>
               ))}
@@ -138,9 +140,10 @@ export function Sidebar({ isOpen = true, onClose, className = '' }: SidebarProps
                     to={item.path}
                     onClick={handleLinkClick}
                     className={`
-                      flex items-center gap-3 px-3 py-2 rounded-lg
+                      flex items-center gap-3 px-3 py-2.5 sm:py-2 rounded-lg min-h-touch
                       text-sm font-medium
                       transition-colors
+                      touch-manipulation
                       ${
                         isActive(item.path)
                           ? 'bg-brand-primary text-white'
@@ -148,7 +151,7 @@ export function Sidebar({ isOpen = true, onClose, className = '' }: SidebarProps
                       }
                     `}
                   >
-                    <span className="text-lg" aria-hidden="true">{item.icon}</span>
+                    <span className="text-base sm:text-lg" aria-hidden="true">{item.icon}</span>
                     <span>{item.label}</span>
                   </Link>
                 ))}
@@ -167,7 +170,7 @@ export function Sidebar({ isOpen = true, onClose, className = '' }: SidebarProps
           </nav>
 
           {/* Footer */}
-          <div className="p-4 border-t border-border">
+          <div className="p-3 sm:p-4 border-t border-border">
             <p className="text-xs text-foreground-secondary text-center">
               Subcults v{VERSION}
             </p>

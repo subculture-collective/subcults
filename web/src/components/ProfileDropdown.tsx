@@ -75,28 +75,28 @@ export function ProfileDropdown({ className = '' }: ProfileDropdownProps) {
         aria-haspopup="true"
         aria-label={t('profile.menu')}
         className="
-          flex items-center gap-2 p-2 rounded-lg
+          flex items-center gap-1 sm:gap-2 p-2 rounded-lg min-h-touch min-w-touch
           text-foreground hover:bg-underground-lighter
           focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-primary
-          transition-colors
+          transition-colors touch-manipulation
         "
       >
         {/* Avatar */}
         <div
           className="
-            w-8 h-8 rounded-full
+            w-8 h-8 sm:w-9 sm:h-9 rounded-full
             bg-brand-primary text-white
             flex items-center justify-center
-            text-sm font-bold
+            text-xs sm:text-sm font-bold
           "
           aria-hidden="true"
         >
           {user.did.length >= 6 ? user.did.slice(4, 6).toUpperCase() : '??'}
         </div>
         
-        {/* Chevron */}
+        {/* Chevron - Hidden on very small screens */}
         <svg
-          className={`w-4 h-4 transition-transform ${isOpen ? 'rotate-180' : ''}`}
+          className={`w-4 h-4 transition-transform hidden xs:block ${isOpen ? 'rotate-180' : ''}`}
           fill="none"
           stroke="currentColor"
           viewBox="0 0 24 24"
@@ -110,7 +110,7 @@ export function ProfileDropdown({ className = '' }: ProfileDropdownProps) {
       {isOpen && (
         <div
           className="
-            absolute right-0 mt-2 w-72
+            absolute right-0 mt-2 w-64 sm:w-72
             bg-background-secondary border border-border
             rounded-lg shadow-lg
             py-2
@@ -137,10 +137,11 @@ export function ProfileDropdown({ className = '' }: ProfileDropdownProps) {
               to="/account"
               onClick={() => setIsOpen(false)}
               className="
-                block px-4 py-2
+                block px-4 py-2.5 min-h-touch
                 text-sm text-foreground
                 hover:bg-underground-lighter
                 focus:outline-none focus-visible:bg-underground-lighter
+                touch-manipulation
               "
               role="menuitem"
             >
@@ -150,10 +151,11 @@ export function ProfileDropdown({ className = '' }: ProfileDropdownProps) {
               to="/settings"
               onClick={() => setIsOpen(false)}
               className="
-                block px-4 py-2
+                block px-4 py-2.5 min-h-touch
                 text-sm text-foreground
                 hover:bg-underground-lighter
                 focus:outline-none focus-visible:bg-underground-lighter
+                touch-manipulation
               "
               role="menuitem"
             >
@@ -164,10 +166,11 @@ export function ProfileDropdown({ className = '' }: ProfileDropdownProps) {
                 to="/admin"
                 onClick={() => setIsOpen(false)}
                 className="
-                  block px-4 py-2
+                  block px-4 py-2.5 min-h-touch
                   text-sm text-foreground
                   hover:bg-underground-lighter
                   focus:outline-none focus-visible:bg-underground-lighter
+                  touch-manipulation
                 "
                 role="menuitem"
               >
@@ -181,10 +184,11 @@ export function ProfileDropdown({ className = '' }: ProfileDropdownProps) {
             <button
               onClick={handleLogout}
               className="
-                w-full text-left px-4 py-2
+                w-full text-left px-4 py-2.5 min-h-touch
                 text-sm text-red-500
                 hover:bg-underground-lighter
                 focus:outline-none focus-visible:bg-underground-lighter
+                touch-manipulation
               "
               role="menuitem"
             >

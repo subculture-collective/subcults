@@ -37,16 +37,16 @@ export function NotificationBadge({
       onClick={onClick}
       aria-label={`Notifications${hasNotifications ? `, ${notificationCount} unread` : ''}`}
       className={`
-        relative p-2 rounded-lg
+        relative p-2 rounded-lg min-h-touch min-w-touch
         text-foreground hover:bg-underground-lighter
         focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-primary
-        transition-colors
+        transition-colors touch-manipulation
         ${className}
       `}
     >
       {/* Bell Icon */}
       <svg
-        className="w-5 h-5"
+        className="w-5 h-5 sm:w-6 sm:h-6"
         fill="none"
         stroke="currentColor"
         viewBox="0 0 24 24"

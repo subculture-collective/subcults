@@ -89,10 +89,10 @@ export const MiniPlayer: React.FC = memo(() => {
         right: 0,
         backgroundColor: '#1f2937',
         borderTop: '1px solid #374151',
-        padding: '0.75rem 1rem',
+        padding: '0.5rem 0.75rem',
         display: 'flex',
         alignItems: 'center',
-        gap: '1rem',
+        gap: '0.5rem',
         zIndex: 1000,
         boxShadow: '0 -2px 10px rgba(0, 0, 0, 0.3)',
       }}
@@ -156,13 +156,14 @@ export const MiniPlayer: React.FC = memo(() => {
           cursor: 'pointer',
           backgroundColor: isLocalMuted ? '#ef4444' : '#10b981',
           color: 'white',
-          width: '2.5rem',
-          height: '2.5rem',
+          minWidth: '44px',
+          minHeight: '44px',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
           transition: 'all 0.2s ease',
           flexShrink: 0,
+          touchAction: 'manipulation',
         }}
       >
         {isLocalMuted ? '🔇' : '🎤'}
@@ -193,11 +194,12 @@ export const MiniPlayer: React.FC = memo(() => {
             cursor: 'pointer',
             backgroundColor: '#374151',
             color: 'white',
-            width: '2.5rem',
-            height: '2.5rem',
+            minWidth: '44px',
+            minHeight: '44px',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
+            touchAction: 'manipulation',
             transition: 'all 0.2s ease',
           }}
         >
@@ -264,7 +266,7 @@ export const MiniPlayer: React.FC = memo(() => {
         className="mini-player-leave-btn"
         aria-label={t('miniPlayer.leave')}
         style={{
-          padding: '0.5rem 1rem',
+          padding: '0.5rem 0.75rem',
           fontSize: '0.875rem',
           fontWeight: 600,
           borderRadius: '0.375rem',
@@ -275,6 +277,8 @@ export const MiniPlayer: React.FC = memo(() => {
           transition: 'all 0.2s ease',
           flexShrink: 0,
           whiteSpace: 'nowrap',
+          minHeight: '44px',
+          touchAction: 'manipulation',
         }}
       >
         {t('miniPlayer.leave')}

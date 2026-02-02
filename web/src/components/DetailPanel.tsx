@@ -189,7 +189,7 @@ export function DetailPanel({
           right: 0,
           bottom: 0,
           width: '100%',
-          maxWidth: '400px',
+          maxWidth: 'min(400px, 100vw)',
           backgroundColor: '#1a1a1a',
           color: '#fff',
           zIndex: 1000,
@@ -201,7 +201,7 @@ export function DetailPanel({
         {/* Header */}
         <div
           style={{
-            padding: '1.5rem',
+            padding: '1rem 1rem 1.5rem',
             borderBottom: '1px solid #333',
             display: 'flex',
             alignItems: 'flex-start',
@@ -222,13 +222,13 @@ export function DetailPanel({
               {entityType}
             </div>
             {loading ? (
-              <div style={{ fontSize: '1.5rem', fontWeight: 600 }}>Loading...</div>
+              <div style={{ fontSize: '1.25rem', fontWeight: 600 }}>Loading...</div>
             ) : (
               <h2
                 id="detail-panel-title"
                 style={{
                   margin: 0,
-                  fontSize: '1.5rem',
+                  fontSize: '1.25rem',
                   fontWeight: 600,
                   lineHeight: 1.3,
                 }}
@@ -245,6 +245,8 @@ export function DetailPanel({
             style={{
               marginLeft: '1rem',
               padding: '0.5rem',
+              minWidth: '44px',
+              minHeight: '44px',
               background: 'transparent',
               border: 'none',
               color: '#fff',
@@ -253,6 +255,7 @@ export function DetailPanel({
               lineHeight: 1,
               opacity: 0.7,
               transition: 'opacity 0.2s',
+              touchAction: 'manipulation',
             }}
             onMouseEnter={(e) => {
               e.currentTarget.style.opacity = '1';
@@ -267,11 +270,11 @@ export function DetailPanel({
 
         {/* Content */}
         {loading ? (
-          <div style={{ padding: '1.5rem', textAlign: 'center', color: '#999' }}>
+          <div style={{ padding: '1rem', textAlign: 'center', color: '#999' }}>
             Loading details...
           </div>
         ) : entity ? (
-          <div style={{ padding: '1.5rem' }}>
+          <div style={{ padding: '1rem' }}>
             {/* Description */}
             {entity.description && (
               <div style={{ marginBottom: '1.5rem' }}>

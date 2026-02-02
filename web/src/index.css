@@ -53,6 +53,9 @@
 @layer base {
   body {
     @apply m-0 min-w-[320px] min-h-screen bg-background text-foreground;
+    /* Improve touch interaction on mobile */
+    -webkit-tap-highlight-color: rgba(100, 108, 255, 0.1);
+    touch-action: manipulation;
   }
 
   #root {
@@ -65,7 +68,15 @@
   }
 
   h1 {
-    @apply text-5xl leading-tight;
+    @apply text-2xl sm:text-3xl md:text-4xl lg:text-5xl leading-tight;
+  }
+
+  h2 {
+    @apply text-2xl sm:text-3xl md:text-4xl leading-tight;
+  }
+
+  h3 {
+    @apply text-xl sm:text-2xl md:text-3xl leading-tight;
   }
 
   button {
@@ -74,6 +85,9 @@
            bg-background-secondary hover:border-brand-primary
            focus:outline-none focus-visible:outline focus-visible:outline-4
            focus-visible:outline-brand-primary;
+    /* Ensure buttons are touch-friendly */
+    @apply min-h-touch min-w-touch;
+    touch-action: manipulation;
   }
 }
 
