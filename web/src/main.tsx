@@ -5,8 +5,8 @@ import './i18n' // Initialize i18n
 import App from './App.tsx'
 import { initializeNotificationService } from './lib/notification-service'
 import { errorLogger } from './lib/error-logger'
-import { initPerformanceMonitoring } from './lib/performance-metrics'
-import { useSettingsStore } from './stores/settingsStore'
+import { registerServiceWorker } from './lib/service-worker'
+import { useToastStore } from './stores/toastStore'
 
 // Global error handlers for uncaught errors and promise rejections
 window.addEventListener('error', (event) => {
@@ -20,17 +20,21 @@ window.addEventListener('unhandledrejection', (event) => {
   errorLogger.logError(error);
 });
 
-// Register service worker for Web Push notifications (production only)
-if (import.meta.env.PROD && 'serviceWorker' in navigator) {
+// Register service worker for offline support and Web Push notifications (production only)
+if (import.meta.env.PROD) {
   window.addEventListener('load', () => {
-    navigator.serviceWorker
-      .register('/sw.js')
-      .then((registration) => {
-        console.log('[ServiceWorker] Registered:', registration);
-      })
-      .catch((error) => {
-        console.error('[ServiceWorker] Registration failed:', error);
-      });
+    registerServiceWorker({
+      onUpdateInstalled: () => {
+        // New service worker installed, show non-blocking notification
+        const { addToast } = useToastStore.getState();
+        addToast({
+          type: 'info',
+          message: 'A new version is available. Reload to update.',
+          duration: undefined, // Don't auto-dismiss
+          dismissible: true,
+        });
+      },
+    });
   });
 }
 

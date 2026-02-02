@@ -9,7 +9,7 @@ export default defineConfig({
     // Bundle size analysis (generates stats.html)
     // Only run in production builds to avoid slowing down dev
     visualizer({
-      filename: './dist/stats.html',
+      filename: 'stats.html',
       open: false,
       gzipSize: true,
       brotliSize: true,
