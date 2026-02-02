@@ -3,11 +3,37 @@
  * Tests settings page functionality and user interactions
  */
 
-import { describe, it, expect, beforeEach } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { BrowserRouter } from 'react-router-dom';
 import { SettingsPage } from './SettingsPage';
 import { useThemeStore } from '../stores/themeStore';
+
+// Mock auth store
+vi.mock('../stores/authStore', () => ({
+  useAuth: () => ({
+    user: { did: 'did:plc:test123', role: 'user' },
+    logout: vi.fn(),
+  }),
+}));
+
+// Mock toast store
+vi.mock('../stores/toastStore', () => ({
+  useToasts: () => ({
+    success: vi.fn(),
+    error: vi.fn(),
+    info: vi.fn(),
+  }),
+}));
+
+// Mock API client
+vi.mock('../lib/api-client', () => ({
+  apiClient: {
+    post: vi.fn(),
+    patch: vi.fn(),
+    delete: vi.fn(),
+  },
+}));
 
 describe('SettingsPage', () => {
   beforeEach(() => {
@@ -30,9 +56,9 @@ describe('SettingsPage', () => {
       expect(screen.getByRole('heading', { name: /^Settings$/i })).toBeInTheDocument();
     });
 
-    it('should render appearance section', () => {
+    it('should render profile section', () => {
       renderSettingsPage();
-      expect(screen.getByRole('heading', { name: /Appearance/i })).toBeInTheDocument();
+      expect(screen.getByRole('heading', { name: /^Profile$/i })).toBeInTheDocument();
     });
 
     it('should render privacy section', () => {
@@ -40,14 +66,100 @@ describe('SettingsPage', () => {
       expect(screen.getByRole('heading', { name: /Privacy/i })).toBeInTheDocument();
     });
 
+    it('should render appearance section', () => {
+      renderSettingsPage();
+      expect(screen.getByRole('heading', { name: /Appearance/i })).toBeInTheDocument();
+    });
+
     it('should render notifications section', () => {
       renderSettingsPage();
       expect(screen.getByRole('heading', { name: /Notifications/i })).toBeInTheDocument();
     });
 
-    it('should render theme preview section', () => {
+    it('should render linked accounts section', () => {
       renderSettingsPage();
-      expect(screen.getByRole('heading', { name: /Theme Preview/i })).toBeInTheDocument();
+      expect(screen.getByRole('heading', { name: /Linked Accounts/i })).toBeInTheDocument();
+    });
+
+    it('should render session management section', () => {
+      renderSettingsPage();
+      expect(screen.getByRole('heading', { name: /Session Management/i })).toBeInTheDocument();
+    });
+
+    it('should render danger zone section', () => {
+      renderSettingsPage();
+      expect(screen.getByRole('heading', { name: /Danger Zone/i })).toBeInTheDocument();
+    });
+  });
+
+  describe('Profile Section', () => {
+    it('should display avatar', () => {
+      renderSettingsPage();
+      // Check for avatar by role and aria-label
+      const avatarContainer = screen.getByLabelText(/test123's avatar \(initials\)/i);
+      expect(avatarContainer).toBeInTheDocument();
+    });
+
+    it('should have display name input', () => {
+      renderSettingsPage();
+      expect(screen.getByLabelText(/Display Name/i)).toBeInTheDocument();
+    });
+
+    it('should have bio textarea', () => {
+      renderSettingsPage();
+      expect(screen.getByLabelText(/Bio/i)).toBeInTheDocument();
+    });
+
+    it('should have change avatar button', () => {
+      renderSettingsPage();
+      expect(screen.getByRole('button', { name: /Change Avatar/i })).toBeInTheDocument();
+    });
+
+    it('should have save profile button', () => {
+      renderSettingsPage();
+      expect(screen.getByRole('button', { name: /Save Profile/i })).toBeInTheDocument();
+    });
+
+    it('should allow typing in display name field', () => {
+      renderSettingsPage();
+      const input = screen.getByLabelText(/Display Name/i) as HTMLInputElement;
+      fireEvent.change(input, { target: { value: 'Test User' } });
+      expect(input.value).toBe('Test User');
+    });
+
+    it('should allow typing in bio field', () => {
+      renderSettingsPage();
+      const textarea = screen.getByLabelText(/Bio/i) as HTMLTextAreaElement;
+      fireEvent.change(textarea, { target: { value: 'Test bio' } });
+      expect(textarea.value).toBe('Test bio');
+    });
+  });
+
+  describe('Privacy Settings', () => {
+    it('should display precise location toggle', () => {
+      renderSettingsPage();
+      // Use heading with exact text
+      expect(screen.getByRole('heading', { name: /^Precise Location$/i })).toBeInTheDocument();
+    });
+
+    it('should have location consent checkbox', () => {
+      renderSettingsPage();
+      const checkbox = screen.getByRole('checkbox', { name: /Allow precise location/i });
+      expect(checkbox).toBeInTheDocument();
+    });
+
+    it('should display privacy information', () => {
+      renderSettingsPage();
+      expect(screen.getByText(/Privacy First:/i)).toBeInTheDocument();
+    });
+
+    it('should allow toggling location consent', () => {
+      renderSettingsPage();
+      const checkbox = screen.getByRole('checkbox', { name: /Allow precise location/i }) as HTMLInputElement;
+      expect(checkbox.checked).toBe(false);
+      
+      fireEvent.click(checkbox);
+      expect(checkbox.checked).toBe(true);
     });
   });
 
@@ -57,74 +169,91 @@ describe('SettingsPage', () => {
       expect(screen.getByText('Theme')).toBeInTheDocument();
     });
 
-    it('should display theme description', () => {
-      renderSettingsPage();
-      expect(screen.getByText('Choose your preferred color scheme')).toBeInTheDocument();
-    });
-
     it('should display current theme', () => {
       renderSettingsPage();
-      expect(screen.getAllByText(/Current theme:/i)[0]).toBeInTheDocument();
+      expect(screen.getByText(/Current theme:/i)).toBeInTheDocument();
       expect(screen.getByText('light')).toBeInTheDocument();
     });
 
     it('should render dark mode toggle component', () => {
       renderSettingsPage();
-      // DarkModeToggle should be present
       const toggle = screen.getByLabelText(/dark mode/i);
       expect(toggle).toBeInTheDocument();
     });
   });
 
-  describe('Privacy Settings', () => {
-    it('should display privacy placeholder text', () => {
+  describe('Linked Accounts', () => {
+    it('should display Stripe Connect option', () => {
       renderSettingsPage();
-      expect(
-        screen.getByText(/Privacy settings and location consent preferences will be displayed here/i)
-      ).toBeInTheDocument();
+      expect(screen.getByText('Stripe Connect')).toBeInTheDocument();
+    });
+
+    it('should have Stripe connect button', () => {
+      renderSettingsPage();
+      expect(screen.getByRole('button', { name: /Connect/i })).toBeInTheDocument();
+    });
+
+    it('should display Artist Profile option', () => {
+      renderSettingsPage();
+      expect(screen.getByText('Artist Profile')).toBeInTheDocument();
+    });
+
+    it('should have artist profile create button', () => {
+      renderSettingsPage();
+      expect(screen.getByRole('button', { name: /Create/i })).toBeInTheDocument();
     });
   });
 
-  describe('Theme Preview', () => {
-    it('should render primary button', () => {
+  describe('Session Management', () => {
+    it('should display logout other devices button', () => {
       renderSettingsPage();
-      expect(screen.getByRole('button', { name: /Primary Button/i })).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: /Logout Other Devices/i })).toBeInTheDocument();
     });
 
-    it('should render accent button', () => {
+    it('should display session management description', () => {
       renderSettingsPage();
-      expect(screen.getByRole('button', { name: /Accent Button/i })).toBeInTheDocument();
+      expect(screen.getByText(/Sign out of all other devices/i)).toBeInTheDocument();
+    });
+  });
+
+  describe('Danger Zone', () => {
+    it('should display delete account button', () => {
+      renderSettingsPage();
+      expect(screen.getByRole('button', { name: /Delete Account/i })).toBeInTheDocument();
     });
 
-    it('should render secondary button', () => {
+    it('should display delete warning', () => {
       renderSettingsPage();
-      expect(screen.getByRole('button', { name: /Secondary Button/i })).toBeInTheDocument();
+      expect(screen.getByText(/Permanently delete your account/i)).toBeInTheDocument();
     });
 
-    it('should display preview description', () => {
+    it('should show confirmation modal when delete is clicked', async () => {
       renderSettingsPage();
-      expect(
-        screen.getByText(/Preview how different UI elements look in the current theme/i)
-      ).toBeInTheDocument();
+      const deleteButton = screen.getByRole('button', { name: /Delete Account/i });
+      
+      fireEvent.click(deleteButton);
+      
+      await waitFor(() => {
+        expect(screen.getByText(/Are you absolutely sure/i)).toBeInTheDocument();
+      });
     });
 
-    it('should display primary text card', () => {
+    it('should close confirmation modal when cancel is clicked', async () => {
       renderSettingsPage();
-      expect(screen.getByText('Primary Text')).toBeInTheDocument();
-      expect(screen.getByText('Secondary text')).toBeInTheDocument();
-      expect(screen.getByText('Muted text')).toBeInTheDocument();
-    });
+      const deleteButton = screen.getByRole('button', { name: /Delete Account/i });
+      
+      fireEvent.click(deleteButton);
+      
+      await waitFor(() => {
+        expect(screen.getByText(/Are you absolutely sure/i)).toBeInTheDocument();
+      });
 
-    it('should display underground card', () => {
-      renderSettingsPage();
-      expect(screen.getByText('Underground Card')).toBeInTheDocument();
-      expect(screen.getByText('For dark aesthetic elements')).toBeInTheDocument();
-    });
+      const cancelButton = screen.getByRole('button', { name: /Cancel/i });
+      fireEvent.click(cancelButton);
 
-    it('should display brand card', () => {
-      renderSettingsPage();
-      expect(screen.getByText('Brand Card')).toBeInTheDocument();
-      expect(screen.getByText('Primary brand colors')).toBeInTheDocument();
+      await waitFor(() => {
+        expect(screen.queryByText(/Are you absolutely sure/i)).not.toBeInTheDocument();
+      });
     });
   });
 
@@ -139,11 +268,16 @@ describe('SettingsPage', () => {
       expect(sectionHeadings.length).toBeGreaterThan(0);
     });
 
-    it('should have accessible sections with headings', () => {
+    it('should have accessible form labels', () => {
       renderSettingsPage();
+      
+      expect(screen.getByLabelText(/Display Name/i)).toBeInTheDocument();
+      expect(screen.getByLabelText(/Bio/i)).toBeInTheDocument();
+    });
 
-      const headings = screen.getAllByRole('heading');
-      expect(headings.length).toBeGreaterThan(3); // At least Settings + 3 sections
+    it('should have accessible avatar upload', () => {
+      renderSettingsPage();
+      expect(screen.getByLabelText(/Upload avatar/i)).toBeInTheDocument();
     });
   });
 
@@ -189,22 +323,6 @@ describe('SettingsPage', () => {
       
       renderSettingsPage();
       expect(screen.getByText('dark')).toBeInTheDocument();
-    });
-  });
-
-  describe('User Experience', () => {
-    it('should provide context about theme persistence', () => {
-      renderSettingsPage();
-      expect(
-        screen.getByText(
-          /Your theme preference is automatically saved and will be applied across all pages/i
-        )
-      ).toBeInTheDocument();
-    });
-
-    it('should clearly label theme preview section', () => {
-      renderSettingsPage();
-      expect(screen.getByText(/Preview how different UI elements look/i)).toBeInTheDocument();
     });
   });
 });
