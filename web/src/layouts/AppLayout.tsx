@@ -37,20 +37,21 @@ export const AppLayout: React.FC = () => {
         className="
           flex-shrink-0
           bg-underground border-b border-border
-          px-4 py-3
+          px-3 py-2 sm:px-4 sm:py-3
         "
       >
-        <div className="flex items-center justify-between gap-4 max-w-[1600px] mx-auto">
+        <div className="flex items-center justify-between gap-2 sm:gap-4 max-w-[1600px] mx-auto">
           {/* Mobile Menu Toggle + Logo */}
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 sm:gap-3">
             <button
               onClick={() => setIsSidebarOpen(!isSidebarOpen)}
               aria-label="Toggle sidebar"
               aria-expanded={isSidebarOpen}
               className="
-                lg:hidden p-2 rounded-lg
+                lg:hidden p-2 sm:p-2.5 rounded-lg min-h-touch min-w-touch
                 text-white hover:bg-underground-lighter
                 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-primary
+                touch-manipulation
               "
             >
               <svg aria-hidden="true" className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -60,7 +61,7 @@ export const AppLayout: React.FC = () => {
 
             <Link
               to="/"
-              className="text-2xl font-bold text-white hover:text-brand-primary transition-colors"
+              className="text-xl sm:text-2xl font-bold text-white hover:text-brand-primary transition-colors min-h-touch"
             >
               Subcults
             </Link>
@@ -72,7 +73,7 @@ export const AppLayout: React.FC = () => {
           </div>
 
           {/* Right Actions */}
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1 sm:gap-2">
             {isAuthenticated ? (
               <>
                 <NotificationBadge />
@@ -82,11 +83,12 @@ export const AppLayout: React.FC = () => {
               <Link
                 to="/account/login"
                 className="
-                  px-4 py-2 rounded-lg
+                  px-3 py-2 sm:px-4 sm:py-2 rounded-lg min-h-touch
                   bg-white text-underground
-                  font-medium
+                  font-medium text-sm sm:text-base
                   hover:bg-gray-100
                   transition-colors
+                  touch-manipulation
                 "
               >
                 Login
@@ -96,7 +98,7 @@ export const AppLayout: React.FC = () => {
         </div>
 
         {/* Search Bar - Mobile */}
-        <div className="md:hidden mt-3">
+        <div className="md:hidden mt-2 sm:mt-3">
           <SearchBar placeholder="Search..." />
         </div>
       </header>

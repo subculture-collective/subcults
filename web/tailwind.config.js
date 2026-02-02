@@ -6,6 +6,14 @@ export default {
   ],
   darkMode: 'class', // Enable class-based dark mode
   theme: {
+    screens: {
+      'xs': '375px',   // iPhone SE and similar
+      'sm': '640px',   // Standard mobile breakpoint
+      'md': '768px',   // Tablets
+      'lg': '1024px',  // Desktop
+      'xl': '1280px',  // Large desktop
+      '2xl': '1536px', // Extra large desktop
+    },
     extend: {
       colors: {
         // Brand colors for underground music aesthetic
@@ -42,9 +50,16 @@ export default {
         },
       },
       spacing: {
+        '11': '2.75rem',  // 44px - minimum touch target
         '18': '4.5rem',
         '88': '22rem',
         '128': '32rem',
+      },
+      minHeight: {
+        'touch': '44px',  // Minimum touch target height
+      },
+      minWidth: {
+        'touch': '44px',  // Minimum touch target width
       },
       fontSize: {
         '2xs': ['0.625rem', { lineHeight: '0.875rem' }],
