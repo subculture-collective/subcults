@@ -468,6 +468,90 @@ export const SceneSettingsPage: React.FC = () => {
             </div>
           </section>
 
+          {/* Members & Alliance Section */}
+          <section className="bg-background-secondary border border-border rounded-lg p-6">
+            <h2 className="text-2xl font-semibold mb-4 text-foreground">
+              {t('scene.settings.members', 'Members & Alliances')}
+            </h2>
+            
+            <div className="space-y-4">
+              <div className="flex items-center justify-between p-4 bg-background rounded-lg border border-border">
+                <div>
+                  <div className="font-medium text-foreground">
+                    {t('scene.members.manage', 'Member Management')}
+                  </div>
+                  <div className="text-sm text-foreground-secondary">
+                    {t('scene.members.description', 'View and manage scene members and roles')}
+                  </div>
+                </div>
+                <button
+                  onClick={() => navigate(`/scenes/${id}/members`)}
+                  className="px-4 py-2 bg-brand-primary hover:bg-brand-primary-dark text-white rounded-lg transition-colors"
+                >
+                  {t('scene.members.view', 'View Members')}
+                </button>
+              </div>
+
+              <div className="flex items-center justify-between p-4 bg-background rounded-lg border border-border">
+                <div>
+                  <div className="font-medium text-foreground">
+                    {t('scene.alliances.manage', 'Alliance Management')}
+                  </div>
+                  <div className="text-sm text-foreground-secondary">
+                    {t('scene.alliances.description', 'Manage trust relationships with other scenes')}
+                  </div>
+                </div>
+                <button
+                  onClick={() => navigate(`/scenes/${id}/alliances`)}
+                  className="px-4 py-2 bg-brand-primary hover:bg-brand-primary-dark text-white rounded-lg transition-colors"
+                >
+                  {t('scene.alliances.view', 'View Alliances')}
+                </button>
+              </div>
+            </div>
+          </section>
+
+          {/* Verification Status */}
+          <section className="bg-background-secondary border border-border rounded-lg p-6">
+            <h2 className="text-2xl font-semibold mb-4 text-foreground">
+              {t('scene.settings.verification', 'Verification Status')}
+            </h2>
+            
+            <div className="space-y-4">
+              <div className="flex items-center gap-3">
+                <div className="w-12 h-12 rounded-full bg-green-100 dark:bg-green-900 flex items-center justify-center">
+                  <svg className="w-6 h-6 text-green-600 dark:text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                  </svg>
+                </div>
+                <div className="flex-1">
+                  <div className="font-medium text-foreground">
+                    {t('scene.verification.ownerVerified', 'Owner Verified')}
+                  </div>
+                  <div className="text-sm text-foreground-secondary">
+                    {t('scene.verification.ownerVerifiedDesc', 'Scene owner identity is verified via AT Protocol DID')}
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-3 opacity-60">
+                <div className="w-12 h-12 rounded-full bg-gray-100 dark:bg-gray-800 flex items-center justify-center">
+                  <svg className="w-6 h-6 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                </div>
+                <div className="flex-1">
+                  <div className="font-medium text-foreground">
+                    {t('scene.verification.communityBadge', 'Community Badge')}
+                  </div>
+                  <div className="text-sm text-foreground-secondary">
+                    {t('scene.verification.communityBadgeDesc', 'Coming soon - earn badges through community engagement')}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </section>
+
           {/* Action Buttons */}
           <div className="flex justify-end gap-4">
             <button
