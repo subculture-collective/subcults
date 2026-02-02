@@ -7,13 +7,17 @@ import (
 
 // Metrics names as constants for consistency.
 const (
-	MetricRateLimitRequests     = "rate_limit_requests_total"
-	MetricRateLimitBlocked      = "rate_limit_blocked_total"
-	MetricRateLimitRedisErrors  = "rate_limit_redis_errors_total"
-	MetricHTTPRequestDuration   = "http_request_duration_seconds"
-	MetricHTTPRequestsTotal     = "http_requests_total"
-	MetricHTTPRequestSizeBytes  = "http_request_size_bytes"
-	MetricHTTPResponseSizeBytes = "http_response_size_bytes"
+	MetricRateLimitRequests      = "rate_limit_requests_total"
+	MetricRateLimitBlocked       = "rate_limit_blocked_total"
+	MetricRateLimitRedisErrors   = "rate_limit_redis_errors_total"
+	MetricHTTPRequestDuration    = "http_request_duration_seconds"
+	MetricHTTPRequestsTotal      = "http_requests_total"
+	MetricHTTPRequestSizeBytes   = "http_request_size_bytes"
+	MetricHTTPResponseSizeBytes  = "http_response_size_bytes"
+	MetricCanaryRequestsTotal    = "canary_requests_total"
+	MetricCanaryErrorsTotal      = "canary_errors_total"
+	MetricCanaryLatencySeconds   = "canary_latency_seconds"
+	MetricCanaryActive           = "canary_active"
 )
 
 // Metrics contains Prometheus metrics for middleware operations.
@@ -26,6 +30,10 @@ type Metrics struct {
 	httpRequestsTotal    *prometheus.CounterVec
 	httpRequestSize      *prometheus.HistogramVec
 	httpResponseSize     *prometheus.HistogramVec
+	canaryRequestsTotal  *prometheus.CounterVec
+	canaryErrorsTotal    *prometheus.CounterVec
+	canaryLatency        *prometheus.HistogramVec
+	canaryActive         prometheus.Gauge
 }
 
 // NewMetrics creates and returns a new Metrics instance with all collectors initialized.
@@ -83,6 +91,34 @@ func NewMetrics() *Metrics {
 			},
 			[]string{"method", "path", "status"},
 		),
+		canaryRequestsTotal: prometheus.NewCounterVec(
+			prometheus.CounterOpts{
+				Name: MetricCanaryRequestsTotal,
+				Help: "Total number of requests by canary cohort",
+			},
+			[]string{"cohort", "version"},
+		),
+		canaryErrorsTotal: prometheus.NewCounterVec(
+			prometheus.CounterOpts{
+				Name: MetricCanaryErrorsTotal,
+				Help: "Total number of errors by canary cohort",
+			},
+			[]string{"cohort", "version"},
+		),
+		canaryLatency: prometheus.NewHistogramVec(
+			prometheus.HistogramOpts{
+				Name:    MetricCanaryLatencySeconds,
+				Help:    "Request latency by canary cohort",
+				Buckets: []float64{0.01, 0.05, 0.1, 0.5, 1.0, 2.0, 5.0},
+			},
+			[]string{"cohort", "version"},
+		),
+		canaryActive: prometheus.NewGauge(
+			prometheus.GaugeOpts{
+				Name: MetricCanaryActive,
+				Help: "Whether canary deployment is currently active (1 = active, 0 = inactive)",
+			},
+		),
 	}
 }
 
@@ -97,6 +133,10 @@ func (m *Metrics) Register(reg prometheus.Registerer) error {
 		m.httpRequestsTotal,
 		m.httpRequestSize,
 		m.httpResponseSize,
+		m.canaryRequestsTotal,
+		m.canaryErrorsTotal,
+		m.canaryLatency,
+		m.canaryActive,
 	}
 
 	for _, c := range collectors {
@@ -156,5 +196,31 @@ func (m *Metrics) Collectors() []prometheus.Collector {
 		m.httpRequestsTotal,
 		m.httpRequestSize,
 		m.httpResponseSize,
+		m.canaryRequestsTotal,
+		m.canaryErrorsTotal,
+		m.canaryLatency,
+		m.canaryActive,
+	}
+}
+
+// ObserveCanaryRequest records metrics for a canary request.
+// cohort: "canary" or "stable"
+// version: version identifier (e.g., "v1.2.0-canary" or "stable")
+// duration: request duration in seconds
+// isError: whether the request resulted in an error (5xx status)
+func (m *Metrics) ObserveCanaryRequest(cohort, version string, duration float64, isError bool) {
+	m.canaryRequestsTotal.WithLabelValues(cohort, version).Inc()
+	if isError {
+		m.canaryErrorsTotal.WithLabelValues(cohort, version).Inc()
+	}
+	m.canaryLatency.WithLabelValues(cohort, version).Observe(duration)
+}
+
+// SetCanaryActive sets the canary active gauge (1 = active, 0 = inactive).
+func (m *Metrics) SetCanaryActive(active bool) {
+	if active {
+		m.canaryActive.Set(1)
+	} else {
+		m.canaryActive.Set(0)
 	}
 }

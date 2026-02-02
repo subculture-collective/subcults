@@ -24,11 +24,12 @@ type CanaryConfig struct {
 
 // CanaryRouter manages canary deployment routing and monitoring.
 type CanaryRouter struct {
-	config  CanaryConfig
-	metrics *CanaryMetrics
-	logger  *slog.Logger
-	mu      sync.RWMutex
-	active  bool // Current canary deployment status (can be disabled by rollback)
+	config          CanaryConfig
+	metrics         *CanaryMetrics
+	promMetrics     *Metrics // Prometheus metrics (optional)
+	logger          *slog.Logger
+	mu              sync.RWMutex
+	active          bool // Current canary deployment status (can be disabled by rollback)
 }
 
 // CanaryMetrics tracks metrics for canary vs stable cohorts.
@@ -58,6 +59,15 @@ func NewCanaryRouter(config CanaryConfig, logger *slog.Logger) *CanaryRouter {
 		metrics: &CanaryMetrics{windowStart: time.Now()},
 		logger:  logger,
 		active:  config.Enabled,
+	}
+}
+
+// SetPrometheusMetrics sets the Prometheus metrics collector for canary monitoring.
+func (cr *CanaryRouter) SetPrometheusMetrics(metrics *Metrics) {
+	cr.promMetrics = metrics
+	// Initialize the canary active gauge
+	if metrics != nil {
+		metrics.SetCanaryActive(cr.active && cr.config.Enabled)
 	}
 }
 
@@ -152,9 +162,13 @@ func getClientIP(r *http.Request) string {
 
 // recordRequest records metrics for a request.
 func (cr *CanaryRouter) recordRequest(cohort string, duration float64, isError bool) {
-	cr.metrics.mu.Lock()
-	defer cr.metrics.mu.Unlock()
+	version := "stable"
+	if cohort == "canary" {
+		version = cr.config.Version
+	}
 
+	// Record to internal metrics
+	cr.metrics.mu.Lock()
 	if cohort == "canary" {
 		cr.metrics.canaryRequests++
 		cr.metrics.canaryLatencySum += duration
@@ -169,6 +183,12 @@ func (cr *CanaryRouter) recordRequest(cohort string, duration float64, isError b
 		if isError {
 			cr.metrics.stableErrors++
 		}
+	}
+	cr.metrics.mu.Unlock()
+
+	// Record to Prometheus metrics if available
+	if cr.promMetrics != nil {
+		cr.promMetrics.ObserveCanaryRequest(cohort, version, duration, isError)
 	}
 }
 
@@ -248,6 +268,11 @@ func (cr *CanaryRouter) Rollback(reason string) {
 		"reason", reason,
 		"canary_version", cr.config.Version,
 	)
+
+	// Update Prometheus gauge
+	if cr.promMetrics != nil {
+		cr.promMetrics.SetCanaryActive(false)
+	}
 }
 
 // GetMetrics returns current canary metrics snapshot.
