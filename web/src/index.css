@@ -65,12 +65,10 @@
   a {
     @apply font-medium text-brand-primary no-underline hover:text-brand-primary-dark;
     transition: color 0.25s;
-    /* Ensure links are touch-friendly */
-    @apply min-h-touch inline-flex items-center;
   }
 
   h1 {
-    @apply text-3xl sm:text-4xl md:text-5xl leading-tight;
+    @apply text-2xl sm:text-3xl md:text-4xl lg:text-5xl leading-tight;
   }
 
   h2 {
@@ -82,7 +80,7 @@
   }
 
   button {
-    @apply rounded-lg border border-transparent px-4 py-2.5 text-base font-medium
+    @apply rounded-lg border border-transparent px-5 py-2.5 text-base font-medium
            cursor-pointer transition-colors duration-250
            bg-background-secondary hover:border-brand-primary
            focus:outline-none focus-visible:outline focus-visible:outline-4

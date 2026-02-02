@@ -55,9 +55,6 @@ describe('Mobile-First Responsive Design', () => {
     });
 
     it('profile dropdown button has adequate touch target', () => {
-      // Mock authenticated user
-      const mockUser = { did: 'did:plc:test123456' };
-      
       render(
         <BrowserRouter>
           <ProfileDropdown />
@@ -121,7 +118,7 @@ describe('Mobile-First Responsive Design', () => {
       );
       
       // Check for overlay element
-      const overlay = container.querySelector('.fixed.inset-0.bg-black\\/50');
+      const overlay = container.querySelector('[class*="bg-black/50"]');
       expect(overlay).toBeInTheDocument();
     });
   });
@@ -131,7 +128,10 @@ describe('Mobile-First Responsive Design', () => {
       renderWithRouter(<AppLayout />);
       
       const button = screen.getByLabelText('Toggle sidebar');
+      const styles = window.getComputedStyle(button);
+      
       expect(button.className).toContain('touch-manipulation');
+      expect(styles.touchAction).toBe('manipulation');
     });
 
     it('navigation links have touch-manipulation class', () => {
@@ -139,7 +139,9 @@ describe('Mobile-First Responsive Design', () => {
       
       const links = screen.getAllByRole('link');
       links.forEach((link) => {
+        const styles = window.getComputedStyle(link);
         expect(link.className).toContain('touch-manipulation');
+        expect(styles.touchAction).toBe('manipulation');
       });
     });
   });

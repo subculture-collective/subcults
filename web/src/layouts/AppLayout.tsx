@@ -83,7 +83,7 @@ export const AppLayout: React.FC = () => {
               <Link
                 to="/account/login"
                 className="
-                  px-3 py-2 sm:px-4 sm:py-2 rounded-lg min-h-touch
+                  px-3 py-1 sm:px-4 sm:py-1 rounded-lg min-h-touch
                   bg-white text-underground
                   font-medium text-sm sm:text-base
                   hover:bg-gray-100

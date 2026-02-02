@@ -6,15 +6,10 @@ export default {
   ],
   darkMode: 'class', // Enable class-based dark mode
   theme: {
-    screens: {
-      'xs': '375px',   // iPhone SE and similar
-      'sm': '640px',   // Standard mobile breakpoint
-      'md': '768px',   // Tablets
-      'lg': '1024px',  // Desktop
-      'xl': '1280px',  // Large desktop
-      '2xl': '1536px', // Extra large desktop
-    },
     extend: {
+      screens: {
+        'xs': '375px',   // iPhone SE and similar
+      },
       colors: {
         // Brand colors for underground music aesthetic
         brand: {
