@@ -203,7 +203,7 @@ class ApiClient {
             timestamp: Date.now(),
           });
 
-          return response.data;
+          return response.data as T;
         } catch (error) {
           clearTimeout(timeoutId);
 

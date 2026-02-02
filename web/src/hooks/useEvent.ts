@@ -6,7 +6,7 @@
 import { useEffect, useMemo } from 'react';
 import { useEntityStore } from '../stores/entityStore';
 import { isStale, TTL_CONFIG } from '../stores/entityStore';
-import { Event } from '../types/scene';
+import type { Event } from '../types/scene';
 
 export interface UseEventResult {
   event: Event | null;

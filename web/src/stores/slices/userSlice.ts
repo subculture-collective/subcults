@@ -3,11 +3,13 @@
  * User profile state management (privacy-safe, no sensitive PII)
  */
 
-import { StateCreator } from 'zustand';
+import type { StateCreator } from 'zustand';
 import { apiClient } from '../../lib/api-client';
-import {
+import type { User } from '../authStore';
+import type {
   EntityStore,
-  User,
+} from '../entityStore';
+import {
   createFreshMetadata,
   setLoadingMetadata,
   setSuccessMetadata,

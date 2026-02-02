@@ -7,12 +7,14 @@
 /**
  * Replay event types
  */
-export const enum ReplayEventType {
-  DOMChange = 'dom_change',
-  Click = 'click',
-  Navigation = 'navigation',
-  Scroll = 'scroll',
-}
+const ReplayEventType = {
+  DOMChange: 'dom_change',
+  Click: 'click',
+  Navigation: 'navigation',
+  Scroll: 'scroll',
+} as const;
+
+export type ReplayEventType = typeof ReplayEventType[keyof typeof ReplayEventType];
 
 /**
  * Replay event structure
@@ -110,7 +112,7 @@ class SessionReplay {
     // Remove event listeners
     document.removeEventListener('click', this.handleClick);
     window.removeEventListener('popstate', this.handleNavigation);
-    window.removeEventListener('scroll', this.handleScroll, { passive: true });
+    window.removeEventListener('scroll', this.handleScroll as EventListener);
 
     // Disconnect mutation observer
     if (this.mutationObserver) {

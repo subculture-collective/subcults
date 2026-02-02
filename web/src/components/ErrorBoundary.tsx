@@ -41,7 +41,7 @@ export class ErrorBoundary extends Component<Props, State> {
   constructor(props: Props) {
     super(props);
     this.state = { hasError: false, error: null, errorInfo: null };
-    this.errorButtonRef = React.createRef();
+    this.errorButtonRef = React.createRef<HTMLButtonElement>();
   }
 
   static getDerivedStateFromError(error: Error): Partial<State> {

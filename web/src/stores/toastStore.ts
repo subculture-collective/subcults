@@ -43,7 +43,7 @@ function generateToastId(): string {
 /**
  * Track auto-dismiss timers to prevent memory leaks
  */
-const dismissTimers = new Map<string, NodeJS.Timeout>();
+const dismissTimers = new Map<string, ReturnType<typeof setTimeout>>();
 
 /**
  * Toast notification store

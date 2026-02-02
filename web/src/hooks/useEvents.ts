@@ -5,7 +5,7 @@
 
 import { useMemo } from 'react';
 import { useEntityStore } from '../stores/entityStore';
-import { Event } from '../types/scene';
+import type { Event } from '../types/scene';
 
 export interface UseEventsOptions {
   filterByScene?: string;
@@ -82,7 +82,7 @@ export function useSceneEvents(sceneId: string | undefined): UseEventsResult {
   if (!sceneId) {
     return {
       events: [],
-      upcomingCount: 0,
+      totalCount: 0,
       loading: false,
     };
   }
