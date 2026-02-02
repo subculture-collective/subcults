@@ -35,9 +35,11 @@ describe('LanguageSelector', () => {
     render(<LanguageSelector />);
     
     const options = screen.getAllByRole('option');
-    expect(options).toHaveLength(2);
+    expect(options).toHaveLength(4);
     expect(options[0]).toHaveValue('en');
     expect(options[1]).toHaveValue('es');
+    expect(options[2]).toHaveValue('fr');
+    expect(options[3]).toHaveValue('de');
   });
 
   it('changes language when selection changes', async () => {

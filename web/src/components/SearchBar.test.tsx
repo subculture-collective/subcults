@@ -63,7 +63,8 @@ describe('SearchBar', () => {
 
       const input = screen.getByRole('combobox');
       expect(input).toBeInTheDocument();
-      expect(input).toHaveAttribute('placeholder', 'Search scenes, events, posts...');
+      // With i18n mock, placeholder uses translation key
+      expect(input).toHaveAttribute('placeholder', 'search.placeholder');
     });
 
     it('renders with custom placeholder', () => {
@@ -83,7 +84,8 @@ describe('SearchBar', () => {
     it('does not show clear button when input is empty', () => {
       renderSearchBar();
 
-      const clearButton = screen.queryByLabelText('Clear search');
+      // With i18n mock, aria-label uses translation key
+      const clearButton = screen.queryByLabelText('search.clearSearch');
       expect(clearButton).not.toBeInTheDocument();
     });
   });
@@ -265,7 +267,8 @@ describe('SearchBar', () => {
       // Should show loading state
       await waitFor(
         () => {
-          expect(screen.getByText('Searching...')).toBeInTheDocument();
+          // With i18n mock, text uses translation key
+          expect(screen.getByText('search.searching')).toBeInTheDocument();
         },
         { timeout: 500 }
       );
@@ -404,7 +407,8 @@ describe('SearchBar', () => {
       const input = screen.getByRole('combobox');
       await user.type(input, 'test');
 
-      const clearButton = screen.getByLabelText('Clear search');
+      // With i18n mock, aria-label uses translation key
+      const clearButton = screen.getByLabelText('search.clearSearch');
       expect(clearButton).toBeInTheDocument();
     });
 
@@ -426,7 +430,8 @@ describe('SearchBar', () => {
         { timeout: 500 }
       );
 
-      const clearButton = screen.getByLabelText('Clear search');
+      // With i18n mock, aria-label uses translation key
+      const clearButton = screen.getByLabelText('search.clearSearch');
       await user.click(clearButton);
 
       // Input should be empty
@@ -591,8 +596,8 @@ describe('SearchBar', () => {
         { timeout: 800 }
       );
 
-      // Clear
-      const clearButton = screen.getByLabelText('Clear search');
+      // Clear - with i18n mock, aria-label uses translation key
+      const clearButton = screen.getByLabelText('search.clearSearch');
       await user.click(clearButton);
 
       // Now mock successful responses for second search
