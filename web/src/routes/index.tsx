@@ -31,6 +31,9 @@ const AdminPage = lazy(() =>
 const StreamingDemo = lazy(() =>
   import('../StreamingDemo').then((module) => ({ default: module.StreamingDemo }))
 );
+const StreamUIComponentsDemo = lazy(() =>
+  import('../StreamUIComponentsDemo').then((module) => ({ default: module.StreamUIComponentsDemo }))
+);
 
 /**
  * Router configuration
@@ -77,6 +80,14 @@ const router = createBrowserRouter(
           element: (
             <Suspense fallback={<LoadingSkeleton />}>
               <StreamingDemo />
+            </Suspense>
+          ),
+        },
+        {
+          path: 'demo/stream-ui',
+          element: (
+            <Suspense fallback={<LoadingSkeleton />}>
+              <StreamUIComponentsDemo />
             </Suspense>
           ),
         },

@@ -29,7 +29,7 @@ export const AudioLevelVisualization: React.FC<AudioLevelVisualizationProps> = (
 }) => {
   const { t } = useTranslation('streaming');
   const [smoothedLevel, setSmoothedLevel] = useState(0);
-  const animationFrameRef = useRef<number>();
+  const animationFrameRef = useRef<number | undefined>(undefined);
 
   // Smooth the audio level changes
   useEffect(() => {
@@ -45,7 +45,7 @@ export const AudioLevelVisualization: React.FC<AudioLevelVisualizationProps> = (
     animationFrameRef.current = requestAnimationFrame(animate);
 
     return () => {
-      if (animationFrameRef.current) {
+      if (animationFrameRef.current !== undefined) {
         cancelAnimationFrame(animationFrameRef.current);
       }
     };
