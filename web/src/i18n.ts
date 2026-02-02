@@ -9,7 +9,7 @@ import HttpBackend from 'i18next-http-backend';
 import LanguageDetector from 'i18next-browser-languagedetector';
 
 // Supported languages
-export const SUPPORTED_LANGUAGES = ['en', 'es'] as const;
+export const SUPPORTED_LANGUAGES = ['en', 'es', 'fr', 'de'] as const;
 export type SupportedLanguage = typeof SUPPORTED_LANGUAGES[number];
 
 // Namespaces for organizing translations

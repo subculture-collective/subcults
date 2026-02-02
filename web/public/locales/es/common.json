@@ -41,5 +41,54 @@
     "light": "Modo claro",
     "dark": "Modo oscuro",
     "toggle": "Cambiar tema"
+  },
+  "language": {
+    "select": "Seleccionar idioma",
+    "en": "English",
+    "es": "Español",
+    "fr": "Français",
+    "de": "Deutsch"
+  },
+  "navigation": {
+    "menu": "Menú",
+    "discover": "Descubrir",
+    "map": "Mapa",
+    "scenes": "Escenas",
+    "events": "Eventos",
+    "account": "Cuenta",
+    "settings": "Configuración",
+    "admin": "Administrador",
+    "featuredScenes": "Escenas Destacadas",
+    "noFeaturedScenes": "Aún no hay escenas destacadas"
+  },
+  "search": {
+    "placeholder": "Buscar escenas, eventos, publicaciones...",
+    "searching": "Buscando...",
+    "noResults": "No se encontraron resultados para \"{{query}}\"",
+    "recentSearches": "Búsquedas Recientes",
+    "clearAll": "Limpiar todo",
+    "clearSearch": "Limpiar búsqueda",
+    "sections": {
+      "scenes": "Escenas",
+      "events": "Eventos",
+      "posts": "Publicaciones"
+    }
+  },
+  "profile": {
+    "menu": "Menú de perfil",
+    "account": "Cuenta",
+    "settings": "Configuración",
+    "logout": "Cerrar sesión"
+  },
+  "dateTime": {
+    "formats": {
+      "short": "DD/MM/YYYY",
+      "long": "D [de] MMMM [de] YYYY",
+      "time": "h:mm A",
+      "dateTime": "D [de] MMMM [de] YYYY h:mm A"
+    }
+  },
+  "rtl": {
+    "enabled": false
   }
 }
