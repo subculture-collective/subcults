@@ -165,7 +165,7 @@ describe('ToastContainer', () => {
     });
   });
 
-  it('applies correct background colors for toast types', () => {
+  it('applies correct Tailwind classes for toast types', () => {
     useToastStore.setState({
       toasts: [{ id: '1', type: 'success', message: 'Success', duration: 5000, dismissible: true }],
     });
@@ -173,10 +173,10 @@ describe('ToastContainer', () => {
     render(<ToastContainer />);
 
     const toast = screen.getByRole('status');
-    expect(toast).toHaveStyle({ backgroundColor: '#10b981' });
+    expect(toast).toHaveClass('bg-green-500');
   });
 
-  it('includes animation styles', () => {
+  it('uses Tailwind animation classes', () => {
     useToastStore.setState({
       toasts: [
         { id: '1', type: 'info', message: 'Animated toast', duration: 5000, dismissible: true },
@@ -185,13 +185,12 @@ describe('ToastContainer', () => {
 
     const { container } = render(<ToastContainer />);
 
-    // Check that animation keyframes are defined
-    const style = container.querySelector('style');
-    expect(style?.textContent).toContain('@keyframes slideIn');
-    expect(style?.textContent).toContain('transform: translateX(100%)');
+    // Check that toast has animation class
+    const toast = container.querySelector('[role="status"]');
+    expect(toast).toHaveClass('animate-slide-in');
   });
 
-  it('positions toast container in top-right corner', () => {
+  it('positions toast container in top-right corner with Tailwind classes', () => {
     useToastStore.setState({
       toasts: [
         { id: '1', type: 'info', message: 'Positioned toast', duration: 5000, dismissible: true },
@@ -201,10 +200,6 @@ describe('ToastContainer', () => {
     render(<ToastContainer />);
 
     const region = screen.getByRole('region', { name: /notifications/i });
-    expect(region).toHaveStyle({
-      position: 'fixed',
-      top: '1rem',
-      right: '1rem',
-    });
+    expect(region).toHaveClass('fixed', 'top-4', 'right-4');
   });
 });

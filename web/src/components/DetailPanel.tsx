@@ -161,19 +161,9 @@ export function DetailPanel({
     <>
       {/* Backdrop */}
       <div
-        className="detail-panel-backdrop"
+        className="detail-panel-backdrop fixed inset-0 bg-black/50 z-[999] animate-fade-in"
         onClick={onClose}
         aria-hidden="true"
-        style={{
-          position: 'fixed',
-          top: 0,
-          left: 0,
-          right: 0,
-          bottom: 0,
-          backgroundColor: 'rgba(0, 0, 0, 0.5)',
-          zIndex: 999,
-          animation: 'fadeIn 0.3s ease-out',
-        }}
       />
       
       {/* Panel */}
@@ -182,56 +172,20 @@ export function DetailPanel({
         role="dialog"
         aria-modal="true"
         aria-labelledby="detail-panel-title"
-        className="detail-panel"
-        style={{
-          position: 'fixed',
-          top: 0,
-          right: 0,
-          bottom: 0,
-          width: '100%',
-          maxWidth: 'min(400px, 100vw)',
-          backgroundColor: '#1a1a1a',
-          color: '#fff',
-          zIndex: 1000,
-          overflowY: 'auto',
-          boxShadow: '-4px 0 16px rgba(0, 0, 0, 0.3)',
-          animation: 'slideInRight 0.3s ease-out',
-        }}
+        className="detail-panel fixed top-0 right-0 bottom-0 w-full max-w-[min(400px,100vw)] bg-brand-underground text-white z-[1000] overflow-y-auto shadow-[-4px_0_16px_rgba(0,0,0,0.3)] animate-slide-in"
       >
         {/* Header */}
-        <div
-          style={{
-            padding: '1rem 1rem 1.5rem',
-            borderBottom: '1px solid #333',
-            display: 'flex',
-            alignItems: 'flex-start',
-            justifyContent: 'space-between',
-          }}
-        >
-          <div style={{ flex: 1 }}>
-            <div
-              style={{
-                fontSize: '0.75rem',
-                textTransform: 'uppercase',
-                letterSpacing: '0.05em',
-                color: isScene ? '#11b4da' : '#f28cb1',
-                marginBottom: '0.5rem',
-                fontWeight: 600,
-              }}
-            >
+        <div className="p-4 pb-6 border-b border-gray-700 flex items-start justify-between">
+          <div className="flex-1">
+            <div className={`text-xs uppercase tracking-wide mb-2 font-semibold ${isScene ? 'text-[#11b4da]' : 'text-[#f28cb1]'}`}>
               {entityType}
             </div>
             {loading ? (
-              <div style={{ fontSize: '1.25rem', fontWeight: 600 }}>Loading...</div>
+              <div className="text-xl font-semibold">Loading...</div>
             ) : (
               <h2
                 id="detail-panel-title"
-                style={{
-                  margin: 0,
-                  fontSize: '1.25rem',
-                  fontWeight: 600,
-                  lineHeight: 1.3,
-                }}
+                className="m-0 text-xl font-semibold leading-tight"
               >
                 {entity?.name || 'Unknown'}
               </h2>
@@ -242,27 +196,7 @@ export function DetailPanel({
             ref={closeButtonRef}
             onClick={onClose}
             aria-label="Close detail panel"
-            style={{
-              marginLeft: '1rem',
-              padding: '0.5rem',
-              minWidth: '44px',
-              minHeight: '44px',
-              background: 'transparent',
-              border: 'none',
-              color: '#fff',
-              cursor: 'pointer',
-              fontSize: '1.5rem',
-              lineHeight: 1,
-              opacity: 0.7,
-              transition: 'opacity 0.2s',
-              touchAction: 'manipulation',
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.opacity = '1';
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.opacity = '0.7';
-            }}
+            className="ml-4 p-2 min-w-touch min-h-touch bg-transparent border-0 text-white cursor-pointer text-2xl leading-none opacity-70 hover:opacity-100 transition-opacity focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-primary"
           >
             ×
           </button>
@@ -270,15 +204,15 @@ export function DetailPanel({
 
         {/* Content */}
         {loading ? (
-          <div style={{ padding: '1rem', textAlign: 'center', color: '#999' }}>
+          <div className="p-4 text-center text-gray-400">
             Loading details...
           </div>
         ) : entity ? (
-          <div style={{ padding: '1rem' }}>
+          <div className="p-4">
             {/* Description */}
             {entity.description && (
-              <div style={{ marginBottom: '1.5rem' }}>
-                <p style={{ margin: 0, lineHeight: 1.6, color: '#ccc' }}>
+              <div className="mb-6">
+                <p className="m-0 leading-relaxed text-gray-300">
                   {entity.description}
                 </p>
               </div>
@@ -286,30 +220,15 @@ export function DetailPanel({
 
             {/* Tags */}
             {isScene && (entity as Scene).tags && (entity as Scene).tags!.length > 0 && (
-              <div style={{ marginBottom: '1.5rem' }}>
-                <h3
-                  style={{
-                    margin: '0 0 0.75rem 0',
-                    fontSize: '0.875rem',
-                    fontWeight: 600,
-                    textTransform: 'uppercase',
-                    letterSpacing: '0.05em',
-                    color: '#999',
-                  }}
-                >
+              <div className="mb-6">
+                <h3 className="m-0 mb-3 text-sm font-semibold uppercase tracking-wide text-gray-400">
                   Tags
                 </h3>
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }}>
+                <div className="flex flex-wrap gap-2">
                   {(entity as Scene).tags!.map((tag) => (
                     <span
                       key={tag}
-                      style={{
-                        padding: '0.25rem 0.75rem',
-                        backgroundColor: '#333',
-                        borderRadius: '12px',
-                        fontSize: '0.875rem',
-                        color: '#ccc',
-                      }}
+                      className="px-3 py-1 bg-gray-700 rounded-xl text-sm text-gray-300"
                     >
                       {tag}
                     </span>
@@ -319,17 +238,8 @@ export function DetailPanel({
             )}
 
             {/* Location Privacy Notice */}
-            <div
-              style={{
-                marginTop: '1.5rem',
-                padding: '1rem',
-                backgroundColor: '#2a2a2a',
-                borderRadius: '8px',
-                fontSize: '0.875rem',
-                color: '#999',
-              }}
-            >
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+            <div className="mt-6 p-4 bg-brand-underground-lighter rounded-lg text-sm text-gray-400">
+              <div className="flex items-center gap-2">
                 <span>📍</span>
                 <span>
                   {entity.allow_precise
@@ -340,18 +250,8 @@ export function DetailPanel({
             </div>
 
             {/* Placeholder for future features */}
-            <div
-              style={{
-                marginTop: '1.5rem',
-                padding: '1rem',
-                backgroundColor: '#2a2a2a',
-                borderRadius: '8px',
-                fontSize: '0.875rem',
-                color: '#999',
-                textAlign: 'center',
-              }}
-            >
-              <p style={{ margin: 0 }}>
+            <div className="mt-6 p-4 bg-brand-underground-lighter rounded-lg text-sm text-gray-400 text-center">
+              <p className="m-0">
                 More features coming soon:
                 <br />
                 • Trust score
@@ -366,22 +266,6 @@ export function DetailPanel({
           </div>
         ) : null}
       </div>
-
-      <style>{`
-        @keyframes fadeIn {
-          from { opacity: 0; }
-          to { opacity: 1; }
-        }
-        
-        @keyframes slideInRight {
-          from {
-            transform: translateX(100%);
-          }
-          to {
-            transform: translateX(0);
-          }
-        }
-      `}</style>
     </>
   );
 }

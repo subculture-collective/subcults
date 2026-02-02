@@ -20,16 +20,16 @@ function getToastIcon(type: ToastType): string {
 }
 
 /**
- * Get background color for toast type
+ * Get Tailwind classes for toast type
  */
-function getToastColor(type: ToastType): string {
+function getToastClasses(type: ToastType): string {
   switch (type) {
     case 'success':
-      return '#10b981'; // green-500
+      return 'bg-green-500';
     case 'error':
-      return '#ef4444'; // red-500
+      return 'bg-red-500';
     case 'info':
-      return '#3b82f6'; // blue-500
+      return 'bg-blue-500';
   }
 }
 
@@ -37,61 +37,36 @@ function getToastColor(type: ToastType): string {
  * Individual toast notification
  */
 function ToastItem({ toast, onDismiss }: { toast: Toast; onDismiss: (id: string) => void }) {
+  const toastClasses = getToastClasses(toast.type);
+  
   return (
     <div
       role="status"
       aria-live="polite"
       aria-atomic="true"
-      style={{
-        display: 'flex',
-        alignItems: 'center',
-        gap: '0.75rem',
-        padding: '1rem',
-        backgroundColor: getToastColor(toast.type),
-        color: 'white',
-        borderRadius: '0.5rem',
-        boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1)',
-        minWidth: '300px',
-        maxWidth: '500px',
-        animation: 'slideIn 0.3s ease-out',
-      }}
+      className={`
+        flex items-center gap-3 p-4 rounded-lg shadow-lg
+        text-white min-w-[300px] max-w-[500px]
+        animate-slide-in
+        ${toastClasses}
+      `.trim()}
     >
-      <div
-        style={{
-          fontSize: '1.25rem',
-          fontWeight: 'bold',
-          flexShrink: 0,
-        }}
-        aria-hidden="true"
-      >
+      <div className="text-xl font-bold flex-shrink-0" aria-hidden="true">
         {getToastIcon(toast.type)}
       </div>
-      <div
-        style={{
-          flex: 1,
-          fontSize: '0.875rem',
-          lineHeight: '1.25rem',
-        }}
-      >
+      <div className="flex-1 text-sm leading-5">
         {toast.message}
       </div>
       {toast.dismissible && (
         <button
           onClick={() => onDismiss(toast.id)}
           aria-label="Dismiss notification"
-          style={{
-            background: 'transparent',
-            border: 'none',
-            color: 'white',
-            cursor: 'pointer',
-            padding: '0.25rem',
-            fontSize: '1.25rem',
-            lineHeight: 1,
-            opacity: 0.8,
-            flexShrink: 0,
-          }}
-          onMouseEnter={(e) => (e.currentTarget.style.opacity = '1')}
-          onMouseLeave={(e) => (e.currentTarget.style.opacity = '0.8')}
+          className="
+            bg-transparent border-0 text-white cursor-pointer
+            p-1 text-xl leading-none opacity-80 hover:opacity-100
+            flex-shrink-0 transition-opacity
+            focus:outline-none focus-visible:ring-2 focus-visible:ring-white
+          "
         >
           ×
         </button>
@@ -99,20 +74,6 @@ function ToastItem({ toast, onDismiss }: { toast: Toast; onDismiss: (id: string)
     </div>
   );
 }
-
-// Animation keyframes - defined once at module level
-const TOAST_ANIMATIONS = `
-  @keyframes slideIn {
-    from {
-      transform: translateX(100%);
-      opacity: 0;
-    }
-    to {
-      transform: translateX(0);
-      opacity: 1;
-    }
-  }
-`;
 
 /**
  * Toast container component
@@ -127,29 +88,17 @@ export function ToastContainer() {
   }
 
   return (
-    <>
-      <style>{TOAST_ANIMATIONS}</style>
-      <div
-        aria-label="Notifications"
-        role="region"
-        aria-live="polite"
-        style={{
-          position: 'fixed',
-          top: '1rem',
-          right: '1rem',
-          display: 'flex',
-          flexDirection: 'column',
-          gap: '0.75rem',
-          zIndex: 9999,
-          pointerEvents: 'none',
-        }}
-      >
-        {toasts.map((toast) => (
-          <div key={toast.id} style={{ pointerEvents: 'auto' }}>
-            <ToastItem toast={toast} onDismiss={removeToast} />
-          </div>
-        ))}
-      </div>
-    </>
+    <div
+      aria-label="Notifications"
+      role="region"
+      aria-live="polite"
+      className="fixed top-4 right-4 flex flex-col gap-3 z-[9999] pointer-events-none"
+    >
+      {toasts.map((toast) => (
+        <div key={toast.id} className="pointer-events-auto">
+          <ToastItem toast={toast} onDismiss={removeToast} />
+        </div>
+      ))}
+    </div>
   );
 }
