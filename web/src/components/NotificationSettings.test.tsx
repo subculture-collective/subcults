@@ -46,6 +46,9 @@ describe('NotificationSettings', () => {
     setError: mockSetError,
   };
 
+  // Store original Notification to restore after tests
+  const originalNotification = global.Notification;
+
   beforeEach(() => {
     // Reset all mocks
     vi.clearAllMocks();
@@ -67,6 +70,8 @@ describe('NotificationSettings', () => {
 
   afterEach(() => {
     vi.restoreAllMocks();
+    // Restore original Notification to prevent test pollution
+    global.Notification = originalNotification;
   });
 
   describe('Browser Support', () => {

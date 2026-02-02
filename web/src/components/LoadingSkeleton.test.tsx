@@ -92,9 +92,10 @@ describe('LoadingSkeleton', () => {
     
     const spinner = container.querySelector('div[style*="animation"]');
     const style = spinner?.getAttribute('style') || '';
-    // Check that border styles are present
+    // The spinner uses a semi-transparent border with a solid white top border for contrast
     expect(style).toContain('border-width: 4px');
     expect(style).toContain('border-style: solid');
+    // The borderTop shorthand becomes border-color: white rgba(...) rgba(...)
     expect(style).toContain('border-color: white');
   });
 
