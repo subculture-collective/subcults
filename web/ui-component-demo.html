@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>UI Component Library Demo</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            brand: {
+              primary: {
+                DEFAULT: '#646cff',
+                light: '#747bff',
+                dark: '#535bf2',
+              }
+            },
+            underground: {
+              DEFAULT: '#1a1a1a',
+              light: '#242424',
+              lighter: '#2d2d2d',
+            }
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    body {
+      font-family: system-ui, -apple-system, sans-serif;
+    }
+    .component-demo {
+      background: #1a1a1a;
+      border: 1px solid #333;
+      border-radius: 8px;
+      padding: 2rem;
+    }
+  </style>
+</head>
+<body class="bg-gray-900 text-white p-8">
+  <div class="max-w-6xl mx-auto space-y-12">
+    <header class="text-center mb-12">
+      <h1 class="text-4xl font-bold mb-4">Subcults UI Component Library</h1>
+      <p class="text-gray-400">Design system components with consistent styling</p>
+    </header>
+
+    <!-- Buttons -->
+    <section class="component-demo">
+      <h2 class="text-2xl font-semibold mb-6">Buttons</h2>
+      <div class="flex flex-wrap gap-4">
+        <button class="inline-flex items-center justify-center gap-2 rounded-lg border font-medium cursor-pointer transition-colors duration-250 focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed min-w-[44px] bg-[#646cff] hover:bg-[#535bf2] text-white border-[#646cff] hover:border-[#535bf2] focus-visible:ring-[#646cff] px-5 py-2.5 text-base min-h-[44px]">
+          Primary
+        </button>
+        <button class="inline-flex items-center justify-center gap-2 rounded-lg border font-medium cursor-pointer transition-colors duration-250 focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed min-w-[44px] bg-[#242424] hover:bg-[#2d2d2d] text-white border-gray-700 hover:border-[#646cff] focus-visible:ring-[#646cff] px-5 py-2.5 text-base min-h-[44px]">
+          Secondary
+        </button>
+        <button class="inline-flex items-center justify-center gap-2 rounded-lg border font-medium cursor-pointer transition-colors duration-250 focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed min-w-[44px] bg-red-600 hover:bg-red-700 text-white border-red-600 hover:border-red-700 focus-visible:ring-red-500 px-5 py-2.5 text-base min-h-[44px]">
+          Danger
+        </button>
+        <button class="inline-flex items-center justify-center gap-2 rounded-lg border font-medium cursor-pointer transition-colors duration-250 focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed min-w-[44px] bg-transparent hover:bg-[#2d2d2d] text-white border-transparent hover:border-gray-700 focus-visible:ring-[#646cff] px-5 py-2.5 text-base min-h-[44px]">
+          Ghost
+        </button>
+        <button class="inline-flex items-center justify-center gap-2 rounded-lg border font-medium cursor-pointer transition-colors duration-250 focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 opacity-50 cursor-not-allowed min-w-[44px] bg-[#646cff] text-white border-[#646cff] px-5 py-2.5 text-base min-h-[44px]" disabled>
+          <span class="inline-block animate-spin rounded-full h-4 w-4 border-2 border-current border-t-transparent"></span>
+          Loading
+        </button>
+      </div>
+    </section>
+
+    <!-- Inputs -->
+    <section class="component-demo">
+      <h2 class="text-2xl font-semibold mb-6">Inputs</h2>
+      <div class="space-y-6 max-w-md">
+        <div>
+          <label class="block text-sm font-medium text-white mb-1.5">
+            Email <span class="text-red-500 ml-1">*</span>
+          </label>
+          <input type="email" placeholder="you@example.com" class="w-full px-3 py-2 rounded-lg bg-[#242424] border border-gray-700 text-white placeholder:text-gray-500 transition-colors duration-250 focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-1 focus-visible:ring-[#646cff] focus:border-[#646cff]" />
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-white mb-1.5">Password</label>
+          <input type="password" class="w-full px-3 py-2 rounded-lg bg-[#242424] border border-red-500 text-white placeholder:text-gray-500 transition-colors duration-250 focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-1 focus-visible:ring-red-500 focus:border-red-500" />
+          <p class="mt-1.5 text-sm text-red-500">Password must be at least 8 characters</p>
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-white mb-1.5">Username</label>
+          <input type="text" value="johndoe" class="w-full px-3 py-2 rounded-lg bg-[#242424] border border-green-500 text-white placeholder:text-gray-500 transition-colors duration-250 focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-1 focus-visible:ring-green-500 focus:border-green-500" />
+        </div>
+      </div>
+    </section>
+
+    <!-- Toast Notifications -->
+    <section class="component-demo">
+      <h2 class="text-2xl font-semibold mb-6">Toast Notifications</h2>
+      <div class="space-y-3 max-w-md">
+        <div class="flex items-center gap-3 p-4 rounded-lg shadow-lg text-white min-w-[300px] max-w-[500px] bg-green-500">
+          <div class="text-xl font-bold flex-shrink-0">✓</div>
+          <div class="flex-1 text-sm leading-5">Changes saved successfully!</div>
+          <button class="bg-transparent border-0 text-white cursor-pointer p-1 text-xl leading-none opacity-80 hover:opacity-100 flex-shrink-0 transition-opacity">×</button>
+        </div>
+        <div class="flex items-center gap-3 p-4 rounded-lg shadow-lg text-white min-w-[300px] max-w-[500px] bg-red-500">
+          <div class="text-xl font-bold flex-shrink-0">✕</div>
+          <div class="flex-1 text-sm leading-5">An error occurred. Please try again.</div>
+          <button class="bg-transparent border-0 text-white cursor-pointer p-1 text-xl leading-none opacity-80 hover:opacity-100 flex-shrink-0 transition-opacity">×</button>
+        </div>
+        <div class="flex items-center gap-3 p-4 rounded-lg shadow-lg text-white min-w-[300px] max-w-[500px] bg-blue-500">
+          <div class="text-xl font-bold flex-shrink-0">ℹ</div>
+          <div class="flex-1 text-sm leading-5">New version available. Update now?</div>
+          <button class="bg-transparent border-0 text-white cursor-pointer p-1 text-xl leading-none opacity-80 hover:opacity-100 flex-shrink-0 transition-opacity">×</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- Loading States -->
+    <section class="component-demo">
+      <h2 class="text-2xl font-semibold mb-6">Loading States</h2>
+      <div class="flex items-center gap-8">
+        <div>
+          <p class="text-sm text-gray-400 mb-2">Small</p>
+          <div class="inline-block animate-spin rounded-full border-[#646cff] border-t-transparent h-4 w-4 border-2"></div>
+        </div>
+        <div>
+          <p class="text-sm text-gray-400 mb-2">Medium</p>
+          <div class="inline-block animate-spin rounded-full border-[#646cff] border-t-transparent h-6 w-6 border-2"></div>
+        </div>
+        <div>
+          <p class="text-sm text-gray-400 mb-2">Large</p>
+          <div class="inline-block animate-spin rounded-full border-[#646cff] border-t-transparent h-8 w-8 border-3"></div>
+        </div>
+        <div>
+          <p class="text-sm text-gray-400 mb-2">Extra Large</p>
+          <div class="inline-block animate-spin rounded-full border-[#646cff] border-t-transparent h-12 w-12 border-4"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Design Tokens -->
+    <section class="component-demo">
+      <h2 class="text-2xl font-semibold mb-6">Design Tokens</h2>
+      <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <div class="text-center">
+          <div class="w-20 h-20 rounded-lg mx-auto mb-2" style="background-color: #646cff;"></div>
+          <p class="text-xs text-gray-400">Brand Primary</p>
+          <p class="text-xs font-mono text-gray-500">#646cff</p>
+        </div>
+        <div class="text-center">
+          <div class="w-20 h-20 rounded-lg mx-auto mb-2 bg-green-500"></div>
+          <p class="text-xs text-gray-400">Success</p>
+          <p class="text-xs font-mono text-gray-500">green-500</p>
+        </div>
+        <div class="text-center">
+          <div class="w-20 h-20 rounded-lg mx-auto mb-2 bg-red-500"></div>
+          <p class="text-xs text-gray-400">Error</p>
+          <p class="text-xs font-mono text-gray-500">red-500</p>
+        </div>
+        <div class="text-center">
+          <div class="w-20 h-20 rounded-lg mx-auto mb-2 bg-blue-500"></div>
+          <p class="text-xs text-gray-400">Info</p>
+          <p class="text-xs font-mono text-gray-500">blue-500</p>
+        </div>
+      </div>
+    </section>
+  </div>
+</body>
+</html>
