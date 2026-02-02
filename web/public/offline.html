@@ -49,11 +49,15 @@
     button:hover {
       background-color: #ddd;
     }
+    button:focus-visible {
+      outline: 2px solid #fff;
+      outline-offset: 3px;
+    }
   </style>
 </head>
 <body>
   <div class="container">
-    <div class="icon">📡</div>
+    <div class="icon" aria-hidden="true">📡</div>
     <h1>You're Offline</h1>
     <p>No internet connection detected. Some features may be unavailable until you're back online.</p>
     <button onclick="window.location.reload()">Try Again</button>

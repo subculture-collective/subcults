@@ -17,6 +17,8 @@ const STATIC_ASSETS = [
   '/manifest.json',
   '/icon-192.svg',
   '/icon-512.svg',
+  '/icon-maskable-192.svg',
+  '/icon-maskable-512.svg',
 ];
 
 // Cache size limits
@@ -33,8 +35,22 @@ self.addEventListener('install', (event) => {
     caches.open(STATIC_CACHE).then((cache) => {
       console.log('[ServiceWorker] Caching static assets');
       return cache.addAll(STATIC_ASSETS).catch((error) => {
-        console.error('[ServiceWorker] Failed to cache static assets:', error);
-        // Continue installation even if some assets fail
+        console.error('[ServiceWorker] Failed to cache some static assets:', error);
+        // Log which assets failed
+        return Promise.allSettled(
+          STATIC_ASSETS.map(async (asset) => {
+            try {
+              const response = await fetch(asset);
+              if (response.ok) {
+                await cache.put(asset, response);
+              } else {
+                console.error(`[ServiceWorker] Failed to cache ${asset}: ${response.status}`);
+              }
+            } catch (err) {
+              console.error(`[ServiceWorker] Failed to cache ${asset}:`, err);
+            }
+          })
+        );
       });
     }).then(() => {
       // Skip waiting to activate immediately
@@ -105,13 +121,16 @@ self.addEventListener('fetch', (event) => {
   else if (request.destination === 'image') {
     event.respondWith(cacheFirst(request, IMAGE_CACHE));
   }
+  // Manifest - network-first to get updates
+  else if (url.pathname === '/manifest.json') {
+    event.respondWith(networkFirst(request, STATIC_CACHE));
+  }
   // Static assets (JS, CSS, fonts, etc.)
   else if (
     request.destination === 'script' ||
     request.destination === 'style' ||
     request.destination === 'font' ||
-    url.pathname.endsWith('.svg') ||
-    url.pathname.endsWith('.json')
+    url.pathname.endsWith('.svg')
   ) {
     event.respondWith(cacheFirst(request, STATIC_CACHE));
   }
@@ -135,8 +154,8 @@ async function cacheFirst(request, cacheName) {
   try {
     const response = await fetch(request);
     
-    // Cache successful responses
-    if (response.ok) {
+    // Cache successful responses with valid content
+    if (response.ok && isValidResponse(response)) {
       const cache = await caches.open(cacheName);
       cache.put(request, response.clone());
       
@@ -168,8 +187,8 @@ async function networkFirst(request, cacheName) {
   try {
     const response = await fetch(request);
     
-    // Cache successful responses
-    if (response.ok) {
+    // Cache successful responses with valid content
+    if (response.ok && isValidResponse(response)) {
       const cache = await caches.open(cacheName);
       cache.put(request, response.clone());
       
@@ -206,18 +225,16 @@ async function networkFirst(request, cacheName) {
 async function staleWhileRevalidate(request, cacheName) {
   const cachedResponse = await caches.match(request);
   
-  const fetchPromise = fetch(request).then((response) => {
-    if (response.ok) {
-      const cache = caches.open(cacheName);
-      cache.then((c) => {
-        c.put(request, response.clone());
-        limitCacheSize(cacheName, getMaxCacheSize(cacheName));
-      });
+  const fetchPromise = fetch(request).then(async (response) => {
+    if (response.ok && isValidResponse(response)) {
+      const cache = await caches.open(cacheName);
+      await cache.put(request, response.clone());
+      await limitCacheSize(cacheName, getMaxCacheSize(cacheName));
     }
     return response;
   }).catch((error) => {
     console.log('[ServiceWorker] Background fetch failed:', error);
-    // Silently fail background update
+    return null;
   });
 
   // Return cached response immediately, or wait for network
@@ -225,14 +242,15 @@ async function staleWhileRevalidate(request, cacheName) {
 }
 
 /**
- * Limit cache size by removing oldest entries
+ * Limit cache size by removing excess entries
+ * Note: Cache key iteration order is not guaranteed across browsers
  */
 async function limitCacheSize(cacheName, maxSize) {
   const cache = await caches.open(cacheName);
   const keys = await cache.keys();
   
   if (keys.length > maxSize) {
-    // Remove oldest entries (FIFO)
+    // Remove excess entries (order not guaranteed - may not be FIFO)
     const keysToDelete = keys.slice(0, keys.length - maxSize);
     await Promise.all(keysToDelete.map((key) => cache.delete(key)));
     console.log(`[ServiceWorker] Trimmed cache ${cacheName} to ${maxSize} entries`);
@@ -250,6 +268,37 @@ function getMaxCacheSize(cacheName) {
     return MAX_IMAGE_CACHE_SIZE;
   }
   return 50; // Default
+}
+
+/**
+ * Validate response before caching to prevent cache poisoning
+ */
+function isValidResponse(response) {
+  // Only cache successful responses
+  if (!response || !response.ok) {
+    return false;
+  }
+  
+  // Check content-type for expected types
+  const contentType = response.headers.get('content-type');
+  if (!contentType) {
+    return false;
+  }
+  
+  // Allow common web content types
+  const validTypes = [
+    'text/html',
+    'text/css',
+    'text/javascript',
+    'application/javascript',
+    'application/json',
+    'image/',
+    'font/',
+    'application/font',
+    'image/svg+xml',
+  ];
+  
+  return validTypes.some(type => contentType.includes(type));
 }
 
 /**

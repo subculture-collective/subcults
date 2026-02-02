@@ -110,12 +110,18 @@ All 18 tests should pass.
 
 ### PWA Validation
 
-Use the included validator:
+Use Lighthouse to validate PWA features:
 ```bash
-node /tmp/pwa-validator.js http://localhost:9000
+npm run lighthouse
 ```
 
-Should show all requirements met.
+Or use the Chrome DevTools Lighthouse panel:
+1. Open Chrome DevTools (F12)
+2. Go to the "Lighthouse" tab
+3. Select "Progressive Web App" category
+4. Click "Generate report"
+
+You can also use online tools like [web.dev/measure](https://web.dev/measure) to audit your deployed site.
 
 ## API Reference
 

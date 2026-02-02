@@ -10,6 +10,7 @@ export interface ServiceWorkerUpdateHandler {
 
 /**
  * Register service worker with update detection
+ * Returns a cleanup function to stop update checks
  */
 export async function registerServiceWorker(
   handlers: ServiceWorkerUpdateHandler = {}
@@ -53,9 +54,11 @@ export async function registerServiceWorker(
     });
 
     // Clean up interval on page unload
-    window.addEventListener('beforeunload', () => {
+    const cleanup = () => {
       clearInterval(updateInterval);
-    });
+    };
+    
+    window.addEventListener('beforeunload', cleanup);
 
     return registration;
   } catch (error) {
