@@ -81,12 +81,7 @@
     "logout": "Logout"
   },
   "dateTime": {
-    "formats": {
-      "short": "MM/DD/YYYY",
-      "long": "MMMM D, YYYY",
-      "time": "h:mm A",
-      "dateTime": "MMMM D, YYYY h:mm A"
-    }
+    "invalidDate": "Invalid date"
   },
   "rtl": {
     "enabled": false

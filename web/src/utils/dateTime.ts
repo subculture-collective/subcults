@@ -15,7 +15,7 @@ export function formatDate(date: Date | string | number, format: 'short' | 'long
   const dateObj = typeof date === 'string' || typeof date === 'number' ? new Date(date) : date;
   
   if (isNaN(dateObj.getTime())) {
-    return 'Invalid date';
+    return i18n.t('dateTime.invalidDate');
   }
 
   const locale = i18n.language || 'en';
@@ -82,7 +82,7 @@ export function formatRelativeTime(date: Date | string | number): string {
   const dateObj = typeof date === 'string' || typeof date === 'number' ? new Date(date) : date;
   
   if (isNaN(dateObj.getTime())) {
-    return 'Invalid date';
+    return i18n.t('dateTime.invalidDate');
   }
 
   const locale = i18n.language || 'en';

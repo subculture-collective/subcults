@@ -137,7 +137,8 @@ describe('ProfileDropdown', () => {
     const button = screen.getByRole('button');
     await user.click(button);
     
-    expect(screen.getByText('Admin')).toBeInTheDocument();
+    // With i18n mock, uses translation key
+    expect(screen.getByText('navigation.admin')).toBeInTheDocument();
   });
 
   it('does not show admin badge for regular users', async () => {
@@ -149,7 +150,8 @@ describe('ProfileDropdown', () => {
     const button = screen.getByRole('button');
     await user.click(button);
     
-    expect(screen.queryByText('Admin')).not.toBeInTheDocument();
+    // With i18n mock, uses translation key
+    expect(screen.queryByText('navigation.admin')).not.toBeInTheDocument();
   });
 
   it('shows Account and Settings menu items', async () => {
@@ -161,8 +163,9 @@ describe('ProfileDropdown', () => {
     const button = screen.getByRole('button');
     await user.click(button);
     
-    expect(screen.getByRole('menuitem', { name: 'Account' })).toBeInTheDocument();
-    expect(screen.getByRole('menuitem', { name: 'Settings' })).toBeInTheDocument();
+    // With i18n mock, uses translation keys
+    expect(screen.getByRole('menuitem', { name: 'profile.account' })).toBeInTheDocument();
+    expect(screen.getByRole('menuitem', { name: 'profile.settings' })).toBeInTheDocument();
   });
 
   it('shows Admin Panel menu item for admin users', async () => {
@@ -174,7 +177,8 @@ describe('ProfileDropdown', () => {
     const button = screen.getByRole('button');
     await user.click(button);
     
-    expect(screen.getByRole('menuitem', { name: 'Admin Panel' })).toBeInTheDocument();
+    // With i18n mock, uses translation key
+    expect(screen.getByRole('menuitem', { name: 'navigation.admin' })).toBeInTheDocument();
   });
 
   it('does not show Admin Panel for regular users', async () => {
@@ -186,7 +190,8 @@ describe('ProfileDropdown', () => {
     const button = screen.getByRole('button');
     await user.click(button);
     
-    expect(screen.queryByRole('menuitem', { name: 'Admin Panel' })).not.toBeInTheDocument();
+    // With i18n mock, uses translation key
+    expect(screen.queryByRole('menuitem', { name: 'navigation.admin' })).not.toBeInTheDocument();
   });
 
   it('closes dropdown when clicking outside', async () => {
@@ -232,7 +237,8 @@ describe('ProfileDropdown', () => {
     const button = screen.getByRole('button');
     await user.click(button);
     
-    const signOutButton = screen.getByRole('menuitem', { name: 'Sign out' });
+    // With i18n mock, uses translation key
+    const signOutButton = screen.getByRole('menuitem', { name: 'profile.logout' });
     await user.click(signOutButton);
     
     // Should log out and navigate to home
@@ -249,7 +255,8 @@ describe('ProfileDropdown', () => {
     const button = screen.getByRole('button');
     await user.click(button);
     
-    const accountLink = screen.getByRole('menuitem', { name: 'Account' });
+    // With i18n mock, uses translation key
+    const accountLink = screen.getByRole('menuitem', { name: 'profile.account' });
     await user.click(accountLink);
     
     // Dropdown should close

@@ -76,12 +76,7 @@
     "logout": "Déconnexion"
   },
   "dateTime": {
-    "formats": {
-      "short": "DD/MM/YYYY",
-      "long": "D MMMM YYYY",
-      "time": "HH:mm",
-      "dateTime": "D MMMM YYYY HH:mm"
-    }
+    "invalidDate": "Date invalide"
   },
   "rtl": {
     "enabled": false

@@ -81,12 +81,7 @@
     "logout": "Cerrar sesión"
   },
   "dateTime": {
-    "formats": {
-      "short": "DD/MM/YYYY",
-      "long": "D [de] MMMM [de] YYYY",
-      "time": "h:mm A",
-      "dateTime": "D [de] MMMM [de] YYYY h:mm A"
-    }
+    "invalidDate": "Fecha inválida"
   },
   "rtl": {
     "enabled": false
