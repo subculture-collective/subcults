@@ -296,7 +296,12 @@ export const authStore = {
 
   /**
    * Reset auth state synchronously for testing purposes only.
-   * Unlike logout(), this does NOT make any network requests.
+   * Unlike logout(), this does NOT:
+   * - Make network requests to /api/auth/logout
+   * - Broadcast logout events to other tabs via BroadcastChannel
+   * 
+   * Multi-tab sync is intentionally skipped to maintain test isolation
+   * and avoid side effects between concurrent test runs.
    * 
    * @internal This method is intended for test use only.
    */
