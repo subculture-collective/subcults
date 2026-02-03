@@ -9,7 +9,8 @@ import (
 
 // LiveKitChecker implements health checking for LiveKit.
 type LiveKitChecker struct {
-url string
+url    string
+client *http.Client
 }
 
 // NewLiveKitChecker creates a new LiveKit health checker.
@@ -17,6 +18,14 @@ url string
 func NewLiveKitChecker(url string) *LiveKitChecker {
 return &LiveKitChecker{
 url: url,
+client: &http.Client{
+Timeout: 3 * time.Second,
+Transport: &http.Transport{
+MaxIdleConns:        16,
+MaxIdleConnsPerHost: 4,
+IdleConnTimeout:     30 * time.Second,
+},
+},
 }
 }
 
@@ -27,22 +36,22 @@ if l.url == "" {
 return fmt.Errorf("livekit url not configured")
 }
 
-client := &http.Client{
-Timeout: 3 * time.Second,
-}
-
 req, err := http.NewRequestWithContext(ctx, http.MethodGet, l.url, nil)
 if err != nil {
 return fmt.Errorf("failed to create request: %w", err)
 }
 
-resp, err := client.Do(req)
+resp, err := l.client.Do(req)
 if err != nil {
 return fmt.Errorf("failed to reach livekit server: %w", err)
 }
 defer resp.Body.Close()
 
-// Accept any response that indicates the server is reachable
-// LiveKit may return 404 or other status codes, but as long as we get a response, it's healthy
+// Consider the server healthy only for successful (2xx) responses.
+// Non-2xx status codes likely indicate the service is unavailable or misconfigured.
+if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+return fmt.Errorf("livekit unhealthy: unexpected status code %d", resp.StatusCode)
+}
+
 return nil
 }

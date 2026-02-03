@@ -1,16 +1,14 @@
 package health
 
 import (
-"context"
 "testing"
 
 "github.com/redis/go-redis/v9"
 )
 
-// TestRedisChecker_HealthCheck tests the Redis health checker with a mock client.
-func TestRedisChecker_HealthCheck(t *testing.T) {
-// This test requires a real Redis instance or a mock
-// For now, we'll just test that the checker is created correctly
+// TestRedisChecker_Creation tests that the Redis health checker is created correctly.
+func TestRedisChecker_Creation(t *testing.T) {
+// Create a Redis client (doesn't connect immediately)
 client := redis.NewClient(&redis.Options{
 Addr: "localhost:6379",
 })
@@ -25,21 +23,14 @@ t.Error("expected checker client to match provided client")
 }
 }
 
-// TestRedisChecker_HealthCheck_ContextCancellation tests that context cancellation works.
-func TestRedisChecker_HealthCheck_ContextCancellation(t *testing.T) {
-client := redis.NewClient(&redis.Options{
-Addr: "localhost:6379",
-})
+// TestRedisChecker_NilClient tests handling of nil client.
+func TestRedisChecker_NilClient(t *testing.T) {
+checker := NewRedisChecker(nil)
+if checker == nil {
+t.Fatal("expected checker to be non-nil even with nil client")
+}
 
-checker := NewRedisChecker(client)
-
-ctx, cancel := context.WithCancel(context.Background())
-cancel() // Cancel immediately
-
-err := checker.HealthCheck(ctx)
-if err == nil {
-// Error is expected due to cancelled context or connection failure
-// Both are acceptable for this test
-t.Log("HealthCheck completed (might be cached or immediate)")
+if checker.client != nil {
+t.Error("expected checker client to be nil")
 }
 }

@@ -58,10 +58,9 @@ func NewHealthHandlers(config HealthHandlersConfig) *HealthHandlers {
 
 // HealthResponse represents the JSON response for health checks.
 type HealthResponse struct {
-	Status    string            `json:"status"`
-	Checks    map[string]string `json:"checks,omitempty"`
-	UptimeS   int64             `json:"uptime_s,omitempty"`
-	Timestamp string            `json:"timestamp,omitempty"`
+	Status  string            `json:"status"`
+	Checks  map[string]string `json:"checks,omitempty"`
+	UptimeS int64             `json:"uptime_s,omitempty"`
 }
 
 // Health handles GET /health/live (liveness probe).
@@ -84,9 +83,18 @@ func (h *HealthHandlers) Health(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
-	if err := json.NewEncoder(w).Encode(response); err != nil {
+	
+	// Encode response before writing status code to handle encoding errors properly
+	body, err := json.Marshal(response)
+	if err != nil {
 		slog.Error("failed to encode health response", "error", err)
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+	
+	w.WriteHeader(http.StatusOK)
+	if _, err := w.Write(body); err != nil {
+		slog.Error("failed to write health response", "error", err)
 	}
 }
 
@@ -156,8 +164,17 @@ func (h *HealthHandlers) Ready(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(statusCode)
-	if err := json.NewEncoder(w).Encode(response); err != nil {
+	
+	// Encode response before writing status code to handle encoding errors properly
+	body, err := json.Marshal(response)
+	if err != nil {
 		slog.Error("failed to encode readiness response", "error", err)
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+	
+	w.WriteHeader(statusCode)
+	if _, err := w.Write(body); err != nil {
+		slog.Error("failed to write readiness response", "error", err)
 	}
 }
