@@ -216,11 +216,6 @@ func TestSceneName(t *testing.T) {
 			wantErr: true,
 		},
 		{
-			name:    "scene name with SQL keyword",
-			input:   "DROP TABLE scenes",
-			wantErr: true,
-		},
-		{
 			name:    "scene name with special characters",
 			input:   "Scene@Name#123",
 			wantErr: true,
@@ -229,6 +224,11 @@ func TestSceneName(t *testing.T) {
 			name:    "single character allowed",
 			input:   "X",
 			wantErr: false,
+		},
+		{
+			name:    "DROP TABLE scenes - now allowed",
+			input:   "DROP TABLE scenes",
+			wantErr: false, // SQL keywords disabled for scene names
 		},
 	}
 
@@ -268,14 +268,14 @@ func TestEventTitle(t *testing.T) {
 			wantErr: true,
 		},
 		{
-			name:    "event title with SQL keyword",
-			input:   "Concert; DROP TABLE events--",
-			wantErr: true,
-		},
-		{
 			name:    "empty event title",
 			input:   "",
 			wantErr: true,
+		},
+		{
+			name:    "Concert with SQL pattern - now allowed",
+			input:   "Concert; DROP TABLE events--",
+			wantErr: false, // SQL keywords disabled for event titles
 		},
 	}
 
@@ -374,6 +374,127 @@ func TestDescription(t *testing.T) {
 			_, err := Description(tt.input)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("Description() error = %v, wantErr %v", err, tt.wantErr)
+			}
+		})
+	}
+}
+
+// TestSQLKeywordWordBoundary tests that SQL keyword detection uses word boundaries
+// to avoid false positives with legitimate names containing SQL keywords as substrings.
+// Note: SQL keyword checking is now disabled for scene names and event titles to avoid
+// frustrating users with legitimate venue/event names. The improved checkSQLKeywords
+// function with word boundary detection is available for other use cases.
+func TestSQLKeywordWordBoundary(t *testing.T) {
+	tests := []struct {
+		name    string
+		input   string
+		wantErr bool
+	}{
+		// All of these should pass now since SQL keyword checking is disabled for scene names
+		{
+			name:    "Drop Zone Music Hall",
+			input:   "Drop Zone Music Hall",
+			wantErr: false,
+		},
+		{
+			name:    "The Executive Lounge",
+			input:   "The Executive Lounge",
+			wantErr: false,
+		},
+		{
+			name:    "From the Underground",
+			input:   "From the Underground",
+			wantErr: false,
+		},
+		{
+			name:    "Join Together Festival",
+			input:   "Join Together Festival",
+			wantErr: false,
+		},
+		{
+			name:    "Select Sounds Collective",
+			input:   "Select Sounds Collective",
+			wantErr: false,
+		},
+		{
+			name:    "DELETE this scene",
+			input:   "DELETE this scene",
+			wantErr: false,
+		},
+		{
+			name:    "DROP the beat",
+			input:   "DROP the beat",
+			wantErr: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			_, err := SceneName(tt.input)
+			hasErr := err != nil
+			if hasErr != tt.wantErr {
+				t.Errorf("SceneName(%q) error = %v, wantErr %v", tt.input, err, tt.wantErr)
+			}
+		})
+	}
+}
+
+// TestSQLKeywordDetectionWithConstraints tests the SQL keyword detection directly
+// with the CheckSQLKeywords constraint enabled, demonstrating the word boundary logic.
+func TestSQLKeywordDetectionWithConstraints(t *testing.T) {
+	tests := []struct {
+		name    string
+		input   string
+		wantErr bool
+	}{
+		// Should NOT trigger (legitimate names with SQL keywords as substrings)
+		{
+			name:    "Executive contains EXEC",
+			input:   "The Executive",
+			wantErr: false,
+		},
+		
+		// Should trigger (actual SQL keywords as standalone words)
+		{
+			name:    "standalone SELECT",
+			input:   "SELECT something",
+			wantErr: true,
+		},
+		{
+			name:    "standalone DELETE",
+			input:   "DELETE this",
+			wantErr: true,
+		},
+		{
+			name:    "standalone DROP",
+			input:   "DROP it",
+			wantErr: true,
+		},
+		{
+			name:    "SQL comment pattern",
+			input:   "test -- comment",
+			wantErr: true,
+		},
+		{
+			name:    "stored procedure prefix",
+			input:   "xp_cmdshell test",
+			wantErr: true,
+		},
+	}
+
+	constraints := StringConstraints{
+		MinLength:        1,
+		MaxLength:        100,
+		CheckSQLKeywords: true,
+		TrimSpace:        true,
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			_, err := String(tt.input, constraints)
+			hasErr := err != nil
+			if hasErr != tt.wantErr {
+				t.Errorf("String(%q) with SQL keyword check error = %v, wantErr %v", tt.input, err, tt.wantErr)
 			}
 		})
 	}

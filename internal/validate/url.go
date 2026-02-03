@@ -1,11 +1,13 @@
 package validate
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"net"
 	"net/url"
 	"strings"
+	"time"
 )
 
 // URL validation errors
@@ -110,6 +112,10 @@ func URL(urlStr string, constraints URLConstraints) (string, error) {
 
 // checkSSRF checks if a hostname could be used for SSRF attacks.
 // Blocks localhost, private IPs, link-local addresses, etc.
+//
+// Note: This performs validation at check-time, not request-time. For strongest
+// SSRF protection, consumers should call this validation immediately before making
+// HTTP requests to minimize DNS rebinding risks (TOCTOU).
 func checkSSRF(hostname string) error {
 	// Block localhost variations
 	lower := strings.ToLower(hostname)
@@ -117,8 +123,21 @@ func checkSSRF(hostname string) error {
 		return fmt.Errorf("%w: localhost not allowed", ErrSSRFRisk)
 	}
 
-	// Try to resolve the hostname to IP
-	ips, err := net.LookupIP(hostname)
+	// Check if hostname is already an IP address (avoid unnecessary DNS lookup)
+	if ip := net.ParseIP(hostname); ip != nil {
+		if isPrivateIP(ip) {
+			return fmt.Errorf("%w: private IP address not allowed", ErrSSRFRisk)
+		}
+		return nil
+	}
+
+	// Perform DNS resolution for domain names with timeout context
+	// Note: DNS resolution can be slow (100ms+) and introduces TOCTOU risk
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+
+	resolver := &net.Resolver{}
+	ips, err := resolver.LookupIP(ctx, "ip", hostname)
 	if err != nil {
 		// If we can't resolve, allow it (DNS errors handled elsewhere)
 		// This prevents blocking legitimate domains with temporary DNS issues
@@ -136,14 +155,21 @@ func checkSSRF(hostname string) error {
 }
 
 // isPrivateIP checks if an IP address is private, loopback, or link-local.
+// This includes common SSRF bypass vectors.
 func isPrivateIP(ip net.IP) bool {
-	// Check for loopback
+	// Check for loopback (covers 127.0.0.0/8 and ::1)
+	// IsLoopback handles various IPv6 loopback representations
 	if ip.IsLoopback() {
 		return true
 	}
 
-	// Check for link-local
+	// Check for link-local (covers 169.254.0.0/16 and fe80::/10)
 	if ip.IsLinkLocalUnicast() || ip.IsLinkLocalMulticast() {
+		return true
+	}
+
+	// Check for unspecified address (covers 0.0.0.0 and ::)
+	if ip.IsUnspecified() {
 		return true
 	}
 
@@ -161,7 +187,7 @@ func isPrivateIP(ip net.IP) bool {
 		if ip4[0] == 192 && ip4[1] == 168 {
 			return true
 		}
-		// 169.254.0.0/16 (link-local)
+		// 169.254.0.0/16 (link-local, redundant with IsLinkLocalUnicast but explicit)
 		if ip4[0] == 169 && ip4[1] == 254 {
 			return true
 		}

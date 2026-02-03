@@ -23,15 +23,15 @@ import "github.com/onnwee/subcults/internal/validate"
 name, err := validate.SceneName("My Cool Scene")
 // Returns: "My Cool Scene", nil
 
-// Attempts SQL injection
-name, err := validate.SceneName("Scene; DROP TABLE scenes--")
-// Returns: "", error (contains SQL keyword)
+// Legitimate venue names are allowed (SQL keyword checking disabled)
+name, err := validate.SceneName("Drop Zone Music Hall")
+// Returns: "Drop Zone Music Hall", nil
 
-// Custom string validation
+// Custom string validation with SQL keyword checking
 validated, err := validate.String("user input", validate.StringConstraints{
     MinLength: 5,
     MaxLength: 100,
-    CheckSQLKeywords: true,
+    CheckSQLKeywords: true, // Enable for non-user-facing fields
     TrimSpace: true,
 })
 ```
@@ -99,13 +99,13 @@ content, err := validate.PostContent("User post with <b>HTML</b>")
 ### Scene Names
 - 1-100 characters
 - Alphanumeric, spaces, dash, underscore, period only
-- No SQL keywords
 - HTML sanitized
+- **Note**: SQL keyword checking disabled to avoid false positives with legitimate venue names
 
 ### Event Titles
 - 1-200 characters
-- No SQL keywords
 - HTML sanitized
+- **Note**: SQL keyword checking disabled to avoid false positives with legitimate event names
 
 ### Post Content
 - 1-5000 characters
@@ -134,9 +134,13 @@ content, err := validate.PostContent("User post with <b>HTML</b>")
 ## Security Features
 
 ### SQL Injection Prevention
-- Keyword detection for common SQL commands
-- Note: This is a defense-in-depth measure; **always use parameterized queries**
-- Keywords checked: SELECT, INSERT, UPDATE, DELETE, DROP, CREATE, ALTER, TRUNCATE, EXEC, UNION, JOIN, etc.
+- Keyword detection for common SQL commands (with word boundary detection)
+- **Disabled for user-facing fields** (scene names, event titles) to avoid false positives with legitimate names like "Drop Zone" or "The Executive Lounge"
+- Available for other use cases via `CheckSQLKeywords: true` in `StringConstraints`
+- **Primary defense**: Parameterized queries (already implemented in repository layer)
+- Keywords checked: SELECT, INSERT, UPDATE, DELETE, DROP, CREATE, ALTER, TRUNCATE, EXEC, UNION
+- Comment patterns blocked: --, /*, */, ;--
+- Stored procedure prefixes blocked: xp_, sp_
 
 ### XSS Prevention
 - HTML entity escaping for all user-generated text
@@ -144,12 +148,16 @@ content, err := validate.PostContent("User post with <b>HTML</b>")
 - Applied automatically by high-level validators
 
 ### SSRF Prevention
+- **Performance optimization**: Checks if hostname is an IP before DNS lookup
+- **Timeout protection**: 2-second timeout on DNS resolution
 - Blocks localhost and localhost.localdomain
+- Blocks 0.0.0.0 (unspecified address)
 - Blocks private IPv4 ranges: 10.x.x.x, 172.16-31.x.x, 192.168.x.x
-- Blocks link-local addresses: 169.254.x.x
-- Blocks loopback addresses
-- Blocks private IPv6 ranges
+- Blocks link-local addresses: 169.254.x.x (including cloud metadata service IPs)
+- Blocks loopback addresses (127.0.0.0/8, ::1)
+- Blocks private IPv6 ranges (fc00::/7)
 - Optional domain allowlist for strict control
+- **Note**: DNS rebinding protection - consumers should call validation immediately before making HTTP requests
 
 ### File Upload Security
 - MIME type validation

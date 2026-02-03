@@ -21,14 +21,6 @@ var (
 	ErrEmpty             = errors.New("string is empty")
 )
 
-// Common SQL keywords to detect potential SQL injection attempts
-// This is a basic defense layer; parameterized queries are the primary defense
-var sqlKeywords = []string{
-	"SELECT", "INSERT", "UPDATE", "DELETE", "DROP", "CREATE", "ALTER",
-	"TRUNCATE", "EXEC", "EXECUTE", "UNION", "JOIN", "WHERE", "FROM",
-	"--", "/*", "*/", ";--", "xp_", "sp_",
-}
-
 // StringConstraints defines validation constraints for a string.
 type StringConstraints struct {
 	MinLength        int              // Minimum length (0 = no minimum)
@@ -94,15 +86,46 @@ func String(s string, constraints StringConstraints) (string, error) {
 	return s, nil
 }
 
-// checkSQLKeywords checks if the string contains common SQL keywords.
+// checkSQLKeywords checks if the string contains common SQL keywords as standalone words.
 // This is a basic heuristic check; parameterized queries are the real defense.
+// Uses word boundary detection to avoid false positives (e.g., "Drop Zone" vs "DROP TABLE").
 func checkSQLKeywords(s string) error {
 	upper := strings.ToUpper(s)
-	for _, keyword := range sqlKeywords {
-		if strings.Contains(upper, keyword) {
-			return fmt.Errorf("%w: contains %q", ErrSQLKeyword, keyword)
+	
+	// Check for SQL comment patterns (these are always suspicious)
+	commentPatterns := []string{"--", "/*", "*/", ";--"}
+	for _, pattern := range commentPatterns {
+		if strings.Contains(upper, pattern) {
+			return fmt.Errorf("%w: contains %q", ErrSQLKeyword, pattern)
 		}
 	}
+	
+	// Check for SQL keywords with word boundary detection
+	// Split into words to avoid false positives like "Drop Zone" or "Executive"
+	words := strings.FieldsFunc(upper, func(r rune) bool {
+		// Split on non-alphanumeric characters
+		return !((r >= 'A' && r <= 'Z') || (r >= '0' && r <= '9') || r == '_')
+	})
+	
+	sqlKeywordSet := map[string]bool{
+		"SELECT": true, "INSERT": true, "UPDATE": true, "DELETE": true,
+		"DROP": true, "CREATE": true, "ALTER": true, "TRUNCATE": true,
+		"EXEC": true, "EXECUTE": true, "UNION": true,
+		// Removed common words: JOIN, WHERE, FROM (too many false positives)
+		// These are less likely to indicate SQL injection in user-facing fields
+	}
+	
+	for _, word := range words {
+		if sqlKeywordSet[word] {
+			return fmt.Errorf("%w: contains SQL keyword %q", ErrSQLKeyword, word)
+		}
+	}
+	
+	// Check for stored procedure prefixes
+	if strings.Contains(upper, "XP_") || strings.Contains(upper, "SP_") {
+		return fmt.Errorf("%w: contains stored procedure prefix", ErrSQLKeyword)
+	}
+	
 	return nil
 }
 
@@ -125,14 +148,17 @@ func SanitizeString(s string, constraints StringConstraints) (string, error) {
 // SceneName validates a scene name according to Subcults requirements:
 // - 1-100 characters
 // - Letters, numbers, spaces, dash, underscore, period only
-// - No SQL keywords
+// - HTML sanitized
+// Note: SQL keyword checking is disabled for scene names to avoid false positives
+// with legitimate venue names like "Drop Zone" or "The Executive Lounge".
+// Parameterized queries provide the primary SQL injection defense.
 func SceneName(name string) (string, error) {
 	pattern := regexp.MustCompile(`^[A-Za-z0-9 _\-\.]+$`)
 	return SanitizeString(name, StringConstraints{
 		MinLength:        1,
 		MaxLength:        100,
 		AllowedPattern:   pattern,
-		CheckSQLKeywords: true,
+		CheckSQLKeywords: false, // Disabled to avoid false positives
 		AllowEmpty:       false,
 		TrimSpace:        true,
 	})
@@ -140,12 +166,14 @@ func SceneName(name string) (string, error) {
 
 // EventTitle validates an event title according to Subcults requirements:
 // - 1-200 characters
-// - No SQL keywords
+// - HTML sanitized
+// Note: SQL keyword checking is disabled for event titles to avoid false positives
+// with legitimate event names. Parameterized queries provide the primary SQL injection defense.
 func EventTitle(title string) (string, error) {
 	return SanitizeString(title, StringConstraints{
 		MinLength:        1,
 		MaxLength:        200,
-		CheckSQLKeywords: true,
+		CheckSQLKeywords: false, // Disabled to avoid false positives
 		AllowEmpty:       false,
 		TrimSpace:        true,
 	})

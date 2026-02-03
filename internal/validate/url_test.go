@@ -294,6 +294,10 @@ func TestIsPrivateIP(t *testing.T) {
 		// Link-local
 		{name: "169.254.x.x link-local", ip: "169.254.169.254", want: true},
 
+		// Unspecified addresses (0.0.0.0)
+		{name: "0.0.0.0 unspecified", ip: "0.0.0.0", want: true},
+		{name: "IPv6 unspecified", ip: "::", want: true},
+
 		// Public IPs
 		{name: "public IP 8.8.8.8", ip: "8.8.8.8", want: false},
 		{name: "public IP 1.1.1.1", ip: "1.1.1.1", want: false},
