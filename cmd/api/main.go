@@ -970,7 +970,7 @@ func main() {
 	}
 
 	healthHandlers := api.NewHealthHandlers(api.HealthHandlersConfig{
-		DBChecker:      nil, // Will be configured when using real database
+		DBChecker:      nil, // Currently using in-memory repos; DB checker will be added when Postgres is integrated
 		RedisChecker:   redisHealthChecker,
 		LiveKitChecker: livekitHealthChecker,
 		StripeChecker:  nil, // Will be configured when Stripe health check is implemented
