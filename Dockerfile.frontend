@@ -30,7 +30,7 @@ RUN npm run build
 # =============================================================================
 # Output stage - Alpine for copying to volumes in Docker Compose
 # =============================================================================
-FROM alpine:3.19 AS dist
+FROM alpine:3.23 AS dist
 
 # Copy only the built static assets
 COPY --from=builder /app/dist /dist
