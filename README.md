@@ -429,6 +429,55 @@ Subcults is built with a **privacy-first** philosophy. We provide comprehensive 
 
 For technical privacy implementation details, see [docs/PRIVACY.md](docs/PRIVACY.md).
 
+## Security
+
+Subcults implements comprehensive security practices to protect users and the platform.
+
+### 🔒 Vulnerability Scanning
+
+We run automated vulnerability scanning on all dependencies:
+
+- **Go Dependencies**: govulncheck scans for known vulnerabilities in Go modules
+- **NPM Packages**: npm audit scans frontend and E2E test dependencies
+- **Docker Images**: Trivy scans container base images and OS packages
+
+**Scanning Schedule:**
+- On every pull request affecting dependencies
+- Weekly automated scans every Monday at 9:00 AM UTC
+- On push to `main` and `develop` branches
+
+**Severity Thresholds:**
+- **CRITICAL**: Fails CI build ❌
+- **HIGH**: Warning logged ⚠️
+- **MODERATE/LOW**: Reported in PR comments 💬
+
+### 🤖 Automated Updates
+
+[Dependabot](https://github.com/dependabot) automatically creates PRs for dependency updates:
+- Weekly schedule for all ecosystems (Go, NPM, Docker, GitHub Actions)
+- Security updates prioritized
+- Minor and patch updates grouped to reduce noise
+
+### 📊 Security Reporting
+
+- **GitHub Security Tab**: View Dependabot alerts and code scanning results
+- **Workflow Artifacts**: Download detailed scan reports from GitHub Actions
+- **PR Comments**: Automatic vulnerability summaries on pull requests
+
+### 📖 Documentation
+
+- **[SECURITY.md](SECURITY.md)** - Security policy, vulnerability reporting, disclosure timeline
+- **[docs/DEPENDENCY_SCANNING.md](docs/DEPENDENCY_SCANNING.md)** - Technical implementation details
+
+### 🚨 Reporting Vulnerabilities
+
+If you discover a security vulnerability, please:
+- **DO NOT** open a public GitHub issue
+- Email: security@subcults.dev
+- Include: description, reproduction steps, impact assessment
+
+We will acknowledge reports within 48 hours.
+
 ## License
 
 To be defined. (Planned: permissive OSS; Apache-2.0 or MIT.)
