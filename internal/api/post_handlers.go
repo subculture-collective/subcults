@@ -237,13 +237,13 @@ func (h *PostHandlers) UpdatePost(w http.ResponseWriter, r *http.Request) {
 
 	// Apply updates
 	if req.Text != nil {
-		newText := *req.Text
-		if errMsg := validatePostText(newText); errMsg != "" {
+		validatedText, err := validate.PostContent(*req.Text)
+		if err != nil {
 			ctx := middleware.SetErrorCode(r.Context(), ErrCodeValidation)
-			WriteError(w, ctx, http.StatusBadRequest, ErrCodeValidation, errMsg)
+			WriteError(w, ctx, http.StatusBadRequest, ErrCodeValidation, fmt.Sprintf("Invalid post text: %v", err))
 			return
 		}
-		existingPost.Text = sanitizePostText(newText)
+		existingPost.Text = validatedText
 	}
 
 	if req.Attachments != nil {
@@ -252,13 +252,19 @@ func (h *PostHandlers) UpdatePost(w http.ResponseWriter, r *http.Request) {
 			WriteError(w, ctx, http.StatusBadRequest, ErrCodeValidation, "Maximum 6 attachments allowed")
 			return
 		}
+		// Validate attachment URLs
+		if err := validatePostAttachments(*req.Attachments); err != nil {
+			ctx := middleware.SetErrorCode(r.Context(), ErrCodeValidation)
+			WriteError(w, ctx, http.StatusBadRequest, ErrCodeValidation, err.Error())
+			return
+		}
 		existingPost.Attachments = *req.Attachments
 	}
 
 	if req.Labels != nil {
 		sanitizedLabels := make([]string, len(*req.Labels))
 		for i, label := range *req.Labels {
-			sanitizedLabels[i] = html.EscapeString(strings.TrimSpace(label))
+			sanitizedLabels[i] = validate.SanitizeHTML(strings.TrimSpace(label))
 		}
 
 		// Validate that all labels are allowed
