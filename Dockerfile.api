@@ -39,7 +39,7 @@ RUN CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} go build \
 # from busybox to enable Docker healthchecks. This binary will be executed as
 # the nonroot user at runtime for healthchecks.
 # =============================================================================
-FROM busybox:1.36-musl AS healthcheck
+FROM busybox:1.37-musl AS healthcheck
 
 # =============================================================================
 # Runtime stage - Using distroless for minimal attack surface
