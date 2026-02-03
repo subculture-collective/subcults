@@ -1004,15 +1004,16 @@ func main() {
 
 	// Apply middleware chain:
 	// The following middleware are applied in reverse order (innermost to outermost).
-	// This means the request flows through them in the order listed below (1→5),
-	// but they are applied to the handler in reverse order (5→1).
+	// This means the request flows through them in the order listed below (1→6),
+	// but they are applied to the handler in reverse order (6→1).
 	//
 	// Request flow (what executes first to last):
 	// 1. Tracing - OpenTelemetry instrumentation (if enabled)
-	// 2. General rate limiting (1000 req/min per IP) - blocks excessive requests early
-	// 3. HTTP metrics - captures request duration, sizes, and counts
-	// 4. RequestID - generates/extracts request IDs for tracing
-	// 5. Logging - logs requests with all context
+	// 2. CORS - Cross-origin resource sharing (if configured)
+	// 3. General rate limiting (1000 req/min per IP) - blocks excessive requests early
+	// 4. HTTP metrics - captures request duration, sizes, and counts
+	// 5. RequestID - generates/extracts request IDs for tracing
+	// 6. Logging - logs requests with all context
 	var handler http.Handler = mux
 
 	// Apply middleware in reverse order of execution
@@ -1031,6 +1032,47 @@ func main() {
 	// Then canary routing (if enabled)
 	if cfg.CanaryEnabled {
 		handler = canaryRouter.Middleware(handler)
+	}
+
+	// Then CORS (if configured)
+	if cfg.CORSAllowedOrigins != "" {
+		// Parse comma-separated origins
+		origins := strings.Split(cfg.CORSAllowedOrigins, ",")
+		for i, origin := range origins {
+			origins[i] = strings.TrimSpace(origin)
+		}
+
+		// Parse comma-separated methods
+		methods := strings.Split(cfg.CORSAllowedMethods, ",")
+		for i, method := range methods {
+			methods[i] = strings.TrimSpace(method)
+		}
+
+		// Parse comma-separated headers
+		headers := strings.Split(cfg.CORSAllowedHeaders, ",")
+		for i, header := range headers {
+			headers[i] = strings.TrimSpace(header)
+		}
+
+		corsConfig := middleware.CORSConfig{
+			AllowedOrigins:   origins,
+			AllowedMethods:   methods,
+			AllowedHeaders:   headers,
+			AllowCredentials: cfg.CORSAllowCredentials,
+			MaxAge:           cfg.CORSMaxAge,
+		}
+
+		handler = middleware.CORS(corsConfig)(handler)
+
+		slog.Info("CORS enabled",
+			"origins", origins,
+			"methods", methods,
+			"headers", headers,
+			"allow_credentials", cfg.CORSAllowCredentials,
+			"max_age", cfg.CORSMaxAge,
+		)
+	} else {
+		slog.Info("CORS disabled - no origins configured")
 	}
 
 	// Finally, tracing (outermost, executes first) - only if enabled
