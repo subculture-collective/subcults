@@ -1,0 +1,122 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: subcults-api
+  namespace: subcults
+  labels:
+    app: subcults-api
+    component: backend
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: subcults-api
+  template:
+    metadata:
+      labels:
+        app: subcults-api
+        component: backend
+    spec:
+      containers:
+      - name: api
+        image: subcults/api:latest
+        imagePullPolicy: Always
+        ports:
+        - name: http
+          containerPort: 8080
+          protocol: TCP
+        env:
+        - name: PORT
+          value: "8080"
+        - name: GO_ENV
+          value: production
+        - name: DATABASE_URL
+          valueFrom:
+            secretKeyRef:
+              name: subcults-secrets
+              key: database-url
+        - name: JWT_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: subcults-secrets
+              key: jwt-secret
+        - name: REDIS_URL
+          valueFrom:
+            secretKeyRef:
+              name: subcults-secrets
+              key: redis-url
+        - name: LIVEKIT_URL
+          valueFrom:
+            configMapKeyRef:
+              name: subcults-config
+              key: livekit-url
+        - name: LIVEKIT_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: subcults-secrets
+              key: livekit-api-key
+        - name: LIVEKIT_API_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: subcults-secrets
+              key: livekit-api-secret
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "250m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"
+        # Liveness probe: check if service is running
+        # Restarts container after 3 consecutive failures (30s total)
+        livenessProbe:
+          httpGet:
+            path: /health/live
+            port: http
+            scheme: HTTP
+          initialDelaySeconds: 10
+          periodSeconds: 10
+          timeoutSeconds: 3
+          successThreshold: 1
+          failureThreshold: 3
+        # Readiness probe: check if service can handle traffic
+        # Removes from load balancer after 1 failure (5s total)
+        readinessProbe:
+          httpGet:
+            path: /health/ready
+            port: http
+            scheme: HTTP
+          initialDelaySeconds: 5
+          periodSeconds: 5
+          timeoutSeconds: 3
+          successThreshold: 1
+          failureThreshold: 1
+        # Startup probe: allow more time during initial startup
+        # Checks every 5s for up to 2 minutes (24 failures * 5s)
+        startupProbe:
+          httpGet:
+            path: /health/live
+            port: http
+            scheme: HTTP
+          initialDelaySeconds: 0
+          periodSeconds: 5
+          timeoutSeconds: 3
+          successThreshold: 1
+          failureThreshold: 24
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: subcults-api
+  namespace: subcults
+  labels:
+    app: subcults-api
+spec:
+  type: ClusterIP
+  ports:
+  - name: http
+    port: 80
+    targetPort: http
+    protocol: TCP
+  selector:
+    app: subcults-api

@@ -25,8 +25,14 @@ type HealthHandlers struct {
 	// Database checker (optional, for when real DB is used)
 	dbChecker HealthChecker
 
+	// Redis checker (optional, for when Redis is used)
+	redisChecker HealthChecker
+
 	// Metrics availability
 	metricsEnabled bool
+
+	// Service start time for uptime calculation
+	startTime time.Time
 }
 
 // HealthHandlersConfig configures the health check handlers.
@@ -34,6 +40,7 @@ type HealthHandlersConfig struct {
 	LiveKitChecker HealthChecker
 	StripeChecker  HealthChecker
 	DBChecker      HealthChecker
+	RedisChecker   HealthChecker
 	MetricsEnabled bool
 }
 
@@ -43,20 +50,23 @@ func NewHealthHandlers(config HealthHandlersConfig) *HealthHandlers {
 		livekitChecker: config.LiveKitChecker,
 		stripeChecker:  config.StripeChecker,
 		dbChecker:      config.DBChecker,
+		redisChecker:   config.RedisChecker,
 		metricsEnabled: config.MetricsEnabled,
+		startTime:      time.Now(),
 	}
 }
 
 // HealthResponse represents the JSON response for health checks.
 type HealthResponse struct {
 	Status    string            `json:"status"`
-	Checks    map[string]string `json:"checks"`
-	Timestamp string            `json:"timestamp"`
+	Checks    map[string]string `json:"checks,omitempty"`
+	UptimeS   int64             `json:"uptime_s,omitempty"`
+	Timestamp string            `json:"timestamp,omitempty"`
 }
 
-// Health handles GET /health (liveness probe).
+// Health handles GET /health/live (liveness probe).
 // Returns 200 if the application is running and can serve requests.
-// This is a basic check that the process is alive.
+// This is a basic check that the process is alive - no external dependencies checked.
 func (h *HealthHandlers) Health(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		ctx := middleware.SetErrorCode(r.Context(), ErrCodeBadRequest)
@@ -65,14 +75,13 @@ func (h *HealthHandlers) Health(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Liveness check is simple - if we can respond, we're alive
-	response := HealthResponse{
-		Status:    "healthy",
-		Checks:    make(map[string]string),
-		Timestamp: time.Now().UTC().Format(time.RFC3339),
-	}
+	// Calculate uptime
+	uptime := int64(time.Since(h.startTime).Seconds())
 
-	// Basic runtime check - we're alive if we can execute this
-	response.Checks["runtime"] = "ok"
+	response := HealthResponse{
+		Status:  "up",
+		UptimeS: uptime,
+	}
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
@@ -81,7 +90,7 @@ func (h *HealthHandlers) Health(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// Ready handles GET /ready (readiness probe).
+// Ready handles GET /health/ready (readiness probe).
 // Returns 200 if the application is ready to serve traffic.
 // Checks external dependencies and returns 503 if any critical service is unavailable.
 func (h *HealthHandlers) Ready(w http.ResponseWriter, r *http.Request) {
@@ -100,15 +109,23 @@ func (h *HealthHandlers) Ready(w http.ResponseWriter, r *http.Request) {
 	// Check database connectivity (if configured)
 	if h.dbChecker != nil {
 		if err := h.dbChecker.HealthCheck(ctx); err != nil {
-			checks["database"] = "error"
+			checks["db"] = "error"
 			healthy = false
 			slog.WarnContext(ctx, "database health check failed", "error", err)
 		} else {
-			checks["database"] = "ok"
+			checks["db"] = "ok"
 		}
-	} else {
-		// Database not configured (using in-memory repos)
-		checks["database"] = "ok"
+	}
+
+	// Check Redis connectivity (if configured)
+	if h.redisChecker != nil {
+		if err := h.redisChecker.HealthCheck(ctx); err != nil {
+			checks["redis"] = "error"
+			healthy = false
+			slog.WarnContext(ctx, "redis health check failed", "error", err)
+		} else {
+			checks["redis"] = "ok"
+		}
 	}
 
 	// Check LiveKit availability (if configured)
@@ -120,29 +137,12 @@ func (h *HealthHandlers) Ready(w http.ResponseWriter, r *http.Request) {
 		} else {
 			checks["livekit"] = "ok"
 		}
-	} else {
-		// LiveKit not configured - this is OK, mark as not configured
-		checks["livekit"] = "ok"
 	}
 
-	// Check Stripe availability (if configured)
-	if h.stripeChecker != nil {
-		if err := h.stripeChecker.HealthCheck(ctx); err != nil {
-			checks["stripe"] = "error"
-			healthy = false
-			slog.WarnContext(ctx, "stripe health check failed", "error", err)
-		} else {
-			checks["stripe"] = "ok"
-		}
-	} else {
-		// Stripe not configured - this is OK
-		checks["stripe"] = "ok"
-	}
+	// Calculate uptime
+	uptime := int64(time.Since(h.startTime).Seconds())
 
-	// Metrics are always available (Prometheus registry is always initialized)
-	checks["metrics"] = "ok"
-
-	status := "healthy"
+	status := "up"
 	statusCode := http.StatusOK
 	if !healthy {
 		status = "unhealthy"
@@ -150,9 +150,9 @@ func (h *HealthHandlers) Ready(w http.ResponseWriter, r *http.Request) {
 	}
 
 	response := HealthResponse{
-		Status:    status,
-		Checks:    checks,
-		Timestamp: time.Now().UTC().Format(time.RFC3339),
+		Status:  status,
+		Checks:  checks,
+		UptimeS: uptime,
 	}
 
 	w.Header().Set("Content-Type", "application/json")

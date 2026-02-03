@@ -23,6 +23,7 @@ import (
 	"github.com/onnwee/subcults/internal/attachment"
 	"github.com/onnwee/subcults/internal/audit"
 	"github.com/onnwee/subcults/internal/config"
+	"github.com/onnwee/subcults/internal/health"
 	"github.com/onnwee/subcults/internal/idempotency"
 	"github.com/onnwee/subcults/internal/jobs"
 	"github.com/onnwee/subcults/internal/livekit"
@@ -957,16 +958,26 @@ func main() {
 	})
 
 	// Health check endpoints for Kubernetes probes
+	// Initialize health checkers for external dependencies
+	var redisHealthChecker *health.RedisChecker
+	if redisClient != nil {
+		redisHealthChecker = health.NewRedisChecker(redisClient)
+	}
+
+	var livekitHealthChecker *health.LiveKitChecker
+	if livekitURL != "" {
+		livekitHealthChecker = health.NewLiveKitChecker(livekitURL)
+	}
+
 	healthHandlers := api.NewHealthHandlers(api.HealthHandlersConfig{
-		// Database, LiveKit, and Stripe checkers would be configured here when using real services
-		// For now, using in-memory repos and optional services, so checkers are nil
-		DBChecker:      nil,  // Will be configured when using real database
-		LiveKitChecker: nil,  // Will be configured when LiveKit health check is implemented
-		StripeChecker:  nil,  // Will be configured when Stripe health check is implemented
-		MetricsEnabled: true, // Prometheus metrics are registered
+		DBChecker:      nil, // Will be configured when using real database
+		RedisChecker:   redisHealthChecker,
+		LiveKitChecker: livekitHealthChecker,
+		StripeChecker:  nil, // Will be configured when Stripe health check is implemented
+		MetricsEnabled: true,
 	})
-	mux.HandleFunc("/health", healthHandlers.Health)
-	mux.HandleFunc("/ready", healthHandlers.Ready)
+	mux.HandleFunc("/health/live", healthHandlers.Health)
+	mux.HandleFunc("/health/ready", healthHandlers.Ready)
 
 	// Telemetry endpoints for frontend performance metrics (with rate limiting)
 	telemetryHandlers := api.NewTelemetryHandlers()
