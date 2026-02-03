@@ -180,6 +180,9 @@ func TestInMemoryRepository_VerifyHashChain_TamperedData(t *testing.T) {
 	}
 
 	// Tamper with the first entry's action
+	// Note: This test is specific to InMemoryRepository implementation.
+	// For PostgresAuditRepository, tampering detection would be tested
+	// by directly modifying database records via SQL.
 	repo.mu.Lock()
 	repo.logs[log1.ID].Action = "scene_delete" // Tamper
 	repo.mu.Unlock()

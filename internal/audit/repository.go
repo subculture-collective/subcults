@@ -167,41 +167,41 @@ func (r *InMemoryRepository) QueryByUser(userDID string, limit int) ([]*AuditLog
 // GetLastHash returns the hash of the most recent audit log entry.
 // Returns empty string if no logs exist.
 func (r *InMemoryRepository) GetLastHash() (string, error) {
-r.mu.RLock()
-defer r.mu.RUnlock()
-return r.lastHash, nil
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	return r.lastHash, nil
 }
 
 // VerifyHashChain verifies the integrity of the hash chain.
 // Returns true if the chain is valid, false otherwise.
 // This checks that each log entry's hash correctly links to the previous entry.
 func (r *InMemoryRepository) VerifyHashChain() (bool, error) {
-r.mu.RLock()
-defer r.mu.RUnlock()
+	r.mu.RLock()
+	defer r.mu.RUnlock()
 
-if len(r.order) == 0 {
-return true, nil // Empty chain is valid
-}
+	if len(r.order) == 0 {
+		return true, nil // Empty chain is valid
+	}
 
-var expectedPreviousHash string
+	var expectedPreviousHash string
 
-// Iterate through logs in insertion order
-for _, id := range r.order {
-log := r.logs[id]
+	// Iterate through logs in insertion order
+	for _, id := range r.order {
+		log := r.logs[id]
 
-// Verify that the previous hash matches what we expect
-if log.PreviousHash != expectedPreviousHash {
-return false, nil
-}
+		// Verify that the previous hash matches what we expect
+		if log.PreviousHash != expectedPreviousHash {
+			return false, nil
+		}
 
-// Compute what the hash should be for this entry
-expectedPreviousHash = computeHash(log)
-}
+		// Compute what the hash should be for this entry
+		expectedPreviousHash = computeHash(log)
+	}
 
-// Verify that the last hash matches the stored lastHash
-if expectedPreviousHash != r.lastHash {
-return false, nil
-}
+	// Verify that the last hash matches the stored lastHash
+	if expectedPreviousHash != r.lastHash {
+		return false, nil
+	}
 
-return true, nil
+	return true, nil
 }

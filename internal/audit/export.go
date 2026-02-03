@@ -38,12 +38,14 @@ func ExportLogs(repo Repository, opts ExportOptions) ([]byte, error) {
 	}
 
 	// Query logs based on filters
+	// Note: Query without limit first, then filter by time range, then apply limit
+	// This ensures we get the correct number of results after time filtering
 	var logs []*AuditLog
 	var err error
 
 	if opts.UserDID != "" {
-		// Export for specific user
-		logs, err = repo.QueryByUser(opts.UserDID, opts.Limit)
+		// Export for specific user - query without limit first
+		logs, err = repo.QueryByUser(opts.UserDID, 0)
 	} else {
 		// Export all logs (would need a new repository method)
 		// For now, we'll use a high limit as a workaround
@@ -58,6 +60,11 @@ func ExportLogs(repo Repository, opts ExportOptions) ([]byte, error) {
 	// Filter by time range if specified
 	if !opts.From.IsZero() || !opts.To.IsZero() {
 		logs = filterByTimeRange(logs, opts.From, opts.To)
+	}
+
+	// Apply limit after time filtering to get correct number of results
+	if opts.Limit > 0 && len(logs) > opts.Limit {
+		logs = logs[:opts.Limit]
 	}
 
 	// Export in requested format
