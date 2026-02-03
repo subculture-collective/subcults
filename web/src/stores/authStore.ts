@@ -293,6 +293,23 @@ export const authStore = {
       notifyListeners();
     }
   },
+
+  /**
+   * Reset auth state synchronously for testing purposes only.
+   * Unlike logout(), this does NOT make any network requests.
+   * 
+   * @internal This method is intended for test use only.
+   */
+  resetForTesting: (): void => {
+    authState = {
+      user: null,
+      isAuthenticated: false,
+      isAdmin: false,
+      isLoading: false,
+      accessToken: null,
+    };
+    notifyListeners();
+  },
 };
 
 /**

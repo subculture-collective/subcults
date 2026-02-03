@@ -37,7 +37,7 @@ describe('Integration: Settings Page Modifications Flow', () => {
   });
 
   afterEach(() => {
-    authStore.logout();
+    authStore.resetForTesting();
     useThemeStore.setState({ theme: 'light' });
     localStorage.clear();
     document.documentElement.classList.remove('dark');

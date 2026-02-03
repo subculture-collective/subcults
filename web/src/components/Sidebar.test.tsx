@@ -51,7 +51,7 @@ const renderSidebar = (props = {}) => {
 
 describe('Sidebar', () => {
   beforeEach(() => {
-    authStore.logout();
+    authStore.resetForTesting();
   });
 
   it('renders sidebar with proper ARIA label', () => {
@@ -79,7 +79,7 @@ describe('Sidebar', () => {
   });
 
   it('shows Account link when user is authenticated', () => {
-    authStore.setUser({ did: 'did:example:user', role: 'user' });
+    authStore.setUser({ did: 'did:example:user', role: 'user' }, 'test-token');
     
     renderSidebar();
     
@@ -98,7 +98,7 @@ describe('Sidebar', () => {
   });
 
   it('shows Admin link when user is admin', () => {
-    authStore.setUser({ did: 'did:example:admin', role: 'admin' });
+    authStore.setUser({ did: 'did:example:admin', role: 'admin' }, 'test-token');
     
     renderSidebar();
     
@@ -106,7 +106,7 @@ describe('Sidebar', () => {
   });
 
   it('does not show Admin link for regular users', () => {
-    authStore.setUser({ did: 'did:example:user', role: 'user' });
+    authStore.setUser({ did: 'did:example:user', role: 'user' }, 'test-token');
     
     renderSidebar();
     
@@ -268,7 +268,7 @@ describe('Sidebar', () => {
   });
 
   it('renders admin icon when user is admin', () => {
-    authStore.setUser({ did: 'did:example:admin', role: 'admin' });
+    authStore.setUser({ did: 'did:example:admin', role: 'admin' }, 'test-token');
     
     renderSidebar();
     

@@ -12,7 +12,7 @@ import { authStore } from '../stores/authStore';
 
 describe('AppLayout', () => {
   beforeEach(() => {
-    authStore.logout();
+    authStore.resetForTesting();
   });
 
   it('renders header with logo', () => {
@@ -106,7 +106,7 @@ describe('AppLayout', () => {
   });
 
   it('shows user info and logout when authenticated', async () => {
-    authStore.setUser({ did: 'did:example:test-user-12345', role: 'user' });
+    authStore.setUser({ did: 'did:example:test-user-12345', role: 'user' }, 'test-token');
 
     const router = createMemoryRouter(
       [
@@ -144,7 +144,7 @@ describe('AppLayout', () => {
   });
 
   it('shows admin link when user is admin', async () => {
-    authStore.setUser({ did: 'did:example:admin', role: 'admin' });
+    authStore.setUser({ did: 'did:example:admin', role: 'admin' }, 'test-token');
 
     const router = createMemoryRouter(
       [
@@ -178,7 +178,7 @@ describe('AppLayout', () => {
   });
 
   it('does not show admin link for regular users', async () => {
-    authStore.setUser({ did: 'did:example:user', role: 'user' });
+    authStore.setUser({ did: 'did:example:user', role: 'user' }, 'test-token');
 
     const router = createMemoryRouter(
       [
