@@ -84,9 +84,9 @@ describe('useTelemetry', () => {
       );
     });
 
-    it('emits without userId when user is not authenticated', async () => {
-      // Logout to clear user
-      await authStore.logout();
+    it('emits without userId when user is not authenticated', () => {
+      // Reset to unauthenticated state
+      authStore.resetForTesting();
       
       const { result } = renderHook(() => useTelemetry());
 

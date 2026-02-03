@@ -46,14 +46,14 @@ const renderLoginPage = (initialPath = '/account/login') => {
 
 describe('LoginPage', () => {
   beforeEach(() => {
-    authStore.logout();
+    authStore.resetForTesting();
     vi.clearAllMocks();
     // Clear localStorage
     localStorage.clear();
   });
 
   afterEach(() => {
-    authStore.logout();
+    authStore.resetForTesting();
     localStorage.clear();
   });
 

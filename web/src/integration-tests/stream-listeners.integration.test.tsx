@@ -31,7 +31,7 @@ describe('Integration: Stream Start to Live Listeners Flow', () => {
   });
 
   afterEach(() => {
-    authStore.logout();
+    authStore.resetForTesting();
     localStorage.clear();
   });
 

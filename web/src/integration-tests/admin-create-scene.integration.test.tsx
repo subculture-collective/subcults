@@ -22,12 +22,12 @@ setupMockServer();
 
 describe('Integration: Admin Create Scene Flow', () => {
   beforeEach(() => {
-    authStore.logout();
+    authStore.resetForTesting();
     localStorage.clear();
   });
 
   afterEach(() => {
-    authStore.logout();
+    authStore.resetForTesting();
     localStorage.clear();
   });
 

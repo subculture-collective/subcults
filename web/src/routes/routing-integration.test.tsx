@@ -54,7 +54,7 @@ const RequireAdmin = ({ children }: { children: React.ReactNode }) => {
 
 describe('Routing Integration', () => {
   beforeEach(() => {
-    authStore.logout();
+    authStore.resetForTesting();
   });
 
   describe('Public Routes', () => {
@@ -150,7 +150,7 @@ describe('Routing Integration', () => {
     });
 
     it('should render stream page with correct ID when authenticated', () => {
-      authStore.setUser({ did: 'did:test:user', role: 'user' });
+      authStore.setUser({ did: 'did:test:user', role: 'user' }, 'test-token');
 
       const router = createMemoryRouter(
         [
@@ -194,7 +194,7 @@ describe('Routing Integration', () => {
     });
 
     it('should render settings page when authenticated', () => {
-      authStore.setUser({ did: 'did:test:user', role: 'user' });
+      authStore.setUser({ did: 'did:test:user', role: 'user' }, 'test-token');
 
       const router = createMemoryRouter(
         [
@@ -240,7 +240,7 @@ describe('Routing Integration', () => {
     });
 
     it('should redirect admin page when authenticated but not admin', () => {
-      authStore.setUser({ did: 'did:test:user', role: 'user' });
+      authStore.setUser({ did: 'did:test:user', role: 'user' }, 'test-token');
 
       const router = createMemoryRouter(
         [
@@ -263,7 +263,7 @@ describe('Routing Integration', () => {
     });
 
     it('should render admin page when authenticated as admin', () => {
-      authStore.setUser({ did: 'did:test:admin', role: 'admin' });
+      authStore.setUser({ did: 'did:test:admin', role: 'admin' }, 'test-token');
 
       const router = createMemoryRouter(
         [

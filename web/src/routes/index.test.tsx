@@ -34,7 +34,7 @@ const MockLoginPage = () => {
 describe('Route Guards', () => {
   beforeEach(() => {
     // Reset auth state before each test
-    authStore.logout();
+    authStore.resetForTesting();
   });
 
   describe('RequireAuth', () => {
@@ -104,7 +104,7 @@ describe('Route Guards', () => {
     });
 
     it('renders protected content when authenticated', async () => {
-      authStore.setUser({ did: 'did:test:user', role: 'user' });
+      authStore.setUser({ did: 'did:test:user', role: 'user' }, 'test-token');
 
       const router = createMemoryRouter(
         [
@@ -176,7 +176,7 @@ describe('Route Guards', () => {
     });
 
     it('redirects to home when authenticated but not admin', async () => {
-      authStore.setUser({ did: 'did:test:user', role: 'user' });
+      authStore.setUser({ did: 'did:test:user', role: 'user' }, 'test-token');
 
       const router = createMemoryRouter(
         [
@@ -214,7 +214,7 @@ describe('Route Guards', () => {
     });
 
     it('renders admin content when authenticated as admin', async () => {
-      authStore.setUser({ did: 'did:test:admin', role: 'admin' });
+      authStore.setUser({ did: 'did:test:admin', role: 'admin' }, 'test-token');
 
       const router = createMemoryRouter(
         [

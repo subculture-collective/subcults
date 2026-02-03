@@ -41,12 +41,12 @@ const renderProfileDropdown = () => {
 
 describe('ProfileDropdown', () => {
   beforeEach(() => {
-    authStore.logout();
+    authStore.resetForTesting();
     mockNavigate.mockClear();
   });
 
   afterEach(() => {
-    authStore.logout();
+    authStore.resetForTesting();
   });
 
   it('renders nothing when user is not authenticated', () => {
@@ -56,7 +56,7 @@ describe('ProfileDropdown', () => {
   });
 
   it('renders profile button when user is authenticated', () => {
-    authStore.setUser({ did: 'did:example:test-user', role: 'user' });
+    authStore.setUser({ did: 'did:example:test-user', role: 'user' }, 'test-token');
     
     const { container } = renderProfileDropdown();
     
@@ -68,7 +68,7 @@ describe('ProfileDropdown', () => {
   });
 
   it('displays DID initials in avatar', () => {
-    authStore.setUser({ did: 'did:example:test-user', role: 'user' });
+    authStore.setUser({ did: 'did:example:test-user', role: 'user' }, 'test-token');
     
     renderProfileDropdown();
     
@@ -77,7 +77,7 @@ describe('ProfileDropdown', () => {
   });
 
   it('handles malformed DID with fallback initials', () => {
-    authStore.setUser({ did: 'did:', role: 'user' });
+    authStore.setUser({ did: 'did:', role: 'user' }, 'test-token');
     
     renderProfileDropdown();
     
@@ -86,7 +86,7 @@ describe('ProfileDropdown', () => {
   });
 
   it('opens dropdown menu when button is clicked', async () => {
-    authStore.setUser({ did: 'did:example:test-user', role: 'user' });
+    authStore.setUser({ did: 'did:example:test-user', role: 'user' }, 'test-token');
     const user = userEvent.setup();
     
     renderProfileDropdown();
@@ -100,7 +100,7 @@ describe('ProfileDropdown', () => {
   });
 
   it('displays user DID in dropdown', async () => {
-    authStore.setUser({ did: 'did:example:test-user-12345', role: 'user' });
+    authStore.setUser({ did: 'did:example:test-user-12345', role: 'user' }, 'test-token');
     const user = userEvent.setup();
     
     renderProfileDropdown();
@@ -115,7 +115,7 @@ describe('ProfileDropdown', () => {
 
   it('truncates long DIDs in dropdown', async () => {
     const longDid = 'did:example:very-long-test-user-identifier-that-exceeds-30-characters';
-    authStore.setUser({ did: longDid, role: 'user' });
+    authStore.setUser({ did: longDid, role: 'user' }, 'test-token');
     const user = userEvent.setup();
     
     renderProfileDropdown();
@@ -129,7 +129,7 @@ describe('ProfileDropdown', () => {
   });
 
   it('shows admin badge for admin users', async () => {
-    authStore.setUser({ did: 'did:example:admin', role: 'admin' });
+    authStore.setUser({ did: 'did:example:admin', role: 'admin' }, 'test-token');
     const user = userEvent.setup();
     
     renderProfileDropdown();
@@ -142,7 +142,7 @@ describe('ProfileDropdown', () => {
   });
 
   it('does not show admin badge for regular users', async () => {
-    authStore.setUser({ did: 'did:example:user', role: 'user' });
+    authStore.setUser({ did: 'did:example:user', role: 'user' }, 'test-token');
     const user = userEvent.setup();
     
     renderProfileDropdown();
@@ -155,7 +155,7 @@ describe('ProfileDropdown', () => {
   });
 
   it('shows Account and Settings menu items', async () => {
-    authStore.setUser({ did: 'did:example:user', role: 'user' });
+    authStore.setUser({ did: 'did:example:user', role: 'user' }, 'test-token');
     const user = userEvent.setup();
     
     renderProfileDropdown();
@@ -169,7 +169,7 @@ describe('ProfileDropdown', () => {
   });
 
   it('shows Admin Panel menu item for admin users', async () => {
-    authStore.setUser({ did: 'did:example:admin', role: 'admin' });
+    authStore.setUser({ did: 'did:example:admin', role: 'admin' }, 'test-token');
     const user = userEvent.setup();
     
     renderProfileDropdown();
@@ -182,7 +182,7 @@ describe('ProfileDropdown', () => {
   });
 
   it('does not show Admin Panel for regular users', async () => {
-    authStore.setUser({ did: 'did:example:user', role: 'user' });
+    authStore.setUser({ did: 'did:example:user', role: 'user' }, 'test-token');
     const user = userEvent.setup();
     
     renderProfileDropdown();
@@ -195,7 +195,7 @@ describe('ProfileDropdown', () => {
   });
 
   it('closes dropdown when clicking outside', async () => {
-    authStore.setUser({ did: 'did:example:user', role: 'user' });
+    authStore.setUser({ did: 'did:example:user', role: 'user' }, 'test-token');
     const user = userEvent.setup();
     
     renderProfileDropdown();
@@ -212,7 +212,7 @@ describe('ProfileDropdown', () => {
   });
 
   it('closes dropdown when pressing Escape key', async () => {
-    authStore.setUser({ did: 'did:example:user', role: 'user' });
+    authStore.setUser({ did: 'did:example:user', role: 'user' }, 'test-token');
     const user = userEvent.setup();
     
     renderProfileDropdown();
@@ -229,7 +229,7 @@ describe('ProfileDropdown', () => {
   });
 
   it('logs out user and navigates to home when Sign out is clicked', async () => {
-    authStore.setUser({ did: 'did:example:user', role: 'user' });
+    authStore.setUser({ did: 'did:example:user', role: 'user' }, 'test-token');
     const user = userEvent.setup();
     
     renderProfileDropdown();
@@ -247,7 +247,7 @@ describe('ProfileDropdown', () => {
   });
 
   it('closes dropdown when clicking Account link', async () => {
-    authStore.setUser({ did: 'did:example:user', role: 'user' });
+    authStore.setUser({ did: 'did:example:user', role: 'user' }, 'test-token');
     const user = userEvent.setup();
     
     renderProfileDropdown();
@@ -264,7 +264,7 @@ describe('ProfileDropdown', () => {
   });
 
   it('has proper ARIA attributes', async () => {
-    authStore.setUser({ did: 'did:example:user', role: 'user' });
+    authStore.setUser({ did: 'did:example:user', role: 'user' }, 'test-token');
     const user = userEvent.setup();
     
     renderProfileDropdown();
@@ -280,7 +280,7 @@ describe('ProfileDropdown', () => {
   });
 
   it('chevron icon rotates when dropdown is open', async () => {
-    authStore.setUser({ did: 'did:example:user', role: 'user' });
+    authStore.setUser({ did: 'did:example:user', role: 'user' }, 'test-token');
     const user = userEvent.setup();
     
     const { container } = renderProfileDropdown();
