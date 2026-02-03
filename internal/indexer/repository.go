@@ -14,6 +14,8 @@ import (
 	"sync"
 
 	"github.com/google/uuid"
+	"github.com/onnwee/subcults/internal/tracing"
+	"go.opentelemetry.io/otel/attribute"
 )
 
 var (
@@ -57,8 +59,26 @@ func NewPostgresRecordRepository(db *sql.DB, logger *slog.Logger) *PostgresRecor
 // UpsertRecord atomically inserts or updates a record with full transaction support.
 // This implements the all-or-nothing requirement with idempotency.
 func (r *PostgresRecordRepository) UpsertRecord(ctx context.Context, record *FilterResult) (string, bool, error) {
+	// Start tracing span for the entire upsert operation
+	ctx, endSpan := tracing.StartDBSpan(ctx, "ingestion_idempotency", tracing.DBOperationExec)
+	defer func() {
+		if err := recover(); err != nil {
+			endSpan(fmt.Errorf("panic during upsert: %v", err))
+			panic(err)
+		}
+	}()
+
+	// Add trace attributes
+	tracing.SetAttributes(ctx,
+		attribute.String("collection", record.Collection),
+		attribute.String("did", record.DID),
+		attribute.String("rkey", record.RKey),
+	)
+
 	if !record.Valid || !record.Matched {
-		return "", false, fmt.Errorf("invalid or unmatched record")
+		err := fmt.Errorf("invalid or unmatched record")
+		endSpan(err)
+		return "", false, err
 	}
 
 	// Generate idempotency key from DID + Collection + RKey + Rev
@@ -74,6 +94,7 @@ func (r *PostgresRecordRepository) UpsertRecord(ctx context.Context, record *Fil
 			slog.String("did", record.DID),
 			slog.String("collection", record.Collection),
 			slog.String("rkey", record.RKey))
+		endSpan(err)
 		return "", false, fmt.Errorf("failed to begin transaction: %w", err)
 	}
 
@@ -97,6 +118,7 @@ func (r *PostgresRecordRepository) UpsertRecord(ctx context.Context, record *Fil
 		if err := tx.Commit(); err != nil {
 			r.logger.Error("failed to commit idempotency check",
 				slog.String("error", err.Error()))
+			endSpan(err)
 			return "", false, fmt.Errorf("failed to commit: %w", err)
 		}
 		r.logger.Debug("skipping duplicate record (already processed)",
@@ -104,11 +126,14 @@ func (r *PostgresRecordRepository) UpsertRecord(ctx context.Context, record *Fil
 			slog.String("did", record.DID),
 			slog.String("collection", record.Collection),
 			slog.String("rkey", record.RKey))
+		tracing.AddEvent(ctx, "duplicate_record_skipped")
+		endSpan(nil)
 		return "", false, nil // Not an error, just already processed
 	} else if err != sql.ErrNoRows {
 		// Unexpected error
 		r.logger.Error("failed to check idempotency",
 			slog.String("error", err.Error()))
+		endSpan(err)
 		return "", false, fmt.Errorf("failed to check idempotency: %w", err)
 	}
 
@@ -135,6 +160,7 @@ func (r *PostgresRecordRepository) UpsertRecord(ctx context.Context, record *Fil
 		r.logger.Error("failed to upsert record",
 			slog.String("error", err.Error()),
 			slog.String("collection", record.Collection))
+		endSpan(err)
 		return "", false, fmt.Errorf("failed to upsert %s: %w", record.Collection, err)
 	}
 
@@ -147,6 +173,7 @@ func (r *PostgresRecordRepository) UpsertRecord(ctx context.Context, record *Fil
 	if err != nil {
 		r.logger.Error("failed to store idempotency key",
 			slog.String("error", err.Error()))
+		endSpan(err)
 		return "", false, fmt.Errorf("failed to store idempotency key: %w", err)
 	}
 
@@ -154,6 +181,7 @@ func (r *PostgresRecordRepository) UpsertRecord(ctx context.Context, record *Fil
 	if err = tx.Commit(); err != nil {
 		r.logger.Error("failed to commit transaction",
 			slog.String("error", err.Error()))
+		endSpan(err)
 		return "", false, fmt.Errorf("failed to commit transaction: %w", err)
 	}
 
@@ -166,6 +194,12 @@ func (r *PostgresRecordRepository) UpsertRecord(ctx context.Context, record *Fil
 		slog.Bool("is_new", isNew),
 		slog.String("idempotency_key", idempotencyKey))
 
+	// Add trace event and attributes for successful upsert
+	tracing.AddEvent(ctx, "record_upserted",
+		attribute.String("record_id", recordID),
+		attribute.Bool("is_new", isNew))
+	endSpan(nil)
+
 	return recordID, isNew, nil
 }
 
@@ -176,6 +210,22 @@ func (r *PostgresRecordRepository) UpsertRecord(ctx context.Context, record *Fil
 // idempotency key. This protects against accidental re-ingestion of deleted content.
 // Uses soft delete (UPDATE ... SET deleted_at = NOW()) to match repository patterns.
 func (r *PostgresRecordRepository) DeleteRecord(ctx context.Context, did, collection, rkey string) error {
+	// Start tracing span
+	ctx, endSpan := tracing.StartDBSpan(ctx, collection, tracing.DBOperationDelete)
+	defer func() {
+		if err := recover(); err != nil {
+			endSpan(fmt.Errorf("panic during delete: %v", err))
+			panic(err)
+		}
+	}()
+
+	// Add trace attributes
+	tracing.SetAttributes(ctx,
+		attribute.String("collection", collection),
+		attribute.String("did", did),
+		attribute.String("rkey", rkey),
+	)
+
 	// Begin transaction
 	tx, err := r.db.BeginTx(ctx, &sql.TxOptions{
 		Isolation: sql.LevelReadCommitted,
@@ -183,6 +233,7 @@ func (r *PostgresRecordRepository) DeleteRecord(ctx context.Context, did, collec
 	if err != nil {
 		r.logger.Error("failed to begin transaction for delete",
 			slog.String("error", err.Error()))
+		endSpan(err)
 		return fmt.Errorf("failed to begin transaction: %w", err)
 	}
 
@@ -206,13 +257,16 @@ func (r *PostgresRecordRepository) DeleteRecord(ctx context.Context, did, collec
 	case CollectionAlliance:
 		query = `UPDATE alliances SET deleted_at = NOW(), updated_at = NOW() WHERE record_did = $1 AND record_rkey = $2 AND deleted_at IS NULL`
 	default:
-		return fmt.Errorf("unsupported collection for delete: %s", collection)
+		err := fmt.Errorf("unsupported collection for delete: %s", collection)
+		endSpan(err)
+		return err
 	}
 
 	result, err := tx.ExecContext(ctx, query, did, rkey)
 	if err != nil {
 		r.logger.Error("failed to delete record",
 			slog.String("error", err.Error()))
+		endSpan(err)
 		return fmt.Errorf("failed to delete record: %w", err)
 	}
 
@@ -222,6 +276,7 @@ func (r *PostgresRecordRepository) DeleteRecord(ctx context.Context, did, collec
 	if err = tx.Commit(); err != nil {
 		r.logger.Error("failed to commit delete transaction",
 			slog.String("error", err.Error()))
+		endSpan(err)
 		return fmt.Errorf("failed to commit: %w", err)
 	}
 
@@ -231,17 +286,29 @@ func (r *PostgresRecordRepository) DeleteRecord(ctx context.Context, did, collec
 		slog.String("rkey", rkey),
 		slog.Int64("rows_affected", rowsAffected))
 
+	tracing.AddEvent(ctx, "record_deleted",
+		attribute.Int64("rows_affected", rowsAffected))
+	endSpan(nil)
+
 	return nil
 }
 
 // CheckIdempotencyKey verifies if an operation has already been processed.
 func (r *PostgresRecordRepository) CheckIdempotencyKey(ctx context.Context, key string) (bool, error) {
+	ctx, endSpan := tracing.StartDBSpan(ctx, "ingestion_idempotency", tracing.DBOperationQuery)
+	defer endSpan(nil)
+
 	var exists bool
 	query := `SELECT EXISTS(SELECT 1 FROM ingestion_idempotency WHERE idempotency_key = $1)`
 	err := r.db.QueryRowContext(ctx, query, key).Scan(&exists)
 	if err != nil {
+		endSpan(err)
 		return false, fmt.Errorf("failed to check idempotency key: %w", err)
 	}
+
+	tracing.SetAttributes(ctx,
+		attribute.Bool("exists", exists))
+
 	return exists, nil
 }
 
