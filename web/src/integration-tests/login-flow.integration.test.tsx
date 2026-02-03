@@ -24,12 +24,12 @@ setupMockServer();
 describe('Integration: Login to Dashboard Flow', () => {
   beforeEach(() => {
     // Reset auth store
-    authStore.logout();
+    authStore.resetForTesting();
     localStorage.clear();
   });
 
   afterEach(() => {
-    authStore.logout();
+    authStore.resetForTesting();
     localStorage.clear();
   });
 
