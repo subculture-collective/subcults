@@ -20,7 +20,7 @@
     "livekit-client": "^2.16.0",
     "maplibre-gl": "^5.14.0",
     "react": "^19.2.0",
-    "react-dom": "^19.2.0",
+    "react-dom": "^19.2.4",
     "react-i18next": "^16.4.1",
     "react-router-dom": "^6.30.2",
     "web-vitals": "^5.1.0",
