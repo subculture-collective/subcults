@@ -24,7 +24,9 @@ type Config struct {
 	DatabaseURL string `koanf:"database_url"`
 
 	// JWT Authentication
-	JWTSecret string `koanf:"jwt_secret"`
+	JWTSecret         string `koanf:"jwt_secret"`          // Legacy: single secret (backward compatibility)
+	JWTSecretCurrent  string `koanf:"jwt_secret_current"`  // Current signing key
+	JWTSecretPrevious string `koanf:"jwt_secret_previous"` // Previous key for rotation window
 
 	// LiveKit (WebRTC)
 	LiveKitURL       string `koanf:"livekit_url"`
@@ -58,13 +60,13 @@ type Config struct {
 	RankTrustEnabled bool `koanf:"rank_trust_enabled"` // Enable trust-weighted ranking in search/feed
 
 	// Canary Deployment
-	CanaryEnabled           bool    `koanf:"canary_enabled"`             // Enable canary deployment
-	CanaryTrafficPercent    float64 `koanf:"canary_traffic_percent"`     // Percentage of traffic to route to canary (0-100)
-	CanaryErrorThreshold    float64 `koanf:"canary_error_threshold"`     // Error rate threshold for auto-rollback (0-100)
-	CanaryLatencyThreshold  float64 `koanf:"canary_latency_threshold"`   // Latency threshold in seconds for auto-rollback
-	CanaryAutoRollback      bool    `koanf:"canary_auto_rollback"`       // Enable automatic rollback on threshold breach
-	CanaryMonitoringWindow  int     `koanf:"canary_monitoring_window"`   // Monitoring window in seconds for metrics comparison
-	CanaryVersion           string  `koanf:"canary_version"`             // Version identifier for canary deployment (e.g., "v1.2.0-canary")
+	CanaryEnabled          bool    `koanf:"canary_enabled"`           // Enable canary deployment
+	CanaryTrafficPercent   float64 `koanf:"canary_traffic_percent"`   // Percentage of traffic to route to canary (0-100)
+	CanaryErrorThreshold   float64 `koanf:"canary_error_threshold"`   // Error rate threshold for auto-rollback (0-100)
+	CanaryLatencyThreshold float64 `koanf:"canary_latency_threshold"` // Latency threshold in seconds for auto-rollback
+	CanaryAutoRollback     bool    `koanf:"canary_auto_rollback"`     // Enable automatic rollback on threshold breach
+	CanaryMonitoringWindow int     `koanf:"canary_monitoring_window"` // Monitoring window in seconds for metrics comparison
+	CanaryVersion          string  `koanf:"canary_version"`           // Version identifier for canary deployment (e.g., "v1.2.0-canary")
 
 	// Tracing (OpenTelemetry)
 	TracingEnabled      bool    `koanf:"tracing_enabled"`       // Enable distributed tracing
@@ -77,7 +79,7 @@ type Config struct {
 // Configuration validation errors.
 var (
 	ErrMissingDatabaseURL                = errors.New("DATABASE_URL is required")
-	ErrMissingJWTSecret                  = errors.New("JWT_SECRET is required")
+	ErrMissingJWTSecret                  = errors.New("JWT_SECRET, or JWT_SECRET_CURRENT is required")
 	ErrMissingLiveKitURL                 = errors.New("LIVEKIT_URL is required")
 	ErrMissingLiveKitAPIKey              = errors.New("LIVEKIT_API_KEY is required")
 	ErrMissingLiveKitAPISecret           = errors.New("LIVEKIT_API_SECRET is required")
@@ -306,6 +308,8 @@ func Load(configFilePath string) (*Config, []error) {
 		Env:                         getEnvOrDefaultMulti([]string{"SUBCULT_ENV", "ENV", "GO_ENV"}, k.String("env"), DefaultEnv),
 		DatabaseURL:                 getEnvOrKoanf("DATABASE_URL", k, "database_url"),
 		JWTSecret:                   getEnvOrKoanf("JWT_SECRET", k, "jwt_secret"),
+		JWTSecretCurrent:            getEnvOrKoanf("JWT_SECRET_CURRENT", k, "jwt_secret_current"),
+		JWTSecretPrevious:           getEnvOrKoanf("JWT_SECRET_PREVIOUS", k, "jwt_secret_previous"),
 		LiveKitURL:                  getEnvOrKoanf("LIVEKIT_URL", k, "livekit_url"),
 		LiveKitAPIKey:               getEnvOrKoanf("LIVEKIT_API_KEY", k, "livekit_api_key"),
 		LiveKitAPISecret:            getEnvOrKoanf("LIVEKIT_API_SECRET", k, "livekit_api_secret"),
@@ -421,7 +425,8 @@ func (c *Config) Validate() []error {
 	if c.DatabaseURL == "" {
 		errs = append(errs, ErrMissingDatabaseURL)
 	}
-	if c.JWTSecret == "" {
+	// JWT secret validation: require either legacy JWT_SECRET or JWT_SECRET_CURRENT
+	if c.JWTSecret == "" && c.JWTSecretCurrent == "" {
 		errs = append(errs, ErrMissingJWTSecret)
 	}
 	if c.LiveKitURL == "" {
@@ -479,6 +484,8 @@ func (c *Config) LogSummary() map[string]string {
 		"env":                           c.Env,
 		"database_url":                  maskDatabaseURL(c.DatabaseURL),
 		"jwt_secret":                    maskSecret(c.JWTSecret),
+		"jwt_secret_current":            maskSecret(c.JWTSecretCurrent),
+		"jwt_secret_previous":           maskSecret(c.JWTSecretPrevious),
 		"livekit_url":                   c.LiveKitURL,
 		"livekit_api_key":               maskSecret(c.LiveKitAPIKey),
 		"livekit_api_secret":            maskSecret(c.LiveKitAPISecret),
@@ -569,4 +576,17 @@ func maskDatabaseURL(s string) string {
 	hostAndPath := rest[atIndex:]
 
 	return scheme + user + ":****" + hostAndPath
+}
+
+// GetJWTSecrets returns the current and previous JWT secrets for rotation support.
+// Returns (currentSecret, previousSecret).
+// For backward compatibility, if JWT_SECRET is set and JWT_SECRET_CURRENT is not,
+// JWT_SECRET is used as the current secret.
+func (c *Config) GetJWTSecrets() (current, previous string) {
+	// Prefer JWT_SECRET_CURRENT if set
+	if c.JWTSecretCurrent != "" {
+		return c.JWTSecretCurrent, c.JWTSecretPrevious
+	}
+	// Fallback to legacy JWT_SECRET
+	return c.JWTSecret, ""
 }

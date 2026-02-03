@@ -396,3 +396,286 @@ func TestEmptyUserIDError(t *testing.T) {
 		}
 	})
 }
+
+// TestKeyRotation tests the dual-key rotation feature for zero-downtime secret rotation.
+func TestKeyRotation(t *testing.T) {
+	currentSecret := "current-secret-key-12345678"
+	previousSecret := "previous-secret-key-87654321"
+
+	t.Run("token signed with current secret validates with current", func(t *testing.T) {
+		svc := NewJWTServiceWithRotation(currentSecret, previousSecret)
+		token, err := svc.GenerateAccessToken("user-123", "did:web:example.com")
+		if err != nil {
+			t.Fatalf("GenerateAccessToken() error = %v", err)
+		}
+
+		claims, err := svc.ValidateToken(token)
+		if err != nil {
+			t.Errorf("ValidateToken() error = %v", err)
+		}
+		if claims.Subject != "user-123" {
+			t.Errorf("ValidateToken() Subject = %v, want user-123", claims.Subject)
+		}
+	})
+
+	t.Run("token signed with previous secret still validates", func(t *testing.T) {
+		// Create token with previous secret (simulating old token)
+		oldSvc := NewJWTService(previousSecret)
+		oldToken, err := oldSvc.GenerateAccessToken("user-456", "did:web:old.com")
+		if err != nil {
+			t.Fatalf("GenerateAccessToken() error = %v", err)
+		}
+
+		// Validate with new service that has both secrets
+		newSvc := NewJWTServiceWithRotation(currentSecret, previousSecret)
+		claims, err := newSvc.ValidateToken(oldToken)
+		if err != nil {
+			t.Errorf("ValidateToken() error = %v, expected old token to validate with previousSecret", err)
+		}
+		if claims.Subject != "user-456" {
+			t.Errorf("ValidateToken() Subject = %v, want user-456", claims.Subject)
+		}
+	})
+
+	t.Run("new tokens always use current secret", func(t *testing.T) {
+		svc := NewJWTServiceWithRotation(currentSecret, previousSecret)
+		token, err := svc.GenerateAccessToken("user-789", "did:web:new.com")
+		if err != nil {
+			t.Fatalf("GenerateAccessToken() error = %v", err)
+		}
+
+		// Should validate with current secret only
+		currentOnlySvc := NewJWTService(currentSecret)
+		claims, err := currentOnlySvc.ValidateToken(token)
+		if err != nil {
+			t.Errorf("ValidateToken() error = %v, token should be signed with current secret", err)
+		}
+		if claims.Subject != "user-789" {
+			t.Errorf("ValidateToken() Subject = %v, want user-789", claims.Subject)
+		}
+
+		// Should NOT validate with previous secret only
+		previousOnlySvc := NewJWTService(previousSecret)
+		_, err = previousOnlySvc.ValidateToken(token)
+		if err != ErrInvalidToken {
+			t.Errorf("ValidateToken() error = %v, want %v (token should not validate with previous secret only)", err, ErrInvalidToken)
+		}
+	})
+
+	t.Run("rotation without previous secret works", func(t *testing.T) {
+		svc := NewJWTServiceWithRotation(currentSecret, "")
+		token, err := svc.GenerateAccessToken("user-single", "did:web:single.com")
+		if err != nil {
+			t.Fatalf("GenerateAccessToken() error = %v", err)
+		}
+
+		claims, err := svc.ValidateToken(token)
+		if err != nil {
+			t.Errorf("ValidateToken() error = %v", err)
+		}
+		if claims.Subject != "user-single" {
+			t.Errorf("ValidateToken() Subject = %v, want user-single", claims.Subject)
+		}
+	})
+
+	t.Run("token with wrong secret fails", func(t *testing.T) {
+		wrongSecret := "wrong-secret-key-99999999"
+		wrongSvc := NewJWTService(wrongSecret)
+		wrongToken, err := wrongSvc.GenerateAccessToken("user-wrong", "did:web:wrong.com")
+		if err != nil {
+			t.Fatalf("GenerateAccessToken() error = %v", err)
+		}
+
+		// Should not validate with rotation service
+		svc := NewJWTServiceWithRotation(currentSecret, previousSecret)
+		_, err = svc.ValidateToken(wrongToken)
+		if err != ErrInvalidToken {
+			t.Errorf("ValidateToken() error = %v, want %v", err, ErrInvalidToken)
+		}
+	})
+}
+
+func TestBackwardCompatibility(t *testing.T) {
+	secret := "backward-compat-secret-12345"
+
+	t.Run("NewJWTService still works as before", func(t *testing.T) {
+		svc := NewJWTService(secret)
+		token, err := svc.GenerateAccessToken("user-compat", "did:web:compat.com")
+		if err != nil {
+			t.Fatalf("GenerateAccessToken() error = %v", err)
+		}
+
+		claims, err := svc.ValidateToken(token)
+		if err != nil {
+			t.Errorf("ValidateToken() error = %v", err)
+		}
+		if claims.Subject != "user-compat" {
+			t.Errorf("ValidateToken() Subject = %v, want user-compat", claims.Subject)
+		}
+	})
+
+	t.Run("NewJWTServiceWithLeeway still works as before", func(t *testing.T) {
+		svc := NewJWTServiceWithLeeway(secret, 60*time.Second)
+		token, err := svc.GenerateRefreshToken("user-leeway")
+		if err != nil {
+			t.Fatalf("GenerateRefreshToken() error = %v", err)
+		}
+
+		claims, err := svc.ValidateToken(token)
+		if err != nil {
+			t.Errorf("ValidateToken() error = %v", err)
+		}
+		if claims.Subject != "user-leeway" {
+			t.Errorf("ValidateToken() Subject = %v, want user-leeway", claims.Subject)
+		}
+	})
+}
+
+func TestRotationWithCustomLeeway(t *testing.T) {
+	currentSecret := "current-leeway-key-123456"
+	previousSecret := "previous-leeway-key-654321"
+
+	// Create an expired token with previous secret
+	now := time.Now()
+	claims := Claims{
+		RegisteredClaims: jwt.RegisteredClaims{
+			Subject:   "user-expired-leeway",
+			IssuedAt:  jwt.NewNumericDate(now.Add(-2 * time.Hour)),
+			ExpiresAt: jwt.NewNumericDate(now.Add(-10 * time.Second)), // Expired 10 seconds ago
+		},
+		Type: TokenTypeAccess,
+	}
+
+	oldSvc := NewJWTService(previousSecret)
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
+	tokenString, err := token.SignedString([]byte(previousSecret))
+	if err != nil {
+		t.Fatalf("Failed to create token: %v", err)
+	}
+
+	t.Run("expired token with leeway validates through previous secret", func(t *testing.T) {
+		svc := NewJWTServiceWithRotationAndLeeway(currentSecret, previousSecret, 30*time.Second)
+		_, err := svc.ValidateToken(tokenString)
+		if err != nil {
+			t.Errorf("ValidateToken() error = %v, expected token to validate with leeway", err)
+		}
+	})
+
+	t.Run("expired token without leeway fails", func(t *testing.T) {
+		svc := NewJWTServiceWithRotationAndLeeway(currentSecret, previousSecret, 0)
+		_, err := svc.ValidateToken(tokenString)
+		if err != ErrExpiredToken {
+			t.Errorf("ValidateToken() error = %v, want %v", err, ErrExpiredToken)
+		}
+	})
+
+	// Ensure oldSvc is "used" to avoid unused variable error
+	_ = oldSvc
+}
+
+// TestKeyVersionTracking tests that tokens include the key version in the header.
+func TestKeyVersionTracking(t *testing.T) {
+	svc := NewJWTService(testSecret)
+
+	t.Run("access token includes key version", func(t *testing.T) {
+		tokenString, err := svc.GenerateAccessToken("user-123", "did:web:example.com")
+		if err != nil {
+			t.Fatalf("GenerateAccessToken() error = %v", err)
+		}
+
+		// Parse token without validation to inspect header
+		token, _, err := jwt.NewParser().ParseUnverified(tokenString, &Claims{})
+		if err != nil {
+			t.Fatalf("ParseUnverified() error = %v", err)
+		}
+
+		kid, ok := token.Header["kid"]
+		if !ok {
+			t.Error("Token header missing 'kid' field")
+		}
+		if kid != KeyVersionCurrent {
+			t.Errorf("Token kid = %v, want %v", kid, KeyVersionCurrent)
+		}
+	})
+
+	t.Run("refresh token includes key version", func(t *testing.T) {
+		tokenString, err := svc.GenerateRefreshToken("user-456")
+		if err != nil {
+			t.Fatalf("GenerateRefreshToken() error = %v", err)
+		}
+
+		// Parse token without validation to inspect header
+		token, _, err := jwt.NewParser().ParseUnverified(tokenString, &Claims{})
+		if err != nil {
+			t.Fatalf("ParseUnverified() error = %v", err)
+		}
+
+		kid, ok := token.Header["kid"]
+		if !ok {
+			t.Error("Token header missing 'kid' field")
+		}
+		if kid != KeyVersionCurrent {
+			t.Errorf("Token kid = %v, want %v", kid, KeyVersionCurrent)
+		}
+	})
+}
+
+// TestExpiredTokenErrorSemantics ensures expired tokens return ErrExpiredToken even during rotation.
+func TestExpiredTokenErrorSemantics(t *testing.T) {
+	currentSecret := "current-secret-key-12345678"
+	previousSecret := "previous-secret-key-87654321"
+
+	t.Run("expired token with current secret returns ErrExpiredToken", func(t *testing.T) {
+		svc := NewJWTServiceWithRotationAndLeeway(currentSecret, previousSecret, 0)
+
+		// Create an expired token with current secret
+		now := time.Now()
+		claims := Claims{
+			RegisteredClaims: jwt.RegisteredClaims{
+				Subject:   "user-expired",
+				IssuedAt:  jwt.NewNumericDate(now.Add(-2 * time.Hour)),
+				ExpiresAt: jwt.NewNumericDate(now.Add(-1 * time.Hour)),
+			},
+			Type: TokenTypeAccess,
+		}
+
+		token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
+		token.Header["kid"] = KeyVersionCurrent
+		tokenString, err := token.SignedString([]byte(currentSecret))
+		if err != nil {
+			t.Fatalf("Failed to create token: %v", err)
+		}
+
+		_, err = svc.ValidateToken(tokenString)
+		if err != ErrExpiredToken {
+			t.Errorf("ValidateToken() error = %v, want %v", err, ErrExpiredToken)
+		}
+	})
+
+	t.Run("expired token with previous secret returns ErrExpiredToken", func(t *testing.T) {
+		svc := NewJWTServiceWithRotationAndLeeway(currentSecret, previousSecret, 0)
+
+		// Create an expired token with previous secret
+		now := time.Now()
+		claims := Claims{
+			RegisteredClaims: jwt.RegisteredClaims{
+				Subject:   "user-expired-old",
+				IssuedAt:  jwt.NewNumericDate(now.Add(-2 * time.Hour)),
+				ExpiresAt: jwt.NewNumericDate(now.Add(-1 * time.Hour)),
+			},
+			Type: TokenTypeAccess,
+		}
+
+		token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
+		token.Header["kid"] = KeyVersionPrevious
+		tokenString, err := token.SignedString([]byte(previousSecret))
+		if err != nil {
+			t.Fatalf("Failed to create token: %v", err)
+		}
+
+		_, err = svc.ValidateToken(tokenString)
+		if err != ErrExpiredToken {
+			t.Errorf("ValidateToken() error = %v, want %v (expired token should return ErrExpiredToken)", err, ErrExpiredToken)
+		}
+	})
+}
