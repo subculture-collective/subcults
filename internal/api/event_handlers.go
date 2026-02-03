@@ -5,7 +5,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"html"
 	"io"
 	"log/slog"
 	"net/http"
@@ -18,12 +17,7 @@ import (
 	"github.com/onnwee/subcults/internal/middleware"
 	"github.com/onnwee/subcults/internal/scene"
 	"github.com/onnwee/subcults/internal/stream"
-)
-
-// Event title validation constraints
-const (
-	MinEventTitleLength = 3
-	MaxEventTitleLength = 80
+	"github.com/onnwee/subcults/internal/validate"
 )
 
 // CreateEventRequest represents the request body for creating an event.
@@ -99,27 +93,6 @@ type EventWithRSVPCounts struct {
 	ActiveStream *stream.ActiveStreamInfo `json:"active_stream,omitempty"`
 }
 
-// validateEventTitle validates event title according to requirements.
-// Returns error message if validation fails, empty string if valid.
-func validateEventTitle(title string) string {
-	// Trim whitespace first
-	trimmed := strings.TrimSpace(title)
-
-	if len(trimmed) < MinEventTitleLength {
-		return fmt.Sprintf("event title must be at least %d characters", MinEventTitleLength)
-	}
-	if len(trimmed) > MaxEventTitleLength {
-		return fmt.Sprintf("event title must not exceed %d characters", MaxEventTitleLength)
-	}
-	return ""
-}
-
-// sanitizeEventTitle sanitizes event title to prevent HTML injection.
-// Should be called after validation passes.
-func sanitizeEventTitle(title string) string {
-	return html.EscapeString(strings.TrimSpace(title))
-}
-
 // validateTimeWindow validates that start time is before end time.
 // Returns error message if validation fails, empty string if valid.
 func validateTimeWindow(startsAt time.Time, endsAt *time.Time) string {
@@ -147,15 +120,14 @@ func (h *EventHandlers) CreateEvent(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Validate title
-	if errMsg := validateEventTitle(req.Title); errMsg != "" {
+	// Validate and sanitize title
+	validatedTitle, err := validate.EventTitle(req.Title)
+	if err != nil {
 		ctx := middleware.SetErrorCode(r.Context(), ErrCodeValidation)
-		WriteError(w, ctx, http.StatusBadRequest, ErrCodeValidation, errMsg)
+		WriteError(w, ctx, http.StatusBadRequest, ErrCodeValidation, fmt.Sprintf("Invalid event title: %v", err))
 		return
 	}
-
-	// Sanitize title after validation
-	req.Title = sanitizeEventTitle(req.Title)
+	req.Title = validatedTitle
 
 	// Validate scene_id
 	if strings.TrimSpace(req.SceneID) == "" {
@@ -205,13 +177,19 @@ func (h *EventHandlers) CreateEvent(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Sanitize description to prevent HTML injection
-	req.Description = html.EscapeString(req.Description)
+	// Validate and sanitize description
+	validatedDesc, err := validate.Description(req.Description)
+	if err != nil {
+		ctx := middleware.SetErrorCode(r.Context(), ErrCodeValidation)
+		WriteError(w, ctx, http.StatusBadRequest, ErrCodeValidation, fmt.Sprintf("Invalid description: %v", err))
+		return
+	}
+	req.Description = validatedDesc
 
 	// Sanitize tags to prevent HTML injection
 	sanitizedTags := make([]string, len(req.Tags))
 	for i, tag := range req.Tags {
-		sanitizedTags[i] = html.EscapeString(tag)
+		sanitizedTags[i] = validate.SanitizeHTML(tag)
 	}
 
 	// Create event
@@ -322,23 +300,30 @@ func (h *EventHandlers) UpdateEvent(w http.ResponseWriter, r *http.Request) {
 	updatedEvent := *existingEvent
 
 	if req.Title != nil {
-		// Validate title
-		if errMsg := validateEventTitle(*req.Title); errMsg != "" {
+		// Validate and sanitize title
+		validatedTitle, err := validate.EventTitle(*req.Title)
+		if err != nil {
 			ctx := middleware.SetErrorCode(r.Context(), ErrCodeValidation)
-			WriteError(w, ctx, http.StatusBadRequest, ErrCodeValidation, errMsg)
+			WriteError(w, ctx, http.StatusBadRequest, ErrCodeValidation, fmt.Sprintf("Invalid event title: %v", err))
 			return
 		}
-		updatedEvent.Title = sanitizeEventTitle(*req.Title)
+		updatedEvent.Title = validatedTitle
 	}
 
 	if req.Description != nil {
-		updatedEvent.Description = html.EscapeString(*req.Description)
+		validatedDesc, err := validate.Description(*req.Description)
+		if err != nil {
+			ctx := middleware.SetErrorCode(r.Context(), ErrCodeValidation)
+			WriteError(w, ctx, http.StatusBadRequest, ErrCodeValidation, fmt.Sprintf("Invalid description: %v", err))
+			return
+		}
+		updatedEvent.Description = validatedDesc
 	}
 
 	if req.Tags != nil {
 		sanitizedTags := make([]string, len(req.Tags))
 		for i, tag := range req.Tags {
-			sanitizedTags[i] = html.EscapeString(tag)
+			sanitizedTags[i] = validate.SanitizeHTML(tag)
 		}
 		updatedEvent.Tags = sanitizedTags
 	}
@@ -503,7 +488,7 @@ func (h *EventHandlers) CancelEvent(w http.ResponseWriter, r *http.Request) {
 
 	// Sanitize reason if provided to prevent HTML injection
 	if req.Reason != nil {
-		sanitized := html.EscapeString(*req.Reason)
+		sanitized := validate.SanitizeHTML(*req.Reason)
 		req.Reason = &sanitized
 	}
 

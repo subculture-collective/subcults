@@ -4,7 +4,6 @@ package api
 import (
 	"encoding/json"
 	"fmt"
-	"html"
 	"log/slog"
 	"net/http"
 	"strconv"
@@ -16,6 +15,7 @@ import (
 	"github.com/onnwee/subcults/internal/middleware"
 	"github.com/onnwee/subcults/internal/post"
 	"github.com/onnwee/subcults/internal/scene"
+	"github.com/onnwee/subcults/internal/validate"
 )
 
 // Post text validation constraints
@@ -23,22 +23,6 @@ const (
 	MaxPostTextLength = 5000
 	MaxAttachments    = 6
 )
-
-// CreatePostRequest represents the request body for creating a post.
-type CreatePostRequest struct {
-	SceneID     *string           `json:"scene_id,omitempty"`
-	EventID     *string           `json:"event_id,omitempty"`
-	Text        string            `json:"text"`
-	Attachments []post.Attachment `json:"attachments,omitempty"`
-	Labels      []string          `json:"labels,omitempty"`
-}
-
-// UpdatePostRequest represents the request body for updating a post.
-type UpdatePostRequest struct {
-	Text        *string            `json:"text,omitempty"`
-	Attachments *[]post.Attachment `json:"attachments,omitempty"`
-	Labels      *[]string          `json:"labels,omitempty"`
-}
 
 // PostHandlers holds dependencies for post HTTP handlers.
 type PostHandlers struct {
@@ -63,26 +47,33 @@ func NewPostHandlers(repo post.PostRepository, sceneRepo scene.SceneRepository, 
 	}
 }
 
-// validatePostText validates post text according to requirements.
-// Returns error message if validation fails, empty string if valid.
-func validatePostText(text string) string {
-	// Trim whitespace first
-	trimmed := strings.TrimSpace(text)
-
-	if trimmed == "" {
-		return "post text is required"
-	}
-	if len(trimmed) > MaxPostTextLength {
-		return "post text must not exceed 5000 characters"
-	}
-	return ""
+// CreatePostRequest represents the request body for creating a post.
+type CreatePostRequest struct {
+	SceneID     *string           `json:"scene_id,omitempty"`
+	EventID     *string           `json:"event_id,omitempty"`
+	Text        string            `json:"text"`
+	Attachments []post.Attachment `json:"attachments,omitempty"`
+	Labels      []string          `json:"labels,omitempty"`
 }
 
-// sanitizePostText sanitizes post text to prevent XSS attacks.
-// Strips HTML tags by escaping HTML entities.
-// Should be called after validation passes.
-func sanitizePostText(text string) string {
-	return html.EscapeString(strings.TrimSpace(text))
+// UpdatePostRequest represents the request body for updating a post.
+type UpdatePostRequest struct {
+	Text        *string            `json:"text,omitempty"`
+	Attachments *[]post.Attachment `json:"attachments,omitempty"`
+	Labels      *[]string          `json:"labels,omitempty"`
+}
+
+// validatePostAttachments validates post attachments, including URL validation for SSRF protection.
+func validatePostAttachments(attachments []post.Attachment) error {
+	for i, att := range attachments {
+		// Validate legacy URL field if present
+		if att.URL != "" {
+			if _, err := validate.MediaURL(att.URL); err != nil {
+				return fmt.Errorf("attachment %d: invalid URL: %w", i, err)
+			}
+		}
+	}
+	return nil
 }
 
 // extractPostID extracts the post ID from the URL path.
@@ -111,15 +102,14 @@ func (h *PostHandlers) CreatePost(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Validate text
-	if errMsg := validatePostText(req.Text); errMsg != "" {
+	// Validate and sanitize text
+	validatedText, err := validate.PostContent(req.Text)
+	if err != nil {
 		ctx := middleware.SetErrorCode(r.Context(), ErrCodeValidation)
-		WriteError(w, ctx, http.StatusBadRequest, ErrCodeValidation, errMsg)
+		WriteError(w, ctx, http.StatusBadRequest, ErrCodeValidation, fmt.Sprintf("Invalid post text: %v", err))
 		return
 	}
-
-	// Sanitize text to prevent XSS
-	req.Text = sanitizePostText(req.Text)
+	req.Text = validatedText
 
 	// Validate attachments count
 	if len(req.Attachments) > MaxAttachments {
@@ -128,10 +118,17 @@ func (h *PostHandlers) CreatePost(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Validate attachment URLs for SSRF protection
+	if err := validatePostAttachments(req.Attachments); err != nil {
+		ctx := middleware.SetErrorCode(r.Context(), ErrCodeValidation)
+		WriteError(w, ctx, http.StatusBadRequest, ErrCodeValidation, err.Error())
+		return
+	}
+
 	// Sanitize and validate labels
 	sanitizedLabels := make([]string, len(req.Labels))
 	for i, label := range req.Labels {
-		sanitizedLabels[i] = html.EscapeString(strings.TrimSpace(label))
+		sanitizedLabels[i] = validate.SanitizeHTML(strings.TrimSpace(label))
 	}
 
 	// Validate that all labels are allowed

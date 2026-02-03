@@ -5,10 +5,8 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"html"
 	"log/slog"
 	"net/http"
-	"regexp"
 	"strings"
 	"time"
 
@@ -19,18 +17,9 @@ import (
 	"github.com/onnwee/subcults/internal/scene"
 	"github.com/onnwee/subcults/internal/stream"
 	"github.com/onnwee/subcults/internal/tracing"
+	"github.com/onnwee/subcults/internal/validate"
 	"go.opentelemetry.io/otel/attribute"
 )
-
-// Scene name validation constraints
-const (
-	MinSceneNameLength = 3
-	MaxSceneNameLength = 64
-)
-
-// sceneNamePattern allows letters, numbers, spaces, dash, underscore, and period only
-// Matches issue requirement: ^[A-Za-z0-9 _\-\.]{3,64}$
-var sceneNamePattern = regexp.MustCompile(`^[A-Za-z0-9 _\-\.]+$`)
 
 // CreateSceneRequest represents the request body for creating a scene.
 type CreateSceneRequest struct {
@@ -78,30 +67,6 @@ func NewSceneHandlers(repo scene.SceneRepository, membershipRepo membership.Memb
 	}
 }
 
-// validateSceneName validates scene name according to requirements.
-// Returns error message if validation fails, empty string if valid.
-func validateSceneName(name string) string {
-	// Trim whitespace first
-	trimmed := strings.TrimSpace(name)
-
-	if len(trimmed) < MinSceneNameLength {
-		return "scene name must be at least 3 characters"
-	}
-	if len(trimmed) > MaxSceneNameLength {
-		return "scene name must not exceed 64 characters"
-	}
-	if !sceneNamePattern.MatchString(trimmed) {
-		return "scene name contains invalid characters (allowed: letters, numbers, spaces, -, _, .)"
-	}
-	return ""
-}
-
-// sanitizeSceneName sanitizes scene name to prevent HTML injection.
-// Should be called after validation passes.
-func sanitizeSceneName(name string) string {
-	return html.EscapeString(strings.TrimSpace(name))
-}
-
 // validateVisibility validates the visibility mode.
 func validateVisibility(visibility string) string {
 	if visibility == "" {
@@ -122,15 +87,23 @@ func (h *SceneHandlers) CreateScene(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Validate name
-	if errMsg := validateSceneName(req.Name); errMsg != "" {
+	// Validate and sanitize name
+	validatedName, err := validate.SceneName(req.Name)
+	if err != nil {
 		ctx := middleware.SetErrorCode(r.Context(), ErrCodeInvalidSceneName)
-		WriteError(w, ctx, http.StatusBadRequest, ErrCodeInvalidSceneName, errMsg)
+		WriteError(w, ctx, http.StatusBadRequest, ErrCodeInvalidSceneName, fmt.Sprintf("Invalid scene name: %v", err))
 		return
 	}
+	req.Name = validatedName
 
-	// Sanitize name after validation
-	req.Name = sanitizeSceneName(req.Name)
+	// Validate and sanitize description
+	validatedDesc, err := validate.Description(req.Description)
+	if err != nil {
+		ctx := middleware.SetErrorCode(r.Context(), ErrCodeValidation)
+		WriteError(w, ctx, http.StatusBadRequest, ErrCodeValidation, fmt.Sprintf("Invalid description: %v", err))
+		return
+	}
+	req.Description = validatedDesc
 
 	// Validate owner_did
 	if strings.TrimSpace(req.OwnerDID) == "" {
@@ -180,13 +153,10 @@ func (h *SceneHandlers) CreateScene(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Sanitize description to prevent HTML injection
-	req.Description = html.EscapeString(req.Description)
-
 	// Sanitize tags to prevent HTML injection
 	sanitizedTags := make([]string, len(req.Tags))
 	for i, tag := range req.Tags {
-		sanitizedTags[i] = html.EscapeString(tag)
+		sanitizedTags[i] = validate.SanitizeHTML(tag)
 	}
 
 	// Create scene
@@ -402,14 +372,13 @@ func (h *SceneHandlers) UpdateScene(w http.ResponseWriter, r *http.Request) {
 
 	// Validate and apply updates
 	if req.Name != nil {
-		newName := *req.Name
-		if errMsg := validateSceneName(newName); errMsg != "" {
+		// Validate and sanitize new name
+		newName, err := validate.SceneName(*req.Name)
+		if err != nil {
 			ctx := middleware.SetErrorCode(r.Context(), ErrCodeInvalidSceneName)
-			WriteError(w, ctx, http.StatusBadRequest, ErrCodeInvalidSceneName, errMsg)
+			WriteError(w, ctx, http.StatusBadRequest, ErrCodeInvalidSceneName, fmt.Sprintf("Invalid scene name: %v", err))
 			return
 		}
-		// Sanitize name after validation
-		newName = sanitizeSceneName(newName)
 
 		// Check for duplicate name (excluding current scene)
 		exists, err := h.repo.ExistsByOwnerAndName(existingScene.OwnerDID, newName, sceneID)
@@ -428,13 +397,19 @@ func (h *SceneHandlers) UpdateScene(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if req.Description != nil {
-		existingScene.Description = html.EscapeString(*req.Description)
+		validatedDesc, err := validate.Description(*req.Description)
+		if err != nil {
+			ctx := middleware.SetErrorCode(r.Context(), ErrCodeValidation)
+			WriteError(w, ctx, http.StatusBadRequest, ErrCodeValidation, fmt.Sprintf("Invalid description: %v", err))
+			return
+		}
+		existingScene.Description = validatedDesc
 	}
 
 	if req.Tags != nil {
 		sanitizedTags := make([]string, len(req.Tags))
 		for i, tag := range req.Tags {
-			sanitizedTags[i] = html.EscapeString(tag)
+			sanitizedTags[i] = validate.SanitizeHTML(tag)
 		}
 		existingScene.Tags = sanitizedTags
 	}
