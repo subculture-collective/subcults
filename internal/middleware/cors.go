@@ -62,7 +62,9 @@ func CORS(cfg CORSConfig) func(http.Handler) http.Handler {
 
 			// Validate origin against allowlist
 			if !allowedOriginsMap[origin] {
-				// Origin not allowed - reject with 403 Forbidden
+				// Origin not allowed - set error code for logging and reject with 403 Forbidden
+				ctx := SetErrorCode(r.Context(), "cors_origin_not_allowed")
+				r = r.WithContext(ctx)
 				http.Error(w, "Origin not allowed", http.StatusForbidden)
 				return
 			}
@@ -85,10 +87,8 @@ func CORS(cfg CORSConfig) func(http.Handler) http.Handler {
 				return
 			}
 
-			// For actual requests, expose allowed methods and headers
-			w.Header().Set("Access-Control-Allow-Methods", allowedMethodsStr)
-			w.Header().Set("Access-Control-Allow-Headers", allowedHeadersStr)
-
+			// For actual requests, only origin and credentials headers are needed
+			// (methods and headers are only required for preflight)
 			next.ServeHTTP(w, r)
 		})
 	}

@@ -23,7 +23,7 @@ echo ""
 echo "Test 1: Preflight OPTIONS request from allowed origin"
 echo "Expected: 204 No Content with CORS headers"
 echo "-------------------------------------------------------------------"
-curl -i -X OPTIONS "$API_URL/health" \
+curl -i -X OPTIONS "$API_URL/health/live" \
   -H "Origin: $ALLOWED_ORIGIN" \
   -H "Access-Control-Request-Method: GET" \
   -H "Access-Control-Request-Headers: Content-Type" \
@@ -34,7 +34,7 @@ echo ""
 echo "Test 2: GET request from allowed origin"
 echo "Expected: 200 OK with Access-Control-Allow-Origin header"
 echo "-------------------------------------------------------------------"
-curl -i -X GET "$API_URL/health" \
+curl -i -X GET "$API_URL/health/live" \
   -H "Origin: $ALLOWED_ORIGIN" \
   2>/dev/null | grep -E "(HTTP/|Access-Control-)"
 echo ""
@@ -43,7 +43,7 @@ echo ""
 echo "Test 3: GET request from unauthorized origin"
 echo "Expected: 403 Forbidden"
 echo "-------------------------------------------------------------------"
-curl -i -X GET "$API_URL/health" \
+curl -i -X GET "$API_URL/health/live" \
   -H "Origin: $FORBIDDEN_ORIGIN" \
   2>/dev/null | grep -E "(HTTP/|Access-Control-)" || echo "No CORS headers (expected)"
 echo ""
@@ -52,7 +52,7 @@ echo ""
 echo "Test 4: Same-origin request (no Origin header)"
 echo "Expected: 200 OK, no CORS headers needed"
 echo "-------------------------------------------------------------------"
-curl -i -X GET "$API_URL/health" \
+curl -i -X GET "$API_URL/health/live" \
   2>/dev/null | grep -E "HTTP/"
 echo ""
 

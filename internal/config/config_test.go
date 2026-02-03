@@ -1371,3 +1371,145 @@ func TestGetJWTSecrets(t *testing.T) {
 		})
 	}
 }
+
+// TestLoad_CORSConfiguration tests CORS environment variable parsing.
+func TestLoad_CORSConfiguration(t *testing.T) {
+clearEnv()
+defer clearEnv()
+
+// Set required env vars
+os.Setenv("DATABASE_URL", "postgres://localhost/test")
+os.Setenv("JWT_SECRET", "supersecret32characterlongvalue!")
+os.Setenv("LIVEKIT_URL", "wss://livekit.example.com")
+os.Setenv("LIVEKIT_API_KEY", "api_key")
+os.Setenv("LIVEKIT_API_SECRET", "api_secret")
+os.Setenv("STRIPE_API_KEY", "sk_test_123")
+os.Setenv("STRIPE_WEBHOOK_SECRET", "whsec_123")
+os.Setenv("STRIPE_ONBOARDING_RETURN_URL", "https://example.com/return")
+os.Setenv("STRIPE_ONBOARDING_REFRESH_URL", "https://example.com/refresh")
+os.Setenv("MAPTILER_API_KEY", "maptiler_key")
+os.Setenv("JETSTREAM_URL", "wss://jetstream.example.com")
+os.Setenv("R2_BUCKET_NAME", "test-bucket")
+os.Setenv("R2_ACCESS_KEY_ID", "test-key")
+os.Setenv("R2_SECRET_ACCESS_KEY", "test-secret")
+os.Setenv("R2_ENDPOINT", "https://test.r2.cloudflarestorage.com")
+
+t.Run("default CORS config", func(t *testing.T) {
+cfg, errs := Load("")
+if len(errs) != 0 {
+t.Fatalf("Load() returned unexpected errors: %v", errs)
+}
+
+if cfg.CORSAllowedOrigins != DefaultCORSAllowedOrigins {
+t.Errorf("CORSAllowedOrigins = %q, want %q", cfg.CORSAllowedOrigins, DefaultCORSAllowedOrigins)
+}
+if cfg.CORSAllowedMethods != DefaultCORSAllowedMethods {
+t.Errorf("CORSAllowedMethods = %q, want %q", cfg.CORSAllowedMethods, DefaultCORSAllowedMethods)
+}
+if cfg.CORSAllowedHeaders != DefaultCORSAllowedHeaders {
+t.Errorf("CORSAllowedHeaders = %q, want %q", cfg.CORSAllowedHeaders, DefaultCORSAllowedHeaders)
+}
+if cfg.CORSAllowCredentials != DefaultCORSAllowCredentials {
+t.Errorf("CORSAllowCredentials = %t, want %t", cfg.CORSAllowCredentials, DefaultCORSAllowCredentials)
+}
+if cfg.CORSMaxAge != DefaultCORSMaxAge {
+t.Errorf("CORSMaxAge = %d, want %d", cfg.CORSMaxAge, DefaultCORSMaxAge)
+}
+})
+
+t.Run("custom CORS origins", func(t *testing.T) {
+os.Setenv("CORS_ALLOWED_ORIGINS", "http://localhost:3000,https://example.com")
+defer os.Unsetenv("CORS_ALLOWED_ORIGINS")
+
+cfg, errs := Load("")
+if len(errs) != 0 {
+t.Fatalf("Load() returned unexpected errors: %v", errs)
+}
+
+if cfg.CORSAllowedOrigins != "http://localhost:3000,https://example.com" {
+t.Errorf("CORSAllowedOrigins = %q, want %q", cfg.CORSAllowedOrigins, "http://localhost:3000,https://example.com")
+}
+})
+
+t.Run("custom CORS methods", func(t *testing.T) {
+os.Setenv("CORS_ALLOWED_METHODS", "GET,POST")
+defer os.Unsetenv("CORS_ALLOWED_METHODS")
+
+cfg, errs := Load("")
+if len(errs) != 0 {
+t.Fatalf("Load() returned unexpected errors: %v", errs)
+}
+
+if cfg.CORSAllowedMethods != "GET,POST" {
+t.Errorf("CORSAllowedMethods = %q, want %q", cfg.CORSAllowedMethods, "GET,POST")
+}
+})
+
+t.Run("custom CORS headers", func(t *testing.T) {
+os.Setenv("CORS_ALLOWED_HEADERS", "Content-Type")
+defer os.Unsetenv("CORS_ALLOWED_HEADERS")
+
+cfg, errs := Load("")
+if len(errs) != 0 {
+t.Fatalf("Load() returned unexpected errors: %v", errs)
+}
+
+if cfg.CORSAllowedHeaders != "Content-Type" {
+t.Errorf("CORSAllowedHeaders = %q, want %q", cfg.CORSAllowedHeaders, "Content-Type")
+}
+})
+
+t.Run("CORS credentials enabled", func(t *testing.T) {
+for _, val := range []string{"true", "1", "yes", "on", "TRUE", "ON"} {
+os.Setenv("CORS_ALLOW_CREDENTIALS", val)
+cfg, errs := Load("")
+os.Unsetenv("CORS_ALLOW_CREDENTIALS")
+
+if len(errs) != 0 {
+t.Fatalf("Load() with CORS_ALLOW_CREDENTIALS=%s returned unexpected errors: %v", val, errs)
+}
+if !cfg.CORSAllowCredentials {
+t.Errorf("CORS_ALLOW_CREDENTIALS=%s: got false, want true", val)
+}
+}
+})
+
+t.Run("CORS credentials disabled", func(t *testing.T) {
+for _, val := range []string{"false", "0", "no", "off", "FALSE", "OFF"} {
+os.Setenv("CORS_ALLOW_CREDENTIALS", val)
+cfg, errs := Load("")
+os.Unsetenv("CORS_ALLOW_CREDENTIALS")
+
+if len(errs) != 0 {
+t.Fatalf("Load() with CORS_ALLOW_CREDENTIALS=%s returned unexpected errors: %v", val, errs)
+}
+if cfg.CORSAllowCredentials {
+t.Errorf("CORS_ALLOW_CREDENTIALS=%s: got true, want false", val)
+}
+}
+})
+
+t.Run("custom CORS max age", func(t *testing.T) {
+os.Setenv("CORS_MAX_AGE", "7200")
+defer os.Unsetenv("CORS_MAX_AGE")
+
+cfg, errs := Load("")
+if len(errs) != 0 {
+t.Fatalf("Load() returned unexpected errors: %v", errs)
+}
+
+if cfg.CORSMaxAge != 7200 {
+t.Errorf("CORSMaxAge = %d, want 7200", cfg.CORSMaxAge)
+}
+})
+
+t.Run("invalid CORS max age", func(t *testing.T) {
+os.Setenv("CORS_MAX_AGE", "invalid")
+defer os.Unsetenv("CORS_MAX_AGE")
+
+_, errs := Load("")
+if len(errs) == 0 {
+t.Error("expected error for invalid CORS_MAX_AGE, got none")
+}
+})
+}

@@ -68,7 +68,8 @@ func TestCORS_AllowedOrigin(t *testing.T) {
 				t.Errorf("expected status %d, got %d", http.StatusOK, rr.Code)
 			}
 
-			// Check CORS headers
+			// Check CORS headers for actual requests
+			// Only origin and credentials should be set (not methods/headers)
 			if origin := rr.Header().Get("Access-Control-Allow-Origin"); origin != tt.origin {
 				t.Errorf("expected Access-Control-Allow-Origin: %s, got: %s", tt.origin, origin)
 			}
@@ -77,12 +78,13 @@ func TestCORS_AllowedOrigin(t *testing.T) {
 				t.Errorf("expected Access-Control-Allow-Credentials: true, got: %s", creds)
 			}
 
-			if methods := rr.Header().Get("Access-Control-Allow-Methods"); methods != "GET, POST" {
-				t.Errorf("expected Access-Control-Allow-Methods: GET, POST, got: %s", methods)
+			// Methods and headers should NOT be present on actual requests (only preflight)
+			if methods := rr.Header().Get("Access-Control-Allow-Methods"); methods != "" {
+				t.Errorf("expected no Access-Control-Allow-Methods on actual request, got: %s", methods)
 			}
 
-			if headers := rr.Header().Get("Access-Control-Allow-Headers"); headers != "Content-Type, Authorization" {
-				t.Errorf("expected Access-Control-Allow-Headers: Content-Type, Authorization, got: %s", headers)
+			if headers := rr.Header().Get("Access-Control-Allow-Headers"); headers != "" {
+				t.Errorf("expected no Access-Control-Allow-Headers on actual request, got: %s", headers)
 			}
 		})
 	}

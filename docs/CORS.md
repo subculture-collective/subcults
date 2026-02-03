@@ -16,7 +16,7 @@ CORS is implemented as HTTP middleware that enforces strict origin validation. I
 
 ## Configuration
 
-CORS is configured via environment variables. If no origins are configured, CORS is disabled and only same-origin requests are allowed.
+CORS is configured via environment variables. If no origins are configured, CORS is disabled. The server will not add CORS headers to responses, which means browsers will only allow same-origin requests.
 
 ### Environment Variables
 
@@ -45,7 +45,7 @@ CORS_MAX_AGE=3600
 For production deployment:
 
 ```bash
-CORS_ALLOWED_ORIGINS=https://subcults.com,https://app.subcults.com,https://api.subcults.com
+CORS_ALLOWED_ORIGINS=https://subcults.com,https://app.subcults.com
 CORS_ALLOWED_METHODS=GET,POST,PUT,PATCH,DELETE,OPTIONS
 CORS_ALLOWED_HEADERS=Content-Type,Authorization,X-Request-ID
 CORS_ALLOW_CREDENTIALS=true
@@ -73,8 +73,10 @@ CORS_MAX_AGE=3600
 CORS middleware is positioned early in the middleware chain:
 
 ```
-Request → Tracing → CORS → Rate Limiting → Metrics → RequestID → Logging → Handler
+Request → Tracing → CORS → Canary → Rate Limiting → Metrics → RequestID → Logging → Handler
 ```
+
+Note: Canary routing is only present if enabled via configuration.
 
 This ensures:
 - Unauthorized origins are rejected before consuming resources.
@@ -151,16 +153,16 @@ Or test manually with `curl`:
 
 ```bash
 # Test preflight request
-curl -i -X OPTIONS http://localhost:8080/health \
+curl -i -X OPTIONS http://localhost:8080/health/live \
   -H "Origin: http://localhost:3000" \
   -H "Access-Control-Request-Method: GET"
 
 # Test actual request
-curl -i -X GET http://localhost:8080/health \
+curl -i -X GET http://localhost:8080/health/live \
   -H "Origin: http://localhost:3000"
 
 # Test unauthorized origin
-curl -i -X GET http://localhost:8080/health \
+curl -i -X GET http://localhost:8080/health/live \
   -H "Origin: http://malicious.com"
 ```
 
