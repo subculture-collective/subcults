@@ -296,8 +296,7 @@ func (r *PostgresRecordRepository) DeleteRecord(ctx context.Context, did, collec
 // CheckIdempotencyKey verifies if an operation has already been processed.
 func (r *PostgresRecordRepository) CheckIdempotencyKey(ctx context.Context, key string) (bool, error) {
 	ctx, endSpan := tracing.StartDBSpan(ctx, "ingestion_idempotency", tracing.DBOperationQuery)
-	defer endSpan(nil)
-
+	
 	var exists bool
 	query := `SELECT EXISTS(SELECT 1 FROM ingestion_idempotency WHERE idempotency_key = $1)`
 	err := r.db.QueryRowContext(ctx, query, key).Scan(&exists)
@@ -309,6 +308,7 @@ func (r *PostgresRecordRepository) CheckIdempotencyKey(ctx context.Context, key 
 	tracing.SetAttributes(ctx,
 		attribute.Bool("exists", exists))
 
+	endSpan(nil)
 	return exists, nil
 }
 

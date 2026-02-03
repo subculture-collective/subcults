@@ -235,6 +235,10 @@ func (h *SceneHandlers) CreateScene(w http.ResponseWriter, r *http.Request) {
 	}
 	endGetSpan(nil)
 
+	// Add success event
+	tracing.AddEvent(ctx, "scene_created",
+		attribute.String("scene_id", stored.ID))
+
 	// Return created scene
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)

@@ -31,7 +31,7 @@ func TestEndToEndTracing(t *testing.T) {
 		// Business logic span
 		ctx, endBusinessLogic := tracing.StartSpan(ctx, "business_logic")
 		tracing.SetAttributes(ctx,
-			attribute.String("user.id", "test-user"),
+			attribute.String("user_id", "test-user"),
 			attribute.String("operation", "test-operation"),
 		)
 
