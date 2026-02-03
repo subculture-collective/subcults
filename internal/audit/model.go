@@ -13,12 +13,16 @@ type AuditLog struct {
 	EntityType string
 	EntityID   string
 	Action     string
+	Outcome    string // "success" or "failure"
 	CreatedAt  time.Time
 
 	// Optional metadata
 	RequestID string
 	IPAddress string
 	UserAgent string
+
+	// Tamper detection
+	PreviousHash string // SHA-256 hash of previous log entry for tamper detection
 }
 
 // LogEntry represents the input for creating an audit log entry.
@@ -27,6 +31,7 @@ type LogEntry struct {
 	EntityType string
 	EntityID   string
 	Action     string
+	Outcome    string // "success" or "failure"
 
 	// Optional metadata
 	RequestID string

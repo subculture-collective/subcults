@@ -258,7 +258,7 @@ func TestLogAccess_WithContext(t *testing.T) {
 	// Set user DID in context
 	ctx = middleware.SetUserDID(ctx, "did:web:test.com:user123")
 
-	err := LogAccess(ctx, repo, "scene", "scene-123", "access_precise_location")
+	err := LogAccess(ctx, repo, "scene", "scene-123", "access_precise_location", "")
 	if err != nil {
 		t.Fatalf("LogAccess() error = %v", err)
 	}
@@ -308,7 +308,7 @@ func TestLogAccessFromRequest(t *testing.T) {
 	}))
 	handler.ServeHTTP(httptest.NewRecorder(), req)
 
-	err := LogAccessFromRequest(req, repo, "scene", "scene-123", "access_precise_location")
+	err := LogAccessFromRequest(req, repo, "scene", "scene-123", "access_precise_location", "")
 	if err != nil {
 		t.Fatalf("LogAccessFromRequest() error = %v", err)
 	}
@@ -350,7 +350,7 @@ func TestLogAccessFromRequest_WithXForwardedFor(t *testing.T) {
 	ctx := middleware.SetUserDID(req.Context(), "did:web:test.com:user789")
 	req = req.WithContext(ctx)
 
-	err := LogAccessFromRequest(req, repo, "scene", "scene-123", "access_precise_location")
+	err := LogAccessFromRequest(req, repo, "scene", "scene-123", "access_precise_location", "")
 	if err != nil {
 		t.Fatalf("LogAccessFromRequest() error = %v", err)
 	}
@@ -382,7 +382,7 @@ func TestLogAccessFromRequest_WithEmptyXForwardedFor(t *testing.T) {
 	ctx := middleware.SetUserDID(req.Context(), "did:web:test.com:user789")
 	req = req.WithContext(ctx)
 
-	err := LogAccessFromRequest(req, repo, "scene", "scene-456", "access_precise_location")
+	err := LogAccessFromRequest(req, repo, "scene", "scene-456", "access_precise_location", "")
 	if err != nil {
 		t.Fatalf("LogAccessFromRequest() error = %v", err)
 	}
@@ -414,7 +414,7 @@ func TestLogAccessFromRequest_WithXRealIP(t *testing.T) {
 	ctx := middleware.SetUserDID(req.Context(), "did:web:test.com:user999")
 	req = req.WithContext(ctx)
 
-	err := LogAccessFromRequest(req, repo, "scene", "scene-789", "access_precise_location")
+	err := LogAccessFromRequest(req, repo, "scene", "scene-789", "access_precise_location", "")
 	if err != nil {
 		t.Fatalf("LogAccessFromRequest() error = %v", err)
 	}
@@ -446,7 +446,7 @@ func TestLogAccessFromRequest_WithXRealIPAndPort(t *testing.T) {
 	ctx := middleware.SetUserDID(req.Context(), "did:web:test.com:user1000")
 	req = req.WithContext(ctx)
 
-	err := LogAccessFromRequest(req, repo, "scene", "scene-890", "access_precise_location")
+	err := LogAccessFromRequest(req, repo, "scene", "scene-890", "access_precise_location", "")
 	if err != nil {
 		t.Fatalf("LogAccessFromRequest() error = %v", err)
 	}
@@ -478,7 +478,7 @@ func TestLogAccessFromRequest_WithXForwardedForAndPort(t *testing.T) {
 	ctx := middleware.SetUserDID(req.Context(), "did:web:test.com:user1001")
 	req = req.WithContext(ctx)
 
-	err := LogAccessFromRequest(req, repo, "scene", "scene-891", "access_precise_location")
+	err := LogAccessFromRequest(req, repo, "scene", "scene-891", "access_precise_location", "")
 	if err != nil {
 		t.Fatalf("LogAccessFromRequest() error = %v", err)
 	}
@@ -539,7 +539,7 @@ func TestInMemoryRepository_ThreadSafety(t *testing.T) {
 func TestLogAccess_NilRepository(t *testing.T) {
 	ctx := context.Background()
 
-	err := LogAccess(ctx, nil, "scene", "scene-123", "access_precise_location")
+	err := LogAccess(ctx, nil, "scene", "scene-123", "access_precise_location", "")
 	if err != ErrNilRepository {
 		t.Errorf("LogAccess() with nil repo error = %v, want %v", err, ErrNilRepository)
 	}
@@ -548,7 +548,7 @@ func TestLogAccess_NilRepository(t *testing.T) {
 func TestLogAccessFromRequest_NilRepository(t *testing.T) {
 	req := httptest.NewRequest(http.MethodGet, "/test", nil)
 
-	err := LogAccessFromRequest(req, nil, "scene", "scene-123", "access_precise_location")
+	err := LogAccessFromRequest(req, nil, "scene", "scene-123", "access_precise_location", "")
 	if err != ErrNilRepository {
 		t.Errorf("LogAccessFromRequest() with nil repo error = %v, want %v", err, ErrNilRepository)
 	}
@@ -558,7 +558,7 @@ func TestLogAccess_EmptyEntityType(t *testing.T) {
 	repo := NewInMemoryRepository()
 	ctx := context.Background()
 
-	err := LogAccess(ctx, repo, "", "scene-123", "access_precise_location")
+	err := LogAccess(ctx, repo, "", "scene-123", "access_precise_location", "")
 	if err != ErrInvalidEntityType {
 		t.Errorf("LogAccess() with empty entityType error = %v, want %v", err, ErrInvalidEntityType)
 	}
@@ -568,7 +568,7 @@ func TestLogAccess_InvalidEntityType(t *testing.T) {
 	repo := NewInMemoryRepository()
 	ctx := context.Background()
 
-	err := LogAccess(ctx, repo, "invalid_type", "scene-123", "access_precise_location")
+	err := LogAccess(ctx, repo, "invalid_type", "scene-123", "access_precise_location", "")
 	if err != ErrInvalidEntityType {
 		t.Errorf("LogAccess() with invalid entityType error = %v, want %v", err, ErrInvalidEntityType)
 	}
@@ -578,7 +578,7 @@ func TestLogAccess_EmptyEntityID(t *testing.T) {
 	repo := NewInMemoryRepository()
 	ctx := context.Background()
 
-	err := LogAccess(ctx, repo, "scene", "", "access_precise_location")
+	err := LogAccess(ctx, repo, "scene", "", "access_precise_location", "")
 	if err != ErrInvalidEntityID {
 		t.Errorf("LogAccess() with empty entityID error = %v, want %v", err, ErrInvalidEntityID)
 	}
@@ -588,7 +588,7 @@ func TestLogAccess_EmptyAction(t *testing.T) {
 	repo := NewInMemoryRepository()
 	ctx := context.Background()
 
-	err := LogAccess(ctx, repo, "scene", "scene-123", "")
+	err := LogAccess(ctx, repo, "scene", "scene-123", "", "")
 	if err != ErrInvalidAction {
 		t.Errorf("LogAccess() with empty action error = %v, want %v", err, ErrInvalidAction)
 	}
@@ -598,7 +598,7 @@ func TestLogAccess_InvalidAction(t *testing.T) {
 	repo := NewInMemoryRepository()
 	ctx := context.Background()
 
-	err := LogAccess(ctx, repo, "scene", "scene-123", "invalid_action")
+	err := LogAccess(ctx, repo, "scene", "scene-123", "invalid_action", "")
 	if err != ErrInvalidAction {
 		t.Errorf("LogAccess() with invalid action error = %v, want %v", err, ErrInvalidAction)
 	}
@@ -654,7 +654,7 @@ func TestLogAccessFromRequest_ValidationErrors(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			err := LogAccessFromRequest(req, repo, tt.entityType, tt.entityID, tt.action)
+			err := LogAccessFromRequest(req, repo, tt.entityType, tt.entityID, tt.action, "")
 			if err != tt.wantErr {
 				t.Errorf("LogAccessFromRequest() error = %v, want %v", err, tt.wantErr)
 			}

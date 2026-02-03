@@ -10,6 +10,12 @@ import (
 	"github.com/onnwee/subcults/internal/middleware"
 )
 
+// Outcome constants for audit logs.
+const (
+	OutcomeSuccess = "success"
+	OutcomeFailure = "failure"
+)
+
 var (
 	// ErrNilRepository is returned when a nil repository is passed to logging functions.
 	ErrNilRepository = errors.New("audit repository cannot be nil")
@@ -19,6 +25,8 @@ var (
 	ErrInvalidEntityID = errors.New("entity ID cannot be empty")
 	// ErrInvalidAction is returned when an invalid action is provided.
 	ErrInvalidAction = errors.New("action cannot be empty")
+	// ErrInvalidOutcome is returned when an invalid outcome is provided.
+	ErrInvalidOutcome = errors.New("outcome must be 'success' or 'failure'")
 )
 
 // ValidEntityTypes defines the allowed entity types for audit logging.
@@ -29,26 +37,62 @@ var ValidEntityTypes = map[string]bool{
 	"admin_panel": true,
 	"post":        true,
 	"membership":  true,
+	"payment":     true,
+	"stream":      true,
+	"admin":       true,
 }
 
 // ValidActions defines the allowed actions for audit logging.
 var ValidActions = map[string]bool{
+	// Location access
 	"access_precise_location": true,
 	"access_coarse_location":  true,
+
+	// Admin operations
 	"view_admin_panel":        true,
 	"view_privacy_settings":   true,
 	"modify_privacy_settings": true,
-	"view_scene_details":      true,
-	"view_event_details":      true,
-	"export_member_data":      true,
-	"membership_request":      true,
-	"membership_approve":      true,
-	"membership_reject":       true,
-	"event_cancel":            true,
+	"admin_login":             true,
+	"admin_action":            true,
+
+	// Scene operations
+	"view_scene_details": true,
+	"scene_create":       true,
+	"scene_update":       true,
+	"scene_delete":       true,
+
+	// Event operations
+	"view_event_details": true,
+	"event_create":       true,
+	"event_update":       true,
+	"event_delete":       true,
+	"event_cancel":       true,
+
+	// Membership operations
+	"export_member_data": true,
+	"membership_request": true,
+	"membership_approve": true,
+	"membership_reject":  true,
+
+	// User authentication
+	"user_login":  true,
+	"user_logout": true,
+
+	// Payment operations
+	"payment_create":  true,
+	"payment_success": true,
+	"payment_failure": true,
+
+	// Stream/Organizer operations
+	"stream_start":      true,
+	"stream_end":        true,
+	"participant_mute":  true,
+	"participant_kick":  true,
+	"participant_unmute": true,
 }
 
 // validateLogEntry validates the required fields of a log entry against whitelists.
-func validateLogEntry(entityType, entityID, action string) error {
+func validateLogEntry(entityType, entityID, action, outcome string) error {
 	if entityType == "" {
 		return ErrInvalidEntityType
 	}
@@ -57,6 +101,11 @@ func validateLogEntry(entityType, entityID, action string) error {
 	}
 	if action == "" {
 		return ErrInvalidAction
+	}
+
+	// Validate outcome if provided (empty is allowed for backward compatibility)
+	if outcome != "" && outcome != OutcomeSuccess && outcome != OutcomeFailure {
+		return ErrInvalidOutcome
 	}
 
 	// Validate against whitelists if the values are not in the allowed sets
@@ -120,16 +169,22 @@ func extractIPAddress(r *http.Request) string {
 // entityType: Type of entity accessed (e.g., "scene", "event", "admin_panel")
 // entityID: ID of the entity accessed
 // action: Action performed (e.g., "access_precise_location", "view_admin_panel")
+// outcome: "success" or "failure" (defaults to "success" if empty)
 //
 // Error handling: This function uses a fail-closed approach - if audit logging fails,
 // the error is returned to the caller. This ensures compliance requirements are met
 // but may impact availability if the audit system is down.
-func LogAccess(ctx context.Context, repo Repository, entityType, entityID, action string) error {
+func LogAccess(ctx context.Context, repo Repository, entityType, entityID, action, outcome string) error {
 	if repo == nil {
 		return ErrNilRepository
 	}
 
-	if err := validateLogEntry(entityType, entityID, action); err != nil {
+	// Default outcome to success if not provided
+	if outcome == "" {
+		outcome = OutcomeSuccess
+	}
+
+	if err := validateLogEntry(entityType, entityID, action, outcome); err != nil {
 		return err
 	}
 
@@ -138,6 +193,7 @@ func LogAccess(ctx context.Context, repo Repository, entityType, entityID, actio
 		EntityType: entityType,
 		EntityID:   entityID,
 		Action:     action,
+		Outcome:    outcome,
 		RequestID:  middleware.GetRequestID(ctx),
 	}
 
@@ -153,15 +209,22 @@ func LogAccess(ctx context.Context, repo Repository, entityType, entityID, actio
 // - Falls back to X-Real-IP header
 // - Finally uses RemoteAddr (with port stripped)
 //
+// outcome: "success" or "failure" (defaults to "success" if empty)
+//
 // Error handling: This function uses a fail-closed approach - if audit logging fails,
 // the error is returned to the caller. This ensures compliance requirements are met
 // but may impact availability if the audit system is down.
-func LogAccessFromRequest(r *http.Request, repo Repository, entityType, entityID, action string) error {
+func LogAccessFromRequest(r *http.Request, repo Repository, entityType, entityID, action, outcome string) error {
 	if repo == nil {
 		return ErrNilRepository
 	}
 
-	if err := validateLogEntry(entityType, entityID, action); err != nil {
+	// Default outcome to success if not provided
+	if outcome == "" {
+		outcome = OutcomeSuccess
+	}
+
+	if err := validateLogEntry(entityType, entityID, action, outcome); err != nil {
 		return err
 	}
 
@@ -170,6 +233,7 @@ func LogAccessFromRequest(r *http.Request, repo Repository, entityType, entityID
 		EntityType: entityType,
 		EntityID:   entityID,
 		Action:     action,
+		Outcome:    outcome,
 		RequestID:  middleware.GetRequestID(r.Context()),
 		IPAddress:  extractIPAddress(r),
 		UserAgent:  r.UserAgent(),
