@@ -8,8 +8,41 @@ Audit logs record access events with:
 - User identity (DID)
 - Entity type and ID accessed
 - Action performed
+- **Outcome (success/failure)**
 - Timestamp (UTC)
 - Request metadata (request ID, IP address without port, user agent)
+- **Tamper detection via hash chain**
+
+## Key Features
+
+### ✅ Comprehensive Event Coverage
+All sensitive operations are logged with specific action types:
+- **Authentication**: `user_login`, `user_logout`
+- **Scene Management**: `scene_create`, `scene_update`, `scene_delete`
+- **Event Management**: `event_create`, `event_update`, `event_delete`, `event_cancel`
+- **Payments**: `payment_create`, `payment_success`, `payment_failure`
+- **Streaming**: `stream_start`, `stream_end`, `participant_mute`, `participant_kick`, `participant_unmute`
+- **Admin Operations**: `admin_login`, `admin_action`
+
+### ✅ Tamper-Evident Hash Chain
+Each audit log entry includes a SHA-256 hash linking it to the previous entry, creating an immutable chain:
+- Any modification to a log entry invalidates all subsequent hashes
+- Use `VerifyHashChain()` to detect tampering
+- First entry has empty `previous_hash`, subsequent entries link to prior hash
+
+### ✅ IP Address Anonymization
+IP addresses are automatically anonymized after 90 days for privacy compliance:
+- **IPv4**: Last octet replaced with 0 (e.g., `192.168.1.100` → `192.168.1.0`)
+- **IPv6**: Last 80 bits zeroed (keeps first 48 bits)
+- Run `scripts/anonymize_audit_ips.sh` via cron for automated anonymization
+- `ip_anonymized_at` timestamp tracks when anonymization occurred
+
+### ✅ Export Functionality
+Export audit logs for compliance requests:
+- **CSV format**: Spreadsheet-compatible with proper escaping
+- **JSON format**: Structured data with ISO 8601 timestamps
+- Filter by user, time range, and limit
+- See [Export Examples](#export-examples) below
 
 ## Privacy & Compliance Notice
 
@@ -177,3 +210,139 @@ go test -v ./internal/audit/...
 - Postgres repository implementation for production use
 - Audit log export functionality
 - Real-time monitoring/alerting for suspicious access patterns
+
+## Export Examples
+
+### Export User's Audit Logs to JSON
+
+```go
+import (
+    "github.com/onnwee/subcults/internal/audit"
+    "time"
+)
+
+// Export all logs for a user in the last 30 days
+opts := audit.ExportOptions{
+    Format:  audit.ExportFormatJSON,
+    UserDID: "did:web:example.com:user123",
+    From:    time.Now().Add(-30 * 24 * time.Hour),
+    To:      time.Now(),
+    Limit:   1000,
+}
+
+data, err := audit.ExportLogs(repo, opts)
+if err != nil {
+    return err
+}
+
+// Save to file or return to user
+os.WriteFile("audit_logs.json", data, 0644)
+```
+
+### Export to CSV for Spreadsheet Analysis
+
+```go
+opts := audit.ExportOptions{
+    Format:  audit.ExportFormatCSV,
+    UserDID: "did:web:example.com:user123",
+    From:    time.Now().Add(-90 * 24 * time.Hour),
+    To:      time.Now(),
+}
+
+data, err := audit.ExportLogs(repo, opts)
+if err != nil {
+    return err
+}
+
+// CSV can be opened in Excel, Google Sheets, etc.
+os.WriteFile("audit_logs.csv", data, 0644)
+```
+
+## Hash Chain Verification
+
+Verify the integrity of the audit log chain to detect tampering:
+
+```go
+// Verify hash chain integrity
+valid, err := repo.VerifyHashChain()
+if err != nil {
+    return fmt.Errorf("verification error: %w", err)
+}
+
+if !valid {
+    // ALERT: Audit logs have been tampered with!
+    log.Error("Hash chain verification failed - audit logs may be compromised")
+    // Trigger incident response procedures
+}
+```
+
+## IP Address Anonymization
+
+### Automated Anonymization (Recommended)
+
+Add to crontab for automated daily anonymization:
+
+```bash
+# Run daily at 2 AM
+0 2 * * * /path/to/subcults/scripts/anonymize_audit_ips.sh >> /var/log/subcults/anonymize.log 2>&1
+```
+
+### Manual Anonymization
+
+```bash
+# Dry run to see what would be anonymized
+./scripts/anonymize_audit_ips.sh --dry-run
+
+# Actually anonymize IP addresses
+./scripts/anonymize_audit_ips.sh
+```
+
+### Programmatic Anonymization
+
+```go
+import (
+    "github.com/onnwee/subcults/internal/audit"
+)
+
+// Anonymize a single IP address
+anonymized := audit.AnonymizeIP("192.168.1.100")
+// Returns: "192.168.1.0"
+
+// Check cutoff date for anonymization
+cutoff := audit.IPAnonymizationCutoff()
+// Returns: 90 days ago from now
+```
+
+## Logging with Outcome
+
+All audit logs should specify outcome (success/failure):
+
+```go
+// Log successful operation
+err := audit.LogAccess(ctx, repo, "payment", "pay-123", "payment_create", audit.OutcomeSuccess)
+
+// Log failed operation
+err := audit.LogAccess(ctx, repo, "payment", "pay-123", "payment_failure", audit.OutcomeFailure)
+
+// Default to success if outcome not specified
+err := audit.LogAccess(ctx, repo, "scene", "scene-123", "scene_create", "")
+```
+
+## Migration and Database Updates
+
+Apply the migration to add new columns:
+
+```bash
+# Apply migration
+make migrate-up
+
+# Or manually
+./scripts/migrate.sh up
+```
+
+The migration adds:
+- `outcome` column with CHECK constraint (success/failure)
+- `previous_hash` column for hash chain
+- `ip_anonymized_at` timestamp for tracking anonymization
+- Indexes for efficient querying
+
