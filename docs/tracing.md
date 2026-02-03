@@ -365,3 +365,138 @@ OpenTelemetry also supports metrics collection. Future enhancements could includ
 - [W3C Trace Context](https://www.w3.org/TR/trace-context/)
 - [Jaeger Documentation](https://www.jaegertracing.io/docs/)
 - [OTLP Specification](https://opentelemetry.io/docs/specs/otlp/)
+
+## Implemented Instrumentation
+
+### Repository Layer
+
+The following repositories have been instrumented with tracing:
+
+#### Indexer Repository (`internal/indexer/repository.go`)
+
+All database operations in the PostgreSQL record repository include tracing:
+
+- **UpsertRecord**: Traces the full upsert transaction including:
+  - Idempotency checks
+  - Table-specific upsert operations
+  - Transaction commit
+  - Success/failure events
+
+- **DeleteRecord**: Traces soft-delete operations with:
+  - Transaction management
+  - Row count tracking
+  - Error recording
+
+- **CheckIdempotencyKey**: Traces idempotency validation queries
+
+Example trace flow for record ingestion:
+```
+exec ingestion_idempotency (120ms)
+├─ Check idempotency (15ms)
+├─ Upsert scene/event/post (80ms)
+├─ Store idempotency key (20ms)
+└─ Event: record_upserted
+```
+
+#### Scene Handlers (`internal/api/scene_handlers.go`)
+
+API handlers include tracing for business logic:
+
+- **CreateScene**:
+  - `check_duplicate_scene_name`: Duplicate validation
+  - `insert_scene`: Scene creation with privacy enforcement
+  - `get_created_scene`: Retrieve created scene
+
+Example trace for scene creation:
+```
+POST /scenes (250ms)
+├─ check_duplicate_scene_name (50ms)
+│  └─ query scenes (45ms)
+├─ insert_scene (150ms)
+│  └─ insert scenes (140ms)
+└─ get_created_scene (30ms)
+   └─ query scenes (25ms)
+```
+
+### Testing
+
+Comprehensive integration tests are available in `internal/tracing/integration_test.go`:
+
+- **TestEndToEndTracing**: Validates complete trace creation and propagation
+- **TestTracingDisabled**: Ensures graceful degradation when tracing is off
+- **TestTraceContextPropagation**: Verifies W3C Trace Context headers
+
+Run tests:
+```bash
+go test -v ./internal/tracing/...
+```
+
+### Example Application
+
+A complete working example is available in `examples/tracing/main.go`:
+
+- HTTP server with tracing middleware
+- Custom span creation
+- Database operation simulation
+- Error handling
+- Event tracking
+
+Run the example:
+```bash
+# Start Jaeger
+docker run -d -p 16686:16686 -p 4318:4318 \
+  -e COLLECTOR_OTLP_ENABLED=true \
+  jaegertracing/all-in-one:latest
+
+# Run example
+cd examples/tracing
+go run main.go
+
+# Make requests
+curl http://localhost:8081/hello
+curl http://localhost:8081/process
+curl http://localhost:8081/error
+
+# View traces
+open http://localhost:16686
+```
+
+### Trace Attributes
+
+Standard attributes used across the codebase:
+
+**HTTP Operations:**
+- `http.method`: HTTP method (GET, POST, etc.)
+- `http.url`: Request path
+- `http.status_code`: Response status
+- `http.route`: Matched route pattern
+
+**Database Operations:**
+- `db.system`: Always "postgresql"
+- `db.operation`: query, insert, update, delete, exec
+- `db.sql.table`: Target table name
+
+**Business Logic:**
+- `collection`: AT Protocol collection type
+- `did`: Decentralized Identifier (when not PII)
+- `rkey`: Record key
+- `scene_id`: Scene identifier
+- `visibility`: Scene visibility setting
+- `allow_precise`: Location precision flag
+
+**Events:**
+- `duplicate_record_skipped`: Idempotent record detected
+- `record_upserted`: Record successfully created/updated
+- `record_deleted`: Record soft-deleted
+- `scene_created`: Scene created successfully
+
+### Privacy Compliance
+
+All instrumentation follows privacy-first principles:
+
+- ✅ **Opaque IDs only**: Scene IDs, event IDs, user DIDs
+- ✅ **No PII in span names**: Generic operation names
+- ✅ **No PII in attributes**: No names, emails, locations
+- ✅ **Sanitized data**: All user input sanitized before tracing
+- ❌ **Never trace**: Passwords, tokens, precise coordinates, PII
+

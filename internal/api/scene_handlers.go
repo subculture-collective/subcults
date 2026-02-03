@@ -18,6 +18,8 @@ import (
 	"github.com/onnwee/subcults/internal/middleware"
 	"github.com/onnwee/subcults/internal/scene"
 	"github.com/onnwee/subcults/internal/stream"
+	"github.com/onnwee/subcults/internal/tracing"
+	"go.opentelemetry.io/otel/attribute"
 )
 
 // Scene name validation constraints
@@ -157,15 +159,23 @@ func (h *SceneHandlers) CreateScene(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Check for duplicate name
+	ctx, endCheckSpan := tracing.StartSpan(r.Context(), "check_duplicate_scene_name")
+	tracing.SetAttributes(ctx,
+		attribute.String("owner_did", req.OwnerDID),
+		attribute.String("scene_name", req.Name))
+
 	exists, err := h.repo.ExistsByOwnerAndName(req.OwnerDID, req.Name, "")
 	if err != nil {
-		slog.ErrorContext(r.Context(), "failed to check duplicate scene name", "error", err, "owner_did", req.OwnerDID, "name", req.Name)
-		ctx := middleware.SetErrorCode(r.Context(), ErrCodeInternal)
+		slog.ErrorContext(ctx, "failed to check duplicate scene name", "error", err, "owner_did", req.OwnerDID, "name", req.Name)
+		endCheckSpan(err)
+		ctx := middleware.SetErrorCode(ctx, ErrCodeInternal)
 		WriteError(w, ctx, http.StatusInternalServerError, ErrCodeInternal, "Failed to check for duplicate scene name")
 		return
 	}
+	endCheckSpan(nil)
+
 	if exists {
-		ctx := middleware.SetErrorCode(r.Context(), ErrCodeDuplicateSceneName)
+		ctx := middleware.SetErrorCode(ctx, ErrCodeDuplicateSceneName)
 		WriteError(w, ctx, http.StatusConflict, ErrCodeDuplicateSceneName, "Scene with this name already exists for this owner")
 		return
 	}
@@ -198,21 +208,36 @@ func (h *SceneHandlers) CreateScene(w http.ResponseWriter, r *http.Request) {
 
 	// Insert into repository (will automatically enforce location consent).
 	// If AllowPrecise is false, PrecisePoint will be cleared before storage.
+	ctx, endInsertSpan := tracing.StartSpan(ctx, "insert_scene")
+	tracing.SetAttributes(ctx,
+		attribute.String("scene_id", newScene.ID),
+		attribute.String("visibility", newScene.Visibility),
+		attribute.Bool("allow_precise", newScene.AllowPrecise))
+
 	if err := h.repo.Insert(newScene); err != nil {
-		slog.ErrorContext(r.Context(), "failed to insert scene", "error", err, "scene_id", newScene.ID)
-		ctx := middleware.SetErrorCode(r.Context(), ErrCodeInternal)
+		slog.ErrorContext(ctx, "failed to insert scene", "error", err, "scene_id", newScene.ID)
+		endInsertSpan(err)
+		ctx := middleware.SetErrorCode(ctx, ErrCodeInternal)
 		WriteError(w, ctx, http.StatusInternalServerError, ErrCodeInternal, "Failed to create scene")
 		return
 	}
+	endInsertSpan(nil)
 
 	// Retrieve the stored scene to get privacy-enforced version
+	ctx, endGetSpan := tracing.StartSpan(ctx, "get_created_scene")
 	stored, err := h.repo.GetByID(newScene.ID)
 	if err != nil {
-		slog.ErrorContext(r.Context(), "failed to retrieve created scene", "error", err, "scene_id", newScene.ID)
-		ctx := middleware.SetErrorCode(r.Context(), ErrCodeInternal)
+		slog.ErrorContext(ctx, "failed to retrieve created scene", "error", err, "scene_id", newScene.ID)
+		endGetSpan(err)
+		ctx := middleware.SetErrorCode(ctx, ErrCodeInternal)
 		WriteError(w, ctx, http.StatusInternalServerError, ErrCodeInternal, "Failed to retrieve created scene")
 		return
 	}
+	endGetSpan(nil)
+
+	// Add success event
+	tracing.AddEvent(ctx, "scene_created",
+		attribute.String("scene_id", stored.ID))
 
 	// Return created scene
 	w.Header().Set("Content-Type", "application/json")
