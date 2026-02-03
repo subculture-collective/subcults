@@ -1,7 +1,7 @@
 # Dependency Vulnerability Scanning - Implementation Summary
 
 **Date**: 2026-02-03  
-**Issue**: #[issue-number] - Dependency vulnerability scanning  
+**Issue**: #355 - Dependency vulnerability scanning  
 **Epic**: #308 - Security Hardening & Compliance
 
 ## Overview
@@ -210,12 +210,14 @@ trivy image --format table subcults-${SERVICE}:scan > trivy-results.txt
 | Scenario | Go (govulncheck) | NPM (npm audit) | Docker (Trivy) |
 |----------|------------------|-----------------|----------------|
 | **No vulnerabilities** | ✅ Pass | ✅ Pass | ✅ Pass |
-| **CRITICAL found** | ❌ Fail | ❌ Fail | ❌ Fail |
-| **HIGH found** | ❌ Fail (any vuln) | ⚠️ Warn | ⚠️ Warn |
-| **MODERATE found** | ❌ Fail (any vuln) | 💬 Comment | 📊 Report |
-| **LOW found** | ❌ Fail (any vuln) | 💬 Comment | 📊 Report |
+| **CRITICAL found** | ❌ Fail* | ❌ Fail | ❌ Fail |
+| **HIGH found** | ❌ Fail* | ⚠️ Warn | ⚠️ Warn |
+| **MODERATE found** | ❌ Fail* | 💬 Comment | 📊 Report |
+| **LOW found** | ❌ Fail* | 💬 Comment | 📊 Report |
 | **PR comment** | When vulns found | When vulns found | When vulns found |
 | **Artifact upload** | Always | Always | Always |
+
+\* govulncheck does not categorize vulnerabilities by severity. The Go job fails whenever any vulnerability is reported; severity levels in this matrix apply only to npm audit and Trivy results.
 
 ## Files Changed
 

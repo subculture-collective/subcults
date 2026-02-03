@@ -473,7 +473,7 @@ We run automated vulnerability scanning on all dependencies:
 
 If you discover a security vulnerability, please:
 - **DO NOT** open a public GitHub issue
-- Email: security@subcults.org
+- Email: security@subcults.dev
 - Include: description, reproduction steps, impact assessment
 
 We will acknowledge reports within 48 hours.
