@@ -1171,203 +1171,203 @@ rank_trust_enabled: false
 
 // TestJWTSecretRotation tests the dual-key JWT rotation feature.
 func TestJWTSecretRotation(t *testing.T) {
-clearEnv()
-defer clearEnv()
+	clearEnv()
+	defer clearEnv()
 
-t.Run("legacy JWT_SECRET still works", func(t *testing.T) {
-clearEnv()
-os.Setenv("DATABASE_URL", "postgres://localhost/test")
-os.Setenv("JWT_SECRET", "supersecret32characterlongvalue!")
-os.Setenv("LIVEKIT_URL", "wss://livekit.example.com")
-os.Setenv("LIVEKIT_API_KEY", "api_key")
-os.Setenv("LIVEKIT_API_SECRET", "api_secret")
-os.Setenv("STRIPE_API_KEY", "sk_test_123")
-os.Setenv("STRIPE_WEBHOOK_SECRET", "whsec_123")
-os.Setenv("STRIPE_ONBOARDING_RETURN_URL", "https://example.com/return")
-os.Setenv("STRIPE_ONBOARDING_REFRESH_URL", "https://example.com/refresh")
-os.Setenv("MAPTILER_API_KEY", "maptiler_key")
-os.Setenv("JETSTREAM_URL", "wss://jetstream.example.com")
+	t.Run("legacy JWT_SECRET still works", func(t *testing.T) {
+		clearEnv()
+		os.Setenv("DATABASE_URL", "postgres://localhost/test")
+		os.Setenv("JWT_SECRET", "supersecret32characterlongvalue!")
+		os.Setenv("LIVEKIT_URL", "wss://livekit.example.com")
+		os.Setenv("LIVEKIT_API_KEY", "api_key")
+		os.Setenv("LIVEKIT_API_SECRET", "api_secret")
+		os.Setenv("STRIPE_API_KEY", "sk_test_123")
+		os.Setenv("STRIPE_WEBHOOK_SECRET", "whsec_123")
+		os.Setenv("STRIPE_ONBOARDING_RETURN_URL", "https://example.com/return")
+		os.Setenv("STRIPE_ONBOARDING_REFRESH_URL", "https://example.com/refresh")
+		os.Setenv("MAPTILER_API_KEY", "maptiler_key")
+		os.Setenv("JETSTREAM_URL", "wss://jetstream.example.com")
 
-cfg, errs := Load("")
-if len(errs) != 0 {
-t.Errorf("Load() returned errors: %v", errs)
-}
-if cfg.JWTSecret != "supersecret32characterlongvalue!" {
-t.Errorf("cfg.JWTSecret = %s, want supersecret32characterlongvalue!", cfg.JWTSecret)
-}
-})
+		cfg, errs := Load("")
+		if len(errs) != 0 {
+			t.Errorf("Load() returned errors: %v", errs)
+		}
+		if cfg.JWTSecret != "supersecret32characterlongvalue!" {
+			t.Errorf("cfg.JWTSecret = %s, want supersecret32characterlongvalue!", cfg.JWTSecret)
+		}
+	})
 
-t.Run("JWT_SECRET_CURRENT without previous secret", func(t *testing.T) {
-clearEnv()
-os.Setenv("DATABASE_URL", "postgres://localhost/test")
-os.Setenv("JWT_SECRET_CURRENT", "current-secret-key-32-characters!")
-os.Setenv("LIVEKIT_URL", "wss://livekit.example.com")
-os.Setenv("LIVEKIT_API_KEY", "api_key")
-os.Setenv("LIVEKIT_API_SECRET", "api_secret")
-os.Setenv("STRIPE_API_KEY", "sk_test_123")
-os.Setenv("STRIPE_WEBHOOK_SECRET", "whsec_123")
-os.Setenv("STRIPE_ONBOARDING_RETURN_URL", "https://example.com/return")
-os.Setenv("STRIPE_ONBOARDING_REFRESH_URL", "https://example.com/refresh")
-os.Setenv("MAPTILER_API_KEY", "maptiler_key")
-os.Setenv("JETSTREAM_URL", "wss://jetstream.example.com")
+	t.Run("JWT_SECRET_CURRENT without previous secret", func(t *testing.T) {
+		clearEnv()
+		os.Setenv("DATABASE_URL", "postgres://localhost/test")
+		os.Setenv("JWT_SECRET_CURRENT", "current-secret-key-32-characters!")
+		os.Setenv("LIVEKIT_URL", "wss://livekit.example.com")
+		os.Setenv("LIVEKIT_API_KEY", "api_key")
+		os.Setenv("LIVEKIT_API_SECRET", "api_secret")
+		os.Setenv("STRIPE_API_KEY", "sk_test_123")
+		os.Setenv("STRIPE_WEBHOOK_SECRET", "whsec_123")
+		os.Setenv("STRIPE_ONBOARDING_RETURN_URL", "https://example.com/return")
+		os.Setenv("STRIPE_ONBOARDING_REFRESH_URL", "https://example.com/refresh")
+		os.Setenv("MAPTILER_API_KEY", "maptiler_key")
+		os.Setenv("JETSTREAM_URL", "wss://jetstream.example.com")
 
-cfg, errs := Load("")
-if len(errs) != 0 {
-t.Errorf("Load() returned errors: %v", errs)
-}
-if cfg.JWTSecretCurrent != "current-secret-key-32-characters!" {
-t.Errorf("cfg.JWTSecretCurrent = %s, want current-secret-key-32-characters!", cfg.JWTSecretCurrent)
-}
-if cfg.JWTSecretPrevious != "" {
-t.Errorf("cfg.JWTSecretPrevious = %s, want empty", cfg.JWTSecretPrevious)
-}
-})
+		cfg, errs := Load("")
+		if len(errs) != 0 {
+			t.Errorf("Load() returned errors: %v", errs)
+		}
+		if cfg.JWTSecretCurrent != "current-secret-key-32-characters!" {
+			t.Errorf("cfg.JWTSecretCurrent = %s, want current-secret-key-32-characters!", cfg.JWTSecretCurrent)
+		}
+		if cfg.JWTSecretPrevious != "" {
+			t.Errorf("cfg.JWTSecretPrevious = %s, want empty", cfg.JWTSecretPrevious)
+		}
+	})
 
-t.Run("both JWT_SECRET_CURRENT and JWT_SECRET_PREVIOUS", func(t *testing.T) {
-clearEnv()
-os.Setenv("DATABASE_URL", "postgres://localhost/test")
-os.Setenv("JWT_SECRET_CURRENT", "current-secret-key-32-characters!")
-os.Setenv("JWT_SECRET_PREVIOUS", "previous-secret-key-32-chars!!")
-os.Setenv("LIVEKIT_URL", "wss://livekit.example.com")
-os.Setenv("LIVEKIT_API_KEY", "api_key")
-os.Setenv("LIVEKIT_API_SECRET", "api_secret")
-os.Setenv("STRIPE_API_KEY", "sk_test_123")
-os.Setenv("STRIPE_WEBHOOK_SECRET", "whsec_123")
-os.Setenv("STRIPE_ONBOARDING_RETURN_URL", "https://example.com/return")
-os.Setenv("STRIPE_ONBOARDING_REFRESH_URL", "https://example.com/refresh")
-os.Setenv("MAPTILER_API_KEY", "maptiler_key")
-os.Setenv("JETSTREAM_URL", "wss://jetstream.example.com")
+	t.Run("both JWT_SECRET_CURRENT and JWT_SECRET_PREVIOUS", func(t *testing.T) {
+		clearEnv()
+		os.Setenv("DATABASE_URL", "postgres://localhost/test")
+		os.Setenv("JWT_SECRET_CURRENT", "current-secret-key-32-characters!")
+		os.Setenv("JWT_SECRET_PREVIOUS", "previous-secret-key-32-chars!!")
+		os.Setenv("LIVEKIT_URL", "wss://livekit.example.com")
+		os.Setenv("LIVEKIT_API_KEY", "api_key")
+		os.Setenv("LIVEKIT_API_SECRET", "api_secret")
+		os.Setenv("STRIPE_API_KEY", "sk_test_123")
+		os.Setenv("STRIPE_WEBHOOK_SECRET", "whsec_123")
+		os.Setenv("STRIPE_ONBOARDING_RETURN_URL", "https://example.com/return")
+		os.Setenv("STRIPE_ONBOARDING_REFRESH_URL", "https://example.com/refresh")
+		os.Setenv("MAPTILER_API_KEY", "maptiler_key")
+		os.Setenv("JETSTREAM_URL", "wss://jetstream.example.com")
 
-cfg, errs := Load("")
-if len(errs) != 0 {
-t.Errorf("Load() returned errors: %v", errs)
-}
-if cfg.JWTSecretCurrent != "current-secret-key-32-characters!" {
-t.Errorf("cfg.JWTSecretCurrent = %s, want current-secret-key-32-characters!", cfg.JWTSecretCurrent)
-}
-if cfg.JWTSecretPrevious != "previous-secret-key-32-chars!!" {
-t.Errorf("cfg.JWTSecretPrevious = %s, want previous-secret-key-32-chars!!", cfg.JWTSecretPrevious)
-}
-})
+		cfg, errs := Load("")
+		if len(errs) != 0 {
+			t.Errorf("Load() returned errors: %v", errs)
+		}
+		if cfg.JWTSecretCurrent != "current-secret-key-32-characters!" {
+			t.Errorf("cfg.JWTSecretCurrent = %s, want current-secret-key-32-characters!", cfg.JWTSecretCurrent)
+		}
+		if cfg.JWTSecretPrevious != "previous-secret-key-32-chars!!" {
+			t.Errorf("cfg.JWTSecretPrevious = %s, want previous-secret-key-32-chars!!", cfg.JWTSecretPrevious)
+		}
+	})
 
-t.Run("missing both JWT_SECRET and JWT_SECRET_CURRENT fails", func(t *testing.T) {
-clearEnv()
-os.Setenv("DATABASE_URL", "postgres://localhost/test")
-os.Setenv("LIVEKIT_URL", "wss://livekit.example.com")
-os.Setenv("LIVEKIT_API_KEY", "api_key")
-os.Setenv("LIVEKIT_API_SECRET", "api_secret")
-os.Setenv("STRIPE_API_KEY", "sk_test_123")
-os.Setenv("STRIPE_WEBHOOK_SECRET", "whsec_123")
-os.Setenv("STRIPE_ONBOARDING_RETURN_URL", "https://example.com/return")
-os.Setenv("STRIPE_ONBOARDING_REFRESH_URL", "https://example.com/refresh")
-os.Setenv("MAPTILER_API_KEY", "maptiler_key")
-os.Setenv("JETSTREAM_URL", "wss://jetstream.example.com")
+	t.Run("missing both JWT_SECRET and JWT_SECRET_CURRENT fails", func(t *testing.T) {
+		clearEnv()
+		os.Setenv("DATABASE_URL", "postgres://localhost/test")
+		os.Setenv("LIVEKIT_URL", "wss://livekit.example.com")
+		os.Setenv("LIVEKIT_API_KEY", "api_key")
+		os.Setenv("LIVEKIT_API_SECRET", "api_secret")
+		os.Setenv("STRIPE_API_KEY", "sk_test_123")
+		os.Setenv("STRIPE_WEBHOOK_SECRET", "whsec_123")
+		os.Setenv("STRIPE_ONBOARDING_RETURN_URL", "https://example.com/return")
+		os.Setenv("STRIPE_ONBOARDING_REFRESH_URL", "https://example.com/refresh")
+		os.Setenv("MAPTILER_API_KEY", "maptiler_key")
+		os.Setenv("JETSTREAM_URL", "wss://jetstream.example.com")
 
-_, errs := Load("")
-if len(errs) == 0 {
-t.Error("Load() expected errors, got none")
-}
+		_, errs := Load("")
+		if len(errs) == 0 {
+			t.Error("Load() expected errors, got none")
+		}
 
-foundJWTError := false
-for _, err := range errs {
-if errors.Is(err, ErrMissingJWTSecret) {
-foundJWTError = true
-break
-}
-}
-if !foundJWTError {
-t.Errorf("Load() errors = %v, want ErrMissingJWTSecret", errs)
-}
-})
+		foundJWTError := false
+		for _, err := range errs {
+			if errors.Is(err, ErrMissingJWTSecret) {
+				foundJWTError = true
+				break
+			}
+		}
+		if !foundJWTError {
+			t.Errorf("Load() errors = %v, want ErrMissingJWTSecret", errs)
+		}
+	})
 
-t.Run("JWT_SECRET takes precedence over legacy behavior", func(t *testing.T) {
-clearEnv()
-os.Setenv("DATABASE_URL", "postgres://localhost/test")
-os.Setenv("JWT_SECRET", "legacy-secret-key-32-characters!")
-os.Setenv("JWT_SECRET_CURRENT", "current-secret-key-32-characters!")
-os.Setenv("LIVEKIT_URL", "wss://livekit.example.com")
-os.Setenv("LIVEKIT_API_KEY", "api_key")
-os.Setenv("LIVEKIT_API_SECRET", "api_secret")
-os.Setenv("STRIPE_API_KEY", "sk_test_123")
-os.Setenv("STRIPE_WEBHOOK_SECRET", "whsec_123")
-os.Setenv("STRIPE_ONBOARDING_RETURN_URL", "https://example.com/return")
-os.Setenv("STRIPE_ONBOARDING_REFRESH_URL", "https://example.com/refresh")
-os.Setenv("MAPTILER_API_KEY", "maptiler_key")
-os.Setenv("JETSTREAM_URL", "wss://jetstream.example.com")
+	t.Run("JWT_SECRET takes precedence over legacy behavior", func(t *testing.T) {
+		clearEnv()
+		os.Setenv("DATABASE_URL", "postgres://localhost/test")
+		os.Setenv("JWT_SECRET", "legacy-secret-key-32-characters!")
+		os.Setenv("JWT_SECRET_CURRENT", "current-secret-key-32-characters!")
+		os.Setenv("LIVEKIT_URL", "wss://livekit.example.com")
+		os.Setenv("LIVEKIT_API_KEY", "api_key")
+		os.Setenv("LIVEKIT_API_SECRET", "api_secret")
+		os.Setenv("STRIPE_API_KEY", "sk_test_123")
+		os.Setenv("STRIPE_WEBHOOK_SECRET", "whsec_123")
+		os.Setenv("STRIPE_ONBOARDING_RETURN_URL", "https://example.com/return")
+		os.Setenv("STRIPE_ONBOARDING_REFRESH_URL", "https://example.com/refresh")
+		os.Setenv("MAPTILER_API_KEY", "maptiler_key")
+		os.Setenv("JETSTREAM_URL", "wss://jetstream.example.com")
 
-cfg, errs := Load("")
-if len(errs) != 0 {
-t.Errorf("Load() returned errors: %v", errs)
-}
-// Both should be populated
-if cfg.JWTSecret != "legacy-secret-key-32-characters!" {
-t.Errorf("cfg.JWTSecret = %s, want legacy-secret-key-32-characters!", cfg.JWTSecret)
-}
-if cfg.JWTSecretCurrent != "current-secret-key-32-characters!" {
-t.Errorf("cfg.JWTSecretCurrent = %s, want current-secret-key-32-characters!", cfg.JWTSecretCurrent)
-}
-})
+		cfg, errs := Load("")
+		if len(errs) != 0 {
+			t.Errorf("Load() returned errors: %v", errs)
+		}
+		// Both should be populated
+		if cfg.JWTSecret != "legacy-secret-key-32-characters!" {
+			t.Errorf("cfg.JWTSecret = %s, want legacy-secret-key-32-characters!", cfg.JWTSecret)
+		}
+		if cfg.JWTSecretCurrent != "current-secret-key-32-characters!" {
+			t.Errorf("cfg.JWTSecretCurrent = %s, want current-secret-key-32-characters!", cfg.JWTSecretCurrent)
+		}
+	})
 }
 
 // TestGetJWTSecrets tests the helper method for retrieving JWT secrets.
 func TestGetJWTSecrets(t *testing.T) {
-tests := []struct {
-name             string
-jwtSecret        string
-jwtSecretCurrent string
-jwtSecretPrev    string
-wantCurrent      string
-wantPrevious     string
-}{
-{
-name:             "legacy JWT_SECRET only",
-jwtSecret:        "legacy-secret",
-jwtSecretCurrent: "",
-jwtSecretPrev:    "",
-wantCurrent:      "legacy-secret",
-wantPrevious:     "",
-},
-{
-name:             "JWT_SECRET_CURRENT only",
-jwtSecret:        "",
-jwtSecretCurrent: "current-secret",
-jwtSecretPrev:    "",
-wantCurrent:      "current-secret",
-wantPrevious:     "",
-},
-{
-name:             "JWT_SECRET_CURRENT with previous",
-jwtSecret:        "",
-jwtSecretCurrent: "current-secret",
-jwtSecretPrev:    "previous-secret",
-wantCurrent:      "current-secret",
-wantPrevious:     "previous-secret",
-},
-{
-name:             "JWT_SECRET_CURRENT takes precedence over JWT_SECRET",
-jwtSecret:        "legacy-secret",
-jwtSecretCurrent: "current-secret",
-jwtSecretPrev:    "previous-secret",
-wantCurrent:      "current-secret",
-wantPrevious:     "previous-secret",
-},
-}
+	tests := []struct {
+		name             string
+		jwtSecret        string
+		jwtSecretCurrent string
+		jwtSecretPrev    string
+		wantCurrent      string
+		wantPrevious     string
+	}{
+		{
+			name:             "legacy JWT_SECRET only",
+			jwtSecret:        "legacy-secret",
+			jwtSecretCurrent: "",
+			jwtSecretPrev:    "",
+			wantCurrent:      "legacy-secret",
+			wantPrevious:     "",
+		},
+		{
+			name:             "JWT_SECRET_CURRENT only",
+			jwtSecret:        "",
+			jwtSecretCurrent: "current-secret",
+			jwtSecretPrev:    "",
+			wantCurrent:      "current-secret",
+			wantPrevious:     "",
+		},
+		{
+			name:             "JWT_SECRET_CURRENT with previous",
+			jwtSecret:        "",
+			jwtSecretCurrent: "current-secret",
+			jwtSecretPrev:    "previous-secret",
+			wantCurrent:      "current-secret",
+			wantPrevious:     "previous-secret",
+		},
+		{
+			name:             "JWT_SECRET_CURRENT takes precedence over JWT_SECRET",
+			jwtSecret:        "legacy-secret",
+			jwtSecretCurrent: "current-secret",
+			jwtSecretPrev:    "previous-secret",
+			wantCurrent:      "current-secret",
+			wantPrevious:     "previous-secret",
+		},
+	}
 
-for _, tt := range tests {
-t.Run(tt.name, func(t *testing.T) {
-cfg := &Config{
-JWTSecret:         tt.jwtSecret,
-JWTSecretCurrent:  tt.jwtSecretCurrent,
-JWTSecretPrevious: tt.jwtSecretPrev,
-}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := &Config{
+				JWTSecret:         tt.jwtSecret,
+				JWTSecretCurrent:  tt.jwtSecretCurrent,
+				JWTSecretPrevious: tt.jwtSecretPrev,
+			}
 
-current, previous := cfg.GetJWTSecrets()
-if current != tt.wantCurrent {
-t.Errorf("GetJWTSecrets() current = %v, want %v", current, tt.wantCurrent)
-}
-if previous != tt.wantPrevious {
-t.Errorf("GetJWTSecrets() previous = %v, want %v", previous, tt.wantPrevious)
-}
-})
-}
+			current, previous := cfg.GetJWTSecrets()
+			if current != tt.wantCurrent {
+				t.Errorf("GetJWTSecrets() current = %v, want %v", current, tt.wantCurrent)
+			}
+			if previous != tt.wantPrevious {
+				t.Errorf("GetJWTSecrets() previous = %v, want %v", previous, tt.wantPrevious)
+			}
+		})
+	}
 }

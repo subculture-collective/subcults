@@ -14,6 +14,12 @@ const (
 	TokenTypeRefresh = "refresh"
 )
 
+// Key version constants for tracking which key signed the token.
+const (
+	KeyVersionCurrent  = "current"
+	KeyVersionPrevious = "previous"
+)
+
 // Token expiration durations.
 const (
 	AccessTokenExpiry  = 15 * time.Minute
@@ -46,6 +52,7 @@ type JWTService struct {
 	currentSecret  []byte
 	previousSecret []byte
 	leeway         time.Duration
+	keyVersion     string // Key version identifier for current secret
 }
 
 // NewJWTService creates a new JWTService with the given secret.
@@ -55,6 +62,7 @@ func NewJWTService(secret string) *JWTService {
 		currentSecret:  []byte(secret),
 		previousSecret: nil,
 		leeway:         DefaultLeeway,
+		keyVersion:     KeyVersionCurrent,
 	}
 }
 
@@ -65,6 +73,7 @@ func NewJWTServiceWithLeeway(secret string, leeway time.Duration) *JWTService {
 		currentSecret:  []byte(secret),
 		previousSecret: nil,
 		leeway:         leeway,
+		keyVersion:     KeyVersionCurrent,
 	}
 }
 
@@ -75,6 +84,7 @@ func NewJWTServiceWithRotation(currentSecret, previousSecret string) *JWTService
 	svc := &JWTService{
 		currentSecret: []byte(currentSecret),
 		leeway:        DefaultLeeway,
+		keyVersion:    KeyVersionCurrent,
 	}
 	if previousSecret != "" {
 		svc.previousSecret = []byte(previousSecret)
@@ -87,6 +97,7 @@ func NewJWTServiceWithRotationAndLeeway(currentSecret, previousSecret string, le
 	svc := &JWTService{
 		currentSecret: []byte(currentSecret),
 		leeway:        leeway,
+		keyVersion:    KeyVersionCurrent,
 	}
 	if previousSecret != "" {
 		svc.previousSecret = []byte(previousSecret)
@@ -112,6 +123,8 @@ func (s *JWTService) GenerateAccessToken(userID, did string) (string, error) {
 	}
 
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
+	// Set the key ID (kid) header to track which key version signed this token
+	token.Header["kid"] = s.keyVersion
 	return token.SignedString(s.currentSecret)
 }
 
@@ -132,12 +145,16 @@ func (s *JWTService) GenerateRefreshToken(userID string) (string, error) {
 	}
 
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
+	// Set the key ID (kid) header to track which key version signed this token
+	token.Header["kid"] = s.keyVersion
 	return token.SignedString(s.currentSecret)
 }
 
 // ValidateToken parses and validates a JWT token, returning the claims if valid.
 // Supports dual-key rotation: tries currentSecret first, then previousSecret if available.
 func (s *JWTService) ValidateToken(tokenString string) (*Claims, error) {
+	var firstErr error
+
 	// Try validating with current secret first
 	token, err := jwt.ParseWithClaims(tokenString, &Claims{}, func(token *jwt.Token) (interface{}, error) {
 		// Validate the signing method is HS256
@@ -155,6 +172,9 @@ func (s *JWTService) ValidateToken(tokenString string) (*Claims, error) {
 		return nil, ErrInvalidToken
 	}
 
+	// Remember the first error in case it was an expiration error
+	firstErr = err
+
 	// If current secret fails and previous secret is available, try previous secret
 	if s.previousSecret != nil {
 		token, err = jwt.ParseWithClaims(tokenString, &Claims{}, func(token *jwt.Token) (interface{}, error) {
@@ -170,11 +190,17 @@ func (s *JWTService) ValidateToken(tokenString string) (*Claims, error) {
 				return claims, nil
 			}
 		}
+
+		// If second attempt also failed, check if either error was expiration
+		if errors.Is(err, jwt.ErrTokenExpired) || errors.Is(firstErr, jwt.ErrTokenExpired) {
+			return nil, ErrExpiredToken
+		}
+	} else {
+		// No previous secret, so check the first error directly
+		if errors.Is(firstErr, jwt.ErrTokenExpired) {
+			return nil, ErrExpiredToken
+		}
 	}
 
-	// Return appropriate error based on validation failure
-	if errors.Is(err, jwt.ErrTokenExpired) {
-		return nil, ErrExpiredToken
-	}
 	return nil, ErrInvalidToken
 }

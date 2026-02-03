@@ -60,13 +60,13 @@ type Config struct {
 	RankTrustEnabled bool `koanf:"rank_trust_enabled"` // Enable trust-weighted ranking in search/feed
 
 	// Canary Deployment
-	CanaryEnabled           bool    `koanf:"canary_enabled"`             // Enable canary deployment
-	CanaryTrafficPercent    float64 `koanf:"canary_traffic_percent"`     // Percentage of traffic to route to canary (0-100)
-	CanaryErrorThreshold    float64 `koanf:"canary_error_threshold"`     // Error rate threshold for auto-rollback (0-100)
-	CanaryLatencyThreshold  float64 `koanf:"canary_latency_threshold"`   // Latency threshold in seconds for auto-rollback
-	CanaryAutoRollback      bool    `koanf:"canary_auto_rollback"`       // Enable automatic rollback on threshold breach
-	CanaryMonitoringWindow  int     `koanf:"canary_monitoring_window"`   // Monitoring window in seconds for metrics comparison
-	CanaryVersion           string  `koanf:"canary_version"`             // Version identifier for canary deployment (e.g., "v1.2.0-canary")
+	CanaryEnabled          bool    `koanf:"canary_enabled"`           // Enable canary deployment
+	CanaryTrafficPercent   float64 `koanf:"canary_traffic_percent"`   // Percentage of traffic to route to canary (0-100)
+	CanaryErrorThreshold   float64 `koanf:"canary_error_threshold"`   // Error rate threshold for auto-rollback (0-100)
+	CanaryLatencyThreshold float64 `koanf:"canary_latency_threshold"` // Latency threshold in seconds for auto-rollback
+	CanaryAutoRollback     bool    `koanf:"canary_auto_rollback"`     // Enable automatic rollback on threshold breach
+	CanaryMonitoringWindow int     `koanf:"canary_monitoring_window"` // Monitoring window in seconds for metrics comparison
+	CanaryVersion          string  `koanf:"canary_version"`           // Version identifier for canary deployment (e.g., "v1.2.0-canary")
 
 	// Tracing (OpenTelemetry)
 	TracingEnabled      bool    `koanf:"tracing_enabled"`       // Enable distributed tracing
@@ -583,10 +583,10 @@ func maskDatabaseURL(s string) string {
 // For backward compatibility, if JWT_SECRET is set and JWT_SECRET_CURRENT is not,
 // JWT_SECRET is used as the current secret.
 func (c *Config) GetJWTSecrets() (current, previous string) {
-// Prefer JWT_SECRET_CURRENT if set
-if c.JWTSecretCurrent != "" {
-return c.JWTSecretCurrent, c.JWTSecretPrevious
-}
-// Fallback to legacy JWT_SECRET
-return c.JWTSecret, ""
+	// Prefer JWT_SECRET_CURRENT if set
+	if c.JWTSecretCurrent != "" {
+		return c.JWTSecretCurrent, c.JWTSecretPrevious
+	}
+	// Fallback to legacy JWT_SECRET
+	return c.JWTSecret, ""
 }

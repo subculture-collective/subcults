@@ -572,3 +572,110 @@ func TestRotationWithCustomLeeway(t *testing.T) {
 	// Ensure oldSvc is "used" to avoid unused variable error
 	_ = oldSvc
 }
+
+// TestKeyVersionTracking tests that tokens include the key version in the header.
+func TestKeyVersionTracking(t *testing.T) {
+	svc := NewJWTService(testSecret)
+
+	t.Run("access token includes key version", func(t *testing.T) {
+		tokenString, err := svc.GenerateAccessToken("user-123", "did:web:example.com")
+		if err != nil {
+			t.Fatalf("GenerateAccessToken() error = %v", err)
+		}
+
+		// Parse token without validation to inspect header
+		token, _, err := jwt.NewParser().ParseUnverified(tokenString, &Claims{})
+		if err != nil {
+			t.Fatalf("ParseUnverified() error = %v", err)
+		}
+
+		kid, ok := token.Header["kid"]
+		if !ok {
+			t.Error("Token header missing 'kid' field")
+		}
+		if kid != KeyVersionCurrent {
+			t.Errorf("Token kid = %v, want %v", kid, KeyVersionCurrent)
+		}
+	})
+
+	t.Run("refresh token includes key version", func(t *testing.T) {
+		tokenString, err := svc.GenerateRefreshToken("user-456")
+		if err != nil {
+			t.Fatalf("GenerateRefreshToken() error = %v", err)
+		}
+
+		// Parse token without validation to inspect header
+		token, _, err := jwt.NewParser().ParseUnverified(tokenString, &Claims{})
+		if err != nil {
+			t.Fatalf("ParseUnverified() error = %v", err)
+		}
+
+		kid, ok := token.Header["kid"]
+		if !ok {
+			t.Error("Token header missing 'kid' field")
+		}
+		if kid != KeyVersionCurrent {
+			t.Errorf("Token kid = %v, want %v", kid, KeyVersionCurrent)
+		}
+	})
+}
+
+// TestExpiredTokenErrorSemantics ensures expired tokens return ErrExpiredToken even during rotation.
+func TestExpiredTokenErrorSemantics(t *testing.T) {
+	currentSecret := "current-secret-key-12345678"
+	previousSecret := "previous-secret-key-87654321"
+
+	t.Run("expired token with current secret returns ErrExpiredToken", func(t *testing.T) {
+		svc := NewJWTServiceWithRotationAndLeeway(currentSecret, previousSecret, 0)
+
+		// Create an expired token with current secret
+		now := time.Now()
+		claims := Claims{
+			RegisteredClaims: jwt.RegisteredClaims{
+				Subject:   "user-expired",
+				IssuedAt:  jwt.NewNumericDate(now.Add(-2 * time.Hour)),
+				ExpiresAt: jwt.NewNumericDate(now.Add(-1 * time.Hour)),
+			},
+			Type: TokenTypeAccess,
+		}
+
+		token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
+		token.Header["kid"] = KeyVersionCurrent
+		tokenString, err := token.SignedString([]byte(currentSecret))
+		if err != nil {
+			t.Fatalf("Failed to create token: %v", err)
+		}
+
+		_, err = svc.ValidateToken(tokenString)
+		if err != ErrExpiredToken {
+			t.Errorf("ValidateToken() error = %v, want %v", err, ErrExpiredToken)
+		}
+	})
+
+	t.Run("expired token with previous secret returns ErrExpiredToken", func(t *testing.T) {
+		svc := NewJWTServiceWithRotationAndLeeway(currentSecret, previousSecret, 0)
+
+		// Create an expired token with previous secret
+		now := time.Now()
+		claims := Claims{
+			RegisteredClaims: jwt.RegisteredClaims{
+				Subject:   "user-expired-old",
+				IssuedAt:  jwt.NewNumericDate(now.Add(-2 * time.Hour)),
+				ExpiresAt: jwt.NewNumericDate(now.Add(-1 * time.Hour)),
+			},
+			Type: TokenTypeAccess,
+		}
+
+		token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
+		token.Header["kid"] = KeyVersionPrevious
+		tokenString, err := token.SignedString([]byte(previousSecret))
+		if err != nil {
+			t.Fatalf("Failed to create token: %v", err)
+		}
+
+		_, err = svc.ValidateToken(tokenString)
+		if err != ErrExpiredToken {
+			t.Errorf("ValidateToken() error = %v, want %v (expired token should return ErrExpiredToken)", err, ErrExpiredToken)
+		}
+	})
+}

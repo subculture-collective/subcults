@@ -13,6 +13,7 @@ JWT secret rotation allows you to update signing keys without disrupting active 
 - **Current Secret** (`JWT_SECRET_CURRENT`): Used to sign all new tokens
 - **Previous Secret** (`JWT_SECRET_PREVIOUS`): Used to validate tokens signed before rotation
 - **Rotation Window**: Period during which both keys are active (recommended: 7 days)
+- **Key Version Tracking**: Tokens include a `kid` (key ID) header field set to "current" to identify which key version signed the token
 
 ### Token Lifetimes
 
@@ -108,12 +109,20 @@ Wait for the maximum token lifetime to pass. This ensures all tokens signed with
 
 **Monitoring During Rotation**:
 
-```bash
-# Check that both keys are being used to validate tokens
-grep "jwt_validation" /var/log/api.log | grep "key_used"
+During the rotation window, monitor authentication behavior using your existing logs and metrics:
 
-# Monitor authentication success rates
-curl http://localhost:9090/metrics | grep auth_success_rate
+- Check API logs for any increase in authentication failures or unexpected "invalid token" errors
+- Use your observability stack (Prometheus/Grafana or equivalent) to watch auth-related error rates and latency
+- Confirm that overall login and refresh success rates remain stable before and after the rotation
+- Monitor for any unusual patterns in token validation that might indicate rotation issues
+
+Example monitoring approaches:
+```bash
+# Watch for authentication errors in logs
+tail -f /var/log/api.log | grep -i "auth\|token"
+
+# Check overall API error rates (adjust metric names to match your setup)
+curl http://localhost:9090/metrics | grep -E "http_requests_total|http_request_duration"
 ```
 
 ### Step 5: Complete Rotation
