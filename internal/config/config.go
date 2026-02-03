@@ -74,6 +74,13 @@ type Config struct {
 	TracingOTLPEndpoint string  `koanf:"tracing_otlp_endpoint"` // OTLP endpoint URL
 	TracingSampleRate   float64 `koanf:"tracing_sample_rate"`   // Sampling rate (0.0 to 1.0)
 	TracingInsecure     bool    `koanf:"tracing_insecure"`      // Disable TLS for OTLP (dev only)
+
+	// CORS (Cross-Origin Resource Sharing)
+	CORSAllowedOrigins   string `koanf:"cors_allowed_origins"`   // Comma-separated list of allowed origins (no wildcards)
+	CORSAllowedMethods   string `koanf:"cors_allowed_methods"`   // Comma-separated list of allowed HTTP methods
+	CORSAllowedHeaders   string `koanf:"cors_allowed_headers"`   // Comma-separated list of allowed headers
+	CORSAllowCredentials bool   `koanf:"cors_allow_credentials"` // Allow credentials (cookies, auth headers)
+	CORSMaxAge           int    `koanf:"cors_max_age"`           // Preflight cache duration in seconds
 }
 
 // Configuration validation errors.
@@ -114,6 +121,11 @@ const (
 	DefaultTracingExporterType         = "otlp-http"
 	DefaultTracingSampleRate           = 0.1 // 10% sampling in production
 	DefaultTracingInsecure             = false
+	DefaultCORSAllowedOrigins          = ""                                                  // Empty means CORS is disabled
+	DefaultCORSAllowedMethods          = "GET,POST,PUT,PATCH,DELETE,OPTIONS"                // Standard REST methods
+	DefaultCORSAllowedHeaders          = "Content-Type,Authorization,X-Request-ID"          // Essential headers
+	DefaultCORSAllowCredentials        = true                                                // Allow cookies/auth by default
+	DefaultCORSMaxAge                  = 3600                                                // 1 hour preflight cache
 )
 
 // Load reads configuration from environment variables and an optional config file.
@@ -302,6 +314,30 @@ func Load(configFilePath string) (*Config, []error) {
 		canaryVersion = val
 	}
 
+	// Parse CORS configuration
+	corsAllowedOrigins := getEnvOrDefault("CORS_ALLOWED_ORIGINS", k.String("cors_allowed_origins"), DefaultCORSAllowedOrigins)
+	corsAllowedMethods := getEnvOrDefault("CORS_ALLOWED_METHODS", k.String("cors_allowed_methods"), DefaultCORSAllowedMethods)
+	corsAllowedHeaders := getEnvOrDefault("CORS_ALLOWED_HEADERS", k.String("cors_allowed_headers"), DefaultCORSAllowedHeaders)
+
+	corsAllowCredentials := DefaultCORSAllowCredentials
+	if k.Exists("cors_allow_credentials") {
+		corsAllowCredentials = k.Bool("cors_allow_credentials")
+	}
+	if val := os.Getenv("CORS_ALLOW_CREDENTIALS"); val != "" {
+		valLower := strings.ToLower(val)
+		switch valLower {
+		case "true", "1", "yes", "on":
+			corsAllowCredentials = true
+		case "false", "0", "no", "off":
+			corsAllowCredentials = false
+		}
+	}
+
+	corsMaxAge, corsMaxAgeErr := getEnvIntOrDefault("CORS_MAX_AGE", k.Int("cors_max_age"), DefaultCORSMaxAge)
+	if corsMaxAgeErr != nil {
+		loadErrs = append(loadErrs, corsMaxAgeErr)
+	}
+
 	// Build config struct, with env vars taking precedence over file values
 	cfg := &Config{
 		Port:                        port,
@@ -339,6 +375,11 @@ func Load(configFilePath string) (*Config, []error) {
 		TracingOTLPEndpoint:         getEnvOrKoanf("TRACING_OTLP_ENDPOINT", k, "tracing_otlp_endpoint"),
 		TracingSampleRate:           tracingSampleRate,
 		TracingInsecure:             tracingInsecure,
+		CORSAllowedOrigins:          corsAllowedOrigins,
+		CORSAllowedMethods:          corsAllowedMethods,
+		CORSAllowedHeaders:          corsAllowedHeaders,
+		CORSAllowCredentials:        corsAllowCredentials,
+		CORSMaxAge:                  corsMaxAge,
 	}
 
 	// Validate and collect errors
@@ -514,6 +555,11 @@ func (c *Config) LogSummary() map[string]string {
 		"tracing_otlp_endpoint":         c.TracingOTLPEndpoint,
 		"tracing_sample_rate":           fmt.Sprintf("%.2f", c.TracingSampleRate),
 		"tracing_insecure":              fmt.Sprintf("%t", c.TracingInsecure),
+		"cors_allowed_origins":          c.CORSAllowedOrigins,
+		"cors_allowed_methods":          c.CORSAllowedMethods,
+		"cors_allowed_headers":          c.CORSAllowedHeaders,
+		"cors_allow_credentials":        fmt.Sprintf("%t", c.CORSAllowCredentials),
+		"cors_max_age":                  fmt.Sprintf("%d", c.CORSMaxAge),
 	}
 }
 
