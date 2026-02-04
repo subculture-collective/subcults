@@ -214,7 +214,7 @@ Overhead when enabled: ~13ns/request (~5% increase)
 
 ## References
 
-- Issue: #[issue-number] - Task: Rate Limiting & Abuse Detection Middleware
+- Issue: #129 - Task: Rate Limiting & Abuse Detection Middleware
 - Epic: Performance & Optimization #14 (Phase 2)
 - Documentation: `docs/PROFILING.md`
 - Tests: `internal/middleware/profiling_test.go`
