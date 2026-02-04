@@ -1081,14 +1081,9 @@ func main() {
 		slog.Info("CORS disabled - no origins configured")
 	}
 
-	// Finally, tracing (outermost, executes first) - only if enabled
-	if tracingEnabled {
-		handler = middleware.Tracing("subcults-api")(handler)
-	}
-
 	// Add profiling middleware (DEVELOPMENT ONLY)
-	// This MUST be applied last (outermost) so profiling endpoints are accessible
-	// without going through auth or other middleware
+	// Profiling is applied near the top of the middleware stack so profiling endpoints
+	// are accessible without going through rate limiting or other restrictive middleware
 	if cfg.ProfilingEnabled {
 		handler = middleware.Profiling(middleware.ProfilingConfig{
 			Enabled:     true,
@@ -1097,6 +1092,11 @@ func main() {
 		logger.Info("profiling enabled", "env", cfg.Env, "endpoints", "/debug/pprof/*")
 	} else {
 		logger.Info("profiling disabled")
+	}
+
+	// Finally, tracing (outermost, executes first) - only if enabled
+	if tracingEnabled {
+		handler = middleware.Tracing("subcults-api")(handler)
 	}
 
 	server := &http.Server{

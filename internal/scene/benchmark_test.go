@@ -32,11 +32,13 @@ func BenchmarkSceneRepository_Insert(b *testing.B) {
 	b.Run("concurrent_scene_insertion", func(b *testing.B) {
 		b.ResetTimer()
 		b.RunParallel(func(pb *testing.PB) {
-			i := 0
+			var counter int64
 			for pb.Next() {
 				now := time.Now()
+				// Use unique ID based on timestamp and a sequential counter to avoid collisions
+				uniqueID := generateTestSceneID(int(time.Now().UnixNano()%1000000) + int(counter))
 				scene := &Scene{
-					ID:            generateTestSceneID(10000 + i), // Offset to avoid collisions
+					ID:            uniqueID,
 					Name:          "Test Scene",
 					Description:   "A test scene for benchmarking",
 					OwnerDID:      "did:plc:test123",
@@ -47,7 +49,7 @@ func BenchmarkSceneRepository_Insert(b *testing.B) {
 					PrecisePoint:  &Point{Lat: 40.7128, Lng: -74.0060},
 				}
 				_ = repo.Insert(scene)
-				i++
+				counter++
 			}
 		})
 	})
@@ -85,11 +87,12 @@ func BenchmarkSceneRepository_GetByID(b *testing.B) {
 	b.Run("concurrent_lookup", func(b *testing.B) {
 		b.ResetTimer()
 		b.RunParallel(func(pb *testing.PB) {
-			i := 0
+			var counter int64
 			for pb.Next() {
-				id := generateTestSceneID(i % 1000)
+				// Use modulo to cycle through existing test scenes
+				id := generateTestSceneID(int(counter % 1000))
 				_, _ = repo.GetByID(id)
-				i++
+				counter++
 			}
 		})
 	})
