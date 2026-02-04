@@ -979,6 +979,12 @@ func main() {
 	mux.HandleFunc("/health/live", healthHandlers.Health)
 	mux.HandleFunc("/health/ready", healthHandlers.Ready)
 
+	// Profiling status endpoint (always available, reports whether profiling is enabled)
+	mux.Handle("/debug/profiling/status", middleware.ProfilingStatus(middleware.ProfilingConfig{
+		Enabled:     cfg.ProfilingEnabled,
+		Environment: cfg.Env,
+	}))
+
 	// Telemetry endpoints for frontend performance metrics (with rate limiting)
 	telemetryHandlers := api.NewTelemetryHandlers()
 	telemetryMetricsHandler := middleware.RateLimiter(rateLimitStore, telemetryLimit, middleware.IPKeyFunc(), rateLimitMetrics)(
@@ -1073,6 +1079,19 @@ func main() {
 		)
 	} else {
 		slog.Info("CORS disabled - no origins configured")
+	}
+
+	// Add profiling middleware (DEVELOPMENT ONLY)
+	// Profiling is applied near the top of the middleware stack so profiling endpoints
+	// are accessible without going through rate limiting or other restrictive middleware
+	if cfg.ProfilingEnabled {
+		handler = middleware.Profiling(middleware.ProfilingConfig{
+			Enabled:     true,
+			Environment: cfg.Env,
+		})(handler)
+		logger.Info("profiling enabled", "env", cfg.Env, "endpoints", "/debug/pprof/*")
+	} else {
+		logger.Info("profiling disabled")
 	}
 
 	// Finally, tracing (outermost, executes first) - only if enabled
