@@ -40,7 +40,7 @@ Status Endpoint:
 ### 3. Integration
 **File**: `cmd/api/main.go`
 
-- Profiling middleware applied as outermost layer
+- Profiling middleware integrated near the top of the middleware stack (tracing middleware is applied as the actual outermost layer)
 - Loaded from config after environment parsing
 - Logs startup status (enabled/disabled)
 - Respects both `PROFILING_ENABLED` and environment checks
