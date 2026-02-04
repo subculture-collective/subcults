@@ -75,6 +75,9 @@ type Config struct {
 	TracingSampleRate   float64 `koanf:"tracing_sample_rate"`   // Sampling rate (0.0 to 1.0)
 	TracingInsecure     bool    `koanf:"tracing_insecure"`      // Disable TLS for OTLP (dev only)
 
+	// Profiling (pprof)
+	ProfilingEnabled bool `koanf:"profiling_enabled"` // Enable pprof profiling endpoints (dev only, NEVER in production)
+
 	// CORS (Cross-Origin Resource Sharing)
 	CORSAllowedOrigins   string `koanf:"cors_allowed_origins"`   // Comma-separated list of allowed origins (no wildcards)
 	CORSAllowedMethods   string `koanf:"cors_allowed_methods"`   // Comma-separated list of allowed HTTP methods
@@ -119,9 +122,10 @@ const (
 	DefaultCanaryVersion               = "canary"
 	DefaultTracingEnabled              = false
 	DefaultTracingExporterType         = "otlp-http"
-	DefaultTracingSampleRate           = 0.1 // 10% sampling in production
+	DefaultTracingSampleRate           = 0.1   // 10% sampling in production
 	DefaultTracingInsecure             = false
-	DefaultCORSAllowedOrigins          = ""                                                  // Empty means CORS is disabled
+	DefaultProfilingEnabled            = false // NEVER enable in production (security risk)
+	DefaultCORSAllowedOrigins          = ""    // Empty means CORS is disabled
 	DefaultCORSAllowedMethods          = "GET,POST,PUT,PATCH,DELETE,OPTIONS"                // Standard REST methods
 	DefaultCORSAllowedHeaders          = "Content-Type,Authorization,X-Request-ID"          // Essential headers
 	DefaultCORSAllowCredentials        = true                                                // Allow cookies/auth by default
@@ -226,6 +230,21 @@ func Load(configFilePath string) (*Config, []error) {
 			tracingInsecure = true
 		case "false", "0", "no", "off":
 			tracingInsecure = false
+		}
+	}
+
+	// Parse profiling configuration (SECURITY: disabled by default, only for development)
+	profilingEnabled := DefaultProfilingEnabled
+	if k.Exists("profiling_enabled") {
+		profilingEnabled = k.Bool("profiling_enabled")
+	}
+	if val := os.Getenv("PROFILING_ENABLED"); val != "" {
+		valLower := strings.ToLower(val)
+		switch valLower {
+		case "true", "1", "yes", "on":
+			profilingEnabled = true
+		case "false", "0", "no", "off":
+			profilingEnabled = false
 		}
 	}
 
@@ -375,6 +394,7 @@ func Load(configFilePath string) (*Config, []error) {
 		TracingOTLPEndpoint:         getEnvOrKoanf("TRACING_OTLP_ENDPOINT", k, "tracing_otlp_endpoint"),
 		TracingSampleRate:           tracingSampleRate,
 		TracingInsecure:             tracingInsecure,
+		ProfilingEnabled:            profilingEnabled,
 		CORSAllowedOrigins:          corsAllowedOrigins,
 		CORSAllowedMethods:          corsAllowedMethods,
 		CORSAllowedHeaders:          corsAllowedHeaders,
@@ -555,6 +575,7 @@ func (c *Config) LogSummary() map[string]string {
 		"tracing_otlp_endpoint":         c.TracingOTLPEndpoint,
 		"tracing_sample_rate":           fmt.Sprintf("%.2f", c.TracingSampleRate),
 		"tracing_insecure":              fmt.Sprintf("%t", c.TracingInsecure),
+		"profiling_enabled":             fmt.Sprintf("%t", c.ProfilingEnabled),
 		"cors_allowed_origins":          c.CORSAllowedOrigins,
 		"cors_allowed_methods":          c.CORSAllowedMethods,
 		"cors_allowed_headers":          c.CORSAllowedHeaders,
