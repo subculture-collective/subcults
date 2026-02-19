@@ -5,6 +5,7 @@ package config
 import (
 	"errors"
 	"fmt"
+	"log/slog"
 	"os"
 	"strconv"
 	"strings"
@@ -664,4 +665,79 @@ func (c *Config) GetJWTSecrets() (current, previous string) {
 	}
 	// Fallback to legacy JWT_SECRET
 	return c.JWTSecret, ""
+}
+
+// LogValue implements slog.LogValuer so that Config is automatically safe to log.
+// All sensitive fields are masked; non-sensitive fields are included as-is.
+// This prevents accidental secret exposure when logging the config struct, e.g.:
+//
+//	slog.Info("config loaded", "config", cfg)
+func (c *Config) LogValue() slog.Value {
+	return slog.GroupValue(
+		// Core environment & server
+		slog.Int("port", c.Port),
+		slog.String("env", c.Env),
+
+		// Databases & caches (URLs masked)
+		slog.String("database_url", maskDatabaseURL(c.DatabaseURL)),
+		slog.String("redis_url", maskDatabaseURL(c.RedisURL)),
+
+		// JWT secrets (masked)
+		slog.String("jwt_secret", maskSecret(c.JWTSecret)),
+		slog.String("jwt_secret_current", maskSecret(c.JWTSecretCurrent)),
+		slog.String("jwt_secret_previous", maskSecret(c.JWTSecretPrevious)),
+
+		// LiveKit streaming (URL visible, credentials masked)
+		slog.String("livekit_url", c.LiveKitURL),
+		slog.String("livekit_api_key", maskSecret(c.LiveKitAPIKey)),
+		slog.String("livekit_api_secret", maskSecret(c.LiveKitAPISecret)),
+
+		// Stripe (non-secret config visible, secrets masked)
+		slog.String("stripe_api_key", maskStripeKey(c.StripeAPIKey)),
+		slog.String("stripe_webhook_secret", maskSecret(c.StripeWebhookSecret)),
+		slog.String("stripe_onboarding_return_url", c.StripeOnboardingReturnURL),
+		slog.String("stripe_onboarding_refresh_url", c.StripeOnboardingRefreshURL),
+		slog.Float64("stripe_application_fee_percent", c.StripeApplicationFeePercent),
+
+		// MapTiler (API key masked)
+		slog.String("maptiler_api_key", maskSecret(c.MapTilerAPIKey)),
+
+		// Cloudflare R2 (identifiers visible, credentials masked)
+		slog.String("r2_access_key_id", maskSecret(c.R2AccessKeyID)),
+		slog.String("r2_secret_access_key", maskSecret(c.R2SecretAccessKey)),
+		slog.String("r2_bucket_name", c.R2BucketName),
+		slog.String("r2_endpoint", c.R2Endpoint),
+		slog.Int("r2_max_upload_size_mb", c.R2MaxUploadSizeMB),
+
+		// Internal services
+		slog.String("internal_service_token", maskSecret(c.InternalServiceToken)),
+		slog.String("jetstream_url", c.JetstreamURL),
+
+		// Feature flags / behavior toggles
+		slog.Bool("rank_trust_enabled", c.RankTrustEnabled),
+		slog.Bool("profiling_enabled", c.ProfilingEnabled),
+
+		// Canary configuration (non-secret, operational visibility)
+		slog.Bool("canary_enabled", c.CanaryEnabled),
+		slog.Float64("canary_traffic_percent", c.CanaryTrafficPercent),
+		slog.Float64("canary_error_threshold", c.CanaryErrorThreshold),
+		slog.Float64("canary_latency_threshold", c.CanaryLatencyThreshold),
+		slog.Bool("canary_auto_rollback", c.CanaryAutoRollback),
+		slog.Int("canary_monitoring_window", c.CanaryMonitoringWindow),
+		slog.String("canary_version", c.CanaryVersion),
+
+		// Tracing configuration (non-secret)
+		slog.Bool("tracing_enabled", c.TracingEnabled),
+		slog.String("tracing_exporter_type", c.TracingExporterType),
+		slog.String("tracing_otlp_endpoint", c.TracingOTLPEndpoint),
+		slog.Float64("tracing_sample_rate", c.TracingSampleRate),
+		slog.Bool("tracing_insecure", c.TracingInsecure),
+
+		// CORS configuration (important for security visibility)
+		slog.String("cors_allowed_origins", c.CORSAllowedOrigins),
+		slog.String("cors_allowed_methods", c.CORSAllowedMethods),
+		slog.String("cors_allowed_headers", c.CORSAllowedHeaders),
+		slog.Bool("cors_allow_credentials", c.CORSAllowCredentials),
+		slog.Int("cors_max_age", c.CORSMaxAge),
+	)
 }

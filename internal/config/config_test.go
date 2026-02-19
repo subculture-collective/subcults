@@ -1594,3 +1594,75 @@ t.Errorf("LogSummary profiling_enabled = %s, want 'true'", summary["profiling_en
 }
 })
 }
+
+func TestConfig_LogValue(t *testing.T) {
+	cfg := &Config{
+		Port:                 8080,
+		Env:                  "production",
+		DatabaseURL:          "postgres://user:supersecretpassword@localhost/db",
+		JWTSecret:            "my-super-secret-jwt-key-here",
+		JWTSecretCurrent:     "current-jwt-secret-key-value",
+		JWTSecretPrevious:    "previous-jwt-secret-key-value",
+		LiveKitURL:           "wss://livekit.example.com",
+		LiveKitAPIKey:        "livekit-api-key",
+		LiveKitAPISecret:     "livekit-api-secret",
+		StripeAPIKey:         "sk_live_supersecretstripekey",
+		StripeWebhookSecret:  "whsec_supersecret",
+		MapTilerAPIKey:       "maptiler-api-key",
+		R2AccessKeyID:        "r2-access-key-id",
+		R2SecretAccessKey:    "r2-secret-access-key",
+		RedisURL:             "redis://:redispassword@localhost:6379",
+		InternalServiceToken: "internal-service-token",
+		RankTrustEnabled:     true,
+		TracingEnabled:       false,
+		CanaryEnabled:        false,
+	}
+
+	logVal := cfg.LogValue()
+	repr := logVal.String()
+
+	// Verify secrets are NOT present in the string representation
+	secrets := []string{
+		"supersecretpassword",
+		"my-super-secret-jwt-key-here",
+		"current-jwt-secret-key-value",
+		"previous-jwt-secret-key-value",
+		"livekit-api-key",
+		"livekit-api-secret",
+		"supersecretstripekey",
+		"whsec_supersecret",
+		"maptiler-api-key",
+		"r2-access-key-id",
+		"r2-secret-access-key",
+		"redispassword",
+		"internal-service-token",
+	}
+	for _, secret := range secrets {
+		if strings.Contains(repr, secret) {
+			t.Errorf("LogValue() contains secret %q; secrets must not be logged", secret)
+		}
+	}
+
+	// Verify non-sensitive fields ARE present
+	nonSecrets := []string{"8080", "production"}
+	for _, val := range nonSecrets {
+		if !strings.Contains(repr, val) {
+			t.Errorf("LogValue() does not contain expected non-secret value %q", val)
+		}
+	}
+}
+
+func TestConfig_LogValue_EmptySecrets(t *testing.T) {
+	cfg := &Config{
+		Port: 8080,
+		Env:  "development",
+	}
+
+	logVal := cfg.LogValue()
+	repr := logVal.String()
+
+	// Should not contain raw empty string or nil representations for secrets
+	if strings.Contains(repr, "<nil>") {
+		t.Error("LogValue() should not contain <nil>")
+	}
+}
