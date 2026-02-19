@@ -1665,5 +1665,4 @@ func TestConfig_LogValue_EmptySecrets(t *testing.T) {
 	if strings.Contains(repr, "<nil>") {
 		t.Error("LogValue() should not contain <nil>")
 	}
-	_ = repr
 }

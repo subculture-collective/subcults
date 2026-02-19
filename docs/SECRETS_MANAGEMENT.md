@@ -13,6 +13,7 @@ Subcults follows a secrets-in-environment-variables approach: **no secrets are e
 | JWT signing key (current) | `JWT_SECRET_CURRENT` | Every 90 days |
 | JWT signing key (previous) | `JWT_SECRET_PREVIOUS` | Removed after rotation window |
 | Database password | In `DATABASE_URL` | Every 6 months |
+| Redis password | In `REDIS_URL` | Every 6 months |
 | Stripe API key | `STRIPE_API_KEY` | On compromise or annually |
 | Stripe webhook secret | `STRIPE_WEBHOOK_SECRET` | On compromise |
 | LiveKit API key | `LIVEKIT_API_KEY` | Annually |
