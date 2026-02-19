@@ -33,6 +33,7 @@ func clearEnv() {
 	os.Unsetenv("GO_ENV")
 	os.Unsetenv("SUBCULT_ENV")
 	os.Unsetenv("RANK_TRUST_ENABLED")
+	os.Unsetenv("PROFILING_ENABLED")
 }
 
 func TestLoad_MissingMandatory(t *testing.T) {
@@ -1510,6 +1511,86 @@ defer os.Unsetenv("CORS_MAX_AGE")
 _, errs := Load("")
 if len(errs) == 0 {
 t.Error("expected error for invalid CORS_MAX_AGE, got none")
+}
+})
+}
+
+func TestLoad_ProfilingConfiguration(t *testing.T) {
+clearEnv()
+defer clearEnv()
+
+// Helper function to set all required env vars
+setRequiredEnv := func() {
+os.Setenv("DATABASE_URL", "postgres://user:pass@localhost/subcults")
+os.Setenv("JWT_SECRET", "supersecret32characterlongvalue!")
+os.Setenv("LIVEKIT_URL", "wss://livekit.example.com")
+os.Setenv("LIVEKIT_API_KEY", "api_key_123")
+os.Setenv("LIVEKIT_API_SECRET", "api_secret_456")
+os.Setenv("STRIPE_API_KEY", "sk_test_123456789")
+os.Setenv("STRIPE_WEBHOOK_SECRET", "whsec_123456789")
+os.Setenv("STRIPE_ONBOARDING_RETURN_URL", "https://example.com/return")
+os.Setenv("STRIPE_ONBOARDING_REFRESH_URL", "https://example.com/refresh")
+os.Setenv("MAPTILER_API_KEY", "maptiler_key_123")
+os.Setenv("JETSTREAM_URL", "wss://jetstream.example.com")
+}
+
+t.Run("default profiling disabled", func(t *testing.T) {
+setRequiredEnv()
+cfg, errs := Load("")
+if len(errs) != 0 {
+t.Fatalf("Load() returned unexpected errors: %v", errs)
+}
+
+if cfg.ProfilingEnabled {
+t.Error("ProfilingEnabled should be false by default")
+}
+})
+
+t.Run("profiling enabled via env", func(t *testing.T) {
+for _, val := range []string{"true", "1", "yes", "on", "TRUE", "ON"} {
+setRequiredEnv()
+os.Setenv("PROFILING_ENABLED", val)
+cfg, errs := Load("")
+os.Unsetenv("PROFILING_ENABLED")
+
+if len(errs) != 0 {
+t.Fatalf("Load() with PROFILING_ENABLED=%s returned unexpected errors: %v", val, errs)
+}
+if !cfg.ProfilingEnabled {
+t.Errorf("PROFILING_ENABLED=%s: got false, want true", val)
+}
+}
+})
+
+t.Run("profiling disabled via env", func(t *testing.T) {
+for _, val := range []string{"false", "0", "no", "off", "FALSE", "OFF"} {
+setRequiredEnv()
+os.Setenv("PROFILING_ENABLED", val)
+cfg, errs := Load("")
+os.Unsetenv("PROFILING_ENABLED")
+
+if len(errs) != 0 {
+t.Fatalf("Load() with PROFILING_ENABLED=%s returned unexpected errors: %v", val, errs)
+}
+if cfg.ProfilingEnabled {
+t.Errorf("PROFILING_ENABLED=%s: got true, want false", val)
+}
+}
+})
+
+t.Run("profiling in log summary", func(t *testing.T) {
+setRequiredEnv()
+os.Setenv("PROFILING_ENABLED", "true")
+defer os.Unsetenv("PROFILING_ENABLED")
+
+cfg, errs := Load("")
+if len(errs) != 0 {
+t.Fatalf("Load() returned unexpected errors: %v", errs)
+}
+
+summary := cfg.LogSummary()
+if summary["profiling_enabled"] != "true" {
+t.Errorf("LogSummary profiling_enabled = %s, want 'true'", summary["profiling_enabled"])
 }
 })
 }
