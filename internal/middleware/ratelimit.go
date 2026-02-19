@@ -18,6 +18,8 @@ import (
 // Valid values:
 //   - RequestsPerWindow: must be > 0
 //   - WindowDuration: must be > 0
+//   - BurstFactor: must be >= 1.0 when non-zero (0 disables burst)
+//   - BurstWindow: duration of the burst sub-window; defaults to 10s when BurstFactor > 1.0
 type RateLimitConfig struct {
 	// RequestsPerWindow is the maximum number of requests allowed per window.
 	// Must be > 0.
@@ -25,10 +27,17 @@ type RateLimitConfig struct {
 	// WindowDuration is the time window for the rate limit.
 	// Must be > 0.
 	WindowDuration time.Duration
+	// BurstFactor, when > 1.0, allows brief spikes above the base rate.
+	// For example, 1.5 allows 1.5x the base RequestsPerWindow during the
+	// BurstWindow at the start of each main window. Set to 0 to disable.
+	BurstFactor float64
+	// BurstWindow is the duration of the burst sub-window within each main window.
+	// Only relevant when BurstFactor > 1.0. Defaults to 10 seconds when not set.
+	BurstWindow time.Duration
 }
 
 // Validate checks that the RateLimitConfig has valid values.
-// Returns an error if RequestsPerWindow <= 0 or WindowDuration <= 0.
+// Returns an error if RequestsPerWindow <= 0, WindowDuration <= 0, or BurstFactor < 1.0.
 func (c RateLimitConfig) Validate() error {
 	if c.RequestsPerWindow <= 0 {
 		return fmt.Errorf("RequestsPerWindow must be > 0 (got %d)", c.RequestsPerWindow)
@@ -36,7 +45,27 @@ func (c RateLimitConfig) Validate() error {
 	if c.WindowDuration <= 0 {
 		return fmt.Errorf("WindowDuration must be > 0 (got %s)", c.WindowDuration)
 	}
+	if c.BurstFactor != 0 && c.BurstFactor < 1.0 {
+		return fmt.Errorf("BurstFactor must be >= 1.0 when set (got %.2f)", c.BurstFactor)
+	}
 	return nil
+}
+
+// effectiveBurstWindow returns the burst sub-window duration, defaulting to 10s.
+func (c RateLimitConfig) effectiveBurstWindow() time.Duration {
+	if c.BurstWindow > 0 {
+		return c.BurstWindow
+	}
+	return 10 * time.Second
+}
+
+// burstLimit returns the effective burst limit (requests allowed during burst window).
+// Returns RequestsPerWindow when burst is disabled.
+func (c RateLimitConfig) burstLimit() int {
+	if c.BurstFactor > 1.0 {
+		return int(float64(c.RequestsPerWindow) * c.BurstFactor)
+	}
+	return c.RequestsPerWindow
 }
 
 // defaultGlobalLimit is the default global rate limit (100 requests per minute).
@@ -87,6 +116,7 @@ type RateLimitStore interface {
 type bucket struct {
 	count     int
 	windowEnd time.Time
+	burstEnd  time.Time // end of the burst sub-window; zero when burst is disabled
 }
 
 // InMemoryRateLimitStore implements RateLimitStore using an in-memory map.
@@ -114,19 +144,34 @@ func (s *InMemoryRateLimitStore) Allow(ctx context.Context, key string, config R
 
 	b, exists := s.buckets[key]
 	if !exists || now.After(b.windowEnd) {
-		// New window or expired window
+		// New window: reset counts and set burst sub-window if configured.
+		var burstEnd time.Time
+		if config.BurstFactor > 1.0 {
+			burstEnd = now.Add(config.effectiveBurstWindow())
+		}
 		s.buckets[key] = &bucket{
 			count:     1,
 			windowEnd: now.Add(config.WindowDuration),
+			burstEnd:  burstEnd,
 		}
-		remaining := config.RequestsPerWindow - 1
+		effectiveLimit := config.burstLimit()
+		if config.BurstFactor <= 1.0 {
+			effectiveLimit = config.RequestsPerWindow
+		}
+		remaining := effectiveLimit - 1
 		return true, remaining, 0
 	}
 
+	// Determine effective limit: use burst limit during burst sub-window.
+	effectiveLimit := config.RequestsPerWindow
+	if config.BurstFactor > 1.0 && !b.burstEnd.IsZero() && now.Before(b.burstEnd) {
+		effectiveLimit = config.burstLimit()
+	}
+
 	// Check if we're within the limit
-	if b.count < config.RequestsPerWindow {
+	if b.count < effectiveLimit {
 		b.count++
-		remaining := config.RequestsPerWindow - b.count
+		remaining := effectiveLimit - b.count
 		return true, remaining, 0
 	}
 
@@ -247,7 +292,111 @@ func RateLimiter(store RateLimitStore, config RateLimitConfig, keyFunc KeyFunc, 
 	}
 }
 
-// RedisRateLimitStore implements RateLimitStore using Redis with a token bucket algorithm.
+// RateLimiterWithBypass creates a rate limiting middleware that can be skipped for
+// requests where bypassFunc returns true (e.g., trusted internal services).
+// When bypassed, rate limit headers are not set and the request is passed through directly.
+// If bypassFunc is nil, the middleware behaves identically to RateLimiter.
+func RateLimiterWithBypass(store RateLimitStore, config RateLimitConfig, keyFunc KeyFunc, metrics *Metrics, bypassFunc func(*http.Request) bool) func(http.Handler) http.Handler {
+	limited := RateLimiter(store, config, keyFunc, metrics)
+	return func(next http.Handler) http.Handler {
+		limitedNext := limited(next)
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if bypassFunc != nil && bypassFunc(r) {
+				next.ServeHTTP(w, r)
+				return
+			}
+			limitedNext.ServeHTTP(w, r)
+		})
+	}
+}
+
+// InternalServiceBypassFunc returns a bypass function that allows requests carrying
+// the header "X-Internal-Token: <secret>" to skip rate limiting. This is intended
+// for trusted internal service-to-service calls.
+// An empty secret disables the bypass (returns false for every request).
+func InternalServiceBypassFunc(secret string) func(*http.Request) bool {
+	if secret == "" {
+		return func(*http.Request) bool { return false }
+	}
+	return func(r *http.Request) bool {
+		return r.Header.Get("X-Internal-Token") == secret
+	}
+}
+
+// userTierKey is the context key used to store the user tier.
+type userTierKey struct{}
+
+// SetUserTier stores the user's tier (e.g., "free", "pro") in the request context.
+// The tier is used by TieredRateLimiter / ProTierLimitSelector to select the
+// appropriate rate limit configuration.
+func SetUserTier(ctx context.Context, tier string) context.Context {
+	return context.WithValue(ctx, userTierKey{}, tier)
+}
+
+// GetUserTier retrieves the user tier from the context set by SetUserTier.
+// Returns an empty string when no tier has been stored.
+func GetUserTier(ctx context.Context) string {
+	if tier, ok := ctx.Value(userTierKey{}).(string); ok {
+		return tier
+	}
+	return ""
+}
+
+// TieredRateLimiter creates a rate limiting middleware whose limit configuration is
+// determined per-request by limitSelector. This enables different quotas for
+// different user tiers (e.g., free vs. pro).
+// The middleware otherwise behaves identically to RateLimiter.
+func TieredRateLimiter(store RateLimitStore, limitSelector func(*http.Request) RateLimitConfig, keyFunc KeyFunc, metrics *Metrics) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			config := limitSelector(r)
+			key := keyFunc(r)
+			allowed, remaining, retryAfter := store.Allow(r.Context(), key, config)
+
+			keyType := "ip"
+			if strings.HasPrefix(key, "user:") {
+				keyType = "user"
+			}
+
+			if metrics != nil {
+				metrics.IncRateLimitRequests(r.URL.Path, keyType)
+			}
+
+			w.Header().Set("X-RateLimit-Limit", strconv.Itoa(config.RequestsPerWindow))
+			w.Header().Set("X-RateLimit-Remaining", strconv.Itoa(remaining))
+
+			if !allowed {
+				if metrics != nil {
+					metrics.IncRateLimitBlocked(r.URL.Path, keyType)
+				}
+
+				ctx := SetErrorCode(r.Context(), "rate_limit_exceeded")
+				ctx = SetRateLimitKey(ctx, key)
+				r = r.WithContext(ctx)
+
+				w.Header().Set("Retry-After", strconv.Itoa(retryAfter))
+				resetTime := time.Now().Add(time.Duration(retryAfter) * time.Second).Unix()
+				w.Header().Set("X-RateLimit-Reset", strconv.FormatInt(resetTime, 10))
+				http.Error(w, "Too Many Requests", http.StatusTooManyRequests)
+				return
+			}
+
+			next.ServeHTTP(w, r)
+		})
+	}
+}
+
+// ProTierLimitSelector returns a limit-selector function for use with TieredRateLimiter.
+// Requests whose context contains tier "pro" (set via SetUserTier) receive proLimit;
+// all other requests receive defaultLimit.
+func ProTierLimitSelector(defaultLimit, proLimit RateLimitConfig) func(*http.Request) RateLimitConfig {
+	return func(r *http.Request) RateLimitConfig {
+		if GetUserTier(r.Context()) == "pro" {
+			return proLimit
+		}
+		return defaultLimit
+	}
+}
 // It uses a sliding window counter approach for accurate rate limiting.
 // Thread-safe and suitable for distributed systems.
 type RedisRateLimitStore struct {
@@ -273,7 +422,12 @@ func NewRedisRateLimitStoreWithMetrics(client *redis.Client, metrics *Metrics) *
 
 // Allow checks if a request from the given key should be allowed using Redis.
 // Implements the RateLimitStore interface with a sliding window algorithm.
+// When BurstFactor > 1.0 in config, the burst limit (RequestsPerWindow * BurstFactor)
+// is used as the effective limit for the Redis sliding window. Full sub-window burst
+// tracking is only available with the in-memory store.
 func (s *RedisRateLimitStore) Allow(ctx context.Context, key string, config RateLimitConfig) (bool, int, int) {
+	// Use burst limit when configured; Redis uses a single sliding window.
+	effectiveLimit := config.burstLimit()
 	// Use a Lua script for atomic operations
 	// This implements a sliding window counter algorithm
 	luaScript := `
@@ -315,7 +469,7 @@ func (s *RedisRateLimitStore) Allow(ctx context.Context, key string, config Rate
 	now := time.Now().Unix()
 	windowSeconds := int64(config.WindowDuration.Seconds())
 
-	result, err := s.client.Eval(ctx, luaScript, []string{key}, config.RequestsPerWindow, windowSeconds, now).Result()
+	result, err := s.client.Eval(ctx, luaScript, []string{key}, effectiveLimit, windowSeconds, now).Result()
 	if err != nil {
 		// Track Redis error in metrics if available
 		if s.metrics != nil {
@@ -323,7 +477,7 @@ func (s *RedisRateLimitStore) Allow(ctx context.Context, key string, config Rate
 		}
 		// On Redis error, fail open (allow request)
 		// This prevents Redis outages from taking down the entire API
-		return true, config.RequestsPerWindow, 0
+		return true, effectiveLimit, 0
 	}
 
 	// Parse result from Lua script with safe type assertions
@@ -334,7 +488,7 @@ func (s *RedisRateLimitStore) Allow(ctx context.Context, key string, config Rate
 			s.metrics.IncRateLimitRedisErrors()
 		}
 		// Invalid result format, fail open
-		return true, config.RequestsPerWindow, 0
+		return true, effectiveLimit, 0
 	}
 
 	allowedVal, ok := resultSlice[0].(int64)
@@ -344,7 +498,7 @@ func (s *RedisRateLimitStore) Allow(ctx context.Context, key string, config Rate
 			s.metrics.IncRateLimitRedisErrors()
 		}
 		// Unexpected type for allowed flag, fail open
-		return true, config.RequestsPerWindow, 0
+		return true, effectiveLimit, 0
 	}
 	remainingVal, ok := resultSlice[1].(int64)
 	if !ok {
@@ -353,7 +507,7 @@ func (s *RedisRateLimitStore) Allow(ctx context.Context, key string, config Rate
 			s.metrics.IncRateLimitRedisErrors()
 		}
 		// Unexpected type for remaining count, fail open
-		return true, config.RequestsPerWindow, 0
+		return true, effectiveLimit, 0
 	}
 	retryAfterVal, ok := resultSlice[2].(int64)
 	if !ok {
@@ -362,7 +516,7 @@ func (s *RedisRateLimitStore) Allow(ctx context.Context, key string, config Rate
 			s.metrics.IncRateLimitRedisErrors()
 		}
 		// Unexpected type for retry-after, fail open
-		return true, config.RequestsPerWindow, 0
+		return true, effectiveLimit, 0
 	}
 
 	allowed := allowedVal == 1

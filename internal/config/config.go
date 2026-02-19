@@ -56,6 +56,12 @@ type Config struct {
 	// Redis (Rate Limiting)
 	RedisURL string `koanf:"redis_url"` // Optional: Redis connection URL for distributed rate limiting
 
+	// Rate Limiting
+	// InternalServiceToken, when non-empty, allows requests bearing the header
+	// "X-Internal-Token: <value>" to bypass per-endpoint rate limiting.
+	// Should be a long random secret shared only with trusted internal services.
+	InternalServiceToken string `koanf:"internal_service_token"` // Optional: shared secret for internal service bypass
+
 	// Feature Flags
 	RankTrustEnabled bool `koanf:"rank_trust_enabled"` // Enable trust-weighted ranking in search/feed
 
@@ -381,6 +387,7 @@ func Load(configFilePath string) (*Config, []error) {
 		R2Endpoint:                  getEnvOrKoanf("R2_ENDPOINT", k, "r2_endpoint"),
 		R2MaxUploadSizeMB:           maxUploadSize,
 		RedisURL:                    getEnvOrKoanf("REDIS_URL", k, "redis_url"),
+		InternalServiceToken:        getEnvOrKoanf("INTERNAL_SERVICE_TOKEN", k, "internal_service_token"),
 		RankTrustEnabled:            rankTrustEnabled,
 		CanaryEnabled:               canaryEnabled,
 		CanaryTrafficPercent:        canaryTrafficPercent,
@@ -562,6 +569,7 @@ func (c *Config) LogSummary() map[string]string {
 		"r2_endpoint":                   c.R2Endpoint,
 		"r2_max_upload_size_mb":         fmt.Sprintf("%d", c.R2MaxUploadSizeMB),
 		"redis_url":                     maskDatabaseURL(c.RedisURL),
+		"internal_service_token":        maskSecret(c.InternalServiceToken),
 		"rank_trust_enabled":            fmt.Sprintf("%t", c.RankTrustEnabled),
 		"canary_enabled":                fmt.Sprintf("%t", c.CanaryEnabled),
 		"canary_traffic_percent":        fmt.Sprintf("%.2f", c.CanaryTrafficPercent),
