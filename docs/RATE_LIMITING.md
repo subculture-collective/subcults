@@ -7,9 +7,14 @@ The Subcults API implements comprehensive rate limiting to protect against abuse
 - **Redis-backed distributed rate limiting** for multi-instance deployments
 - **Per-endpoint limits** with different quotas for different operations
 - **Per-user and per-IP limits** with automatic fallback
-- **Fail-open design** - if Redis is unavailable, requests are allowed to prevent outages
+- **Burst allowance** – brief spikes above the base rate are permitted
+- **Internal service bypass** – trusted services skip rate limiting via a shared secret
+- **Pro-tier limits** – higher quotas for authenticated pro-tier users
+- **Fail-open design** – if Redis is unavailable, requests are allowed to prevent outages
 - **Prometheus metrics** for monitoring rate limit violations
 - **Structured logging** for all rate limit events
+
+---
 
 ## Configuration
 
@@ -23,41 +28,85 @@ REDIS_URL="redis://localhost:6379"
 REDIS_URL="redis://:password@localhost:6379/0"
 ```
 
-If `REDIS_URL` is not set, the system will use in-memory rate limiting (suitable only for single-instance deployments).
+If `REDIS_URL` is not set, the system uses an in-memory store (single-instance only).
 
-### Rate Limits
+### Internal Service Token (Optional)
 
-The following rate limits are enforced:
+Trusted internal services (e.g., other micro-services, background jobs) may bypass
+per-endpoint and global rate limits by including the `X-Internal-Token` header with
+the shared secret.
 
-| Endpoint | Limit | Window | Key Type |
-|----------|-------|--------|----------|
-| Search endpoints (`/search/*`) | 100 requests | 1 minute | Per user (authenticated) or IP |
-| Stream join (`/streams/{id}/join`) | 10 requests | 1 minute | Per user |
-| Event creation (`POST /events`) | 5 requests | 1 hour | Per user |
-| General (all other endpoints) | 1000 requests | 1 minute | Per IP |
-
-### Rate Limit Headers
-
-All responses include rate limit headers:
-
-- `X-RateLimit-Limit`: Maximum number of requests allowed in the window
-- `X-RateLimit-Remaining`: Number of requests remaining in current window
-- `X-RateLimit-Reset`: Unix timestamp when the limit resets (only included in 429 responses)
-- `Retry-After`: Seconds to wait before retrying (only included in 429 responses)
-
-### Example Response
-
-**Normal Request:**
+```bash
+INTERNAL_SERVICE_TOKEN="<long-random-secret>"   # min 32 chars recommended
 ```
+
+When the token is empty or unset, the bypass feature is disabled.
+
+> ⚠️ **Security**: treat this token like a password.  Rotate it using the same
+> dual-key rotation process described in [JWT_ROTATION_GUIDE.md](JWT_ROTATION_GUIDE.md).
+
+---
+
+## Rate Limits
+
+### Per-Endpoint Limits
+
+| Endpoint | Method | Limit | Window | Key Type |
+|---|---|---|---|---|
+| `POST /events` | write | 5 requests | 1 hour | per authenticated user |
+| `POST /scenes` | write | 10 requests | 1 hour | per authenticated user |
+| `POST /alliances` | write | 10 requests | 1 hour | per authenticated user |
+| `GET /search/events` | read | 100 requests ¹ | 1 minute | per user / IP |
+| `GET /search/scenes` | read | 100 requests ¹ | 1 minute | per user / IP |
+| `GET /search/posts` | read | 100 requests ¹ | 1 minute | per user / IP |
+| `POST /streams/{id}/join` | action | 10 requests | 1 minute | per authenticated user |
+| `POST /telemetry/metrics` | write | 100 requests | 1 minute | per IP |
+| All other endpoints | — | 1 000 requests ¹ | 1 minute | per IP |
+
+¹ Burst allowance applies (see below).
+
+### Pro-Tier Limits
+
+Pro-tier users have higher limits on search and other read-heavy endpoints.
+The tier is set in the request context via `middleware.SetUserTier(ctx, "pro")` by
+authentication middleware that reads tier information from the JWT or user record.
+
+Use `middleware.TieredRateLimiter` and `middleware.ProTierLimitSelector` to apply
+different configs per tier:
+
+```go
+selector := middleware.ProTierLimitSelector(
+    middleware.RateLimitConfig{RequestsPerWindow: 100, WindowDuration: time.Minute},  // free
+    middleware.RateLimitConfig{RequestsPerWindow: 500, WindowDuration: time.Minute},  // pro
+)
+handler = middleware.TieredRateLimiter(store, selector, middleware.UserKeyFunc(), metrics)(handler)
+```
+
+---
+
+## Rate Limit Headers
+
+All responses include the following headers:
+
+| Header | Presence | Description |
+|---|---|---|
+| `X-RateLimit-Limit` | All responses | Maximum requests allowed in the current window |
+| `X-RateLimit-Remaining` | All responses | Requests remaining in the current window |
+| `X-RateLimit-Reset` | 429 responses only | Unix timestamp when the limit resets |
+| `Retry-After` | 429 responses only | Seconds to wait before retrying |
+
+### Example: Normal Request
+
+```http
 HTTP/1.1 200 OK
 X-RateLimit-Limit: 100
 X-RateLimit-Remaining: 95
 Content-Type: application/json
-...
 ```
 
-**Rate Limited Request:**
-```
+### Example: Rate-Limited Request
+
+```http
 HTTP/1.1 429 Too Many Requests
 X-RateLimit-Limit: 100
 X-RateLimit-Remaining: 0
@@ -68,22 +117,80 @@ Content-Type: text/plain
 Too Many Requests
 ```
 
+---
+
+## Burst Allowance
+
+To absorb legitimate traffic spikes, endpoints with `BurstFactor > 1.0` allow
+requests above the base rate for a short sub-window at the start of each main window.
+
+| Endpoint group | Base limit | Burst factor | Burst limit | Burst window |
+|---|---|---|---|---|
+| Search endpoints | 100 req/min | 1.5× | 150 req/min | 10 s |
+| General (all other) | 1 000 req/min | 1.5× | 1 500 req/min | 10 s |
+
+**How it works (in-memory store)**:
+
+1. At the start of each window, a *burst sub-window* begins (default 10 s).
+2. During the burst sub-window, up to `base × BurstFactor` requests are allowed.
+3. Once the burst sub-window expires, only the base rate applies for the remainder of
+   the main window.
+4. Burst requests count towards the main window total; they are not a separate pool.
+
+> **Note**: When using the Redis store the burst limit is applied as a uniform cap on
+> the sliding window (i.e., `base × BurstFactor` requests per window) because Redis
+> does not track sub-windows.  Full burst sub-window semantics are only available with
+> the in-memory store.
+
+Configure burst in code:
+
+```go
+middleware.RateLimitConfig{
+    RequestsPerWindow: 100,
+    WindowDuration:    time.Minute,
+    BurstFactor:       1.5,              // 1.5× burst (0 or omit to disable)
+    BurstWindow:       10 * time.Second, // optional; defaults to 10 s
+}
+```
+
+---
+
+## Internal Service Bypass
+
+Internal services send the `X-Internal-Token` header to skip rate limiting:
+
+```http
+GET /search/events HTTP/1.1
+X-Internal-Token: <INTERNAL_SERVICE_TOKEN>
+```
+
+Create a bypass function:
+
+```go
+bypass := middleware.InternalServiceBypassFunc(cfg.InternalServiceToken)
+handler = middleware.RateLimiterWithBypass(store, config, keyFunc, metrics, bypass)(handler)
+```
+
+Bypassed requests do **not** receive rate-limit headers.
+
+---
+
 ## Monitoring
 
-### Metrics
+### Prometheus Metrics
 
-Rate limiting metrics are exposed on the `/metrics` endpoint (Prometheus format):
+Exposed on the `/metrics` endpoint:
 
-- `rate_limit_requests_total{endpoint, key_type}` - Total number of rate limit checks
-- `rate_limit_blocked_total{endpoint, key_type}` - Total number of blocked requests
+| Metric | Labels | Description |
+|---|---|---|
+| `rate_limit_requests_total` | `endpoint`, `key_type` | Total rate limit checks |
+| `rate_limit_blocked_total` | `endpoint`, `key_type` | Total blocked requests |
 
-Labels:
-- `endpoint`: The API endpoint path (e.g., `/search/events`)
-- `key_type`: Either `user` (authenticated) or `ip` (anonymous)
+`key_type` is either `user` (authenticated) or `ip` (anonymous).
 
-### Logs
+### Structured Log Fields
 
-Rate limit violations are logged with structured fields:
+Rate limit violations are logged at `WARN` level with:
 
 ```json
 {
@@ -98,92 +205,78 @@ Rate limit violations are logged with structured fields:
 }
 ```
 
+---
+
 ## Implementation Details
 
 ### Algorithm
 
-The system uses a **sliding window counter** algorithm for accurate rate limiting:
+**In-memory store**: fixed window counter with optional burst sub-window.
 
-1. Each request increments a counter for the key (user ID or IP)
-2. Old entries outside the time window are automatically removed
-3. If the counter exceeds the limit, the request is blocked
-4. The window slides continuously, providing smooth rate limiting
+1. Each request increments a per-key counter.
+2. When a new window starts, a burst sub-window is opened (if `BurstFactor > 1.0`).
+3. During the burst sub-window the effective limit is `base × BurstFactor`.
+4. After the burst sub-window only the base limit applies.
+
+**Redis store**: sliding window counter (Lua script) with atomic operations.
 
 ### Fail-Open Design
 
-If Redis becomes unavailable:
-- All requests are **allowed** to prevent cascading failures
-- Full quota is returned in headers
-- Errors are logged for monitoring
-
-This ensures high availability while maintaining observability.
+If Redis becomes unavailable all requests are **allowed** to prevent cascading failures.
+Full quota is returned in headers and errors are logged for monitoring.
 
 ### Key Types
 
-- **User keys** (`user:{did}`): Used for authenticated requests
-- **IP keys** (`ip:{address}`): Used for anonymous requests
-- User keys take precedence when authentication is present
+- **User keys** (`user:{did}`): authenticated requests (DID from JWT)
+- **IP keys** (`ip:{address}`): anonymous requests
 
-IP addresses are extracted from headers in this order:
+IP addresses are extracted in order:
 1. `X-Forwarded-For` (first IP in chain)
 2. `X-Real-IP`
 3. `RemoteAddr`
+
+---
 
 ## Development
 
 ### Running Tests
 
 ```bash
-# Run all rate limiting tests
-go test ./internal/middleware -v -run "TestRateLimit|TestMetrics"
+# All rate limiting tests
+go test ./internal/middleware -v -run "TestRateLimit|TestMetrics|TestBurst|TestBypass|TestTiered|TestPro"
 
-# Run Redis integration tests (requires Redis on localhost:6379)
+# Redis integration tests (requires Redis on localhost:6379)
 go test ./internal/middleware -v -run "TestRedis"
 ```
 
 ### In-Memory vs Redis
 
-**In-Memory Store:**
-- ✅ Zero dependencies
-- ✅ Fast (no network latency)
-- ❌ Not suitable for multi-instance deployments
-- ❌ Limits lost on restart
+| Feature | In-Memory | Redis |
+|---|---|---|
+| Burst sub-window | ✅ exact | ⚠️ simplified (burst limit as cap) |
+| Multi-instance | ❌ | ✅ |
+| Restart-safe | ❌ | ✅ |
+| Zero dependencies | ✅ | ❌ |
+| Network latency | none | ~1 ms |
 
-**Redis Store:**
-- ✅ Distributed rate limiting across instances
-- ✅ Persistent limits across restarts
-- ✅ Accurate sliding window implementation
-- ❌ Requires Redis infrastructure
-- ❌ Network latency overhead
+---
 
 ## Troubleshooting
 
-### "rate_limit_exceeded" errors in logs
+### `rate_limit_exceeded` errors in logs
 
-This is expected behavior when users exceed their quota. Check:
-1. Whether the limits are appropriate for your use case
-2. If a specific user/IP is being abusive
-3. Consider implementing admin bypass for trusted users
+1. Check whether the limits are appropriate for the use case.
+2. Identify if a specific user/IP is abusive.
+3. Use `INTERNAL_SERVICE_TOKEN` for trusted callers instead of raising global limits.
 
 ### Redis connection errors
 
-If you see "failed to connect to Redis" errors:
-1. Verify Redis is running and accessible
-2. Check the `REDIS_URL` format
-3. Ensure firewall rules allow connection
-4. Consider using in-memory mode for development
+1. Verify Redis is running: `redis-cli ping`
+2. Check `REDIS_URL` format.
+3. Ensure firewall rules allow the connection.
+4. Use in-memory mode for development (omit `REDIS_URL`).
 
-### Limits not working as expected
+### Headers missing on bypassed requests
 
-1. Check that `REDIS_URL` is set correctly
-2. Verify Redis is receiving commands (use `redis-cli monitor`)
-3. Check metrics on `/metrics` endpoint
-4. Review logs for `rate_limit_exceeded` events
-
-## Future Enhancements
-
-- [ ] Admin bypass based on user roles
-- [ ] Dynamic rate limits based on user tier
-- [ ] Rate limit configuration via API
-- [ ] Per-organization rate limits
-- [ ] Burst allowance with token bucket
+Bypassed requests intentionally omit rate-limit headers.  If you need quota information
+for bypassed callers, query the `/metrics` endpoint instead.

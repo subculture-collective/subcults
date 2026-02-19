@@ -482,6 +482,7 @@ func main() {
 	searchLimit := middleware.RateLimitConfig{
 		RequestsPerWindow: 100,
 		WindowDuration:    time.Minute,
+		BurstFactor:       1.5, // allow up to 150 req/min for brief spikes
 	}
 	streamJoinLimit := middleware.RateLimitConfig{
 		RequestsPerWindow: 10,
@@ -506,7 +507,11 @@ func main() {
 	generalLimit := middleware.RateLimitConfig{
 		RequestsPerWindow: 1000,
 		WindowDuration:    time.Minute,
+		BurstFactor:       1.5, // allow up to 1500 req/min for brief spikes
 	}
+
+	// Internal service bypass: requests carrying X-Internal-Token bypass rate limiting.
+	internalBypass := middleware.InternalServiceBypassFunc(cfg.InternalServiceToken)
 
 	// Create HTTP server with routes
 	mux := http.NewServeMux()
@@ -1032,8 +1037,8 @@ func main() {
 	// Then HTTP metrics
 	handler = middleware.HTTPMetrics(rateLimitMetrics)(handler)
 
-	// Then rate limiting
-	handler = middleware.RateLimiter(rateLimitStore, generalLimit, middleware.IPKeyFunc(), rateLimitMetrics)(handler)
+	// Then rate limiting (with internal service bypass)
+	handler = middleware.RateLimiterWithBypass(rateLimitStore, generalLimit, middleware.IPKeyFunc(), rateLimitMetrics, internalBypass)(handler)
 
 	// Then canary routing (if enabled)
 	if cfg.CanaryEnabled {
