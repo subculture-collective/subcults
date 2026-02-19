@@ -5,6 +5,7 @@ package config
 import (
 	"errors"
 	"fmt"
+	"log/slog"
 	"os"
 	"strconv"
 	"strings"
@@ -664,4 +665,33 @@ func (c *Config) GetJWTSecrets() (current, previous string) {
 	}
 	// Fallback to legacy JWT_SECRET
 	return c.JWTSecret, ""
+}
+
+// LogValue implements slog.LogValuer so that Config is automatically safe to log.
+// All sensitive fields are masked; non-sensitive fields are included as-is.
+// This prevents accidental secret exposure when logging the config struct, e.g.:
+//
+//	slog.Info("config loaded", "config", cfg)
+func (c *Config) LogValue() slog.Value {
+	return slog.GroupValue(
+		slog.Int("port", c.Port),
+		slog.String("env", c.Env),
+		slog.String("database_url", maskDatabaseURL(c.DatabaseURL)),
+		slog.String("jwt_secret", maskSecret(c.JWTSecret)),
+		slog.String("jwt_secret_current", maskSecret(c.JWTSecretCurrent)),
+		slog.String("jwt_secret_previous", maskSecret(c.JWTSecretPrevious)),
+		slog.String("livekit_url", c.LiveKitURL),
+		slog.String("livekit_api_key", maskSecret(c.LiveKitAPIKey)),
+		slog.String("livekit_api_secret", maskSecret(c.LiveKitAPISecret)),
+		slog.String("stripe_api_key", maskStripeKey(c.StripeAPIKey)),
+		slog.String("stripe_webhook_secret", maskSecret(c.StripeWebhookSecret)),
+		slog.String("maptiler_api_key", maskSecret(c.MapTilerAPIKey)),
+		slog.String("r2_access_key_id", maskSecret(c.R2AccessKeyID)),
+		slog.String("r2_secret_access_key", maskSecret(c.R2SecretAccessKey)),
+		slog.String("redis_url", maskDatabaseURL(c.RedisURL)),
+		slog.String("internal_service_token", maskSecret(c.InternalServiceToken)),
+		slog.Bool("rank_trust_enabled", c.RankTrustEnabled),
+		slog.Bool("tracing_enabled", c.TracingEnabled),
+		slog.Bool("canary_enabled", c.CanaryEnabled),
+	)
 }
