@@ -23,6 +23,7 @@ import (
 	"github.com/onnwee/subcults/internal/attachment"
 	"github.com/onnwee/subcults/internal/audit"
 	"github.com/onnwee/subcults/internal/config"
+	"github.com/onnwee/subcults/internal/db"
 	"github.com/onnwee/subcults/internal/health"
 	"github.com/onnwee/subcults/internal/idempotency"
 	"github.com/onnwee/subcults/internal/jobs"
@@ -31,6 +32,7 @@ import (
 	"github.com/onnwee/subcults/internal/middleware"
 	"github.com/onnwee/subcults/internal/payment"
 	"github.com/onnwee/subcults/internal/post"
+	"github.com/onnwee/subcults/internal/retention"
 	"github.com/onnwee/subcults/internal/scene"
 	"github.com/onnwee/subcults/internal/stream"
 	"github.com/onnwee/subcults/internal/tracing"
@@ -477,6 +479,10 @@ func main() {
 	trustHandlers := api.NewTrustHandlers(sceneRepo, trustDataSource, trustScoreStore, trustDirtyTracker)
 	allianceHandlers := api.NewAllianceHandlers(allianceRepo, sceneRepo, trustDataSource, trustDirtyTracker)
 	searchHandlers := api.NewSearchHandlers(sceneRepo, postRepo, trustStoreAdapter)
+
+	// Initialize retention and account handlers
+	retentionRepo := retention.NewInMemoryRepository(logger)
+	accountHandlers := api.NewAccountHandlers(retentionRepo, 30*24*time.Hour)
 
 	// Define rate limit configurations per endpoint
 	searchLimit := middleware.RateLimitConfig{
@@ -988,12 +994,37 @@ func main() {
 	// CSP violation report endpoint (no auth required — browsers send these automatically)
 	mux.HandleFunc("/api/csp-report", api.CSPReportHandler())
 
+	// Account data export and deletion endpoints
+	mux.HandleFunc("/api/account/export", accountHandlers.ExportAccountData)
+	mux.HandleFunc("/api/account/delete", accountHandlers.DeleteAccount)
+
 	// Telemetry endpoints for frontend performance metrics (with rate limiting)
 	telemetryHandlers := api.NewTelemetryHandlers()
 	telemetryMetricsHandler := middleware.RateLimiter(rateLimitStore, telemetryLimit, middleware.IPKeyFunc(), rateLimitMetrics)(
 		http.HandlerFunc(telemetryHandlers.PostMetrics),
 	)
 	mux.Handle("/api/telemetry/metrics", telemetryMetricsHandler)
+
+	// Schema version endpoint for service compatibility checks
+	schemaVersionStore := db.NewSchemaVersionStore(nil, logger)
+	mux.HandleFunc("/internal/db/schema-version", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet {
+			api.WriteError(w, r.Context(), http.StatusMethodNotAllowed, "method_not_allowed", "Only GET is allowed")
+			return
+		}
+		info, err := schemaVersionStore.GetCurrentVersion(r.Context())
+		if err != nil {
+			api.WriteError(w, r.Context(), http.StatusInternalServerError, "schema_version_error", "Failed to get schema version")
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		resp := fmt.Sprintf(`{"version":%d,"description":%q,"applied_at":%q,"min_version":%d}`,
+			info.Version, info.Description, info.AppliedAt, db.MinSchemaVersion)
+		if _, err := w.Write([]byte(resp)); err != nil {
+			slog.Error("failed to write schema version response", "error", err)
+		}
+	})
 
 	// Placeholder root endpoint
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
