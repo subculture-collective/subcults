@@ -546,7 +546,7 @@ func (h *EventHandlers) CancelEvent(w http.ResponseWriter, r *http.Request) {
 
 	// Emit audit log only if this was the first cancellation (not idempotent case)
 	if !alreadyCancelled {
-		if err := audit.LogAccessFromRequest(r, h.auditRepo, "event", eventID, "event_cancel"); err != nil {
+		if err := audit.LogAccessFromRequest(r, h.auditRepo, "event", eventID, "event_cancel", audit.OutcomeSuccess); err != nil {
 			slog.ErrorContext(r.Context(), "failed to log event cancellation", "error", err, "event_id", eventID)
 			// Don't fail the request, but log the error
 		}

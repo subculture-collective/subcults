@@ -73,7 +73,7 @@ CORS_MAX_AGE=3600
 CORS middleware is positioned early in the middleware chain:
 
 ```
-Request → Tracing → CORS → Canary → Rate Limiting → Metrics → RequestID → Logging → Handler
+Request → Tracing → Profiling → CORS → Canary → Rate Limiting → Metrics → RequestID → Logging → Handler
 ```
 
 Note: Canary routing is only present if enabled via configuration.

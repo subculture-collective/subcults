@@ -28,7 +28,40 @@ COPY . .
 RUN npm run build
 
 # =============================================================================
-# Output stage - Alpine for copying to volumes in Docker Compose
+# Production stage - Nginx serves static assets
+# =============================================================================
+FROM nginx:1-alpine AS production
+
+# Remove default nginx config
+RUN rm /etc/nginx/conf.d/default.conf
+
+# Add SPA-friendly nginx config
+COPY <<'EOF' /etc/nginx/conf.d/default.conf
+server {
+    listen 80;
+    root /usr/share/nginx/html;
+    index index.html;
+
+    location / {
+        try_files $uri $uri/ /index.html;
+    }
+
+    # Cache static assets
+    location ~* \.(js|css|png|jpg|jpeg|gif|ico|svg|woff2?)$ {
+        expires 1y;
+        add_header Cache-Control "public, immutable";
+    }
+}
+EOF
+
+# Copy built assets from builder
+COPY --from=builder /app/dist /usr/share/nginx/html
+
+EXPOSE 80
+CMD ["nginx", "-g", "daemon off;"]
+
+# =============================================================================
+# Output stage - Alpine for copying to volumes (local dev / legacy)
 # =============================================================================
 FROM alpine:3.19 AS dist
 

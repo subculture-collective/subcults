@@ -985,6 +985,9 @@ func main() {
 		Environment: cfg.Env,
 	}))
 
+	// CSP violation report endpoint (no auth required — browsers send these automatically)
+	mux.HandleFunc("/api/csp-report", api.CSPReportHandler())
+
 	// Telemetry endpoints for frontend performance metrics (with rate limiting)
 	telemetryHandlers := api.NewTelemetryHandlers()
 	telemetryMetricsHandler := middleware.RateLimiter(rateLimitStore, telemetryLimit, middleware.IPKeyFunc(), rateLimitMetrics)(
@@ -1031,6 +1034,12 @@ func main() {
 
 	// Then HTTP metrics
 	handler = middleware.HTTPMetrics(rateLimitMetrics)(handler)
+
+	// Then request body size limits (1MB JSON, 15MB uploads)
+	handler = middleware.MaxBodySize(1<<20, 15<<20)(handler)
+
+	// Then security headers (defense-in-depth, duplicates Caddy headers)
+	handler = middleware.SecurityHeaders(handler)
 
 	// Then rate limiting
 	handler = middleware.RateLimiter(rateLimitStore, generalLimit, middleware.IPKeyFunc(), rateLimitMetrics)(handler)

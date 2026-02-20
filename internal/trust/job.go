@@ -17,6 +17,10 @@ type DataSource interface {
 	GetMembershipsByScene(sceneID string) ([]Membership, error)
 	// GetAlliancesByScene returns all alliances where the scene is the source.
 	GetAlliancesByScene(sceneID string) ([]Alliance, error)
+	// AddAlliance adds an alliance to the data source.
+	AddAlliance(a Alliance)
+	// ClearAlliances removes all alliances for a scene.
+	ClearAlliances(sceneID string)
 }
 
 // ScoreStore persists computed trust scores.

@@ -13,7 +13,7 @@ This document provides a comprehensive STRIDE threat analysis for the Subcults p
 
 **Key Findings:**
 - **Strengths:** Strong privacy controls, comprehensive audit logging, JWT-based authentication, rate limiting
-- **Critical Gaps:** Missing JWT secret rotation mechanism, no Content Security Policy headers, file upload limits not evident
+- **Critical Gaps:** No Content Security Policy headers, file upload limits not evident
 - **Overall Risk Level:** MEDIUM (with high-risk items requiring immediate attention)
 
 ---
@@ -115,18 +115,14 @@ This document provides a comprehensive STRIDE threat analysis for the Subcults p
   - ✅ Secret loaded from environment variable (`JWT_SECRET`)
   - ✅ No secrets in source code
   - ✅ `.env` files in `.gitignore`
-  - ⚠️ No rotation mechanism visible
-- **Risk Score:** **HIGH** (no rotation mechanism)
-- **Residual Risk:** Once compromised, no way to invalidate old tokens without full outage
+  - ✅ Dual-key rotation implemented (`internal/auth/jwt.go`: `NewJWTServiceWithRotation()`)
+  - ✅ `JWT_SECRET_CURRENT` / `JWT_SECRET_PREVIOUS` config support (`internal/config/config.go`)
+  - ✅ Rotation script (`scripts/rotate-jwt-secret.sh`)
+- **Risk Score:** **LOW** (dual-key rotation implemented)
+- **Residual Risk:** Operational: rotation must be run periodically
 - **Recommendations:**
-  - 🔴 **HIGH PRIORITY:** Implement dual JWT key support:
-    ```go
-    // Store two keys: JWT_SECRET_PRIMARY and JWT_SECRET_SECONDARY
-    // Sign tokens with PRIMARY key
-    // Validate tokens against BOTH keys (fallback to secondary)
-    // Rotation process: Deploy with both keys → switch PRIMARY → remove old key
-    ```
-  - 🔴 Automate secret rotation every 90 days
+  - ✅ ~~Implement dual JWT key support~~ (done)
+  - ⚠️ Automate secret rotation every 90 days via scheduled job
   - ⚠️ Alert on JWT validation failures (potential compromise indicator)
   - ⚠️ Implement emergency secret invalidation procedure
 
@@ -260,7 +256,7 @@ This document provides a comprehensive STRIDE threat analysis for the Subcults p
   - ✅ Database constraint: `allow_precise = TRUE OR precise_point IS NULL`
   - ✅ `EnforceLocationConsent()` method in models (`internal/scene/model.go`)
   - ✅ Repository-level enforcement (`internal/scene/repository.go`)
-  - ✅ Geohash jitter for non-consented locations (`internal/geo/jitter.go`)
+  - ✅ Geohash jitter for non-consented locations (`internal/geo/geohash.go`)
   - ✅ Privacy tests (`internal/scene/privacy_test.go`)
 - **Risk Score:** **LOW** (excellent multi-layer protection)
 - **Residual Risk:** Human error (forgetting to call `EnforceLocationConsent()`)
@@ -278,18 +274,15 @@ This document provides a comprehensive STRIDE threat analysis for the Subcults p
 - **Existing Mitigations:**
   - ✅ Audit logs in separate table (`audit_logs`)
   - ✅ Indexed for efficient querying
-  - ⚠️ **NOT FOUND:** No append-only enforcement or hash chain
-- **Risk Score:** **MEDIUM** (logs can be deleted by database admin)
-- **Residual Risk:** Database admin can modify logs without detection
+  - ✅ Hash chain for tamper detection implemented (`internal/audit/hash_chain_test.go`)
+  - ✅ `VerifyHashChain()` function for integrity checks
+- **Risk Score:** **LOW** (hash chain implemented)
+- **Residual Risk:** Database admin can still modify logs if hash chain is not verified regularly
 - **Recommendations:**
+  - ✅ ~~Add hash chain for tamper detection~~ (done)
   - ⚠️ Implement append-only log table (revoke UPDATE/DELETE permissions)
-  - ⚠️ Add hash chain for tamper detection:
-    ```sql
-    ALTER TABLE audit_logs ADD COLUMN previous_log_hash VARCHAR(64);
-    -- Compute: current_hash = SHA256(previous_hash || log_data)
-    ```
   - ⚠️ Export logs to immutable storage (S3 Glacier, WORM storage) daily
-  - ⚠️ Implement log integrity verification script (run nightly)
+  - ⚠️ Run `VerifyHashChain()` nightly via scheduled job
   - ⚠️ Alert on hash chain breaks
 
 #### T-TAMP-006: File Upload Malware
@@ -571,9 +564,9 @@ This document provides a comprehensive STRIDE threat analysis for the Subcults p
 - **Affected Assets:** API server availability
 - **Existing Mitigations:**
   - ⚠️ **UNKNOWN:** Reverse proxy (Caddy) timeout configuration not visible
-  - ⚠️ **UNKNOWN:** Go http.Server timeout settings not evident
-- **Risk Score:** **MEDIUM** (depends on configuration)
-- **Residual Risk:** No visible timeout protection
+  - ✅ Go http.Server timeouts configured: ReadTimeout 15s, WriteTimeout 15s, IdleTimeout 60s (`cmd/api/main.go`)
+- **Risk Score:** **LOW** (server-side timeouts configured)
+- **Residual Risk:** Reverse proxy layer timeouts not verified
 - **Recommendations:**
   - ⚠️ Configure Caddy timeouts:
     ```
@@ -794,8 +787,7 @@ This document provides a comprehensive STRIDE threat analysis for the Subcults p
 - ✅ No critical unmitigated threats identified
 - ⚠️ Several potential critical threats if mitigations fail (T-SPOOF-001, T-TAMP-001, T-INFO-001)
 
-**HIGH (7 threats requiring immediate attention):**
-- T-SPOOF-002: JWT Secret Exposure (no rotation mechanism)
+**HIGH (5 threats requiring immediate attention):**
 - T-SPOOF-004: DID Spoofing (verification unclear)
 - T-INFO-003: EXIF Metadata Leakage (integration gap)
 - T-DOS-002: Resource Exhaustion via Large Uploads (no limits)
@@ -804,16 +796,16 @@ This document provides a comprehensive STRIDE threat analysis for the Subcults p
 - T-PRIV-004: Stripe Connect Account Takeover (state validation needed)
 
 **MEDIUM (16 threats):**
-- T-SPOOF-003, T-SPOOF-005, T-TAMP-002, T-TAMP-005, T-TAMP-006
+- T-SPOOF-002, T-SPOOF-003, T-SPOOF-005, T-TAMP-002, T-TAMP-006
 - T-INFO-002, T-INFO-004, T-INFO-006, T-INFO-007
-- T-DOS-001, T-DOS-003, T-DOS-004
+- T-DOS-001, T-DOS-004
 - T-PRIV-003, T-PRIV-005, T-PRIV-006
 
 **LOW (15 threats - well-mitigated):**
-- T-SPOOF-001, T-TAMP-001, T-TAMP-003, T-TAMP-004
+- T-SPOOF-001, T-TAMP-001, T-TAMP-003, T-TAMP-004, T-TAMP-005
 - T-REPUD-001, T-REPUD-002, T-REPUD-003
 - T-INFO-001, T-INFO-005
-- T-DOS-005, T-DOS-006
+- T-DOS-003, T-DOS-005, T-DOS-006
 
 ---
 
@@ -824,6 +816,8 @@ This document provides a comprehensive STRIDE threat analysis for the Subcults p
 | Mitigation | Threats Addressed | Implementation Status | Location |
 |-----------|-------------------|----------------------|----------|
 | JWT Authentication (HS256) | T-SPOOF-001 | ✅ Complete | `internal/auth/jwt.go` |
+| JWT Dual-Key Rotation | T-SPOOF-002 | ✅ Complete | `internal/auth/jwt.go`, `scripts/rotate-jwt-secret.sh` |
+| Audit Log Hash Chain | T-TAMP-005 | ✅ Complete | `internal/audit/` |
 | Location Consent Enforcement | T-TAMP-004, T-INFO-001 | ✅ Complete | Models + repositories + DB constraints |
 | EXIF Metadata Stripping | T-INFO-003 | ✅ Complete | `internal/image/processor.go` |
 | Audit Logging | T-REPUD-001 | ✅ Complete | `internal/audit/` |
@@ -848,13 +842,11 @@ This document provides a comprehensive STRIDE threat analysis for the Subcults p
 
 | Mitigation | Threats Addressed | Recommendation | Priority |
 |-----------|-------------------|----------------|----------|
-| JWT Secret Rotation | T-SPOOF-002 | Dual-key rotation system | **HIGH** |
 | Token Revocation | T-SPOOF-003 | Redis-backed revocation list | Medium |
-| Audit Log Hash Chain | T-TAMP-005 | Tamper detection | Medium |
 | Admin Authorization | T-PRIV-002 | RequireAdmin middleware | **HIGH** |
 | Stripe State Validation | T-PRIV-004 | HMAC-based state parameter | **HIGH** |
 | Upload Quotas | T-DOS-002 | Per-user storage limits | **HIGH** |
-| HTTP Timeouts | T-DOS-003 | Caddy + Go server config | Medium |
+| HTTP Timeouts (reverse proxy) | T-DOS-003 | Caddy timeout config | Low |
 | Connection Pool Limits | T-DOS-004 | Database pool configuration | Medium |
 
 ---
@@ -864,11 +856,7 @@ This document provides a comprehensive STRIDE threat analysis for the Subcults p
 ### Phase 1: Critical Security Gaps (0-30 days)
 
 **Priority 1: Authentication & Authorization**
-- [ ] **T-SPOOF-002:** Implement JWT dual-key rotation system
-  - Add `JWT_SECRET_PRIMARY` and `JWT_SECRET_SECONDARY` config
-  - Modify `ValidateToken()` to try both keys
-  - Create rotation procedure document
-  - **Estimated Effort:** 3 days
+- [x] **T-SPOOF-002:** ~~Implement JWT dual-key rotation system~~ (done: `internal/auth/jwt.go`, `scripts/rotate-jwt-secret.sh`)
 - [ ] **T-PRIV-002:** Implement `RequireAdmin` middleware
   - Add admin role enforcement to admin endpoints
   - Store roles in database (source of truth)
@@ -924,11 +912,7 @@ This document provides a comprehensive STRIDE threat analysis for the Subcults p
   - **Estimated Effort:** 2 days
 
 **Data Protection**
-- [ ] **T-TAMP-005:** Implement audit log hash chain
-  - Add `previous_log_hash` column
-  - Compute hash on write
-  - Create integrity verification script
-  - **Estimated Effort:** 3 days
+- [x] **T-TAMP-005:** ~~Implement audit log hash chain~~ (done: `internal/audit/`, verified by `hash_chain_test.go`)
 - [ ] **T-INFO-002:** Pseudonymize PII in logs
   - Hash DIDs with daily rotating salt
   - Truncate IP addresses (/24 for IPv4)
@@ -1057,7 +1041,7 @@ This document provides a comprehensive STRIDE threat analysis for the Subcults p
 **Security Team Review (Completed):** ✅
 - Threat identification: 38 threats across 6 STRIDE categories
 - Risk scoring: 0 critical (immediate), 7 high, 16 medium, 15 low
-- Mitigation mapping: 9 complete, 6 partial, 8 missing
+- Mitigation mapping: 11 complete, 6 partial, 6 missing
 - Implementation roadmap: 3 phases over 180 days
 
 **Engineering Team Review (Pending):**

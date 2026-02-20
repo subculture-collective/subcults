@@ -213,6 +213,14 @@ func (h *PostHandlers) UpdatePost(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Verify authenticated user
+	userDID := middleware.GetUserDID(r.Context())
+	if userDID == "" {
+		ctx := middleware.SetErrorCode(r.Context(), ErrCodeAuthFailed)
+		WriteError(w, ctx, http.StatusUnauthorized, ErrCodeAuthFailed, "Authentication required")
+		return
+	}
+
 	// Parse request body
 	var req UpdatePostRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -232,6 +240,13 @@ func (h *PostHandlers) UpdatePost(w http.ResponseWriter, r *http.Request) {
 		slog.ErrorContext(r.Context(), "failed to retrieve post", "error", err, "post_id", postID)
 		ctx := middleware.SetErrorCode(r.Context(), ErrCodeInternal)
 		WriteError(w, ctx, http.StatusInternalServerError, ErrCodeInternal, "Failed to retrieve post")
+		return
+	}
+
+	// Verify ownership
+	if existingPost.AuthorDID != userDID {
+		ctx := middleware.SetErrorCode(r.Context(), ErrCodeForbidden)
+		WriteError(w, ctx, http.StatusForbidden, ErrCodeForbidden, "You do not have permission to update this post")
 		return
 	}
 
@@ -306,6 +321,35 @@ func (h *PostHandlers) DeletePost(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		ctx := middleware.SetErrorCode(r.Context(), ErrCodeBadRequest)
 		WriteError(w, ctx, http.StatusBadRequest, ErrCodeBadRequest, "Post ID is required")
+		return
+	}
+
+	// Verify authenticated user
+	userDID := middleware.GetUserDID(r.Context())
+	if userDID == "" {
+		ctx := middleware.SetErrorCode(r.Context(), ErrCodeAuthFailed)
+		WriteError(w, ctx, http.StatusUnauthorized, ErrCodeAuthFailed, "Authentication required")
+		return
+	}
+
+	// Get existing post to verify ownership
+	existingPost, err := h.repo.GetByID(postID)
+	if err != nil {
+		if err == post.ErrPostNotFound {
+			ctx := middleware.SetErrorCode(r.Context(), ErrCodeNotFound)
+			WriteError(w, ctx, http.StatusNotFound, ErrCodeNotFound, "Post not found")
+			return
+		}
+		slog.ErrorContext(r.Context(), "failed to retrieve post", "error", err, "post_id", postID)
+		ctx := middleware.SetErrorCode(r.Context(), ErrCodeInternal)
+		WriteError(w, ctx, http.StatusInternalServerError, ErrCodeInternal, "Failed to retrieve post")
+		return
+	}
+
+	// Verify ownership
+	if existingPost.AuthorDID != userDID {
+		ctx := middleware.SetErrorCode(r.Context(), ErrCodeForbidden)
+		WriteError(w, ctx, http.StatusForbidden, ErrCodeForbidden, "You do not have permission to delete this post")
 		return
 	}
 

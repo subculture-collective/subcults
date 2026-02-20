@@ -124,7 +124,7 @@ func (h *MembershipHandlers) RequestMembership(w http.ResponseWriter, r *http.Re
 
 	// Audit log the membership request
 	if h.auditRepo != nil {
-		if err := audit.LogAccessFromRequest(r, h.auditRepo, "membership", result.ID, "membership_request"); err != nil {
+		if err := audit.LogAccessFromRequest(r, h.auditRepo, "membership", result.ID, "membership_request", audit.OutcomeSuccess); err != nil {
 			slog.WarnContext(r.Context(), "failed to log membership request audit", "error", err, "membership_id", result.ID)
 			// Continue - audit failure should not block the operation
 		}
@@ -231,7 +231,7 @@ func (h *MembershipHandlers) ApproveMembership(w http.ResponseWriter, r *http.Re
 
 	// Audit log the approval
 	if h.auditRepo != nil {
-		if err := audit.LogAccessFromRequest(r, h.auditRepo, "membership", existingMembership.ID, "membership_approve"); err != nil {
+		if err := audit.LogAccessFromRequest(r, h.auditRepo, "membership", existingMembership.ID, "membership_approve", audit.OutcomeSuccess); err != nil {
 			slog.WarnContext(r.Context(), "failed to log membership approval audit", "error", err, "membership_id", existingMembership.ID)
 			// Continue - audit failure should not block the operation
 		}
@@ -337,7 +337,7 @@ func (h *MembershipHandlers) RejectMembership(w http.ResponseWriter, r *http.Req
 
 	// Audit log the rejection
 	if h.auditRepo != nil {
-		if err := audit.LogAccessFromRequest(r, h.auditRepo, "membership", existingMembership.ID, "membership_reject"); err != nil {
+		if err := audit.LogAccessFromRequest(r, h.auditRepo, "membership", existingMembership.ID, "membership_reject", audit.OutcomeSuccess); err != nil {
 			slog.WarnContext(r.Context(), "failed to log membership rejection audit", "error", err, "membership_id", existingMembership.ID)
 			// Continue - audit failure should not block the operation
 		}
