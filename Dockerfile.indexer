@@ -1,46 +1,72 @@
 # syntax=docker/dockerfile:1
 
 # =============================================================================
-# Indexer Dockerfile - Multi-stage build for the Subcults Jetstream Indexer
+# Indexer Dockerfile - Multi-stage production build for the Subcults Jetstream Indexer
+# Target: <10MB image, distroless nonroot, zero CVEs
 # =============================================================================
 
-# Build arguments for cross-compilation - Docker automatically sets these based on platform
 ARG TARGETOS
 ARG TARGETARCH
+ARG VERSION=dev
+ARG COMMIT_SHA=unknown
+ARG BUILD_TIME=unknown
 
+# ---------------------------------------------------------------------------
 # Build stage
-FROM golang:1.22-alpine AS builder
+# ---------------------------------------------------------------------------
+FROM golang:1.24-alpine AS builder
 
 ARG TARGETOS
 ARG TARGETARCH
+ARG VERSION
+ARG COMMIT_SHA
+ARG BUILD_TIME
 
 WORKDIR /build
 
-# Copy go.mod first for better caching of dependencies
-COPY go.mod ./
-COPY go.sum* ./
+RUN apk add --no-cache ca-certificates tzdata
 
-# Download dependencies (if any)
-RUN go mod download
+# Dependency layer (cached separately from source)
+COPY go.mod go.sum* ./
+RUN --mount=type=cache,target=/go/pkg/mod go mod download
 
-# Copy source code
+# Source layer
 COPY . .
 
-# Build with CGO disabled for static binary
-RUN CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} go build \
-    -ldflags="-w -s" \
+# Build static binary (indexer has no CGO dependencies)
+RUN --mount=type=cache,target=/go/pkg/mod \
+    --mount=type=cache,target=/root/.cache/go-build \
+    CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} go build \
+    -ldflags="-w -s -X main.version=${VERSION} -X main.commit=${COMMIT_SHA} -X main.buildTime=${BUILD_TIME}" \
     -o /build/indexer \
     ./cmd/indexer
 
-# =============================================================================
-# Runtime stage - Using distroless for minimal attack surface
-# =============================================================================
+# ---------------------------------------------------------------------------
+# Healthcheck binary - minimal wget from busybox for Docker healthchecks
+# ---------------------------------------------------------------------------
+FROM busybox:1.36-musl AS healthcheck
+
+# ---------------------------------------------------------------------------
+# Runtime stage - distroless for minimal attack surface
+# ---------------------------------------------------------------------------
 FROM gcr.io/distroless/static-debian12:nonroot
 
-# Copy the binary from builder
+LABEL org.opencontainers.image.title="subcults-indexer" \
+      org.opencontainers.image.description="Subcults Jetstream Indexer" \
+      org.opencontainers.image.source="https://github.com/subculture-collective/subcults" \
+      org.opencontainers.image.version="${VERSION}" \
+      org.opencontainers.image.revision="${COMMIT_SHA}"
+
+# Timezone data and CA certificates
+COPY --from=builder /usr/share/zoneinfo /usr/share/zoneinfo
+COPY --from=builder /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
+
+# Application binary
 COPY --from=builder /build/indexer /app/indexer
 
-# Use non-root user (provided by distroless:nonroot)
+# Healthcheck binary (~1MB)
+COPY --from=healthcheck /bin/wget /usr/bin/wget
+
 USER nonroot:nonroot
 
 ENTRYPOINT ["/app/indexer"]

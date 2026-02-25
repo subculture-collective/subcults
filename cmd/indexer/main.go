@@ -14,6 +14,7 @@ import (
 	"time"
 
 	_ "github.com/lib/pq" // Postgres driver
+	"github.com/onnwee/subcults/internal/db"
 	"github.com/onnwee/subcults/internal/indexer"
 	"github.com/onnwee/subcults/internal/middleware"
 	"github.com/prometheus/client_golang/prometheus"
@@ -58,6 +59,14 @@ func main() {
 		logger.Error("failed to register metrics", "error", err)
 		os.Exit(1)
 	}
+
+	// Initialize database slow query metrics
+	dbMetrics := db.NewSlowQueryMetrics()
+	if err := dbMetrics.Register(reg); err != nil {
+		logger.Error("failed to register db metrics", "error", err)
+		os.Exit(1)
+	}
+	logger.Info("database slow query metrics registered")
 
 	// Create HTTP server for metrics
 	mux := http.NewServeMux()

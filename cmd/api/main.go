@@ -35,6 +35,7 @@ import (
 	"github.com/onnwee/subcults/internal/retention"
 	"github.com/onnwee/subcults/internal/scene"
 	"github.com/onnwee/subcults/internal/stream"
+	"github.com/onnwee/subcults/internal/telemetry"
 	"github.com/onnwee/subcults/internal/tracing"
 	"github.com/onnwee/subcults/internal/trust"
 	"github.com/onnwee/subcults/internal/upload"
@@ -235,6 +236,23 @@ func main() {
 	logger.Info("trust recompute job initialized",
 		"interval", recomputeInterval,
 		"timeout", recomputeTimeout)
+
+	// Initialize database slow query metrics
+	dbMetrics := db.NewSlowQueryMetrics()
+	if err := dbMetrics.Register(promRegistry); err != nil {
+		logger.Error("failed to register db metrics", "error", err)
+		os.Exit(1)
+	}
+	logger.Info("database slow query metrics registered")
+
+	// Initialize telemetry store and metrics
+	telemetryStore := telemetry.NewInMemoryStore()
+	telemetryMetrics := telemetry.NewMetrics()
+	if err := telemetryMetrics.Register(promRegistry); err != nil {
+		logger.Error("failed to register telemetry metrics", "error", err)
+		os.Exit(1)
+	}
+	logger.Info("telemetry metrics registered")
 
 	// Initialize HTTP and rate limiting metrics
 	rateLimitMetrics := middleware.NewMetrics()
@@ -998,12 +1016,29 @@ func main() {
 	mux.HandleFunc("/api/account/export", accountHandlers.ExportAccountData)
 	mux.HandleFunc("/api/account/delete", accountHandlers.DeleteAccount)
 
-	// Telemetry endpoints for frontend performance metrics (with rate limiting)
-	telemetryHandlers := api.NewTelemetryHandlers()
+	// Telemetry endpoints for frontend performance metrics and event batching
+	telemetryHandlers := api.NewTelemetryHandlers(telemetryStore, telemetryMetrics)
 	telemetryMetricsHandler := middleware.RateLimiter(rateLimitStore, telemetryLimit, middleware.IPKeyFunc(), rateLimitMetrics)(
 		http.HandlerFunc(telemetryHandlers.PostMetrics),
 	)
 	mux.Handle("/api/telemetry/metrics", telemetryMetricsHandler)
+
+	// Telemetry event batch endpoint (same rate limiting as metrics)
+	telemetryEventsHandler := middleware.RateLimiter(rateLimitStore, telemetryLimit, middleware.IPKeyFunc(), rateLimitMetrics)(
+		http.HandlerFunc(telemetryHandlers.PostEvents),
+	)
+	mux.Handle("/api/telemetry", telemetryEventsHandler)
+
+	// Client-side error logging endpoint (10 errors/min per IP)
+	clientErrorLimit := middleware.RateLimitConfig{
+		RequestsPerWindow: 10,
+		WindowDuration:    time.Minute,
+	}
+	errorLoggerHandlers := api.NewErrorLoggerHandlers(telemetryStore, telemetryMetrics)
+	clientErrorHandler := middleware.RateLimiter(rateLimitStore, clientErrorLimit, middleware.IPKeyFunc(), rateLimitMetrics)(
+		http.HandlerFunc(errorLoggerHandlers.HandleClientError),
+	)
+	mux.Handle("/api/log/client-error", clientErrorHandler)
 
 	// Schema version endpoint for service compatibility checks
 	schemaVersionStore := db.NewSchemaVersionStore(nil, logger)

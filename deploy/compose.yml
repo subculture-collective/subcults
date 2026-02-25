@@ -57,10 +57,26 @@ services:
       dockerfile: Dockerfile.indexer
     container_name: subcults-indexer
     environment:
-      - GO_ENV=${GO_ENV:-development}
+      - GO_ENV=${GO_ENV:-production}
       - DATABASE_URL=${DATABASE_URL}
       - JETSTREAM_URL=${JETSTREAM_URL}
+      - METRICS_PORT=9090
+    healthcheck:
+      test:
+        [
+          'CMD',
+          'wget',
+          '--no-verbose',
+          '--tries=1',
+          '--spider',
+          'http://localhost:9090/internal/indexer/metrics',
+        ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 15s
     networks:
+      - web
       - internal
     restart: unless-stopped
 

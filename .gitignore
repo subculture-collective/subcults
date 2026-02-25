@@ -72,6 +72,12 @@ Thumbs.db
 .Spotlight-V100
 .Trashes
 
+# Backups
+backups/
+
+# Deploy state
+deploy/.deploy-state
+
 # Temporary files
 tmp/
 temp/

@@ -53,6 +53,174 @@ export class MockAPIServer {
       res.json({ status: 'ok', timestamp: new Date().toISOString() });
     });
 
+    // ── Auth endpoints ──
+
+    this.app.post('/api/auth/login', (req: Request, res: Response) => {
+      const { handle, password } = req.body;
+      if (!handle || !password) {
+        res.status(400).json({ error: 'handle and password required' });
+        return;
+      }
+      if (handle === 'invalid@test.com') {
+        res.status(401).json({ error: 'invalid credentials' });
+        return;
+      }
+      res.json({
+        access_token: 'e2e-access-token',
+        refresh_token: 'e2e-refresh-token',
+        user: {
+          did: 'did:plc:e2euser',
+          handle: handle,
+          display_name: 'E2E User',
+        },
+      });
+    });
+
+    this.app.post('/api/auth/refresh', (req: Request, res: Response) => {
+      const { refresh_token } = req.body;
+      if (refresh_token !== 'e2e-refresh-token') {
+        res.status(401).json({ error: 'invalid refresh token' });
+        return;
+      }
+      res.json({
+        access_token: 'e2e-access-token-refreshed',
+        refresh_token: 'e2e-refresh-token',
+      });
+    });
+
+    this.app.get('/api/auth/me', (req: Request, res: Response) => {
+      const auth = req.headers.authorization;
+      if (!auth || !auth.startsWith('Bearer e2e-access-token')) {
+        res.status(401).json({ error: 'unauthorized' });
+        return;
+      }
+      res.json({
+        did: 'did:plc:e2euser',
+        handle: 'testuser.subcults.tv',
+        display_name: 'E2E User',
+      });
+    });
+
+    // ── Scenes endpoints ──
+
+    this.app.get('/api/scenes', (req: Request, res: Response) => {
+      res.json({
+        scenes: [
+          {
+            id: 'scene-1',
+            name: 'Brooklyn Underground',
+            description: 'Deep house and techno in Brooklyn',
+            genre: 'electronic',
+            owner_did: 'did:plc:owner1',
+            coarse_geohash: 'dr5ru7',
+            allow_precise: false,
+            latitude: 40.6782,
+            longitude: -73.9442,
+          },
+          {
+            id: 'scene-2',
+            name: 'Berlin Beats',
+            description: 'Berlin techno scene community',
+            genre: 'techno',
+            owner_did: 'did:plc:owner2',
+            coarse_geohash: 'u33db8',
+            allow_precise: false,
+            latitude: 52.5200,
+            longitude: 13.4050,
+          },
+        ],
+        total: 2,
+      });
+    });
+
+    this.app.get('/api/scenes/:id', (req: Request, res: Response) => {
+      const id = req.params.id;
+      res.json({
+        id,
+        name: 'Brooklyn Underground',
+        description: 'Deep house and techno in Brooklyn',
+        genre: 'electronic',
+        owner_did: 'did:plc:owner1',
+        coarse_geohash: 'dr5ru7',
+        allow_precise: false,
+        latitude: 40.6782,
+        longitude: -73.9442,
+        member_count: 42,
+        created_at: '2024-01-15T00:00:00Z',
+      });
+    });
+
+    // ── Events endpoints ──
+
+    this.app.get('/api/events', (req: Request, res: Response) => {
+      res.json({
+        events: [
+          {
+            id: 'event-1',
+            scene_id: 'scene-1',
+            title: 'Friday Night Sessions',
+            description: 'Weekly deep house night',
+            starts_at: new Date(Date.now() + 86400000).toISOString(),
+            ends_at: new Date(Date.now() + 100800000).toISOString(),
+            status: 'upcoming',
+          },
+        ],
+        total: 1,
+      });
+    });
+
+    this.app.get('/api/events/:id', (req: Request, res: Response) => {
+      const id = req.params.id;
+      res.json({
+        id,
+        scene_id: 'scene-1',
+        title: 'Friday Night Sessions',
+        description: 'Weekly deep house night',
+        starts_at: new Date(Date.now() + 86400000).toISOString(),
+        ends_at: new Date(Date.now() + 100800000).toISOString(),
+        status: 'upcoming',
+      });
+    });
+
+    // ── Search endpoint ──
+
+    this.app.get('/api/search', (req: Request, res: Response) => {
+      const q = req.query.q as string;
+      if (!q) {
+        res.json({ results: [], total: 0 });
+        return;
+      }
+      res.json({
+        results: [
+          {
+            type: 'scene',
+            id: 'scene-1',
+            name: 'Brooklyn Underground',
+            description: 'Deep house and techno in Brooklyn',
+            score: 0.95,
+          },
+        ],
+        total: 1,
+      });
+    });
+
+    // ── Feed endpoint ──
+
+    this.app.get('/api/feed', (req: Request, res: Response) => {
+      res.json({
+        posts: [
+          {
+            id: 'post-1',
+            author_did: 'did:plc:author1',
+            text: 'Great set last night!',
+            scene_id: 'scene-1',
+            created_at: new Date().toISOString(),
+          },
+        ],
+        cursor: null,
+      });
+    });
+
     // LiveKit token generation (matches production API contract)
     this.app.post('/api/livekit/token', (req: Request, res: Response) => {
       const { room_id, scene_id, event_id } = req.body;

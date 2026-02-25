@@ -1,5 +1,6 @@
-.PHONY: help build build-api build-frontend test test-e2e test-load lint clean tidy verify fmt \
-	migrate-up migrate-down compose-up compose-down logs dev dev-api dev-frontend dev-indexer
+.PHONY: help build build-api build-frontend test test-coverage test-integration test-all test-e2e test-load lint clean tidy verify fmt \
+	migrate-up migrate-down compose-up compose-down logs dev dev-api dev-frontend dev-indexer \
+	docker-build docker-build-api docker-build-indexer docker-build-frontend docker-size
 
 # Default target
 .DEFAULT_GOAL := help
@@ -37,6 +38,25 @@ test:
 	go test -v -race -cover ./...
 	@echo "Running frontend tests (if defined in package.json)..."
 	npm run test --if-present
+
+## test-coverage: Run tests with coverage report (Go + frontend)
+test-coverage:
+	@echo "Running Go tests with coverage..."
+	go test -race -coverprofile=coverage.out -covermode=atomic ./...
+	go tool cover -html=coverage.out -o coverage.html
+	@echo "Go coverage report: coverage.html"
+	@echo "Running frontend tests with coverage..."
+	cd web && npm run test:coverage
+	@echo "Frontend coverage report: web/coverage/index.html"
+
+## test-integration: Run integration tests (requires Docker)
+test-integration:
+	@echo "Running integration tests..."
+	go test -tags=integration -race -v ./...
+
+## test-all: Run all tests (unit + integration + E2E + load)
+test-all: test test-integration test-e2e test-load
+	@echo "All tests complete."
 
 ## test-e2e: Run E2E tests for streaming functionality
 test-e2e:
@@ -132,3 +152,52 @@ logs-api:
 logs-postgres:
 	@test -f $(DOCKER_COMPOSE_FILE) || (echo "Error: $(DOCKER_COMPOSE_FILE) not found" && exit 1)
 	docker compose -f $(DOCKER_COMPOSE_FILE) logs -f postgres
+
+# =============================================================================
+# Docker Image Builds
+# =============================================================================
+
+VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo "dev")
+COMMIT_SHA ?= $(shell git rev-parse --short HEAD 2>/dev/null || echo "unknown")
+BUILD_TIME ?= $(shell date -u +%Y-%m-%dT%H:%M:%SZ)
+REGISTRY ?= ghcr.io/subculture-collective
+
+## docker-build: Build all production Docker images
+docker-build: docker-build-api docker-build-indexer docker-build-frontend
+
+## docker-build-api: Build production API Docker image
+docker-build-api:
+	@echo "Building API image..."
+	docker build \
+		--build-arg VERSION=$(VERSION) \
+		--build-arg COMMIT_SHA=$(COMMIT_SHA) \
+		--build-arg BUILD_TIME=$(BUILD_TIME) \
+		-t $(REGISTRY)/subcults-api:$(VERSION) \
+		-t $(REGISTRY)/subcults-api:latest \
+		-f Dockerfile.api .
+
+## docker-build-indexer: Build production Indexer Docker image
+docker-build-indexer:
+	@echo "Building Indexer image..."
+	docker build \
+		--build-arg VERSION=$(VERSION) \
+		--build-arg COMMIT_SHA=$(COMMIT_SHA) \
+		--build-arg BUILD_TIME=$(BUILD_TIME) \
+		-t $(REGISTRY)/subcults-indexer:$(VERSION) \
+		-t $(REGISTRY)/subcults-indexer:latest \
+		-f Dockerfile.indexer .
+
+## docker-build-frontend: Build production Frontend Docker image
+docker-build-frontend:
+	@echo "Building Frontend image..."
+	docker build \
+		--build-arg VERSION=$(VERSION) \
+		--build-arg COMMIT_SHA=$(COMMIT_SHA) \
+		-t $(REGISTRY)/subcults-frontend:$(VERSION) \
+		-t $(REGISTRY)/subcults-frontend:latest \
+		-f Dockerfile.frontend .
+
+## docker-size: Show Docker image sizes
+docker-size:
+	@echo "Image sizes:"
+	@docker images --format "table {{.Repository}}:{{.Tag}}\t{{.Size}}" | grep subcults || echo "No subcults images found. Run 'make docker-build' first."
