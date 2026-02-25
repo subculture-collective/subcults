@@ -229,7 +229,7 @@ go tool pprof -png http://localhost:8080/debug/pprof/heap > heap.png
 1. Run CPU profile during load:
    ```bash
    # In terminal 1: Start load test
-   k6 run perf/k6/streaming-load-test.js
+   k6 run perf/k6/stream-load-test.js
    
    # In terminal 2: Collect CPU profile
    go tool pprof -http=:8081 http://localhost:8080/debug/pprof/profile?seconds=30
@@ -413,5 +413,5 @@ Ensure the server is under load during profiling.
 ## See Also
 
 - [Architecture Documentation](../README.md)
-- [Performance Testing](../perf/README.md)
+- [Performance Testing](../perf/k6/stream-load-test.js)
 - [Observability](./OBSERVABILITY.md)

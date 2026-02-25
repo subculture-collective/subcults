@@ -56,7 +56,8 @@ Rebuild the connective tissue of the underground: a trust‑based discovery laye
 subcults/
 ├── cmd/
 │   ├── api/          # Main API server entry point
-│   └── backfill/     # Backfill command for data migration
+│   ├── backfill/     # Backfill command for data migration
+│   └── indexer/      # Jetstream consumer for AT Protocol ingestion
 ├── deploy/           # Docker Compose and deployment configs
 ├── internal/         # Private application code
 ├── pkg/              # Reusable packages
@@ -285,9 +286,10 @@ Variables are organized into logical groups:
   - Example: `postgres://subcults:password@localhost:5432/subcults?sslmode=disable`
 
 #### Authentication & Security
-- **`JWT_SECRET`** (required) - JWT signing secret for access and refresh tokens
+- **`JWT_SECRET`** or **`JWT_SECRET_CURRENT`** (required) - JWT signing secret for access and refresh tokens
   - Recommended: at least 32 characters
   - Generate with: `openssl rand -base64 32`
+  - For zero-downtime key rotation, use `JWT_SECRET_CURRENT` and `JWT_SECRET_PREVIOUS` (see `scripts/rotate-jwt-secret.sh`)
 
 #### External Services
 
@@ -328,7 +330,7 @@ Variables are organized into logical groups:
 The following variables **must** be set before starting the application:
 
 - `DATABASE_URL` - Database connection
-- `JWT_SECRET` - Authentication secret
+- `JWT_SECRET` (or `JWT_SECRET_CURRENT`) - Authentication secret
 - `LIVEKIT_URL`, `LIVEKIT_API_KEY`, `LIVEKIT_API_SECRET` - WebRTC streaming
 - `STRIPE_API_KEY`, `STRIPE_WEBHOOK_SECRET` - Payment processing
 - `MAPTILER_API_KEY` - Map tiles
@@ -422,10 +424,10 @@ Subcults is built with a **privacy-first** philosophy. We provide comprehensive 
 
 ### 📞 Contact
 
-- **Privacy Inquiries:** privacy@subcults.org
-- **Data Subject Requests:** privacy@subcults.org (Subject: "Data Request")
-- **Data Protection Officer:** dpo@subcults.org
-- **Security Issues:** security@subcults.org
+- **Privacy Inquiries:** info@subcult.tv
+- **Data Subject Requests:** info@subcult.tv (Subject: "Data Request")
+- **Data Protection Officer:** info@subcult.tv
+- **Security Issues:** info@subcult.tv
 
 For technical privacy implementation details, see [docs/PRIVACY.md](docs/PRIVACY.md).
 
@@ -466,14 +468,14 @@ We run automated vulnerability scanning on all dependencies:
 
 ### 📖 Documentation
 
-- **[SECURITY.md](SECURITY.md)** - Security policy, vulnerability reporting, disclosure timeline
+- **[SECURITY.md](docs/SECURITY.md)** - Security policy, vulnerability reporting, disclosure timeline
 - **[docs/DEPENDENCY_SCANNING.md](docs/DEPENDENCY_SCANNING.md)** - Technical implementation details
 
 ### 🚨 Reporting Vulnerabilities
 
 If you discover a security vulnerability, please:
 - **DO NOT** open a public GitHub issue
-- Email: security@subcults.dev
+- Email: info@subcult.tv
 - Include: description, reproduction steps, impact assessment
 
 We will acknowledge reports within 48 hours.

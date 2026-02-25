@@ -214,7 +214,7 @@ Overhead when enabled: ~13ns/request (~5% increase)
 
 ## References
 
-- Issue: #129 - Task: Rate Limiting & Abuse Detection Middleware
+- PR: #533 - Add pprof profiling infrastructure with production safety guarantees
 - Epic: Performance & Optimization #14 (Phase 2)
 - Documentation: `docs/PROFILING.md`
 - Tests: `internal/middleware/profiling_test.go`

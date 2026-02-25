@@ -13,6 +13,7 @@ import (
 	"github.com/onnwee/subcults/internal/middleware"
 	"github.com/onnwee/subcults/internal/scene"
 	"github.com/onnwee/subcults/internal/stream"
+	"github.com/onnwee/subcults/internal/validate"
 )
 
 // TestCreateScene_Success tests successful scene creation.
@@ -641,7 +642,7 @@ func TestDeleteScene_AlreadyDeleted(t *testing.T) {
 	}
 }
 
-// TestValidateSceneName tests scene name validation function.
+// TestValidateSceneName tests scene name validation via the validate package.
 func TestValidateSceneName(t *testing.T) {
 	tests := []struct {
 		name      string
@@ -653,8 +654,8 @@ func TestValidateSceneName(t *testing.T) {
 		{"valid with dash", "Test-Scene", false},
 		{"valid with underscore", "Test_Scene", false},
 		{"valid with period", "Scene v1.0", false},
-		{"too short", "ab", true},
-		{"too long", strings.Repeat("a", 65), true},
+		{"empty", "", true},
+		{"too long", strings.Repeat("a", 101), true},
 		{"invalid chars", "Scene<>", true},
 		{"invalid chars @", "Scene@email", true},
 		{"invalid apostrophe", "Mike's Scene", true},
@@ -663,10 +664,10 @@ func TestValidateSceneName(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			errMsg := validateSceneName(tt.sceneName)
-			hasErr := errMsg != ""
+			_, err := validate.SceneName(tt.sceneName)
+			hasErr := err != nil
 			if hasErr != tt.wantErr {
-				t.Errorf("validateSceneName(%q) error = %v, wantErr %v", tt.sceneName, errMsg, tt.wantErr)
+				t.Errorf("validate.SceneName(%q) error = %v, wantErr %v", tt.sceneName, err, tt.wantErr)
 			}
 		})
 	}

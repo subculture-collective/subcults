@@ -15,7 +15,7 @@ export default defineConfig({
   fullyParallel: false, // Stream tests should run sequentially to avoid port conflicts
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 2 : 0,
-  workers: process.env.CI ? 1 : 1, // One worker to avoid resource contention
+  workers: process.env.CI ? 2 : 2,
   
   // Reporter configuration
   reporter: [

@@ -6,10 +6,13 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
+
+	"github.com/onnwee/subcults/internal/telemetry"
 )
 
 func TestTelemetryHandlers_PostMetrics(t *testing.T) {
-	handler := NewTelemetryHandlers()
+	handler := NewTelemetryHandlers(telemetry.NewInMemoryStore(), telemetry.NewMetrics())
 
 	tests := []struct {
 		name           string
@@ -30,7 +33,7 @@ func TestTelemetryHandlers_PostMetrics(t *testing.T) {
 						Delta:          1234.56,
 						ID:             "test-id-1",
 						NavigationType: "navigate",
-						Timestamp:      1234567890000,
+						Timestamp:      time.Now().UnixMilli(),
 					},
 					{
 						Name:           "FCP",
@@ -39,7 +42,7 @@ func TestTelemetryHandlers_PostMetrics(t *testing.T) {
 						Delta:          789.01,
 						ID:             "test-id-2",
 						NavigationType: "navigate",
-						Timestamp:      1234567890100,
+						Timestamp:      time.Now().UnixMilli(),
 					},
 				},
 				UserAgent: "Mozilla/5.0 Test Browser",
@@ -59,7 +62,7 @@ func TestTelemetryHandlers_PostMetrics(t *testing.T) {
 						Delta:          0.05,
 						ID:             "test-id-3",
 						NavigationType: "navigate",
-						Timestamp:      1234567890200,
+						Timestamp:      time.Now().UnixMilli(),
 					},
 				},
 				UserAgent: "Mozilla/5.0 Test Browser",
@@ -169,7 +172,7 @@ func TestTelemetryHandlers_PostMetrics(t *testing.T) {
 }
 
 func TestTelemetryHandlers_PostMetrics_MetricValidation(t *testing.T) {
-	handler := NewTelemetryHandlers()
+	handler := NewTelemetryHandlers(telemetry.NewInMemoryStore(), telemetry.NewMetrics())
 
 	tests := []struct {
 		name           string
@@ -185,7 +188,7 @@ func TestTelemetryHandlers_PostMetrics_MetricValidation(t *testing.T) {
 				Delta:          2345.67,
 				ID:             "lcp-test-id",
 				NavigationType: "navigate",
-				Timestamp:      1234567890000,
+				Timestamp:      time.Now().UnixMilli(),
 			},
 			expectedStatus: http.StatusAccepted,
 		},
@@ -198,7 +201,7 @@ func TestTelemetryHandlers_PostMetrics_MetricValidation(t *testing.T) {
 				Delta:          0.001,
 				ID:             "cls-test-id",
 				NavigationType: "reload",
-				Timestamp:      1234567890000,
+				Timestamp:      time.Now().UnixMilli(),
 			},
 			expectedStatus: http.StatusAccepted,
 		},
@@ -211,7 +214,7 @@ func TestTelemetryHandlers_PostMetrics_MetricValidation(t *testing.T) {
 				Delta:          999.99,
 				ID:             "custom-test-id",
 				NavigationType: "custom",
-				Timestamp:      1234567890000,
+				Timestamp:      time.Now().UnixMilli(),
 			},
 			expectedStatus: http.StatusAccepted,
 		},

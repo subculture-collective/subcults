@@ -5,6 +5,7 @@ This example demonstrates how to integrate JWT secret rotation in your applicati
 ## Overview
 
 The example shows:
+
 - How to load configuration with JWT rotation support
 - How to create a JWT service with dual-key rotation
 - How to generate and validate tokens during rotation
@@ -47,6 +48,7 @@ go run examples/jwt-rotation-integration.go
 ## Expected Output
 
 With single-key mode:
+
 ```
 ✓ JWT service initialized with single key
   - Current secret: [REDACTED]
@@ -59,6 +61,7 @@ With single-key mode:
 ```
 
 With dual-key mode (rotation):
+
 ```
 ✓ JWT service initialized with rotation support
   - Current secret: [REDACTED]

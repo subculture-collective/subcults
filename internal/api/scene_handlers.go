@@ -348,6 +348,14 @@ func (h *SceneHandlers) UpdateScene(w http.ResponseWriter, r *http.Request) {
 	}
 	sceneID := pathParts[0]
 
+	// Verify authenticated user
+	userDID := middleware.GetUserDID(r.Context())
+	if userDID == "" {
+		ctx := middleware.SetErrorCode(r.Context(), ErrCodeAuthFailed)
+		WriteError(w, ctx, http.StatusUnauthorized, ErrCodeAuthFailed, "Authentication required")
+		return
+	}
+
 	// Parse request body
 	var req UpdateSceneRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -367,6 +375,13 @@ func (h *SceneHandlers) UpdateScene(w http.ResponseWriter, r *http.Request) {
 		slog.ErrorContext(r.Context(), "failed to retrieve scene", "error", err, "scene_id", sceneID)
 		ctx := middleware.SetErrorCode(r.Context(), ErrCodeInternal)
 		WriteError(w, ctx, http.StatusInternalServerError, ErrCodeInternal, "Failed to retrieve scene")
+		return
+	}
+
+	// Verify ownership
+	if !existingScene.IsOwner(userDID) {
+		ctx := middleware.SetErrorCode(r.Context(), ErrCodeForbidden)
+		WriteError(w, ctx, http.StatusForbidden, ErrCodeForbidden, "You do not have permission to update this scene")
 		return
 	}
 
@@ -478,6 +493,35 @@ func (h *SceneHandlers) DeleteScene(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	sceneID := pathParts[0]
+
+	// Verify authenticated user
+	userDID := middleware.GetUserDID(r.Context())
+	if userDID == "" {
+		ctx := middleware.SetErrorCode(r.Context(), ErrCodeAuthFailed)
+		WriteError(w, ctx, http.StatusUnauthorized, ErrCodeAuthFailed, "Authentication required")
+		return
+	}
+
+	// Get existing scene to verify ownership
+	existingScene, err := h.repo.GetByID(sceneID)
+	if err != nil {
+		if err == scene.ErrSceneNotFound {
+			ctx := middleware.SetErrorCode(r.Context(), ErrCodeNotFound)
+			WriteError(w, ctx, http.StatusNotFound, ErrCodeNotFound, "Scene not found")
+			return
+		}
+		slog.ErrorContext(r.Context(), "failed to retrieve scene", "error", err, "scene_id", sceneID)
+		ctx := middleware.SetErrorCode(r.Context(), ErrCodeInternal)
+		WriteError(w, ctx, http.StatusInternalServerError, ErrCodeInternal, "Failed to retrieve scene")
+		return
+	}
+
+	// Verify ownership
+	if !existingScene.IsOwner(userDID) {
+		ctx := middleware.SetErrorCode(r.Context(), ErrCodeForbidden)
+		WriteError(w, ctx, http.StatusForbidden, ErrCodeForbidden, "You do not have permission to delete this scene")
+		return
+	}
 
 	// Soft delete the scene
 	if err := h.repo.Delete(sceneID); err != nil {

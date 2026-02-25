@@ -9,16 +9,22 @@ import (
 	"time"
 
 	"github.com/onnwee/subcults/internal/middleware"
+	"github.com/onnwee/subcults/internal/telemetry"
 )
 
-// TelemetryHandlers provides endpoints for frontend performance telemetry.
+// TelemetryHandlers provides endpoints for frontend performance telemetry
+// and event batch collection.
 type TelemetryHandlers struct {
-	// Future: could add a telemetry store/aggregator here
+	store   telemetry.Store
+	metrics *telemetry.Metrics
 }
 
 // NewTelemetryHandlers creates a new telemetry handler.
-func NewTelemetryHandlers() *TelemetryHandlers {
-	return &TelemetryHandlers{}
+func NewTelemetryHandlers(store telemetry.Store, metrics *telemetry.Metrics) *TelemetryHandlers {
+	return &TelemetryHandlers{
+		store:   store,
+		metrics: metrics,
+	}
 }
 
 // PerformanceMetric represents a single web vitals metric from the frontend.
@@ -37,6 +43,95 @@ type TelemetryMetricsRequest struct {
 	Metrics   []PerformanceMetric `json:"metrics"`
 	UserAgent string              `json:"userAgent"`
 	URL       string              `json:"url"`
+}
+
+// Maximum number of events allowed per telemetry batch.
+const maxTelemetryBatchSize = 20
+
+// TelemetryEventsRequest represents the request payload for POST /api/telemetry.
+type TelemetryEventsRequest struct {
+	Events []telemetry.TelemetryEvent `json:"events"`
+}
+
+// PostEvents handles POST /api/telemetry.
+// Accepts batched telemetry events from the frontend telemetry service.
+func (h *TelemetryHandlers) PostEvents(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	if r.Method != http.MethodPost {
+		ctx = middleware.SetErrorCode(ctx, ErrCodeBadRequest)
+		WriteError(w, ctx, http.StatusMethodNotAllowed, ErrCodeBadRequest, "Method not allowed")
+		return
+	}
+
+	var req TelemetryEventsRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		ctx = middleware.SetErrorCode(ctx, ErrCodeBadRequest)
+		WriteError(w, ctx, http.StatusBadRequest, ErrCodeBadRequest, "Invalid request body")
+		return
+	}
+
+	if len(req.Events) == 0 {
+		ctx = middleware.SetErrorCode(ctx, ErrCodeBadRequest)
+		WriteError(w, ctx, http.StatusBadRequest, ErrCodeBadRequest, "At least one event required")
+		return
+	}
+
+	if len(req.Events) > maxTelemetryBatchSize {
+		ctx = middleware.SetErrorCode(ctx, ErrCodeBadRequest)
+		WriteError(w, ctx, http.StatusBadRequest, ErrCodeBadRequest, "Batch size exceeds maximum of 20 events")
+		return
+	}
+
+	// Validate required fields and sanitize events
+	validEvents := make([]telemetry.TelemetryEvent, 0, len(req.Events))
+	for _, ev := range req.Events {
+		if ev.Name == "" || ev.Timestamp == 0 || ev.SessionID == "" {
+			continue // skip invalid events
+		}
+		validEvents = append(validEvents, ev)
+	}
+
+	if len(validEvents) == 0 {
+		ctx = middleware.SetErrorCode(ctx, ErrCodeBadRequest)
+		WriteError(w, ctx, http.StatusBadRequest, ErrCodeValidation, "No valid events in batch")
+		return
+	}
+
+	// Extract user DID from JWT context if authenticated
+	userDID := middleware.GetUserDID(r.Context())
+	if userDID != "" {
+		for i := range validEvents {
+			if validEvents[i].UserDID == "" {
+				validEvents[i].UserDID = userDID
+			}
+		}
+	}
+
+	// Record metrics
+	for _, ev := range validEvents {
+		h.metrics.EventsReceived.WithLabelValues(ev.Name).Inc()
+	}
+
+	// Persist events — non-blocking: always return 200 even on DB errors
+	if err := h.store.InsertEvents(ctx, validEvents); err != nil {
+		slog.ErrorContext(ctx, "failed to persist telemetry events",
+			"error", err,
+			"event_count", len(validEvents),
+		)
+		h.metrics.BatchesTotal.WithLabelValues("error").Inc()
+	} else {
+		h.metrics.BatchesTotal.WithLabelValues("success").Inc()
+	}
+
+	// Always return success to the client — telemetry must never block the UI
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	if err := json.NewEncoder(w).Encode(map[string]interface{}{
+		"success": true,
+	}); err != nil {
+		slog.ErrorContext(ctx, "failed to encode telemetry response", "error", err)
+	}
 }
 
 // PostMetrics handles POST /api/telemetry/metrics.

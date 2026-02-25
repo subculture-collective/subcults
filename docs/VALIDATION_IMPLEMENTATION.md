@@ -248,7 +248,7 @@ for _, attachment := range attachments {
 
 ## Files Modified
 
-### Created Files (12)
+### Created Files (10)
 - `internal/validate/string.go` (173 lines)
 - `internal/validate/string_test.go` (283 lines)
 - `internal/validate/email.go` (61 lines)

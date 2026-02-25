@@ -8,7 +8,6 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
-	"time"
 )
 
 // mockHealthChecker is a mock implementation of HealthChecker for testing.

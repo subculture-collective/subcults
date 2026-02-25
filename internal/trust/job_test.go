@@ -39,6 +39,16 @@ func (s *slowDataSource) GetAlliancesByScene(sceneID string) ([]Alliance, error)
 	return s.ds.GetAlliancesByScene(sceneID)
 }
 
+// AddAlliance delegates to the wrapped data source.
+func (s *slowDataSource) AddAlliance(a Alliance) {
+	s.ds.AddAlliance(a)
+}
+
+// ClearAlliances delegates to the wrapped data source.
+func (s *slowDataSource) ClearAlliances(sceneID string) {
+	s.ds.ClearAlliances(sceneID)
+}
+
 func TestRecomputeJob_StartStop(t *testing.T) {
 	dataSource := NewInMemoryDataSource()
 	scoreStore := NewInMemoryScoreStore()

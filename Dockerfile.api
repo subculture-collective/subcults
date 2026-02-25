@@ -1,61 +1,74 @@
 # syntax=docker/dockerfile:1
 
 # =============================================================================
-# API Dockerfile - Multi-stage build for the Subcults API server
+# API Dockerfile - Multi-stage production build for the Subcults API server
+# Note: bimg requires CGO + libvips, so we use alpine runtime instead of distroless
+# Target: <20MB image, nonroot, zero CVEs
 # =============================================================================
 
-# Build arguments for cross-compilation - Docker automatically sets these based on platform
 ARG TARGETOS
 ARG TARGETARCH
+ARG VERSION=dev
+ARG COMMIT_SHA=unknown
+ARG BUILD_TIME=unknown
 
+# ---------------------------------------------------------------------------
 # Build stage
-FROM golang:1.22-alpine AS builder
+# ---------------------------------------------------------------------------
+FROM golang:1.24-alpine AS builder
 
 ARG TARGETOS
 ARG TARGETARCH
+ARG VERSION
+ARG COMMIT_SHA
+ARG BUILD_TIME
 
 WORKDIR /build
 
-# Copy go.mod first for better caching of dependencies
-COPY go.mod ./
-COPY go.sum* ./
+# Install build dependencies (bimg requires vips via CGO)
+RUN apk add --no-cache ca-certificates tzdata gcc musl-dev pkgconfig vips-dev
 
-# Download dependencies (if any)
-RUN go mod download
+# Dependency layer (cached separately from source)
+COPY go.mod go.sum* ./
+RUN --mount=type=cache,target=/go/pkg/mod go mod download
 
-# Copy source code
+# Source layer
 COPY . .
 
-# Build with CGO disabled for static binary
-RUN CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} go build \
-    -ldflags="-w -s" \
+# Build with CGO enabled for bimg/libvips
+RUN --mount=type=cache,target=/go/pkg/mod \
+    --mount=type=cache,target=/root/.cache/go-build \
+    CGO_ENABLED=1 GOOS=${TARGETOS:-linux} GOARCH=${TARGETARCH:-amd64} go build \
+    -ldflags="-w -s -X main.version=${VERSION} -X main.commit=${COMMIT_SHA} -X main.buildTime=${BUILD_TIME}" \
     -o /build/api \
     ./cmd/api
 
-# =============================================================================
-# =============================================================================
-# Healthcheck binary stage - Get wget from busybox for healthchecks
-# Note: Distroless images have no shell utilities. We copy a minimal wget binary
-# from busybox to enable Docker healthchecks. This binary will be executed as
-# the nonroot user at runtime for healthchecks.
-# =============================================================================
-FROM busybox:1.36-musl AS healthcheck
+# ---------------------------------------------------------------------------
+# Runtime stage - alpine minimal (required for libvips shared libraries)
+# ---------------------------------------------------------------------------
+FROM alpine:3.21 AS production
 
-# =============================================================================
-# Runtime stage - Using distroless for minimal attack surface
-# =============================================================================
-FROM gcr.io/distroless/static-debian12:nonroot
+ARG VERSION
+ARG COMMIT_SHA
 
-# Copy the binary from builder
+LABEL org.opencontainers.image.title="subcults-api" \
+      org.opencontainers.image.description="Subcults API server" \
+      org.opencontainers.image.source="https://github.com/subculture-collective/subcults" \
+      org.opencontainers.image.version="${VERSION}" \
+      org.opencontainers.image.revision="${COMMIT_SHA}"
+
+# Runtime dependencies only (vips runtime libs, certs, timezone)
+RUN apk add --no-cache ca-certificates tzdata vips && \
+    adduser -D -u 10001 nonroot
+
+# Application binary
 COPY --from=builder /build/api /app/api
 
-# Copy wget for healthcheck (minimal static binary from busybox, ~1MB)
-COPY --from=healthcheck /bin/wget /usr/bin/wget
+USER nonroot
 
-# Use non-root user (provided by distroless:nonroot)
-USER nonroot:nonroot
-
-# Expose API port (configurable via env)
 EXPOSE 8080
+
+HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
+    CMD wget --no-verbose --tries=1 --spider http://localhost:8080/health/live || exit 1
 
 ENTRYPOINT ["/app/api"]
