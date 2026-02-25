@@ -696,3 +696,290 @@ func TestDefaultLimits_Immutability(t *testing.T) {
 		t.Errorf("DefaultGlobalLimit should return 100, got %d", global2.RequestsPerWindow)
 	}
 }
+
+func TestRateLimitConfig_BurstFactor_Validate(t *testing.T) {
+tests := []struct {
+name      string
+config    RateLimitConfig
+wantError bool
+}{
+{
+name:      "valid burst factor 1.5",
+config:    RateLimitConfig{RequestsPerWindow: 10, WindowDuration: time.Minute, BurstFactor: 1.5},
+wantError: false,
+},
+{
+name:      "burst factor exactly 1.0",
+config:    RateLimitConfig{RequestsPerWindow: 10, WindowDuration: time.Minute, BurstFactor: 1.0},
+wantError: false,
+},
+{
+name:      "burst factor 0 (disabled)",
+config:    RateLimitConfig{RequestsPerWindow: 10, WindowDuration: time.Minute, BurstFactor: 0},
+wantError: false,
+},
+{
+name:      "invalid burst factor below 1.0",
+config:    RateLimitConfig{RequestsPerWindow: 10, WindowDuration: time.Minute, BurstFactor: 0.5},
+wantError: true,
+},
+}
+for _, tt := range tests {
+t.Run(tt.name, func(t *testing.T) {
+err := tt.config.Validate()
+if tt.wantError && err == nil {
+t.Error("expected validation error, got nil")
+}
+if !tt.wantError && err != nil {
+t.Errorf("expected no validation error, got %v", err)
+}
+})
+}
+}
+
+func TestInMemoryRateLimitStore_BurstAllowance(t *testing.T) {
+store := NewInMemoryRateLimitStore()
+config := RateLimitConfig{
+RequestsPerWindow: 10,
+WindowDuration:    time.Minute,
+BurstFactor:       1.5,                // burst limit = 15
+BurstWindow:       500 * time.Millisecond,
+}
+ctx := context.Background()
+
+// During burst window: up to 15 requests allowed
+for i := 0; i < 15; i++ {
+allowed, _, _ := store.Allow(ctx, "burst-key", config)
+if !allowed {
+t.Errorf("burst request %d should be allowed (burst limit=15)", i+1)
+}
+}
+
+// 16th request should be blocked even within burst window
+allowed, _, _ := store.Allow(ctx, "burst-key", config)
+if allowed {
+t.Error("16th request should be blocked (burst limit=15)")
+}
+}
+
+func TestInMemoryRateLimitStore_BurstExpiry(t *testing.T) {
+store := NewInMemoryRateLimitStore()
+config := RateLimitConfig{
+RequestsPerWindow: 5,
+WindowDuration:    time.Minute,
+BurstFactor:       2.0,               // burst limit = 10
+BurstWindow:       50 * time.Millisecond,
+}
+ctx := context.Background()
+
+// Use up the burst allowance (10 requests)
+for i := 0; i < 10; i++ {
+allowed, _, _ := store.Allow(ctx, "burst-expiry-key", config)
+if !allowed {
+t.Errorf("burst request %d should be allowed", i+1)
+}
+}
+
+// Wait for burst window to expire
+time.Sleep(60 * time.Millisecond)
+
+// Now only base limit (5) more requests should be allowed — but we've already
+// used 10 in the same main window. The base limit is exceeded, so blocked.
+allowed, _, _ := store.Allow(ctx, "burst-expiry-key", config)
+if allowed {
+t.Error("request after burst expiry should be blocked (base limit already exceeded)")
+}
+}
+
+func TestInMemoryRateLimitStore_NoBurst(t *testing.T) {
+store := NewInMemoryRateLimitStore()
+config := RateLimitConfig{
+RequestsPerWindow: 5,
+WindowDuration:    time.Minute,
+// BurstFactor omitted (0 = disabled)
+}
+ctx := context.Background()
+
+for i := 0; i < 5; i++ {
+allowed, _, _ := store.Allow(ctx, "no-burst-key", config)
+if !allowed {
+t.Errorf("request %d should be allowed without burst", i+1)
+}
+}
+allowed, _, _ := store.Allow(ctx, "no-burst-key", config)
+if allowed {
+t.Error("6th request should be blocked when no burst is configured")
+}
+}
+
+func TestRateLimiterWithBypass_BypasesWhenTrue(t *testing.T) {
+store := NewInMemoryRateLimitStore()
+config := RateLimitConfig{
+RequestsPerWindow: 1,
+WindowDuration:    time.Minute,
+}
+
+alwaysBypass := func(*http.Request) bool { return true }
+handler := RateLimiterWithBypass(store, config, IPKeyFunc(), nil, alwaysBypass)(
+http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+w.WriteHeader(http.StatusOK)
+}),
+)
+
+// Both requests should succeed even though limit is 1
+for i := 0; i < 5; i++ {
+req := httptest.NewRequest(http.MethodGet, "/api/test", nil)
+req.RemoteAddr = "10.0.0.1:12345"
+rr := httptest.NewRecorder()
+handler.ServeHTTP(rr, req)
+if rr.Code != http.StatusOK {
+t.Errorf("bypassed request %d: got %d, want 200", i+1, rr.Code)
+}
+// Rate limit headers should NOT be set when bypassed
+if rr.Header().Get("X-RateLimit-Limit") != "" {
+t.Error("X-RateLimit-Limit should not be set on bypassed requests")
+}
+}
+}
+
+func TestRateLimiterWithBypass_EnforcesWhenFalse(t *testing.T) {
+store := NewInMemoryRateLimitStore()
+config := RateLimitConfig{
+RequestsPerWindow: 2,
+WindowDuration:    time.Minute,
+}
+
+neverBypass := func(*http.Request) bool { return false }
+handler := RateLimiterWithBypass(store, config, IPKeyFunc(), nil, neverBypass)(
+http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+w.WriteHeader(http.StatusOK)
+}),
+)
+
+for i := 0; i < 3; i++ {
+req := httptest.NewRequest(http.MethodGet, "/api/test", nil)
+req.RemoteAddr = "10.0.0.2:12345"
+rr := httptest.NewRecorder()
+handler.ServeHTTP(rr, req)
+if i < 2 && rr.Code != http.StatusOK {
+t.Errorf("request %d should be allowed", i+1)
+}
+if i == 2 && rr.Code != http.StatusTooManyRequests {
+t.Errorf("request %d should be blocked", i+1)
+}
+}
+}
+
+func TestInternalServiceBypassFunc(t *testing.T) {
+secret := "super-secret-token"
+bypassFn := InternalServiceBypassFunc(secret)
+
+tests := []struct {
+name        string
+headerValue string
+wantBypass  bool
+}{
+{"correct token bypasses", secret, true},
+{"wrong token does not bypass", "wrong-token", false},
+{"empty token does not bypass", "", false},
+}
+
+for _, tt := range tests {
+t.Run(tt.name, func(t *testing.T) {
+req := httptest.NewRequest(http.MethodGet, "/api/test", nil)
+if tt.headerValue != "" {
+req.Header.Set("X-Internal-Token", tt.headerValue)
+}
+got := bypassFn(req)
+if got != tt.wantBypass {
+t.Errorf("InternalServiceBypassFunc() = %v, want %v", got, tt.wantBypass)
+}
+})
+}
+}
+
+func TestInternalServiceBypassFunc_EmptySecret(t *testing.T) {
+bypassFn := InternalServiceBypassFunc("")
+req := httptest.NewRequest(http.MethodGet, "/api/test", nil)
+req.Header.Set("X-Internal-Token", "any-value")
+if bypassFn(req) {
+t.Error("empty secret should never bypass")
+}
+}
+
+func TestSetGetUserTier(t *testing.T) {
+ctx := context.Background()
+
+if tier := GetUserTier(ctx); tier != "" {
+t.Errorf("expected empty tier from empty context, got %q", tier)
+}
+
+ctx = SetUserTier(ctx, "pro")
+if tier := GetUserTier(ctx); tier != "pro" {
+t.Errorf("expected %q, got %q", "pro", tier)
+}
+}
+
+func TestTieredRateLimiter_ProTierGetsHigherLimit(t *testing.T) {
+store := NewInMemoryRateLimitStore()
+freeLimit := RateLimitConfig{RequestsPerWindow: 2, WindowDuration: time.Minute}
+proLimit := RateLimitConfig{RequestsPerWindow: 10, WindowDuration: time.Minute}
+selector := ProTierLimitSelector(freeLimit, proLimit)
+
+handler := TieredRateLimiter(store, selector, UserKeyFunc(), nil)(
+http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+w.WriteHeader(http.StatusOK)
+}),
+)
+
+makeReq := func(did string, tier string) int {
+req := httptest.NewRequest(http.MethodGet, "/api/test", nil)
+req.RemoteAddr = "127.0.0.1:1234"
+ctx := SetUserDID(req.Context(), did)
+ctx = SetUserTier(ctx, tier)
+req = req.WithContext(ctx)
+rr := httptest.NewRecorder()
+handler.ServeHTTP(rr, req)
+return rr.Code
+}
+
+// Free user: limited to 2 requests
+for i := 0; i < 2; i++ {
+if code := makeReq("did:free:user", "free"); code != http.StatusOK {
+t.Errorf("free request %d should succeed", i+1)
+}
+}
+if code := makeReq("did:free:user", "free"); code != http.StatusTooManyRequests {
+t.Error("3rd free request should be blocked")
+}
+
+// Pro user: can make 10 requests
+for i := 0; i < 10; i++ {
+if code := makeReq("did:pro:user", "pro"); code != http.StatusOK {
+t.Errorf("pro request %d should succeed", i+1)
+}
+}
+if code := makeReq("did:pro:user", "pro"); code != http.StatusTooManyRequests {
+t.Error("11th pro request should be blocked")
+}
+}
+
+func TestProTierLimitSelector(t *testing.T) {
+freeLimit := RateLimitConfig{RequestsPerWindow: 10, WindowDuration: time.Minute}
+proLimit := RateLimitConfig{RequestsPerWindow: 100, WindowDuration: time.Minute}
+selector := ProTierLimitSelector(freeLimit, proLimit)
+
+// No tier → free limit
+req := httptest.NewRequest(http.MethodGet, "/", nil)
+cfg := selector(req)
+if cfg.RequestsPerWindow != freeLimit.RequestsPerWindow {
+t.Errorf("no-tier should use free limit (%d), got %d", freeLimit.RequestsPerWindow, cfg.RequestsPerWindow)
+}
+
+// Pro tier → pro limit
+req = req.WithContext(SetUserTier(req.Context(), "pro"))
+cfg = selector(req)
+if cfg.RequestsPerWindow != proLimit.RequestsPerWindow {
+t.Errorf("pro tier should use pro limit (%d), got %d", proLimit.RequestsPerWindow, cfg.RequestsPerWindow)
+}
+}
