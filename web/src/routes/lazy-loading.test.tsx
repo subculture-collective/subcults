@@ -4,22 +4,24 @@ import { Outlet } from 'react-router-dom';
 
 const SIMULATED_CHUNK_LOAD_MS = 25;
 let isHomeResolved = false;
+let homeSuspensePromise: Promise<void> | null = null;
 
 vi.mock('../layouts/AppLayout', () => ({
   AppLayout: () => <Outlet />,
 }));
 
 vi.mock('../pages/HomePage', () => {
-  const homeSuspensePromise = new Promise<void>((resolve) => {
-    setTimeout(() => {
-      isHomeResolved = true;
-      resolve();
-    }, SIMULATED_CHUNK_LOAD_MS);
-  });
-
   return {
     HomePage: () => {
       if (!isHomeResolved) {
+        if (!homeSuspensePromise) {
+          homeSuspensePromise = new Promise<void>((resolve) => {
+            setTimeout(() => {
+              isHomeResolved = true;
+              resolve();
+            }, SIMULATED_CHUNK_LOAD_MS);
+          });
+        }
         throw homeSuspensePromise;
       }
       return <div>Lazy Home Page</div>;
@@ -30,6 +32,8 @@ vi.mock('../pages/HomePage', () => {
 describe('AppRouter lazy loading', () => {
   beforeEach(() => {
     window.history.pushState({}, '', '/');
+    isHomeResolved = false;
+    homeSuspensePromise = null;
   });
 
   it('shows loading skeleton while loading the home route chunk', async () => {
