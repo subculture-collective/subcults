@@ -36,12 +36,12 @@ Rebuild the connective tissue of the underground: a trust‑based discovery laye
 
 ## Roadmap Phases
 
-| Phase | Focus | Key Outcomes |
-|-------|-------|--------------|
-| 0 | Foundations | Containerized stack, core schema, auth, config |
-| 1 | MVP Core | Scenes, events, map discovery, streaming, payments |
-| 2 | Growth & Trust | Alliances, ranking, moderation, observability |
-| 3 | Scale & Performance | OpenSearch option, mobile app alignment, backfills |
+| Phase | Focus               | Key Outcomes                                       |
+| ----- | ------------------- | -------------------------------------------------- |
+| 0     | Foundations         | Containerized stack, core schema, auth, config     |
+| 1     | MVP Core            | Scenes, events, map discovery, streaming, payments |
+| 2     | Growth & Trust      | Alliances, ranking, moderation, observability      |
+| 3     | Scale & Performance | OpenSearch option, mobile app alignment, backfills |
 
 ## Development Principles
 
@@ -111,30 +111,36 @@ subcults/
 Run `make help` to see all available targets:
 
 #### Build Targets
+
 - `make build` - Build all Go binaries
 - `make build-api` - Build only the API binary (outputs to `bin/api`)
 - `make build-frontend` - Build the frontend application (outputs to `dist/`)
 
 #### Test & Lint
+
 - `make test` - Run all tests (Go and frontend if available)
 - `make lint` - Run linters (Go vet and frontend linters)
 
 #### Performance & Quality
+
 - `npm run lighthouse` - Run Lighthouse performance audit (requires built frontend)
 - `npm run lighthouse:local` - Start local server for manual Lighthouse testing
 - View bundle analysis: `web/dist/stats.html` (generated after `cd web && npm run build`)
 
 #### Code Quality
+
 - `make fmt` - Format Go code
 - `make tidy` - Tidy Go modules
 - `make verify` - Verify Go modules
 - `make clean` - Remove build artifacts
 
 #### Database
+
 - `make migrate-up` - Apply all pending database migrations
 - `make migrate-down` - Rollback the last database migration
 
 #### Docker Compose
+
 - `make compose-up` - Start all services with Docker Compose
 - `make compose-down` - Stop all services with Docker Compose
 
@@ -146,18 +152,20 @@ make compose-up DOCKER_COMPOSE_FILE=docker-compose.dev.yml
 
 ### Full Stack with Docker Compose
 
-The `deploy/compose.yml` provides a complete local development stack with Caddy reverse proxy, API, indexer, and frontend:
+The `deploy/compose.yml` provides a production-oriented stack for API, indexer, and frontend behind an **external** reverse proxy (for your setup: `~/projects/caddy`):
 
 ```bash
-# Navigate to the deploy directory
-cd deploy
+# Ensure shared Docker network exists
+docker network create web 2>/dev/null || true
 
 # Copy and configure environment variables
-cp ../configs/dev.env.example .env
-# Edit .env with your values
+cp deploy/.env.example deploy/.env
+# Edit deploy/.env with your values
 
-# Start all services
-docker compose up -d
+# Build and start services
+cd deploy
+docker compose build
+docker compose up -d --force-recreate
 
 # Verify services are healthy
 docker compose ps
@@ -170,19 +178,17 @@ docker compose down
 ```
 
 **Services:**
-- **Caddy** (ports 80/443): Reverse proxy serving static assets and proxying to API
-- **API** (internal): Go backend with health check at `/health`
-- **Indexer** (internal): Jetstream consumer for AT Protocol ingestion
-- **Web Build**: One-time service that builds and copies frontend assets
+
+- **API** (internal): Go backend (`subcults-api:8080`)
+- **Frontend** (internal): Nginx serving built SPA (`subcults-frontend:80`)
+- **Indexer** (internal-only): Jetstream consumer + metrics/health on `9090`
 
 **Networks:**
-- `proxy`: External-facing network for Caddy
-- `internal`: Internal network for API and Indexer (not exposed to host)
 
-**Volumes:**
-- `web-dist`: Shared volume for frontend static assets
-- `caddy_data`: Caddy TLS certificates and state
-- `caddy_config`: Caddy configuration
+- `web`: Shared external Docker network used by Caddy to reach API/frontend
+- `subcults-internal`: Internal network for service-to-service traffic
+
+No host ports are required to be published for app traffic when Caddy runs on the same `web` network.
 
 ### Database Migrations
 
@@ -249,6 +255,7 @@ The script automatically uses either the local `migrate` binary (if installed) o
 Subcults uses environment variables for configuration. All settings are documented in `configs/dev.env.example`.
 
 📖 **For comprehensive configuration documentation**, see **[docs/CONFIGURATION.md](docs/CONFIGURATION.md)** which covers:
+
 - Complete environment variable reference with validation rules
 - Feature flags documentation
 - Secret key rotation procedures
@@ -258,6 +265,7 @@ Subcults uses environment variables for configuration. All settings are document
 ### Quick Start
 
 1. **Copy the example file:**
+
    ```bash
    cp configs/dev.env.example configs/dev.env
    ```
@@ -274,6 +282,7 @@ Subcults uses environment variables for configuration. All settings are document
 Variables are organized into logical groups:
 
 #### Core Configuration
+
 - **`SUBCULT_ENV`** (aliases: `ENV`, `GO_ENV`) - Environment mode: `development`, `staging`, or `production`
   - Default: `development`
   - Affects logging verbosity and feature flags
@@ -281,11 +290,13 @@ Variables are organized into logical groups:
   - Default: `8080`
 
 #### Database
+
 - **`DATABASE_URL`** (required) - Neon Postgres connection string with PostGIS
   - Format: `postgres://user:password@host:port/database?sslmode=require`
   - Example: `postgres://subcults:password@localhost:5432/subcults?sslmode=disable`
 
 #### Authentication & Security
+
 - **`JWT_SECRET`** or **`JWT_SECRET_CURRENT`** (required) - JWT signing secret for access and refresh tokens
   - Recommended: at least 32 characters
   - Generate with: `openssl rand -base64 32`
@@ -294,25 +305,30 @@ Variables are organized into logical groups:
 #### External Services
 
 **LiveKit (WebRTC Audio/Video)**
+
 - **`LIVEKIT_URL`** (required) - LiveKit server WebSocket URL
   - Example: `wss://your-project.livekit.cloud`
 - **`LIVEKIT_API_KEY`** (required) - API key for server-side operations
 - **`LIVEKIT_API_SECRET`** (required) - API secret for token generation
 
 **Stripe (Payments)**
+
 - **`STRIPE_API_KEY`** (required) - Secret API key (starts with `sk_test_` or `sk_live_`)
 - **`STRIPE_WEBHOOK_SECRET`** (required) - Webhook signing secret (starts with `whsec_`)
 
 **Cloudflare R2 (Media Storage)**
+
 - **`R2_BUCKET_NAME`** - Bucket name for media assets
 - **`R2_ACCESS_KEY_ID`** - Access key ID for S3 API
 - **`R2_SECRET_ACCESS_KEY`** - Secret access key for S3 API
 - **`R2_ENDPOINT`** - Endpoint URL (format: `https://<account-id>.r2.cloudflarestorage.com`)
 
 **MapTiler (Map Tiles)**
+
 - **`MAPTILER_API_KEY`** (required) - API key for tile requests
 
 **Jetstream (AT Protocol)**
+
 - **`JETSTREAM_URL`** (required) - WebSocket endpoint for Jetstream subscription
   - Default: `wss://jetstream1.us-east.bsky.network/subscribe`
   - The indexer automatically reconnects with exponential backoff on connection failures
@@ -320,6 +336,7 @@ Variables are organized into logical groups:
   - See [Jetstream Reconnection Documentation](./docs/jetstream-reconnection.md) for details
 
 #### Observability (Optional)
+
 - **`METRICS_PORT`** - Prometheus metrics endpoint port
   - Default: `9090`
 - **`INTERNAL_AUTH_TOKEN`** - Auth token for metrics endpoint
@@ -351,6 +368,7 @@ The following variables have sensible defaults and are optional:
 ### Environment-Specific Configuration
 
 For production deployments:
+
 1. Set `SUBCULT_ENV=production`
 2. Use `sslmode=require` in `DATABASE_URL`
 3. Use Stripe live keys (`sk_live_*`)
@@ -358,6 +376,7 @@ For production deployments:
 5. Configure proper logging and monitoring endpoints
 
 For development:
+
 1. Use the provided defaults in `dev.env.example`
 2. `sslmode=disable` is acceptable for local Postgres
 3. Use Stripe test keys (`sk_test_*`)
@@ -365,11 +384,13 @@ For development:
 ### Validation
 
 The configuration loader validates all required variables at startup:
+
 - Missing required variables trigger clear error messages
 - Invalid values (e.g., non-numeric port) are caught early
 - Secrets are masked in logs to prevent accidental exposure
 
 To test validation manually:
+
 ```bash
 # Start with intentionally missing variable
 unset JWT_SECRET
@@ -398,6 +419,7 @@ Subcult implements comprehensive performance monitoring and budgeting:
 - **Privacy-First**: Users must explicitly opt-in to telemetry (default: disabled)
 
 **Performance Budgets:**
+
 - FCP <1.0s, LCP <2.5s, CLS <0.1, INP <200ms, TTFB <600ms
 - Build fails on >10% regression
 
@@ -444,11 +466,13 @@ We run automated vulnerability scanning on all dependencies:
 - **Docker Images**: Trivy scans container base images and OS packages
 
 **Scanning Schedule:**
+
 - On every pull request affecting dependencies
 - Weekly automated scans every Monday at 9:00 AM UTC
 - On push to `main` and `develop` branches
 
 **Severity Thresholds:**
+
 - **CRITICAL**: Fails CI build ❌
 - **HIGH**: Warning logged ⚠️
 - **MODERATE/LOW**: Reported in PR comments 💬
@@ -456,6 +480,7 @@ We run automated vulnerability scanning on all dependencies:
 ### 🤖 Automated Updates
 
 [Dependabot](https://github.com/dependabot) automatically creates PRs for dependency updates:
+
 - Weekly schedule for all ecosystems (Go, NPM, Docker, GitHub Actions)
 - Security updates prioritized
 - Minor and patch updates grouped to reduce noise
@@ -474,6 +499,7 @@ We run automated vulnerability scanning on all dependencies:
 ### 🚨 Reporting Vulnerabilities
 
 If you discover a security vulnerability, please:
+
 - **DO NOT** open a public GitHub issue
 - Email: info@subcult.tv
 - Include: description, reproduction steps, impact assessment
