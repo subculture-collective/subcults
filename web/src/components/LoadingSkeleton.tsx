@@ -8,7 +8,7 @@ import React from 'react';
 export const LoadingSkeleton: React.FC = () => {
   return (
     <div
-      className="flex items-center justify-center h-screen w-full bg-brand-underground text-white"
+      className="flex items-center justify-center h-full min-h-full w-full bg-brand-underground text-white"
       role="status"
       aria-live="polite"
       aria-busy="true"

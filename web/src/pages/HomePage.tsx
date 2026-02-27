@@ -3,8 +3,13 @@
  * Main map view showing scenes and events
  */
 
-import React, { useRef } from 'react';
-import { MapView, type MapViewHandle } from '../components/MapView';
+import React, { Suspense, lazy, useRef } from 'react';
+import { LoadingSkeleton } from '../components/LoadingSkeleton';
+import type { MapViewHandle } from '../components/MapView';
+
+const MapView = lazy(() =>
+  import('../components/MapView').then((module) => ({ default: module.MapView }))
+);
 
 export const HomePage: React.FC = () => {
   // MapViewHandle ref - reserved for future map interactions (flyTo, etc.)
@@ -12,13 +17,15 @@ export const HomePage: React.FC = () => {
 
   return (
     <div style={{ height: '100%', width: '100%' }}>
-      <MapView
-        ref={mapRef}
-        enableGeolocation={false}
-        onLoad={() => {
-          // Map loaded successfully
-        }}
-      />
+      <Suspense fallback={<LoadingSkeleton />}>
+        <MapView
+          ref={mapRef}
+          enableGeolocation={false}
+          onLoad={() => {
+            // Map loaded successfully
+          }}
+        />
+      </Suspense>
     </div>
   );
 };
