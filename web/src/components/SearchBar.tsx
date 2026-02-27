@@ -15,6 +15,8 @@ import type { SearchResultItem } from '../types/search';
 const POST_TITLE_TRUNCATE_LENGTH = 50;
 const SECONDARY_INFO_TRUNCATE_LENGTH = 60;
 const UNTITLED_POST_LABEL = 'Untitled Post';
+const MENTION_PATTERN = /@[a-zA-Z0-9_.-]+/g;
+const HASHTAG_PATTERN = /#[a-zA-Z0-9_-]+/g;
 
 // Icon constants
 const ICONS = {
@@ -94,11 +96,12 @@ export function SearchBar({
 
   const hasResults = flatResults.length > 0;
   const normalizedQuery = inputValue.trim().toLowerCase();
+  const normalizedHashtagQuery = normalizedQuery.replace(/^#/, '');
+  const sceneTags = results.scenes.flatMap((scene) => scene.tags ?? []);
 
   const genreSuggestions = Array.from(
     new Set(
-      results.scenes
-        .flatMap((scene) => scene.tags ?? [])
+      sceneTags
         .map((tag) => tag.trim())
         .filter((tag) => tag && tag.toLowerCase().includes(normalizedQuery))
     )
@@ -109,7 +112,7 @@ export function SearchBar({
       results.posts
         .flatMap((post) => [
           ...(post.author_did ? [post.author_did] : []),
-          ...(post.content?.match(/@[a-zA-Z0-9_.-]+/g) ?? []),
+          ...(post.content?.match(MENTION_PATTERN) ?? []),
         ])
         .map((artist) => artist.trim())
         .filter((artist) => artist && artist.toLowerCase().includes(normalizedQuery))
@@ -119,11 +122,11 @@ export function SearchBar({
   const hashtagSuggestions = Array.from(
     new Set(
       [
-        ...results.scenes.flatMap((scene) => (scene.tags ?? []).map((tag) => `#${tag.replace(/^#/, '')}`)),
-        ...results.posts.flatMap((post) => post.content?.match(/#[a-zA-Z0-9_-]+/g) ?? []),
+        ...sceneTags.map((tag) => `#${tag.replace(/^#/, '')}`),
+        ...results.posts.flatMap((post) => post.content?.match(HASHTAG_PATTERN) ?? []),
       ]
         .map((tag) => tag.trim())
-        .filter((tag) => tag && tag.toLowerCase().includes(normalizedQuery.replace(/^#/, '')))
+        .filter((tag) => tag && tag.toLowerCase().includes(normalizedHashtagQuery))
     )
   ).slice(0, 5);
   const hasAutocompleteSuggestions =
