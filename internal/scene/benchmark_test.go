@@ -2,6 +2,7 @@
 package scene
 
 import (
+	"fmt"
 	"testing"
 	"time"
 )
@@ -154,7 +155,219 @@ func BenchmarkScene_EnforceLocationConsent(b *testing.B) {
 	})
 }
 
+// BenchmarkSearchScenes_10k measures SearchScenes performance with 10,000 scenes,
+// validating that the in-memory implementation meets the p95 < 300ms target for a
+// first-page query. Real-world PostgreSQL performance relies on the indexes added
+// in migration 000030 (idx_scenes_search_visible, idx_scenes_public_created).
+func BenchmarkSearchScenes_10k(b *testing.B) {
+	const datasetSize = 10_000
+
+	repo := NewInMemorySceneRepository()
+	now := time.Now()
+
+	// Spread scenes across a geographic grid within NYC bbox to exercise bbox filtering.
+	// Grid: 100 lat cells × 100 lng cells = 10,000 scenes.
+	const (
+		minLat = 40.60
+		maxLat = 40.80
+		minLng = -74.10
+		maxLng = -73.90
+	)
+	latStep := (maxLat - minLat) / 100.0
+	lngStep := (maxLng - minLng) / 100.0
+
+	// Mix of public, members-only, and unlisted to match realistic distributions:
+	// 70% public, 20% members-only (private), 10% unlisted (hidden).
+	visibilities := []string{
+		VisibilityPublic, VisibilityPublic, VisibilityPublic, VisibilityPublic,
+		VisibilityPublic, VisibilityPublic, VisibilityPublic, VisibilityMembersOnly,
+		VisibilityMembersOnly, VisibilityHidden,
+	}
+
+	// Vary names and tags to exercise text matching.
+	genres := []string{"techno", "jazz", "rock", "ambient", "hip-hop", "folk", "metal", "soul", "punk", "reggae"}
+
+	for i := 0; i < datasetSize; i++ {
+		row := i / 100
+		col := i % 100
+		lat := minLat + float64(row)*latStep
+		lng := minLng + float64(col)*lngStep
+		genre := genres[i%len(genres)]
+		vis := visibilities[i%len(visibilities)]
+
+		s := &Scene{
+			ID:            generateTestSceneID(i),
+			Name:          fmt.Sprintf("%s Scene %d", genre, i),
+			Description:   fmt.Sprintf("Underground %s collective", genre),
+			OwnerDID:      generateTestOwnerDID(i % 500),
+			AllowPrecise:  true,
+			PrecisePoint:  &Point{Lat: lat, Lng: lng},
+			CoarseGeohash: "dr5r",
+			Tags:          []string{genre, "live-music"},
+			Visibility:    vis,
+			CreatedAt:     &now,
+			UpdatedAt:     &now,
+		}
+		if err := repo.Insert(s); err != nil {
+			b.Fatalf("failed to insert scene %d: %v", i, err)
+		}
+	}
+
+	// Bbox covers roughly the bottom-left quarter of the grid (~2,500 candidates).
+	searchBbox := SceneSearchOptions{
+		MinLng: minLng,
+		MinLat: minLat,
+		MaxLng: minLng + (maxLng-minLng)/2,
+		MaxLat: minLat + (maxLat-minLat)/2,
+		Limit:  20,
+	}
+
+	b.Run("first_page_no_query", func(b *testing.B) {
+		opts := searchBbox
+		b.ResetTimer()
+		for i := 0; i < b.N; i++ {
+			_, _, _ = repo.SearchScenes(opts)
+		}
+	})
+
+	b.Run("first_page_text_query", func(b *testing.B) {
+		opts := searchBbox
+		opts.Query = "techno"
+		b.ResetTimer()
+		for i := 0; i < b.N; i++ {
+			_, _, _ = repo.SearchScenes(opts)
+		}
+	})
+
+	b.Run("second_page_text_query", func(b *testing.B) {
+		// Obtain a real cursor from the first page to test second-page latency.
+		opts := searchBbox
+		opts.Query = "techno"
+		_, cursor, err := repo.SearchScenes(opts)
+		if err != nil || cursor == "" {
+			b.Skip("no second page available")
+		}
+		opts.Cursor = cursor
+		b.ResetTimer()
+		for i := 0; i < b.N; i++ {
+			_, _, _ = repo.SearchScenes(opts)
+		}
+	})
+
+	b.Run("full_bbox_no_query", func(b *testing.B) {
+		opts := SceneSearchOptions{
+			MinLng: minLng,
+			MinLat: minLat,
+			MaxLng: maxLng,
+			MaxLat: maxLat,
+			Limit:  20,
+		}
+		b.ResetTimer()
+		for i := 0; i < b.N; i++ {
+			_, _, _ = repo.SearchScenes(opts)
+		}
+	})
+}
+
+// BenchmarkSearchEvents_10k measures SearchEvents performance with 10,000 events,
+// validating that event search meets the p95 < 300ms target for a first-page query.
+// Real-world PostgreSQL performance relies on idx_events_upcoming_geohash and
+// idx_events_scene_upcoming added in migration 000030.
+func BenchmarkSearchEvents_10k(b *testing.B) {
+	const datasetSize = 10_000
+
+	repo := NewInMemoryEventRepository()
+	baseTime := time.Now().Add(24 * time.Hour)
+
+	genres := []string{"techno", "jazz", "rock", "ambient", "hip-hop", "folk", "metal", "soul", "punk", "reggae"}
+
+	// Spread events over 30 days, across NYC bbox.
+	const (
+		minLat = 40.60
+		maxLat = 40.80
+		minLng = -74.10
+		maxLng = -73.90
+	)
+	latStep := (maxLat - minLat) / 100.0
+	lngStep := (maxLng - minLng) / 100.0
+
+	for i := 0; i < datasetSize; i++ {
+		row := i / 100
+		col := i % 100
+		lat := minLat + float64(row)*latStep
+		lng := minLng + float64(col)*lngStep
+		genre := genres[i%len(genres)]
+		now := baseTime
+
+		e := &Event{
+			ID:            generateTestEventID(i),
+			SceneID:       generateTestSceneID(i % 500),
+			Title:         fmt.Sprintf("%s Night %d", genre, i),
+			Description:   fmt.Sprintf("Underground %s event", genre),
+			AllowPrecise:  true,
+			PrecisePoint:  &Point{Lat: lat, Lng: lng},
+			CoarseGeohash: "dr5r",
+			Tags:          []string{genre},
+			Status:        "scheduled",
+			StartsAt:      baseTime.Add(time.Duration(i%720) * time.Hour), // spread over 30 days
+			CreatedAt:     &now,
+			UpdatedAt:     &now,
+		}
+		if err := repo.Insert(e); err != nil {
+			b.Fatalf("failed to insert event %d: %v", i, err)
+		}
+	}
+
+	from := baseTime
+	to := baseTime.Add(7 * 24 * time.Hour) // 7-day window
+
+	searchOpts := EventSearchOptions{
+		MinLng: minLng,
+		MinLat: minLat,
+		MaxLng: minLng + (maxLng-minLng)/2,
+		MaxLat: minLat + (maxLat-minLat)/2,
+		From:   from,
+		To:     to,
+		Limit:  20,
+	}
+
+	b.Run("first_page_no_query", func(b *testing.B) {
+		opts := searchOpts
+		b.ResetTimer()
+		for i := 0; i < b.N; i++ {
+			_, _, _ = repo.SearchEvents(opts)
+		}
+	})
+
+	b.Run("first_page_text_query", func(b *testing.B) {
+		opts := searchOpts
+		opts.Query = "techno"
+		b.ResetTimer()
+		for i := 0; i < b.N; i++ {
+			_, _, _ = repo.SearchEvents(opts)
+		}
+	})
+
+	b.Run("second_page_text_query", func(b *testing.B) {
+		opts := searchOpts
+		opts.Query = "techno"
+		_, cursor, err := repo.SearchEvents(opts)
+		if err != nil || cursor == "" {
+			b.Skip("no second page available")
+		}
+		opts.Cursor = cursor
+		b.ResetTimer()
+		for i := 0; i < b.N; i++ {
+			_, _, _ = repo.SearchEvents(opts)
+		}
+	})
+}
+
 // Helper functions for generating test data
+
+func generateTestEventID(i int) string {
+	return generateID("event", i)
+}
 
 func generateTestSceneID(i int) string {
 	return generateID("scene", i)
