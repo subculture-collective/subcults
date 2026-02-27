@@ -441,3 +441,57 @@ func TestSearchScenes_TrustRankingFlag(t *testing.T) {
 		}
 	}
 }
+
+func TestSearchScenes_LatLonAndGenresFilter(t *testing.T) {
+	sceneRepo := scene.NewInMemorySceneRepository()
+	handlers := NewSearchHandlers(sceneRepo, nil, nil)
+	now := time.Now()
+
+	techno := &scene.Scene{
+		ID:            uuid.New().String(),
+		Name:          "Warehouse",
+		OwnerDID:      "did:plc:user1",
+		AllowPrecise:  true,
+		PrecisePoint:  &scene.Point{Lat: 40.7128, Lng: -74.0060},
+		CoarseGeohash: "dr5regw",
+		Tags:          []string{"techno"},
+		Visibility:    scene.VisibilityPublic,
+		CreatedAt:     &now,
+		UpdatedAt:     &now,
+	}
+	jazz := &scene.Scene{
+		ID:            uuid.New().String(),
+		Name:          "Jazz Club",
+		OwnerDID:      "did:plc:user2",
+		AllowPrecise:  true,
+		PrecisePoint:  &scene.Point{Lat: 40.7129, Lng: -74.0059},
+		CoarseGeohash: "dr5regw",
+		Tags:          []string{"jazz"},
+		Visibility:    scene.VisibilityPublic,
+		CreatedAt:     &now,
+		UpdatedAt:     &now,
+	}
+	if err := sceneRepo.Insert(techno); err != nil {
+		t.Fatalf("failed to insert techno scene: %v", err)
+	}
+	if err := sceneRepo.Insert(jazz); err != nil {
+		t.Fatalf("failed to insert jazz scene: %v", err)
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "/search/scenes?lat=40.7128&lon=-74.0060&genres=techno", nil)
+	w := httptest.NewRecorder()
+	handlers.SearchScenes(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected status 200, got %d", w.Code)
+	}
+
+	var response SceneSearchResponse
+	if err := json.Unmarshal(w.Body.Bytes(), &response); err != nil {
+		t.Fatalf("failed to parse response: %v", err)
+	}
+
+	if response.Count != 1 || response.Results[0].ID != techno.ID {
+		t.Fatalf("expected only techno scene, got %d results", response.Count)
+	}
+}

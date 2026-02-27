@@ -77,8 +77,12 @@ type SceneSearchOptions struct {
 	MinLat      float64            // Bounding box min latitude
 	MaxLng      float64            // Bounding box max longitude
 	MaxLat      float64            // Bounding box max latitude
+	Lat         *float64           // Reference latitude for proximity ranking (optional)
+	Lng         *float64           // Reference longitude for proximity ranking (optional)
 	Query       string             // Text search query (optional)
+	Genres      []string           // Genre/tag filters (optional, OR match)
 	Limit       int                // Max results per page (max 50)
+	Offset      int                // Offset pagination (applied before cursor, optional)
 	Cursor      string             // Pagination cursor
 	TrustScores map[string]float64 // Map of sceneID -> trust score (optional, for ranking)
 }
@@ -393,6 +397,11 @@ func (r *InMemorySceneRepository) SearchScenes(opts SceneSearchOptions) ([]*Scen
 	// Calculate bbox center for proximity scoring
 	centerLat := (opts.MinLat + opts.MaxLat) / 2.0
 	centerLng := (opts.MinLng + opts.MaxLng) / 2.0
+	if opts.Lat != nil && opts.Lng != nil {
+		centerLat = *opts.Lat
+		centerLng = *opts.Lng
+	}
+	hasBBox := opts.MinLng < opts.MaxLng && opts.MinLat < opts.MaxLat
 
 	// Decode cursor if provided
 	cursor, err := DecodeSceneCursor(opts.Cursor)
@@ -406,6 +415,13 @@ func (r *InMemorySceneRepository) SearchScenes(opts SceneSearchOptions) ([]*Scen
 		score float64
 	}
 	var scored []scoredScene
+	normalizedGenres := make(map[string]struct{}, len(opts.Genres))
+	for _, genre := range opts.Genres {
+		normalized := strings.ToLower(strings.TrimSpace(genre))
+		if normalized != "" {
+			normalizedGenres[normalized] = struct{}{}
+		}
+	}
 
 	for _, scene := range r.scenes {
 		// Skip deleted scenes
@@ -418,14 +434,31 @@ func (r *InMemorySceneRepository) SearchScenes(opts SceneSearchOptions) ([]*Scen
 			continue
 		}
 
-		// Apply bbox filter: require precise location within bounds
-		if scene.PrecisePoint == nil {
-			// Exclude scenes without a precise location from bbox-based search
-			continue
+		// Apply bbox filter when provided: require precise location within bounds.
+		// Scenes with allow_precise=false (no precise point) are excluded from bbox filtering.
+		if hasBBox {
+			if scene.PrecisePoint == nil {
+				continue
+			}
+			if scene.PrecisePoint.Lat < opts.MinLat || scene.PrecisePoint.Lat > opts.MaxLat ||
+				scene.PrecisePoint.Lng < opts.MinLng || scene.PrecisePoint.Lng > opts.MaxLng {
+				continue
+			}
 		}
-		if scene.PrecisePoint.Lat < opts.MinLat || scene.PrecisePoint.Lat > opts.MaxLat ||
-			scene.PrecisePoint.Lng < opts.MinLng || scene.PrecisePoint.Lng > opts.MaxLng {
-			continue
+
+		// Apply genre filter (OR semantics on tags)
+		if len(normalizedGenres) > 0 {
+			matched := false
+			for _, tag := range scene.Tags {
+				tagLower := strings.ToLower(strings.TrimSpace(tag))
+				if _, ok := normalizedGenres[tagLower]; ok {
+					matched = true
+					break
+				}
+			}
+			if !matched {
+				continue
+			}
 		}
 
 		// Calculate text match score
@@ -473,6 +506,12 @@ func (r *InMemorySceneRepository) SearchScenes(opts SceneSearchOptions) ([]*Scen
 
 	// Apply cursor pagination
 	startIdx := 0
+	if opts.Offset > 0 {
+		startIdx = opts.Offset
+		if startIdx > len(scored) {
+			startIdx = len(scored)
+		}
+	}
 	if cursor != nil {
 		// Find the position after the cursor
 		for i, s := range scored {
@@ -484,6 +523,9 @@ func (r *InMemorySceneRepository) SearchScenes(opts SceneSearchOptions) ([]*Scen
 	}
 
 	// Extract page of results
+	if opts.Limit <= 0 {
+		opts.Limit = 20
+	}
 	endIdx := startIdx + opts.Limit
 	if endIdx > len(scored) {
 		endIdx = len(scored)

@@ -9,6 +9,8 @@ import (
 	"math"
 	"strings"
 	"time"
+
+	"github.com/onnwee/subcults/internal/geo"
 )
 
 // EventRankingWeights defines the weights for different ranking components.
@@ -184,26 +186,40 @@ func CalculateSceneTextMatchScore(scene *Scene, query string) float64 {
 		return 1.0 // No query means all scenes match equally
 	}
 
-	queryLower := strings.ToLower(query)
-
-	// Check name (highest weight)
-	if strings.Contains(strings.ToLower(scene.Name), queryLower) {
+	queryTerms := strings.Fields(strings.ToLower(query))
+	if len(queryTerms) == 0 {
 		return 1.0
 	}
 
-	// Check description (medium weight)
-	if strings.Contains(strings.ToLower(scene.Description), queryLower) {
-		return 0.7
-	}
+	name := strings.ToLower(scene.Name)
+	description := strings.ToLower(scene.Description)
+	tags := strings.ToLower(strings.Join(scene.Tags, " "))
 
-	// Check tags (lower weight)
-	for _, tag := range scene.Tags {
-		if strings.Contains(strings.ToLower(tag), queryLower) {
-			return 0.5
+	// Approximate FTS ranking: weighted term coverage by field
+	// name=1.0, description=0.7, tags=0.5
+	// final score normalized to [0,1]
+	maxPerTerm := 1.0
+	totalScore := 0.0
+	for _, term := range queryTerms {
+		termScore := 0.0
+		if strings.Contains(name, term) {
+			termScore = 1.0
+		} else if strings.Contains(description, term) {
+			termScore = 0.7
+		} else if strings.Contains(tags, term) {
+			termScore = 0.5
 		}
+		totalScore += termScore
 	}
 
-	return 0.0 // No match
+	score := totalScore / (float64(len(queryTerms)) * maxPerTerm)
+	if score < 0.0 {
+		return 0.0
+	}
+	if score > 1.0 {
+		return 1.0
+	}
+	return score
 }
 
 // CalculateSceneProximityScore computes a distance-based proximity score for a scene.
@@ -211,22 +227,30 @@ func CalculateSceneTextMatchScore(scene *Scene, query string) float64 {
 // For simplicity in in-memory implementation, we use the center of the bbox as reference.
 // In a real PostGIS implementation, this would use ST_Distance with proper geo calculations.
 func CalculateSceneProximityScore(scene *Scene, centerLat, centerLng float64) float64 {
-	if scene.PrecisePoint == nil {
-		return 0.5 // Default score if no location
+	// Geohash prefix similarity scoring, used even when precise location is not available.
+	proximityScore := 0.5 // default
+	if scene.CoarseGeohash != "" {
+		centerGeohash := geo.Encode(centerLat, centerLng, len(scene.CoarseGeohash))
+		matchedPrefix := 0
+		for i := 0; i < len(scene.CoarseGeohash) && i < len(centerGeohash); i++ {
+			if scene.CoarseGeohash[i] != centerGeohash[i] {
+				break
+			}
+			matchedPrefix++
+		}
+		proximityScore = float64(matchedPrefix) / float64(len(scene.CoarseGeohash))
 	}
 
-	// Calculate simple Euclidean distance (not great circle, but good enough for in-memory)
-	// For production with PostGIS, use ST_Distance with proper geodesic calculations
-	latDiff := scene.PrecisePoint.Lat - centerLat
-	lngDiff := scene.PrecisePoint.Lng - centerLng
-	distance := math.Sqrt(latDiff*latDiff + lngDiff*lngDiff)
+	// If precise coordinates are available, blend geohash score with distance score.
+	if scene.PrecisePoint != nil {
+		latDiff := scene.PrecisePoint.Lat - centerLat
+		lngDiff := scene.PrecisePoint.Lng - centerLng
+		distance := math.Sqrt(latDiff*latDiff + lngDiff*lngDiff)
+		distanceScore := 1.0 / (1.0 + distance)
+		proximityScore = (proximityScore * 0.5) + (distanceScore * 0.5)
+	}
 
-	// Normalize distance to [0, 1] range
-	// Use a simple decay function: 1 / (1 + distance)
-	// This gives 1.0 for distance=0, 0.5 for distance=1, etc.
-	score := 1.0 / (1.0 + distance)
-
-	return score
+	return proximityScore
 }
 
 // CalculateSceneCompositeScore computes the final composite ranking score for a scene.
