@@ -60,13 +60,15 @@ type SceneSearchResult struct {
 
 // Constants for bbox validation
 const (
-	MaxBboxAreaDegrees = 10.0 // Max bbox area in square degrees (~1000km x 1000km at equator)
-	MaxSearchLimit     = 50   // Max results per page
-	DefaultSearchLimit = 20   // Default results if not specified
-	MaxGlobalLimit     = 25
-	maxGlobalScenes    = 10
-	maxGlobalEvents    = 10
-	maxGlobalPosts     = 5
+	MaxBboxAreaDegrees                     = 10.0 // Max bbox area in square degrees (~1000km x 1000km at equator)
+	MaxSearchLimit                         = 50   // Max results per page
+	DefaultSearchLimit                     = 20   // Default results if not specified
+	MaxGlobalLimit                         = 25
+	maxGlobalScenes                        = 10
+	maxGlobalEvents                        = 10
+	maxGlobalPosts                         = 5
+	defaultEventPastYearsForGlobalSearch   = 1
+	defaultEventFutureYearsForGlobalSearch = 5
 )
 
 // SearchScenes handles GET /search/scenes - searches for scenes with ranking and pagination.
@@ -489,8 +491,9 @@ func (h *SearchHandlers) SearchGlobal(w http.ResponseWriter, r *http.Request) {
 	eventResults := make([]*scene.Event, 0)
 	eventNextCursor := ""
 	if h.eventRepo != nil {
-		from := time.Now().AddDate(-1, 0, 0)
-		to := time.Now().AddDate(5, 0, 0)
+		now := time.Now()
+		from := now.AddDate(-defaultEventPastYearsForGlobalSearch, 0, 0)
+		to := now.AddDate(defaultEventFutureYearsForGlobalSearch, 0, 0)
 		eventResults, eventNextCursor, err = h.eventRepo.SearchEvents(scene.EventSearchOptions{
 			MinLng: -180,
 			MinLat: -90,
@@ -525,6 +528,7 @@ func (h *SearchHandlers) SearchGlobal(w http.ResponseWriter, r *http.Request) {
 	type scoredGlobalResult struct {
 		result *GlobalSearchResult
 		score  float64
+		key    string
 	}
 	scored := make([]scoredGlobalResult, 0, len(sceneResults)+len(eventResults)+len(postResults))
 	for i, s := range sceneResults {
@@ -542,12 +546,13 @@ func (h *SearchHandlers) SearchGlobal(w http.ResponseWriter, r *http.Request) {
 		scored = append(scored, scoredGlobalResult{
 			result: &GlobalSearchResult{Type: "scene", Scene: sceneResult},
 			score:  globalNormalizedScore(i, len(sceneResults)),
+			key:    "scene:" + s.ID,
 		})
 	}
 	for i, e := range eventResults {
-		createdAt := e.StartsAt
+		createdAt := ""
 		if e.CreatedAt != nil {
-			createdAt = *e.CreatedAt
+			createdAt = e.CreatedAt.Format(time.RFC3339)
 		}
 		scored = append(scored, scoredGlobalResult{
 			result: &GlobalSearchResult{
@@ -557,10 +562,11 @@ func (h *SearchHandlers) SearchGlobal(w http.ResponseWriter, r *http.Request) {
 					SceneID:   e.SceneID,
 					Title:     e.Title,
 					StartsAt:  e.StartsAt.Format(time.RFC3339),
-					CreatedAt: createdAt.Format(time.RFC3339),
+					CreatedAt: createdAt,
 				},
 			},
 			score: globalNormalizedScore(i, len(eventResults)),
+			key:   "event:" + e.ID,
 		})
 	}
 	for i, p := range postResults {
@@ -575,12 +581,13 @@ func (h *SearchHandlers) SearchGlobal(w http.ResponseWriter, r *http.Request) {
 				},
 			},
 			score: globalNormalizedScore(i, len(postResults)),
+			key:   "post:" + p.ID,
 		})
 	}
 
 	sort.Slice(scored, func(i, j int) bool {
 		if scored[i].score == scored[j].score {
-			return globalResultKey(scored[i].result) < globalResultKey(scored[j].result)
+			return scored[i].key < scored[j].key
 		}
 		return scored[i].score > scored[j].score
 	})
@@ -634,27 +641,6 @@ func globalNormalizedScore(idx int, total int) float64 {
 	return 1.0 - (float64(idx) / float64(total))
 }
 
-func globalResultKey(result *GlobalSearchResult) string {
-	if result == nil {
-		return ""
-	}
-	switch result.Type {
-	case "scene":
-		if result.Scene != nil {
-			return "scene:" + result.Scene.ID
-		}
-	case "event":
-		if result.Event != nil {
-			return "event:" + result.Event.ID
-		}
-	case "post":
-		if result.Post != nil {
-			return "post:" + result.Post.ID
-		}
-	}
-	return result.Type
-}
-
 func decodeGlobalSearchCursor(cursor string) (globalSearchCursor, error) {
 	if strings.TrimSpace(cursor) == "" {
 		return globalSearchCursor{}, nil
@@ -673,6 +659,7 @@ func decodeGlobalSearchCursor(cursor string) (globalSearchCursor, error) {
 func encodeGlobalSearchCursor(state globalSearchCursor) string {
 	encoded, err := json.Marshal(state)
 	if err != nil {
+		slog.Error("failed to encode global search cursor", "error", err)
 		return ""
 	}
 	return base64.StdEncoding.EncodeToString(encoded)
