@@ -2,12 +2,15 @@
 package api
 
 import (
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"log/slog"
 	"net/http"
+	"sort"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/onnwee/subcults/internal/middleware"
 	"github.com/onnwee/subcults/internal/post"
@@ -18,17 +21,22 @@ import (
 // SearchHandlers holds dependencies for search HTTP handlers.
 type SearchHandlers struct {
 	sceneRepo  scene.SceneRepository
+	eventRepo  scene.EventRepository
 	postRepo   post.PostRepository
 	trustStore TrustScoreStore
 }
 
 // NewSearchHandlers creates a new SearchHandlers instance.
-func NewSearchHandlers(sceneRepo scene.SceneRepository, postRepo post.PostRepository, trustStore TrustScoreStore) *SearchHandlers {
-	return &SearchHandlers{
+func NewSearchHandlers(sceneRepo scene.SceneRepository, postRepo post.PostRepository, trustStore TrustScoreStore, eventRepo ...scene.EventRepository) *SearchHandlers {
+	h := &SearchHandlers{
 		sceneRepo:  sceneRepo,
 		postRepo:   postRepo,
 		trustStore: trustStore,
 	}
+	if len(eventRepo) > 0 {
+		h.eventRepo = eventRepo[0]
+	}
+	return h
 }
 
 // SceneSearchResponse represents the response for scene search.
@@ -55,6 +63,10 @@ const (
 	MaxBboxAreaDegrees = 10.0 // Max bbox area in square degrees (~1000km x 1000km at equator)
 	MaxSearchLimit     = 50   // Max results per page
 	DefaultSearchLimit = 20   // Default results if not specified
+	MaxGlobalLimit     = 25
+	maxGlobalScenes    = 10
+	maxGlobalEvents    = 10
+	maxGlobalPosts     = 5
 )
 
 // SearchScenes handles GET /search/scenes - searches for scenes with ranking and pagination.
@@ -409,6 +421,261 @@ type PostSearchResult struct {
 	SceneID    *string  `json:"scene_id,omitempty"`
 	TrustScore *float64 `json:"trust_score,omitempty"` // Only if trust ranking enabled
 	CreatedAt  string   `json:"created_at"`            // ISO 8601 format
+}
+
+// GlobalSearchResult represents one item in mixed global search results.
+type GlobalSearchResult struct {
+	Type  string                   `json:"type"`
+	Scene *SceneSearchResult       `json:"scene,omitempty"`
+	Event *GlobalEventSearchResult `json:"event,omitempty"`
+	Post  *PostSearchResult        `json:"post,omitempty"`
+}
+
+// GlobalEventSearchResult represents a minimal event result for global search.
+type GlobalEventSearchResult struct {
+	ID        string `json:"id"`
+	SceneID   string `json:"scene_id"`
+	Title     string `json:"title"`
+	StartsAt  string `json:"starts_at"`
+	CreatedAt string `json:"created_at"`
+}
+
+// GlobalSearchResponse represents the response for global search.
+type GlobalSearchResponse struct {
+	Results    []*GlobalSearchResult `json:"results"`
+	NextCursor string                `json:"next_cursor,omitempty"`
+	Count      int                   `json:"count"`
+}
+
+type globalSearchCursor struct {
+	SceneCursor string `json:"scene_cursor,omitempty"`
+	EventCursor string `json:"event_cursor,omitempty"`
+	PostCursor  string `json:"post_cursor,omitempty"`
+}
+
+// SearchGlobal handles GET /search/global - unified search across scenes, events, and posts.
+func (h *SearchHandlers) SearchGlobal(w http.ResponseWriter, r *http.Request) {
+	query := r.URL.Query()
+	q := strings.TrimSpace(query.Get("q"))
+	if q == "" {
+		ctx := middleware.SetErrorCode(r.Context(), ErrCodeValidation)
+		WriteError(w, ctx, http.StatusBadRequest, ErrCodeValidation, "q parameter is required")
+		return
+	}
+
+	cursorState, err := decodeGlobalSearchCursor(query.Get("cursor"))
+	if err != nil {
+		ctx := middleware.SetErrorCode(r.Context(), ErrCodeValidation)
+		WriteError(w, ctx, http.StatusBadRequest, ErrCodeValidation, "invalid cursor")
+		return
+	}
+
+	sceneResults := make([]*scene.Scene, 0)
+	sceneNextCursor := ""
+	if h.sceneRepo != nil {
+		sceneResults, sceneNextCursor, err = h.sceneRepo.SearchScenes(scene.SceneSearchOptions{
+			Query:  q,
+			Limit:  maxGlobalScenes,
+			Cursor: cursorState.SceneCursor,
+		})
+		if err != nil {
+			slog.ErrorContext(r.Context(), "failed to search scenes for global search", "error", err)
+			ctx := middleware.SetErrorCode(r.Context(), ErrCodeInternal)
+			WriteError(w, ctx, http.StatusInternalServerError, ErrCodeInternal, "Failed to search")
+			return
+		}
+	}
+
+	eventResults := make([]*scene.Event, 0)
+	eventNextCursor := ""
+	if h.eventRepo != nil {
+		from := time.Now().AddDate(-1, 0, 0)
+		to := time.Now().AddDate(5, 0, 0)
+		eventResults, eventNextCursor, err = h.eventRepo.SearchEvents(scene.EventSearchOptions{
+			MinLng: -180,
+			MinLat: -90,
+			MaxLng: 180,
+			MaxLat: 90,
+			From:   from,
+			To:     to,
+			Query:  q,
+			Limit:  maxGlobalEvents,
+			Cursor: cursorState.EventCursor,
+		})
+		if err != nil {
+			slog.ErrorContext(r.Context(), "failed to search events for global search", "error", err)
+			ctx := middleware.SetErrorCode(r.Context(), ErrCodeInternal)
+			WriteError(w, ctx, http.StatusInternalServerError, ErrCodeInternal, "Failed to search")
+			return
+		}
+	}
+
+	postResults := make([]*post.Post, 0)
+	postNextCursor := ""
+	if h.postRepo != nil {
+		postResults, postNextCursor, err = h.postRepo.SearchPosts(q, nil, maxGlobalPosts, cursorState.PostCursor, nil)
+		if err != nil {
+			slog.ErrorContext(r.Context(), "failed to search posts for global search", "error", err)
+			ctx := middleware.SetErrorCode(r.Context(), ErrCodeInternal)
+			WriteError(w, ctx, http.StatusInternalServerError, ErrCodeInternal, "Failed to search")
+			return
+		}
+	}
+
+	type scoredGlobalResult struct {
+		result *GlobalSearchResult
+		score  float64
+	}
+	scored := make([]scoredGlobalResult, 0, len(sceneResults)+len(eventResults)+len(postResults))
+	for i, s := range sceneResults {
+		sceneResult := &SceneSearchResult{
+			ID:            s.ID,
+			Name:          s.Name,
+			Description:   s.Description,
+			CoarseGeohash: s.CoarseGeohash,
+			Tags:          s.Tags,
+			Visibility:    s.Visibility,
+		}
+		if s.PrecisePoint != nil {
+			sceneResult.JitteredPoint = applyJitter(s.PrecisePoint)
+		}
+		scored = append(scored, scoredGlobalResult{
+			result: &GlobalSearchResult{Type: "scene", Scene: sceneResult},
+			score:  globalNormalizedScore(i, len(sceneResults)),
+		})
+	}
+	for i, e := range eventResults {
+		createdAt := e.StartsAt
+		if e.CreatedAt != nil {
+			createdAt = *e.CreatedAt
+		}
+		scored = append(scored, scoredGlobalResult{
+			result: &GlobalSearchResult{
+				Type: "event",
+				Event: &GlobalEventSearchResult{
+					ID:        e.ID,
+					SceneID:   e.SceneID,
+					Title:     e.Title,
+					StartsAt:  e.StartsAt.Format(time.RFC3339),
+					CreatedAt: createdAt.Format(time.RFC3339),
+				},
+			},
+			score: globalNormalizedScore(i, len(eventResults)),
+		})
+	}
+	for i, p := range postResults {
+		scored = append(scored, scoredGlobalResult{
+			result: &GlobalSearchResult{
+				Type: "post",
+				Post: &PostSearchResult{
+					ID:        p.ID,
+					Excerpt:   makeExcerpt(p.Text, 160),
+					SceneID:   p.SceneID,
+					CreatedAt: p.CreatedAt.Format(time.RFC3339),
+				},
+			},
+			score: globalNormalizedScore(i, len(postResults)),
+		})
+	}
+
+	sort.Slice(scored, func(i, j int) bool {
+		if scored[i].score == scored[j].score {
+			return globalResultKey(scored[i].result) < globalResultKey(scored[j].result)
+		}
+		return scored[i].score > scored[j].score
+	})
+
+	limit := MaxGlobalLimit
+	if limitStr := query.Get("limit"); limitStr != "" {
+		parsedLimit, parseErr := strconv.Atoi(limitStr)
+		if parseErr != nil || parsedLimit < 1 {
+			ctx := middleware.SetErrorCode(r.Context(), ErrCodeValidation)
+			WriteError(w, ctx, http.StatusBadRequest, ErrCodeValidation, "limit must be a positive integer")
+			return
+		}
+		if parsedLimit < limit {
+			limit = parsedLimit
+		}
+	}
+
+	results := make([]*GlobalSearchResult, 0, min(limit, len(scored)))
+	for _, item := range scored {
+		if len(results) >= limit {
+			break
+		}
+		results = append(results, item.result)
+	}
+
+	nextCursor := ""
+	if sceneNextCursor != "" || eventNextCursor != "" || postNextCursor != "" {
+		nextCursor = encodeGlobalSearchCursor(globalSearchCursor{
+			SceneCursor: sceneNextCursor,
+			EventCursor: eventNextCursor,
+			PostCursor:  postNextCursor,
+		})
+	}
+
+	response := GlobalSearchResponse{
+		Results:    results,
+		NextCursor: nextCursor,
+		Count:      len(results),
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	if err := json.NewEncoder(w).Encode(response); err != nil {
+		slog.ErrorContext(r.Context(), "failed to encode global search response", "error", err)
+	}
+}
+
+func globalNormalizedScore(idx int, total int) float64 {
+	if total <= 0 {
+		return 0
+	}
+	return 1.0 - (float64(idx) / float64(total))
+}
+
+func globalResultKey(result *GlobalSearchResult) string {
+	if result == nil {
+		return ""
+	}
+	switch result.Type {
+	case "scene":
+		if result.Scene != nil {
+			return "scene:" + result.Scene.ID
+		}
+	case "event":
+		if result.Event != nil {
+			return "event:" + result.Event.ID
+		}
+	case "post":
+		if result.Post != nil {
+			return "post:" + result.Post.ID
+		}
+	}
+	return result.Type
+}
+
+func decodeGlobalSearchCursor(cursor string) (globalSearchCursor, error) {
+	if strings.TrimSpace(cursor) == "" {
+		return globalSearchCursor{}, nil
+	}
+	decoded, err := base64.StdEncoding.DecodeString(cursor)
+	if err != nil {
+		return globalSearchCursor{}, err
+	}
+	var state globalSearchCursor
+	if err := json.Unmarshal(decoded, &state); err != nil {
+		return globalSearchCursor{}, err
+	}
+	return state, nil
+}
+
+func encodeGlobalSearchCursor(state globalSearchCursor) string {
+	encoded, err := json.Marshal(state)
+	if err != nil {
+		return ""
+	}
+	return base64.StdEncoding.EncodeToString(encoded)
 }
 
 // SearchPosts handles GET /search/posts - searches for posts with text relevance and scene filter.
