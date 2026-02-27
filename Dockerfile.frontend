@@ -15,6 +15,13 @@ FROM node:22-alpine AS builder
 
 WORKDIR /app
 
+ARG VITE_API_URL=/api
+ARG VITE_MAPTILER_API_KEY=
+ARG VITE_R2_CDN_URL=
+ARG VITE_VAPID_PUBLIC_KEY=
+ARG VITE_LIVEKIT_WS_URL=
+ARG VITE_APP_VERSION=dev
+
 # Dependency layer (cached separately from source)
 COPY web/package.json web/package-lock.json* ./
 RUN if [ -f package-lock.json ]; then \
@@ -26,8 +33,16 @@ RUN if [ -f package-lock.json ]; then \
 # Source layer
 COPY web/ .
 
-# Build
-RUN npm run build
+# Build (inject Vite envs at build time)
+RUN printf '%s\n' \
+            "VITE_API_URL=${VITE_API_URL}" \
+            "VITE_MAPTILER_API_KEY=${VITE_MAPTILER_API_KEY}" \
+            "VITE_R2_CDN_URL=${VITE_R2_CDN_URL}" \
+            "VITE_VAPID_PUBLIC_KEY=${VITE_VAPID_PUBLIC_KEY}" \
+            "VITE_LIVEKIT_WS_URL=${VITE_LIVEKIT_WS_URL}" \
+            "VITE_APP_VERSION=${VITE_APP_VERSION}" \
+            > .env.production && \
+        npm run build
 
 # ---------------------------------------------------------------------------
 # Production stage - nginx serves static assets
