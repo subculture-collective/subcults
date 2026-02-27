@@ -72,6 +72,36 @@
       "scenes": "Scenes",
       "events": "Events",
       "posts": "Posts"
+    },
+    "results": {
+      "heading": "{{count}} results for \"{{query}}\"",
+      "noResultsHeading": "No results for \"{{query}}\"",
+      "noResultsHint": "Try different keywords or remove filters.",
+      "emptyQueryHeading": "Search Subcults",
+      "emptyQueryHint": "Find scenes, events, and posts.",
+      "searching": "Searching...",
+      "types": {
+        "all": "All",
+        "scenes": "Scenes",
+        "events": "Events",
+        "posts": "Posts"
+      },
+      "sort": {
+        "relevance": "Relevance",
+        "recent": "Most Recent",
+        "trending": "Trending"
+      },
+      "filters": {
+        "label": "Filters",
+        "type": "Type",
+        "sort": "Sort by"
+      },
+      "pagination": {
+        "label": "Pagination",
+        "previous": "Previous",
+        "next": "Next",
+        "page": "Page {{page}}"
+      }
     }
   },
   "profile": {

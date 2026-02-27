@@ -42,6 +42,9 @@ const StreamPage = lazy(() =>
 const AdminPage = lazy(() =>
   import('../pages/AdminPage').then((module) => ({ default: module.AdminPage }))
 );
+const SearchResultsPage = lazy(() =>
+  import('../pages/SearchResultsPage').then((module) => ({ default: module.SearchResultsPage }))
+);
 const StreamingDemo = lazy(() =>
   import('../StreamingDemo').then((module) => ({ default: module.StreamingDemo }))
 );
@@ -98,6 +101,14 @@ const router = createBrowserRouter(
           element: (
             <Suspense fallback={<LoadingSkeleton />}>
               <EventDetailPage />
+            </Suspense>
+          ),
+        },
+        {
+          path: 'search',
+          element: (
+            <Suspense fallback={<LoadingSkeleton />}>
+              <SearchResultsPage />
             </Suspense>
           ),
         },
