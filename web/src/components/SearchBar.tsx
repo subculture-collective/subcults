@@ -202,6 +202,13 @@ export function SearchBar({
         e.preventDefault();
         if (selectedIndex >= 0 && flatResults[selectedIndex]) {
           navigateToResult(flatResults[selectedIndex]);
+        } else if (inputValue.trim()) {
+          // Navigate to full search results page
+          const query = inputValue.trim();
+          addToHistory(query);
+          navigate(`/search?q=${encodeURIComponent(query)}`);
+          setIsOpen(false);
+          setSelectedIndex(-1);
         }
         break;
 

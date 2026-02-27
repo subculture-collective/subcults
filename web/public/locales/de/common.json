@@ -67,6 +67,36 @@
       "scenes": "Szenen",
       "events": "Veranstaltungen",
       "posts": "Beiträge"
+    },
+    "results": {
+      "heading": "{{count}} Ergebnisse für \"{{query}}\"",
+      "noResultsHeading": "Keine Ergebnisse für \"{{query}}\"",
+      "noResultsHint": "Versuchen Sie andere Schlüsselwörter oder entfernen Sie Filter.",
+      "emptyQueryHeading": "Subcults durchsuchen",
+      "emptyQueryHint": "Finden Sie Szenen, Veranstaltungen und Beiträge.",
+      "searching": "Suche läuft...",
+      "types": {
+        "all": "Alle",
+        "scenes": "Szenen",
+        "events": "Veranstaltungen",
+        "posts": "Beiträge"
+      },
+      "sort": {
+        "relevance": "Relevanz",
+        "recent": "Neueste",
+        "trending": "Trending"
+      },
+      "filters": {
+        "label": "Filter",
+        "type": "Typ",
+        "sort": "Sortieren nach"
+      },
+      "pagination": {
+        "label": "Seitennavigation",
+        "previous": "Zurück",
+        "next": "Weiter",
+        "page": "Seite {{page}}"
+      }
     }
   },
   "profile": {
