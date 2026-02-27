@@ -20,7 +20,7 @@ export default defineConfig({
     rollupOptions: {
       output: {
         manualChunks(id) {
-          if (!id.includes('node_modules')) return;
+          if (!id.includes('node_modules')) return undefined;
 
           if (id.includes('react') || id.includes('scheduler')) {
             return 'vendor-react';
@@ -34,9 +34,7 @@ export default defineConfig({
             return 'vendor-i18n';
           }
 
-          if (id.includes('livekit')) {
-            return 'vendor-livekit';
-          }
+          return undefined;
         },
       },
     },

@@ -1,13 +1,15 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import { Outlet } from 'react-router-dom';
+
+const SIMULATED_CHUNK_LOAD_MS = 25;
 
 vi.mock('../layouts/AppLayout', () => ({
   AppLayout: () => <Outlet />,
 }));
 
 vi.mock('../pages/HomePage', async () => {
-  await new Promise((resolve) => setTimeout(resolve, 25));
+  await new Promise((resolve) => setTimeout(resolve, SIMULATED_CHUNK_LOAD_MS));
   return {
     HomePage: () => <div>Lazy Home Page</div>,
   };
