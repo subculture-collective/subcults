@@ -415,6 +415,13 @@ func (r *InMemorySceneRepository) SearchScenes(opts SceneSearchOptions) ([]*Scen
 		score float64
 	}
 	var scored []scoredScene
+	normalizedGenres := make(map[string]struct{}, len(opts.Genres))
+	for _, genre := range opts.Genres {
+		normalized := strings.ToLower(strings.TrimSpace(genre))
+		if normalized != "" {
+			normalizedGenres[normalized] = struct{}{}
+		}
+	}
 
 	for _, scene := range r.scenes {
 		// Skip deleted scenes
@@ -440,17 +447,12 @@ func (r *InMemorySceneRepository) SearchScenes(opts SceneSearchOptions) ([]*Scen
 		}
 
 		// Apply genre filter (OR semantics on tags)
-		if len(opts.Genres) > 0 {
+		if len(normalizedGenres) > 0 {
 			matched := false
 			for _, tag := range scene.Tags {
 				tagLower := strings.ToLower(strings.TrimSpace(tag))
-				for _, genre := range opts.Genres {
-					if tagLower == strings.ToLower(strings.TrimSpace(genre)) {
-						matched = true
-						break
-					}
-				}
-				if matched {
+				if _, ok := normalizedGenres[tagLower]; ok {
+					matched = true
 					break
 				}
 			}

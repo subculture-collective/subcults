@@ -9,6 +9,8 @@ import (
 	"math"
 	"strings"
 	"time"
+
+	"github.com/onnwee/subcults/internal/geo"
 )
 
 // EventRankingWeights defines the weights for different ranking components.
@@ -228,7 +230,7 @@ func CalculateSceneProximityScore(scene *Scene, centerLat, centerLng float64) fl
 	// Geohash prefix similarity scoring, used even when precise location is not available.
 	proximityScore := 0.5 // default
 	if scene.CoarseGeohash != "" {
-		centerGeohash := encodeGeohash(centerLat, centerLng, len(scene.CoarseGeohash))
+		centerGeohash := geo.Encode(centerLat, centerLng, len(scene.CoarseGeohash))
 		matchedPrefix := 0
 		for i := 0; i < len(scene.CoarseGeohash) && i < len(centerGeohash); i++ {
 			if scene.CoarseGeohash[i] != centerGeohash[i] {
@@ -249,44 +251,6 @@ func CalculateSceneProximityScore(scene *Scene, centerLat, centerLng float64) fl
 	}
 
 	return proximityScore
-}
-
-func encodeGeohash(lat, lng float64, precision int) string {
-	const base32 = "0123456789bcdefghjkmnpqrstuvwxyz"
-	minLat, maxLat := -90.0, 90.0
-	minLng, maxLng := -180.0, 180.0
-
-	var geohash strings.Builder
-	bits, bit, ch := 0, 0, 0
-	for geohash.Len() < precision {
-		if bits%2 == 0 {
-			mid := (minLng + maxLng) / 2
-			if lng > mid {
-				ch |= (1 << (4 - bit))
-				minLng = mid
-			} else {
-				maxLng = mid
-			}
-		} else {
-			mid := (minLat + maxLat) / 2
-			if lat > mid {
-				ch |= (1 << (4 - bit))
-				minLat = mid
-			} else {
-				maxLat = mid
-			}
-		}
-
-		bits++
-		bit++
-		if bit == 5 {
-			geohash.WriteByte(base32[ch])
-			bit = 0
-			ch = 0
-		}
-	}
-
-	return geohash.String()
 }
 
 // CalculateSceneCompositeScore computes the final composite ranking score for a scene.
