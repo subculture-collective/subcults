@@ -42,6 +42,16 @@ const TYPE_OPTIONS: { value: ResultType; labelKey: string; icon: string }[] = [
   { value: 'posts', labelKey: 'search.results.types.posts', icon: ICONS.POST },
 ];
 
+/** Returns whether the given type filter value matches the current URL param */
+function isTypeActive(typeParam: ResultType, value: ResultType): boolean {
+  return typeParam === value;
+}
+
+/** Returns whether the given sort value matches the current URL param */
+function isSortActive(sortParam: SortOption, value: SortOption): boolean {
+  return sortParam === value;
+}
+
 /**
  * Get display name for a search result item
  */
@@ -178,6 +188,32 @@ const ResultsSection: React.FC<ResultsSectionProps> = ({ titleKey, icon, items }
 };
 
 /**
+ * Build a list of page numbers / ellipsis strings for the pagination bar.
+ * Always shows first/last pages and up to 2 pages around the current page.
+ * Uses '…' as a sentinel for ellipsis gaps.
+ */
+function getPaginationPages(current: number, total: number): (number | '…')[] {
+  if (total <= 7) {
+    return Array.from({ length: total }, (_, i) => i + 1);
+  }
+
+  const pages: (number | '…')[] = [];
+  const addPage = (p: number) => {
+    if (!pages.includes(p)) pages.push(p);
+  };
+
+  addPage(1);
+  if (current > 3) pages.push('…');
+  for (let p = Math.max(2, current - 1); p <= Math.min(total - 1, current + 1); p++) {
+    addPage(p);
+  }
+  if (current < total - 2) pages.push('…');
+  addPage(total);
+
+  return pages;
+}
+
+/**
  * SearchResultsPage – full-page search UI with filters, sort, and pagination
  */
 export const SearchResultsPage: React.FC = () => {
@@ -202,7 +238,7 @@ export const SearchResultsPage: React.FC = () => {
     } else {
       clear();
     }
-  }, [query]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [query, search, clear]); // search and clear are stable useCallback references from useSearch
 
   /**
    * Update a single URL param while preserving others
@@ -259,10 +295,11 @@ export const SearchResultsPage: React.FC = () => {
         return true;
       });
 
-  // Apply sort (client-side approximation; real sorting should come from API)
+  // Apply sort (client-side approximation; the API should own authoritative sorting.
+  // 'recent' uses created_at for posts; scenes/events will sort to the end since they
+  // don't carry a created_at field in the current type definitions).
   const sortedItems = [...filteredItems].sort((a, b) => {
     if (sortParam === 'recent') {
-      // Posts have created_at; fall back to name comparison
       const aDate = a.type === 'post' ? a.data.created_at ?? '' : '';
       const bDate = b.type === 'post' ? b.data.created_at ?? '' : '';
       return bDate.localeCompare(aDate);
@@ -335,12 +372,12 @@ export const SearchResultsPage: React.FC = () => {
                     <li key={value}>
                       <button
                         onClick={() => handleTypeChange(value)}
-                        aria-pressed={typeParam === value || (value === 'all' && typeParam === 'all')}
+                        aria-pressed={isTypeActive(typeParam, value)}
                         className={`
                           w-full flex items-center gap-2 px-3 py-1.5 rounded-md text-sm
                           focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-primary
                           transition-colors
-                          ${(typeParam === value || (value === 'all' && typeParam !== 'scenes' && typeParam !== 'events' && typeParam !== 'posts'))
+                          ${isTypeActive(typeParam, value)
                             ? 'bg-brand-primary text-white font-medium'
                             : 'text-foreground hover:bg-underground-lighter'}
                         `}
@@ -363,12 +400,12 @@ export const SearchResultsPage: React.FC = () => {
                     <li key={value}>
                       <button
                         onClick={() => handleSortChange(value)}
-                        aria-pressed={sortParam === value || (value === 'relevance' && sortParam !== 'recent' && sortParam !== 'trending')}
+                        aria-pressed={isSortActive(sortParam, value)}
                         className={`
                           w-full text-left px-3 py-1.5 rounded-md text-sm
                           focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-primary
                           transition-colors
-                          ${(sortParam === value || (value === 'relevance' && sortParam !== 'recent' && sortParam !== 'trending'))
+                          ${isSortActive(sortParam, value)
                             ? 'bg-brand-primary text-white font-medium'
                             : 'text-foreground hover:bg-underground-lighter'}
                         `}
@@ -437,12 +474,12 @@ export const SearchResultsPage: React.FC = () => {
                         handleTypeChange(value);
                         setIsSidebarOpen(false);
                       }}
-                      aria-pressed={typeParam === value || (value === 'all' && typeParam !== 'scenes' && typeParam !== 'events' && typeParam !== 'posts')}
+                      aria-pressed={isTypeActive(typeParam, value)}
                       className={`
                         flex items-center gap-1 px-3 py-1.5 rounded-full text-sm
                         focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-primary
                         transition-colors
-                        ${(typeParam === value || (value === 'all' && typeParam !== 'scenes' && typeParam !== 'events' && typeParam !== 'posts'))
+                        ${isTypeActive(typeParam, value)
                           ? 'bg-brand-primary text-white font-medium'
                           : 'bg-background border border-border text-foreground hover:bg-underground-lighter'}
                       `}
@@ -534,7 +571,7 @@ export const SearchResultsPage: React.FC = () => {
                 {/* Pagination */}
                 {totalPages > 1 && (
                   <nav
-                    className="mt-8 flex items-center justify-center gap-2"
+                    className="mt-8 flex items-center justify-center gap-2 flex-wrap"
                     aria-label={t('search.results.pagination.label')}
                   >
                     <button
@@ -552,24 +589,28 @@ export const SearchResultsPage: React.FC = () => {
                       ‹ {t('search.results.pagination.previous')}
                     </button>
 
-                    {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
-                      <button
-                        key={page}
-                        onClick={() => handlePageChange(page)}
-                        aria-current={page === safePage ? 'page' : undefined}
-                        aria-label={t('search.results.pagination.page', { page })}
-                        className={`
-                          min-w-[2rem] px-2 py-1.5 rounded-lg text-sm border
-                          focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-primary
-                          transition-colors
-                          ${page === safePage
-                            ? 'bg-brand-primary border-brand-primary text-white font-medium'
-                            : 'bg-background-secondary border-border text-foreground hover:bg-underground-lighter'}
-                        `}
-                      >
-                        {page}
-                      </button>
-                    ))}
+                    {getPaginationPages(safePage, totalPages).map((item, idx) =>
+                      item === '…' ? (
+                        <span key={`ellipsis-${idx}`} className="px-1 text-foreground-tertiary select-none" aria-hidden="true">…</span>
+                      ) : (
+                        <button
+                          key={item}
+                          onClick={() => handlePageChange(item as number)}
+                          aria-current={(item as number) === safePage ? 'page' : undefined}
+                          aria-label={t('search.results.pagination.page', { page: item })}
+                          className={`
+                            min-w-[2rem] px-2 py-1.5 rounded-lg text-sm border
+                            focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-primary
+                            transition-colors
+                            ${(item as number) === safePage
+                              ? 'bg-brand-primary border-brand-primary text-white font-medium'
+                              : 'bg-background-secondary border-border text-foreground hover:bg-underground-lighter'}
+                          `}
+                        >
+                          {item}
+                        </button>
+                      )
+                    )}
 
                     <button
                       onClick={() => handlePageChange(safePage + 1)}
