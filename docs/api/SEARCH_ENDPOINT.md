@@ -15,8 +15,12 @@ GET /search/scenes
 | Parameter | Type | Required | Default | Description |
 |-----------|------|----------|---------|-------------|
 | `q` | string | No | - | Text search query matching scene name, description, or tags |
-| `bbox` | string | Yes | - | Bounding box in format `minLng,minLat,maxLng,maxLat` |
+| `bbox` | string | Conditionally | - | Bounding box in format `minLng,minLat,maxLng,maxLat` (required when `lat`/`lon` are not provided) |
+| `lat` | float | Conditionally | - | Reference latitude for proximity scoring (must be paired with `lon`) |
+| `lon` | float | Conditionally | - | Reference longitude for proximity scoring (must be paired with `lat`) |
+| `genres` | string | No | - | Comma-separated tag/genre filter (e.g. `techno,jazz`) |
 | `limit` | integer | No | 20 | Max results per page (1-50) |
+| `offset` | integer | No | 0 | Offset pagination (non-negative) |
 | `cursor` | string | No | - | Pagination cursor from previous response |
 
 ## Response Format
@@ -263,12 +267,10 @@ Default of 20 results balances:
 
 Planned improvements:
 
-1. **Full-Text Search**: PostgreSQL tsvector indexing for faster text queries
-2. **Geospatial Indexes**: PostGIS spatial indexes for bbox queries
-3. **Query Caching**: Redis cache for popular searches
-4. **Autocomplete**: Prefix matching for scene names
-5. **Faceted Search**: Filter by tags, visibility, etc.
-6. **Relevance Tuning**: ML-based ranking optimization
+1. **Query Caching**: Redis cache for popular searches
+2. **Autocomplete**: Prefix matching for scene names
+3. **Faceted Search**: Additional filters by visibility and metadata
+4. **Relevance Tuning**: ML-based ranking optimization
 
 ## Related Documentation
 

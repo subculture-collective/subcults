@@ -1,6 +1,7 @@
 package scene
 
 import (
+	"fmt"
 	"testing"
 	"time"
 
@@ -463,5 +464,104 @@ func TestSearchScenes_DeletedScenesExcluded(t *testing.T) {
 
 	if results[0].ID != activeScene.ID {
 		t.Error("expected only active scene in results")
+	}
+}
+
+func TestSearchScenes_GenresFilter(t *testing.T) {
+	repo := NewInMemorySceneRepository()
+	now := time.Now()
+
+	technoScene := &Scene{
+		ID:            uuid.New().String(),
+		Name:          "Warehouse Scene",
+		OwnerDID:      "did:plc:user1",
+		AllowPrecise:  true,
+		PrecisePoint:  &Point{Lat: 40.7128, Lng: -74.0060},
+		CoarseGeohash: "dr5regw",
+		Tags:          []string{"techno"},
+		Visibility:    VisibilityPublic,
+		CreatedAt:     &now,
+		UpdatedAt:     &now,
+	}
+	jazzScene := &Scene{
+		ID:            uuid.New().String(),
+		Name:          "Jazz Scene",
+		OwnerDID:      "did:plc:user2",
+		AllowPrecise:  true,
+		PrecisePoint:  &Point{Lat: 40.7128, Lng: -74.0060},
+		CoarseGeohash: "dr5regw",
+		Tags:          []string{"jazz"},
+		Visibility:    VisibilityPublic,
+		CreatedAt:     &now,
+		UpdatedAt:     &now,
+	}
+
+	if err := repo.Insert(technoScene); err != nil {
+		t.Fatalf("failed to insert techno scene: %v", err)
+	}
+	if err := repo.Insert(jazzScene); err != nil {
+		t.Fatalf("failed to insert jazz scene: %v", err)
+	}
+
+	results, _, err := repo.SearchScenes(SceneSearchOptions{
+		MinLng: -74.1,
+		MinLat: 40.6,
+		MaxLng: -73.9,
+		MaxLat: 40.8,
+		Genres: []string{"techno"},
+		Limit:  10,
+		Offset: 0,
+		Cursor: "",
+		Query:  "",
+	})
+	if err != nil {
+		t.Fatalf("search failed: %v", err)
+	}
+
+	if len(results) != 1 || results[0].ID != technoScene.ID {
+		t.Fatalf("expected only techno scene, got %d results", len(results))
+	}
+}
+
+func TestSearchScenes_OffsetPagination(t *testing.T) {
+	repo := NewInMemorySceneRepository()
+	now := time.Now()
+
+	for i := 0; i < 4; i++ {
+		s := &Scene{
+			ID:            fmt.Sprintf("scene-%d", i),
+			Name:          "Music Scene",
+			OwnerDID:      "did:plc:user1",
+			AllowPrecise:  true,
+			PrecisePoint:  &Point{Lat: 40.7128, Lng: -74.0060},
+			CoarseGeohash: "dr5regw",
+			Tags:          []string{"music"},
+			Visibility:    VisibilityPublic,
+			CreatedAt:     &now,
+			UpdatedAt:     &now,
+		}
+		if err := repo.Insert(s); err != nil {
+			t.Fatalf("failed to insert scene: %v", err)
+		}
+	}
+
+	results, _, err := repo.SearchScenes(SceneSearchOptions{
+		MinLng: -74.1,
+		MinLat: 40.6,
+		MaxLng: -73.9,
+		MaxLat: 40.8,
+		Query:  "music",
+		Limit:  2,
+		Offset: 1,
+	})
+	if err != nil {
+		t.Fatalf("search failed: %v", err)
+	}
+
+	if len(results) != 2 {
+		t.Fatalf("expected 2 results after offset, got %d", len(results))
+	}
+	if results[0].ID != "scene-1" {
+		t.Fatalf("expected first offset result to be scene-1, got %s", results[0].ID)
 	}
 }
