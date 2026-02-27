@@ -93,6 +93,41 @@ export function SearchBar({
   ];
 
   const hasResults = flatResults.length > 0;
+  const normalizedQuery = inputValue.trim().toLowerCase();
+
+  const genreSuggestions = Array.from(
+    new Set(
+      results.scenes
+        .flatMap((scene) => scene.tags ?? [])
+        .map((tag) => tag.trim())
+        .filter((tag) => tag && tag.toLowerCase().includes(normalizedQuery))
+    )
+  ).slice(0, 5);
+
+  const artistSuggestions = Array.from(
+    new Set(
+      results.posts
+        .flatMap((post) => [
+          ...(post.author_did ? [post.author_did] : []),
+          ...(post.content?.match(/@[a-zA-Z0-9_.-]+/g) ?? []),
+        ])
+        .map((artist) => artist.trim())
+        .filter((artist) => artist && artist.toLowerCase().includes(normalizedQuery))
+    )
+  ).slice(0, 5);
+
+  const hashtagSuggestions = Array.from(
+    new Set(
+      [
+        ...results.scenes.flatMap((scene) => (scene.tags ?? []).map((tag) => `#${tag.replace(/^#/, '')}`)),
+        ...results.posts.flatMap((post) => post.content?.match(/#[a-zA-Z0-9_-]+/g) ?? []),
+      ]
+        .map((tag) => tag.trim())
+        .filter((tag) => tag && tag.toLowerCase().includes(normalizedQuery.replace(/^#/, '')))
+    )
+  ).slice(0, 5);
+  const hasAutocompleteSuggestions =
+    genreSuggestions.length > 0 || artistSuggestions.length > 0 || hashtagSuggestions.length > 0;
 
   /**
    * Handle input change
@@ -163,6 +198,20 @@ export function SearchBar({
     setShowHistory(false);
     search(historyQuery);
     setIsOpen(true);
+  };
+
+  /**
+   * Handle selecting an autocomplete suggestion
+   */
+  const handleAutocompleteClick = (suggestion: string) => {
+    const query = suggestion.trim();
+    if (!query) return;
+
+    addToHistory(query);
+    navigate(`/search?q=${encodeURIComponent(query)}`);
+    setIsOpen(false);
+    setShowHistory(false);
+    setSelectedIndex(-1);
   };
 
   /**
@@ -446,7 +495,78 @@ export function SearchBar({
           )}
 
           {/* Empty State */}
-          {!loading && !error && !hasResults && !showHistory && inputValue.trim() && (
+          {!loading && !error && !showHistory && inputValue.trim() && hasAutocompleteSuggestions && (
+            <div role="group" aria-labelledby="search-autocomplete-heading">
+              <h3
+                id="search-autocomplete-heading"
+                className="px-3 py-2 text-xs font-semibold text-foreground-tertiary uppercase tracking-wider bg-background"
+              >
+                {t('search.suggestions')}
+              </h3>
+
+              {genreSuggestions.length > 0 && (
+                <div role="group" aria-labelledby="search-suggestions-genres-heading">
+                  <h4
+                    id="search-suggestions-genres-heading"
+                    className="px-3 py-2 text-xs font-semibold text-foreground-tertiary uppercase tracking-wider"
+                  >
+                    {t('search.sections.genres')}
+                  </h4>
+                  {genreSuggestions.map((genre) => (
+                    <button
+                      key={`genre-${genre}`}
+                      onClick={() => handleAutocompleteClick(genre)}
+                      className="w-full px-3 py-2 text-left text-sm hover:bg-underground-lighter focus:outline-none focus-visible:bg-underground-lighter"
+                    >
+                      {genre}
+                    </button>
+                  ))}
+                </div>
+              )}
+
+              {artistSuggestions.length > 0 && (
+                <div role="group" aria-labelledby="search-suggestions-artists-heading">
+                  <h4
+                    id="search-suggestions-artists-heading"
+                    className="px-3 py-2 text-xs font-semibold text-foreground-tertiary uppercase tracking-wider"
+                  >
+                    {t('search.sections.artists')}
+                  </h4>
+                  {artistSuggestions.map((artist) => (
+                    <button
+                      key={`artist-${artist}`}
+                      onClick={() => handleAutocompleteClick(artist)}
+                      className="w-full px-3 py-2 text-left text-sm hover:bg-underground-lighter focus:outline-none focus-visible:bg-underground-lighter"
+                    >
+                      {artist}
+                    </button>
+                  ))}
+                </div>
+              )}
+
+              {hashtagSuggestions.length > 0 && (
+                <div role="group" aria-labelledby="search-suggestions-hashtags-heading">
+                  <h4
+                    id="search-suggestions-hashtags-heading"
+                    className="px-3 py-2 text-xs font-semibold text-foreground-tertiary uppercase tracking-wider"
+                  >
+                    {t('search.sections.hashtags')}
+                  </h4>
+                  {hashtagSuggestions.map((hashtag) => (
+                    <button
+                      key={`hashtag-${hashtag}`}
+                      onClick={() => handleAutocompleteClick(hashtag)}
+                      className="w-full px-3 py-2 text-left text-sm hover:bg-underground-lighter focus:outline-none focus-visible:bg-underground-lighter"
+                    >
+                      {hashtag}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {!loading && !error && !hasResults && !showHistory && !hasAutocompleteSuggestions && inputValue.trim() && (
             <div className="p-4 text-center">
               <p className="text-sm text-foreground-tertiary">
                 {t('search.noResults', { query: inputValue })}

@@ -59,6 +59,7 @@
   "search": {
     "placeholder": "Rechercher des scènes, événements, publications...",
     "searching": "Recherche en cours...",
+    "suggestions": "Suggestions",
     "noResults": "Aucun résultat trouvé pour \"{{query}}\"",
     "recentSearches": "Recherches Récentes",
     "clearAll": "Tout effacer",
@@ -66,7 +67,10 @@
     "sections": {
       "scenes": "Scènes",
       "events": "Événements",
-      "posts": "Publications"
+      "posts": "Publications",
+      "genres": "Genres",
+      "artists": "Artistes",
+      "hashtags": "Hashtags"
     },
     "results": {
       "heading": "{{count}} résultats pour \"{{query}}\"",

@@ -249,6 +249,71 @@ describe('SearchBar', () => {
       );
     });
 
+    it('shows autocomplete suggestions for genres, artists, and hashtags', async () => {
+      const user = userEvent.setup();
+      vi.mocked(apiClient.searchScenes).mockResolvedValue([
+        {
+          id: '1',
+          name: 'Warehouse Scene',
+          allow_precise: true,
+          coarse_geohash: 'abc123',
+          tags: ['techno'],
+        },
+      ]);
+      vi.mocked(apiClient.searchEvents).mockResolvedValue([]);
+      vi.mocked(apiClient.searchPosts).mockResolvedValue([
+        { id: '3', content: 'Live set by @djnova #techno', author_did: '@djnova' },
+      ]);
+
+      renderSearchBar();
+
+      const input = screen.getByRole('combobox');
+      await user.type(input, 'no');
+
+      await waitFor(
+        () => {
+          expect(screen.getByText('search.suggestions')).toBeInTheDocument();
+          expect(screen.getByText('search.sections.genres')).toBeInTheDocument();
+          expect(screen.getByText('search.sections.artists')).toBeInTheDocument();
+          expect(screen.getByText('search.sections.hashtags')).toBeInTheDocument();
+          expect(screen.getByRole('button', { name: 'techno' })).toBeInTheDocument();
+          expect(screen.getByRole('button', { name: '@djnova' })).toBeInTheDocument();
+          expect(screen.getByRole('button', { name: '#techno' })).toBeInTheDocument();
+        },
+        { timeout: 500 }
+      );
+    });
+
+    it('navigates to search page when autocomplete suggestion is clicked', async () => {
+      const user = userEvent.setup();
+      vi.mocked(apiClient.searchScenes).mockResolvedValue([
+        {
+          id: '1',
+          name: 'Warehouse Scene',
+          allow_precise: true,
+          coarse_geohash: 'abc123',
+          tags: ['techno'],
+        },
+      ]);
+      vi.mocked(apiClient.searchEvents).mockResolvedValue([]);
+      vi.mocked(apiClient.searchPosts).mockResolvedValue([]);
+
+      renderSearchBar();
+
+      const input = screen.getByRole('combobox');
+      await user.type(input, 'te');
+
+      await waitFor(
+        () => {
+          expect(screen.getByRole('button', { name: 'techno' })).toBeInTheDocument();
+        },
+        { timeout: 500 }
+      );
+
+      await user.click(screen.getByRole('button', { name: 'techno' }));
+      expect(mockNavigate).toHaveBeenCalledWith('/search?q=techno');
+    });
+
     it('shows loading state during search', async () => {
       const user = userEvent.setup();
       let resolveSearch: (value: unknown) => void;
