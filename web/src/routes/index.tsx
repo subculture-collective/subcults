@@ -60,7 +60,9 @@ const router = createBrowserRouter(
       element: <AppLayout />,
       errorElement: (
         <ErrorBoundary>
-          <NotFoundPage />
+          <Suspense fallback={<LoadingSkeleton />}>
+            <NotFoundPage />
+          </Suspense>
         </ErrorBoundary>
       ),
       children: [

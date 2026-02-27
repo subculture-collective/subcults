@@ -3,15 +3,27 @@ import { render, screen, waitFor } from '@testing-library/react';
 import { Outlet } from 'react-router-dom';
 
 const SIMULATED_CHUNK_LOAD_MS = 25;
+let isHomeResolved = false;
 
 vi.mock('../layouts/AppLayout', () => ({
   AppLayout: () => <Outlet />,
 }));
 
-vi.mock('../pages/HomePage', async () => {
-  await new Promise((resolve) => setTimeout(resolve, SIMULATED_CHUNK_LOAD_MS));
+vi.mock('../pages/HomePage', () => {
+  const homeSuspensePromise = new Promise<void>((resolve) => {
+    setTimeout(() => {
+      isHomeResolved = true;
+      resolve();
+    }, SIMULATED_CHUNK_LOAD_MS);
+  });
+
   return {
-    HomePage: () => <div>Lazy Home Page</div>,
+    HomePage: () => {
+      if (!isHomeResolved) {
+        throw homeSuspensePromise;
+      }
+      return <div>Lazy Home Page</div>;
+    },
   };
 });
 

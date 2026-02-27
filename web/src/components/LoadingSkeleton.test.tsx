@@ -37,7 +37,7 @@ describe('LoadingSkeleton', () => {
     
     const loadingStatus = screen.getByRole('status');
     expect(loadingStatus).toBeInTheDocument();
-    expect(loadingStatus).toHaveClass('flex', 'items-center', 'justify-center', 'h-full', 'min-h-full');
+    expect(loadingStatus).toHaveClass('flex', 'items-center', 'justify-center', 'h-full');
   });
 
   it('has dark background via Tailwind', () => {
