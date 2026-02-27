@@ -156,9 +156,9 @@ func BenchmarkScene_EnforceLocationConsent(b *testing.B) {
 }
 
 // BenchmarkSearchScenes_10k measures SearchScenes performance with 10,000 scenes,
-// validating that the in-memory implementation meets the p95 < 300ms target for a
-// first-page query. Real-world PostgreSQL performance relies on the indexes added
-// in migration 000030 (idx_scenes_search_visible, idx_scenes_public_created).
+// providing an average/steady-state latency baseline for a first-page query against
+// the p95 < 300ms latency budget. Real-world PostgreSQL performance relies on the
+// indexes added in migration 000030 (idx_scenes_search_visible, idx_scenes_public_created).
 func BenchmarkSearchScenes_10k(b *testing.B) {
 	const datasetSize = 10_000
 
@@ -270,9 +270,10 @@ func BenchmarkSearchScenes_10k(b *testing.B) {
 }
 
 // BenchmarkSearchEvents_10k measures SearchEvents performance with 10,000 events,
-// validating that event search meets the p95 < 300ms target for a first-page query.
-// Real-world PostgreSQL performance relies on idx_events_upcoming_geohash and
-// idx_events_scene_upcoming added in migration 000030.
+// approximating a first-page query under the p95 < 300ms latency budget.
+// This benchmark reports average time/op; real-world PostgreSQL performance
+// relies on idx_events_upcoming_geohash and idx_events_scene_upcoming added
+// in migration 000030.
 func BenchmarkSearchEvents_10k(b *testing.B) {
 	const datasetSize = 10_000
 

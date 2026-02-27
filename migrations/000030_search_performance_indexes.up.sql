@@ -22,7 +22,7 @@
 --
 -- Expected query plan for SearchScenes with bbox:
 --   -> Index Scan using idx_scenes_search_visible on scenes
---        Index Cond: (precise_point && ST_MakeEnvelope($1,$2,$3,$4,4326))
+--        Index Cond: (precise_point && ST_MakeEnvelope($1,$2,$3,$4,4326)::geography)
 --        Filter: (visibility IN ('public','private'))
 --   Estimated improvement: ~20-40% fewer index rows vs idx_scenes_location
 --   when 'unlisted' scenes represent a non-trivial fraction of the dataset.
@@ -57,25 +57,30 @@ COMMENT ON INDEX idx_scenes_public_created IS
 -- EVENT SEARCH INDEXES
 -- ============================================
 
--- Composite index for event discovery by time window and coarse geohash.
--- Covers the common SearchByBboxAndTime pattern: filter by time range first,
--- then refine with geohash prefix before applying the precise GIST spatial filter.
+-- Composite index for event discovery by coarse geohash prefix and time window.
+-- Covers the common SearchByBboxAndTime pattern: filter by geohash prefix first,
+-- then apply the time range before the precise GIST spatial filter.
 -- This reduces the candidate set fed to the GIST index scan.
 --
--- Expected query plan for time-range + geohash event search:
+-- Column order rationale: placing coarse_geohash first allows the index to use an
+-- equality/prefix condition on that column before the starts_at range scan.
+-- A btree multicolumn index cannot use trailing columns after a leading range
+-- condition, so (starts_at, coarse_geohash) would leave coarse_geohash unused.
+--
+-- Expected query plan for geohash-prefix + time-range event search:
 --   -> Index Scan using idx_events_upcoming_geohash on events
---        Index Cond: ((starts_at >= $1) AND (starts_at <= $2)
---                     AND (coarse_geohash LIKE $3 || '%'))
+--        Index Cond: ((coarse_geohash >= $1) AND (coarse_geohash < $2)
+--                     AND (starts_at >= $3) AND (starts_at <= $4))
 --        Filter: (deleted_at IS NULL AND cancelled_at IS NULL)
---   Estimated improvement: avoids full GIST scan when time window is narrow.
+--   Estimated improvement: avoids full GIST scan when geohash prefix and time window are selective.
 CREATE INDEX IF NOT EXISTS idx_events_upcoming_geohash
-    ON events(starts_at, coarse_geohash)
+    ON events(coarse_geohash, starts_at)
     WHERE deleted_at IS NULL AND cancelled_at IS NULL;
 
 COMMENT ON INDEX idx_events_upcoming_geohash IS
-    'Composite index for event discovery by time window and coarse geohash prefix. '
+    'Composite index for event discovery by coarse geohash prefix and time window. '
     'Reduces spatial scan candidates for SearchByBboxAndTime and SearchEvents queries. '
-    'Expected plan: Index Scan on (starts_at, coarse_geohash) range conditions.';
+    'Expected plan: Index Scan on (coarse_geohash, starts_at) with prefix + range conditions.';
 
 -- Composite index for scene-specific upcoming event queries.
 -- Supports "upcoming events for scene X" API endpoint and scene event feed.
