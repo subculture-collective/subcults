@@ -90,7 +90,34 @@ func NewEventHandlers(eventRepo scene.EventRepository, sceneRepo scene.SceneRepo
 type EventWithRSVPCounts struct {
 	*scene.Event
 	RSVPCounts   *scene.RSVPCounts        `json:"rsvp_counts"`
+	Scene        *SceneSearchResult       `json:"scene,omitempty"`
 	ActiveStream *stream.ActiveStreamInfo `json:"active_stream,omitempty"`
+}
+
+// sceneBatchFetcher is an optional repository capability for batch scene lookups.
+// SearchEvents uses this when available to reduce per-scene fetches in responses.
+type sceneBatchFetcher interface {
+	GetByIDs(ids []string) ([]*scene.Scene, error)
+}
+
+// toSceneSearchResult converts an internal scene model to a public search-safe
+// scene payload with jittered coordinates for privacy.
+func toSceneSearchResult(parentScene *scene.Scene) *SceneSearchResult {
+	if parentScene == nil {
+		return nil
+	}
+	result := &SceneSearchResult{
+		ID:            parentScene.ID,
+		Name:          parentScene.Name,
+		Description:   parentScene.Description,
+		CoarseGeohash: parentScene.CoarseGeohash,
+		Tags:          parentScene.Tags,
+		Visibility:    parentScene.Visibility,
+	}
+	if parentScene.PrecisePoint != nil {
+		result.JitteredPoint = applyJitter(parentScene.PrecisePoint)
+	}
+	return result
 }
 
 // validateTimeWindow validates that start time is before end time.
@@ -644,9 +671,15 @@ func (h *EventHandlers) SearchEvents(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Parse time range
-	fromStr := query.Get("from")
-	toStr := query.Get("to")
+	// Parse time range (support legacy from/to and start_date/end_date aliases)
+	fromStr := strings.TrimSpace(query.Get("from"))
+	if fromStr == "" {
+		fromStr = strings.TrimSpace(query.Get("start_date"))
+	}
+	toStr := strings.TrimSpace(query.Get("to"))
+	if toStr == "" {
+		toStr = strings.TrimSpace(query.Get("end_date"))
+	}
 
 	if fromStr == "" || toStr == "" {
 		ctx := middleware.SetErrorCode(r.Context(), ErrCodeValidation)
@@ -685,6 +718,60 @@ func (h *EventHandlers) SearchEvents(w http.ResponseWriter, r *http.Request) {
 
 	// Parse optional text search query
 	searchQuery := query.Get("q")
+	statusFilter := strings.ToLower(strings.TrimSpace(query.Get("status")))
+	if statusFilter != "" && statusFilter != "upcoming" && statusFilter != "live" && statusFilter != "past" && statusFilter != "cancelled" {
+		ctx := middleware.SetErrorCode(r.Context(), ErrCodeValidation)
+		WriteError(w, ctx, http.StatusBadRequest, ErrCodeValidation, "status must be one of: upcoming, live, past, cancelled")
+		return
+	}
+	sceneIDFilter := strings.TrimSpace(query.Get("scene_id"))
+	organizerFilter := strings.TrimSpace(query.Get("organizer"))
+	organizerSceneIDs := make([]string, 0)
+	if organizerFilter != "" {
+		organizerScenes, err := h.sceneRepo.ListByOwner(organizerFilter)
+		if err != nil {
+			slog.ErrorContext(r.Context(), "failed to list organizer scenes", "error", err, "organizer", organizerFilter)
+			ctx := middleware.SetErrorCode(r.Context(), ErrCodeInternal)
+			WriteError(w, ctx, http.StatusInternalServerError, ErrCodeInternal, "Failed to search events")
+			return
+		}
+		for _, organizerScene := range organizerScenes {
+			organizerSceneIDs = append(organizerSceneIDs, organizerScene.ID)
+		}
+		if len(organizerSceneIDs) == 0 {
+			response := SearchEventsResponse{
+				Events: make([]*EventWithRSVPCounts, 0),
+			}
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusOK)
+			if err := json.NewEncoder(w).Encode(response); err != nil {
+				slog.ErrorContext(r.Context(), "failed to encode search response", "error", err)
+			}
+			return
+		}
+
+		if sceneIDFilter != "" {
+			ownsScene := false
+			for _, organizerSceneID := range organizerSceneIDs {
+				if organizerSceneID == sceneIDFilter {
+					ownsScene = true
+					break
+				}
+			}
+			if !ownsScene {
+				response := SearchEventsResponse{
+					Events: make([]*EventWithRSVPCounts, 0),
+				}
+				w.Header().Set("Content-Type", "application/json")
+				w.WriteHeader(http.StatusOK)
+				if err := json.NewEncoder(w).Encode(response); err != nil {
+					slog.ErrorContext(r.Context(), "failed to encode search response", "error", err)
+				}
+				return
+			}
+			organizerSceneIDs = []string{sceneIDFilter}
+		}
+	}
 
 	// Parse pagination parameters
 	limitStr := query.Get("limit")
@@ -718,6 +805,9 @@ func (h *EventHandlers) SearchEvents(w http.ResponseWriter, r *http.Request) {
 		From:        from,
 		To:          to,
 		Query:       searchQuery,
+		Status:      statusFilter,
+		SceneID:     sceneIDFilter,
+		SceneIDs:    organizerSceneIDs,
 		Limit:       limit,
 		Cursor:      cursor,
 		TrustScores: trustScores,
@@ -759,6 +849,9 @@ func (h *EventHandlers) SearchEvents(w http.ResponseWriter, r *http.Request) {
 				From:        from,
 				To:          to,
 				Query:       searchQuery,
+				Status:      statusFilter,
+				SceneID:     sceneIDFilter,
+				SceneIDs:    organizerSceneIDs,
 				Limit:       limit,
 				Cursor:      cursor,
 				TrustScores: trustScores,
@@ -795,12 +888,49 @@ func (h *EventHandlers) SearchEvents(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	sceneMap := make(map[string]*SceneSearchResult)
+	if len(events) > 0 {
+		sceneIDs := make(map[string]struct{}, len(events))
+		orderedSceneIDs := make([]string, 0)
+		for _, event := range events {
+			if _, seen := sceneIDs[event.SceneID]; seen {
+				continue
+			}
+			sceneIDs[event.SceneID] = struct{}{}
+			orderedSceneIDs = append(orderedSceneIDs, event.SceneID)
+		}
+
+		if batchRepo, ok := h.sceneRepo.(sceneBatchFetcher); ok {
+			parentScenes, err := batchRepo.GetByIDs(orderedSceneIDs)
+			if err != nil {
+				slog.WarnContext(r.Context(), "failed to batch fetch scenes for event search response; falling back to individual fetches", "error", err)
+			} else {
+				for _, parentScene := range parentScenes {
+					sceneMap[parentScene.ID] = toSceneSearchResult(parentScene)
+				}
+			}
+		}
+
+		for _, sceneID := range orderedSceneIDs {
+			if _, ok := sceneMap[sceneID]; ok {
+				continue
+			}
+			parentScene, err := h.sceneRepo.GetByID(sceneID)
+			if err != nil {
+				slog.WarnContext(r.Context(), "failed to fetch scene for event search response", "scene_id", sceneID, "error", err)
+				continue
+			}
+			sceneMap[sceneID] = toSceneSearchResult(parentScene)
+		}
+	}
+
 	// Build response with events, RSVP counts, and active streams
 	eventsWithData := make([]*EventWithRSVPCounts, len(events))
 	for i, event := range events {
 		eventsWithData[i] = &EventWithRSVPCounts{
 			Event:        event,
 			RSVPCounts:   rsvpCountsMap[event.ID],
+			Scene:        sceneMap[event.SceneID],
 			ActiveStream: activeStreamsMap[event.ID], // nil if no active stream
 		}
 	}
