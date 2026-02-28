@@ -640,6 +640,25 @@ func TestSearchEvents_StatusAndSceneFilters(t *testing.T) {
 		t.Fatalf("expected only cancelled scene-a event %s, got %+v", cancelledEvent.ID, cancelledResults)
 	}
 
+	intersectedResults, _, err := repo.SearchEvents(EventSearchOptions{
+		MinLng:   commonOptions.MinLng,
+		MinLat:   commonOptions.MinLat,
+		MaxLng:   commonOptions.MaxLng,
+		MaxLat:   commonOptions.MaxLat,
+		From:     commonOptions.From,
+		To:       commonOptions.To,
+		Limit:    commonOptions.Limit,
+		Status:   "upcoming",
+		SceneID:  "scene-a",
+		SceneIDs: []string{"scene-b"},
+	})
+	if err != nil {
+		t.Fatalf("failed to search with intersected scene filters: %v", err)
+	}
+	if len(intersectedResults) != 0 {
+		t.Fatalf("expected no events when SceneID and SceneIDs do not intersect, got %+v", intersectedResults)
+	}
+
 	pastResults, _, err := repo.SearchEvents(EventSearchOptions{
 		MinLng:  commonOptions.MinLng,
 		MinLat:  commonOptions.MinLat,

@@ -391,6 +391,28 @@ func (r *InMemorySceneRepository) ListByOwner(ownerDID string) ([]*Scene, error)
 	return result, nil
 }
 
+// GetByIDs retrieves scenes by their IDs in a single call.
+// Returns only existing, non-deleted scenes.
+func (r *InMemorySceneRepository) GetByIDs(ids []string) ([]*Scene, error) {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+
+	result := make([]*Scene, 0, len(ids))
+	for _, id := range ids {
+		scene, ok := r.scenes[id]
+		if !ok || scene.DeletedAt != nil {
+			continue
+		}
+		sceneCopy := *scene
+		if scene.PrecisePoint != nil {
+			pointCopy := *scene.PrecisePoint
+			sceneCopy.PrecisePoint = &pointCopy
+		}
+		result = append(result, &sceneCopy)
+	}
+	return result, nil
+}
+
 // SearchScenes searches for scenes with text matching, geo filtering, ranking, and pagination.
 // Filters out deleted and hidden scenes, applies text search if query is provided,
 // and ranks results by composite score (text + proximity + trust).
@@ -895,7 +917,7 @@ func (r *InMemoryEventRepository) SearchEvents(opts EventSearchOptions) ([]*Even
 	// Check if trust ranking is enabled
 	includeTrust := len(opts.TrustScores) > 0
 	var allowedSceneIDs map[string]struct{}
-	if opts.SceneID == "" && len(opts.SceneIDs) > 0 {
+	if len(opts.SceneIDs) > 0 {
 		allowedSceneIDs = make(map[string]struct{}, len(opts.SceneIDs))
 		for _, sceneID := range opts.SceneIDs {
 			allowedSceneIDs[sceneID] = struct{}{}
@@ -1034,7 +1056,8 @@ func (r *InMemoryEventRepository) SearchEvents(opts EventSearchOptions) ([]*Even
 }
 
 // matchesEventStatusFilter applies the API status categories to event data.
-// "upcoming", "live", and "cancelled" map directly to status values.
+// "live" and "cancelled" map directly to Event.Status values.
+// "upcoming" is derived from scheduled events whose start time is in the future.
 // "past" includes explicitly ended events and scheduled events that started in
 // the past and have an ended end-time.
 func matchesEventStatusFilter(event *Event, statusFilter string, now time.Time) bool {

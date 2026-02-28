@@ -90,8 +90,30 @@ func NewEventHandlers(eventRepo scene.EventRepository, sceneRepo scene.SceneRepo
 type EventWithRSVPCounts struct {
 	*scene.Event
 	RSVPCounts   *scene.RSVPCounts        `json:"rsvp_counts"`
-	Scene        *scene.Scene             `json:"scene,omitempty"`
+	Scene        *SceneSearchResult       `json:"scene,omitempty"`
 	ActiveStream *stream.ActiveStreamInfo `json:"active_stream,omitempty"`
+}
+
+type sceneBatchFetcher interface {
+	GetByIDs(ids []string) ([]*scene.Scene, error)
+}
+
+func toSceneSearchResult(parentScene *scene.Scene) *SceneSearchResult {
+	if parentScene == nil {
+		return nil
+	}
+	result := &SceneSearchResult{
+		ID:            parentScene.ID,
+		Name:          parentScene.Name,
+		Description:   parentScene.Description,
+		CoarseGeohash: parentScene.CoarseGeohash,
+		Tags:          parentScene.Tags,
+		Visibility:    parentScene.Visibility,
+	}
+	if parentScene.PrecisePoint != nil {
+		result.JitteredPoint = applyJitter(parentScene.PrecisePoint)
+	}
+	return result
 }
 
 // validateTimeWindow validates that start time is before end time.
@@ -723,6 +745,28 @@ func (h *EventHandlers) SearchEvents(w http.ResponseWriter, r *http.Request) {
 			}
 			return
 		}
+
+		if sceneIDFilter != "" {
+			ownsScene := false
+			for _, organizerSceneID := range organizerSceneIDs {
+				if organizerSceneID == sceneIDFilter {
+					ownsScene = true
+					break
+				}
+			}
+			if !ownsScene {
+				response := SearchEventsResponse{
+					Events: make([]*EventWithRSVPCounts, 0),
+				}
+				w.Header().Set("Content-Type", "application/json")
+				w.WriteHeader(http.StatusOK)
+				if err := json.NewEncoder(w).Encode(response); err != nil {
+					slog.ErrorContext(r.Context(), "failed to encode search response", "error", err)
+				}
+				return
+			}
+			organizerSceneIDs = []string{sceneIDFilter}
+		}
 	}
 
 	// Parse pagination parameters
@@ -840,19 +884,39 @@ func (h *EventHandlers) SearchEvents(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	sceneMap := make(map[string]*scene.Scene)
+	sceneMap := make(map[string]*SceneSearchResult)
 	if len(events) > 0 {
-		sceneIDs := make(map[string]struct{})
+		sceneIDs := make(map[string]struct{}, len(events))
+		orderedSceneIDs := make([]string, 0, len(events))
 		for _, event := range events {
+			if _, seen := sceneIDs[event.SceneID]; seen {
+				continue
+			}
 			sceneIDs[event.SceneID] = struct{}{}
+			orderedSceneIDs = append(orderedSceneIDs, event.SceneID)
 		}
-		for sceneID := range sceneIDs {
+
+		if batchRepo, ok := h.sceneRepo.(sceneBatchFetcher); ok {
+			parentScenes, err := batchRepo.GetByIDs(orderedSceneIDs)
+			if err != nil {
+				slog.WarnContext(r.Context(), "failed to batch fetch scenes for event search response", "error", err)
+			} else {
+				for _, parentScene := range parentScenes {
+					sceneMap[parentScene.ID] = toSceneSearchResult(parentScene)
+				}
+			}
+		}
+
+		for _, sceneID := range orderedSceneIDs {
+			if _, ok := sceneMap[sceneID]; ok {
+				continue
+			}
 			parentScene, err := h.sceneRepo.GetByID(sceneID)
 			if err != nil {
 				slog.WarnContext(r.Context(), "failed to fetch scene for event search response", "scene_id", sceneID, "error", err)
 				continue
 			}
-			sceneMap[sceneID] = parentScene
+			sceneMap[sceneID] = toSceneSearchResult(parentScene)
 		}
 	}
 

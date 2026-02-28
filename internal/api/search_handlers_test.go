@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"testing"
 	"time"
 
@@ -859,8 +860,14 @@ func TestSearchEvents_StatusSceneOrganizerAndParentScene(t *testing.T) {
 	startDate := baseTime.Add(-1 * time.Hour).Format(time.RFC3339)
 	endDate := baseTime.Add(8 * time.Hour).Format(time.RFC3339)
 
-	url := fmt.Sprintf("/search/events?bbox=-74.2,40.6,-73.8,40.9&start_date=%s&end_date=%s&status=upcoming&organizer=%s&scene_id=%s", startDate, endDate, organizerDID, organizerScene.ID)
-	req := httptest.NewRequest(http.MethodGet, url, nil)
+	searchQuery := url.Values{}
+	searchQuery.Set("bbox", "-74.2,40.6,-73.8,40.9")
+	searchQuery.Set("start_date", startDate)
+	searchQuery.Set("end_date", endDate)
+	searchQuery.Set("status", "upcoming")
+	searchQuery.Set("organizer", organizerDID)
+	searchQuery.Set("scene_id", organizerScene.ID)
+	req := httptest.NewRequest(http.MethodGet, "/search/events?"+searchQuery.Encode(), nil)
 	w := httptest.NewRecorder()
 	handlers.SearchEvents(w, req)
 
@@ -882,8 +889,13 @@ func TestSearchEvents_StatusSceneOrganizerAndParentScene(t *testing.T) {
 		t.Fatalf("expected parent scene info for scene %s", organizerScene.ID)
 	}
 
-	cancelledURL := fmt.Sprintf("/search/events?bbox=-74.2,40.6,-73.8,40.9&from=%s&to=%s&status=cancelled&scene_id=%s", startDate, endDate, organizerScene.ID)
-	cancelledReq := httptest.NewRequest(http.MethodGet, cancelledURL, nil)
+	cancelledQuery := url.Values{}
+	cancelledQuery.Set("bbox", "-74.2,40.6,-73.8,40.9")
+	cancelledQuery.Set("from", startDate)
+	cancelledQuery.Set("to", endDate)
+	cancelledQuery.Set("status", "cancelled")
+	cancelledQuery.Set("scene_id", organizerScene.ID)
+	cancelledReq := httptest.NewRequest(http.MethodGet, "/search/events?"+cancelledQuery.Encode(), nil)
 	cancelledW := httptest.NewRecorder()
 	handlers.SearchEvents(cancelledW, cancelledReq)
 
@@ -896,5 +908,26 @@ func TestSearchEvents_StatusSceneOrganizerAndParentScene(t *testing.T) {
 	}
 	if len(cancelledResponse.Events) != 1 || cancelledResponse.Events[0].ID != cancelledEvent.ID {
 		t.Fatalf("expected cancelled event %s when filtering cancelled status", cancelledEvent.ID)
+	}
+
+	mismatchQuery := url.Values{}
+	mismatchQuery.Set("bbox", "-74.2,40.6,-73.8,40.9")
+	mismatchQuery.Set("start_date", startDate)
+	mismatchQuery.Set("end_date", endDate)
+	mismatchQuery.Set("status", "upcoming")
+	mismatchQuery.Set("organizer", organizerDID)
+	mismatchQuery.Set("scene_id", otherScene.ID)
+	mismatchReq := httptest.NewRequest(http.MethodGet, "/search/events?"+mismatchQuery.Encode(), nil)
+	mismatchW := httptest.NewRecorder()
+	handlers.SearchEvents(mismatchW, mismatchReq)
+	if mismatchW.Code != http.StatusOK {
+		t.Fatalf("expected status 200 for organizer+scene mismatch, got %d: %s", mismatchW.Code, mismatchW.Body.String())
+	}
+	var mismatchResponse SearchEventsResponse
+	if err := json.NewDecoder(mismatchW.Body).Decode(&mismatchResponse); err != nil {
+		t.Fatalf("failed to decode mismatch response: %v", err)
+	}
+	if len(mismatchResponse.Events) != 0 {
+		t.Fatalf("expected 0 events when scene_id is outside organizer scope, got %d", len(mismatchResponse.Events))
 	}
 }
