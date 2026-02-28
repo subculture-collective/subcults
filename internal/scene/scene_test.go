@@ -283,6 +283,48 @@ func TestInMemoryEventRepository_Insert_WithConsent(t *testing.T) {
 	}
 }
 
+func TestInMemorySceneRepository_GetByIDs(t *testing.T) {
+	repo := NewInMemorySceneRepository()
+	scene1 := &Scene{ID: "scene-1", Name: "One", OwnerDID: "did:one"}
+	scene2 := &Scene{ID: "scene-2", Name: "Two", OwnerDID: "did:two"}
+	sceneDeleted := &Scene{ID: "scene-deleted", Name: "Deleted", OwnerDID: "did:deleted"}
+	if err := repo.Insert(scene1); err != nil {
+		t.Fatalf("failed to insert scene1: %v", err)
+	}
+	if err := repo.Insert(scene2); err != nil {
+		t.Fatalf("failed to insert scene2: %v", err)
+	}
+	if err := repo.Insert(sceneDeleted); err != nil {
+		t.Fatalf("failed to insert sceneDeleted: %v", err)
+	}
+	if err := repo.Delete(sceneDeleted.ID); err != nil {
+		t.Fatalf("failed to delete sceneDeleted: %v", err)
+	}
+
+	results, err := repo.GetByIDs([]string{scene1.ID, "missing", sceneDeleted.ID, scene2.ID})
+	if err != nil {
+		t.Fatalf("GetByIDs returned error: %v", err)
+	}
+	if len(results) != 2 {
+		t.Fatalf("expected 2 scenes (excluding missing/deleted), got %d", len(results))
+	}
+	found := map[string]bool{}
+	for _, result := range results {
+		found[result.ID] = true
+	}
+	if !found[scene1.ID] || !found[scene2.ID] {
+		t.Fatalf("expected scene-1 and scene-2 in results, got %+v", found)
+	}
+
+	emptyResults, err := repo.GetByIDs(nil)
+	if err != nil {
+		t.Fatalf("GetByIDs with nil ids returned error: %v", err)
+	}
+	if len(emptyResults) != 0 {
+		t.Fatalf("expected empty result for nil ids, got %d", len(emptyResults))
+	}
+}
+
 func TestInMemoryEventRepository_Update_WithoutConsent(t *testing.T) {
 	repo := NewInMemoryEventRepository()
 

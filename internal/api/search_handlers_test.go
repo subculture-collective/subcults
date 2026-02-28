@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"testing"
 	"time"
 
@@ -778,4 +779,232 @@ type failingTrustStore struct{}
 
 func (f *failingTrustStore) GetScore(sceneID string) (*TrustScore, error) {
 	return nil, fmt.Errorf("simulated trust store error")
+}
+
+type batchErrorSceneRepo struct {
+	*scene.InMemorySceneRepository
+	batchCalls   int
+	getByIDCalls int
+}
+
+func (r *batchErrorSceneRepo) GetByIDs(ids []string) ([]*scene.Scene, error) {
+	r.batchCalls++
+	return nil, fmt.Errorf("simulated batch scene fetch error")
+}
+
+func (r *batchErrorSceneRepo) GetByID(id string) (*scene.Scene, error) {
+	r.getByIDCalls++
+	return r.InMemorySceneRepository.GetByID(id)
+}
+
+func TestSearchEvents_StatusSceneOrganizerAndParentScene(t *testing.T) {
+	eventRepo := scene.NewInMemoryEventRepository()
+	sceneRepo := scene.NewInMemorySceneRepository()
+	auditRepo := audit.NewInMemoryRepository()
+	rsvpRepo := scene.NewInMemoryRSVPRepository()
+	streamRepo := stream.NewInMemorySessionRepository()
+	handlers := NewEventHandlers(eventRepo, sceneRepo, auditRepo, rsvpRepo, streamRepo, nil)
+
+	baseTime := time.Now().Add(24 * time.Hour)
+	organizerDID := "did:plc:organizer123"
+	otherDID := "did:plc:other456"
+
+	organizerScene := &scene.Scene{
+		ID:           uuid.New().String(),
+		Name:         "Organizer Scene",
+		OwnerDID:     organizerDID,
+		AllowPrecise: true,
+	}
+	otherScene := &scene.Scene{
+		ID:           uuid.New().String(),
+		Name:         "Other Scene",
+		OwnerDID:     otherDID,
+		AllowPrecise: true,
+	}
+	if err := sceneRepo.Insert(organizerScene); err != nil {
+		t.Fatalf("failed to insert organizer scene: %v", err)
+	}
+	if err := sceneRepo.Insert(otherScene); err != nil {
+		t.Fatalf("failed to insert other scene: %v", err)
+	}
+
+	upcomingEvent := &scene.Event{
+		ID:            uuid.New().String(),
+		SceneID:       organizerScene.ID,
+		Title:         "Organizer Upcoming Event",
+		Description:   "test event",
+		AllowPrecise:  true,
+		PrecisePoint:  &scene.Point{Lat: 40.7128, Lng: -74.0060},
+		CoarseGeohash: "dr5regw",
+		Status:        "scheduled",
+		StartsAt:      baseTime.Add(2 * time.Hour),
+		CreatedAt:     &baseTime,
+		UpdatedAt:     &baseTime,
+	}
+	cancelledEvent := &scene.Event{
+		ID:            uuid.New().String(),
+		SceneID:       organizerScene.ID,
+		Title:         "Organizer Cancelled Event",
+		Description:   "cancelled event",
+		AllowPrecise:  true,
+		PrecisePoint:  &scene.Point{Lat: 40.7129, Lng: -74.0059},
+		CoarseGeohash: "dr5regw",
+		Status:        "cancelled",
+		StartsAt:      baseTime.Add(3 * time.Hour),
+		CreatedAt:     &baseTime,
+		UpdatedAt:     &baseTime,
+	}
+	otherOrganizerEvent := &scene.Event{
+		ID:            uuid.New().String(),
+		SceneID:       otherScene.ID,
+		Title:         "Other Organizer Event",
+		Description:   "other organizer",
+		AllowPrecise:  true,
+		PrecisePoint:  &scene.Point{Lat: 40.7130, Lng: -74.0058},
+		CoarseGeohash: "dr5regw",
+		Status:        "scheduled",
+		StartsAt:      baseTime.Add(4 * time.Hour),
+		CreatedAt:     &baseTime,
+		UpdatedAt:     &baseTime,
+	}
+	for _, event := range []*scene.Event{upcomingEvent, cancelledEvent, otherOrganizerEvent} {
+		if err := eventRepo.Insert(event); err != nil {
+			t.Fatalf("failed to insert event %s: %v", event.ID, err)
+		}
+	}
+
+	startDate := baseTime.Add(-1 * time.Hour).Format(time.RFC3339)
+	endDate := baseTime.Add(8 * time.Hour).Format(time.RFC3339)
+
+	searchQuery := url.Values{}
+	searchQuery.Set("bbox", "-74.2,40.6,-73.8,40.9")
+	searchQuery.Set("start_date", startDate)
+	searchQuery.Set("end_date", endDate)
+	searchQuery.Set("status", "upcoming")
+	searchQuery.Set("organizer", organizerDID)
+	searchQuery.Set("scene_id", organizerScene.ID)
+	req := httptest.NewRequest(http.MethodGet, "/search/events?"+searchQuery.Encode(), nil)
+	w := httptest.NewRecorder()
+	handlers.SearchEvents(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected status 200, got %d: %s", w.Code, w.Body.String())
+	}
+
+	var response SearchEventsResponse
+	if err := json.NewDecoder(w.Body).Decode(&response); err != nil {
+		t.Fatalf("failed to decode response: %v", err)
+	}
+	if len(response.Events) != 1 {
+		t.Fatalf("expected 1 event for organizer+scene+upcoming filters, got %d", len(response.Events))
+	}
+	if response.Events[0].ID != upcomingEvent.ID {
+		t.Fatalf("expected upcoming event %s, got %s", upcomingEvent.ID, response.Events[0].ID)
+	}
+	if response.Events[0].Scene == nil || response.Events[0].Scene.ID != organizerScene.ID {
+		t.Fatalf("expected parent scene info for scene %s", organizerScene.ID)
+	}
+
+	cancelledQuery := url.Values{}
+	cancelledQuery.Set("bbox", "-74.2,40.6,-73.8,40.9")
+	cancelledQuery.Set("from", startDate)
+	cancelledQuery.Set("to", endDate)
+	cancelledQuery.Set("status", "cancelled")
+	cancelledQuery.Set("scene_id", organizerScene.ID)
+	cancelledReq := httptest.NewRequest(http.MethodGet, "/search/events?"+cancelledQuery.Encode(), nil)
+	cancelledW := httptest.NewRecorder()
+	handlers.SearchEvents(cancelledW, cancelledReq)
+
+	if cancelledW.Code != http.StatusOK {
+		t.Fatalf("expected status 200 for cancelled filter, got %d: %s", cancelledW.Code, cancelledW.Body.String())
+	}
+	var cancelledResponse SearchEventsResponse
+	if err := json.NewDecoder(cancelledW.Body).Decode(&cancelledResponse); err != nil {
+		t.Fatalf("failed to decode cancelled response: %v", err)
+	}
+	if len(cancelledResponse.Events) != 1 || cancelledResponse.Events[0].ID != cancelledEvent.ID {
+		t.Fatalf("expected cancelled event %s when filtering cancelled status", cancelledEvent.ID)
+	}
+
+	mismatchQuery := url.Values{}
+	mismatchQuery.Set("bbox", "-74.2,40.6,-73.8,40.9")
+	mismatchQuery.Set("start_date", startDate)
+	mismatchQuery.Set("end_date", endDate)
+	mismatchQuery.Set("status", "upcoming")
+	mismatchQuery.Set("organizer", organizerDID)
+	mismatchQuery.Set("scene_id", otherScene.ID)
+	mismatchReq := httptest.NewRequest(http.MethodGet, "/search/events?"+mismatchQuery.Encode(), nil)
+	mismatchW := httptest.NewRecorder()
+	handlers.SearchEvents(mismatchW, mismatchReq)
+	if mismatchW.Code != http.StatusOK {
+		t.Fatalf("expected status 200 for organizer+scene mismatch, got %d: %s", mismatchW.Code, mismatchW.Body.String())
+	}
+	var mismatchResponse SearchEventsResponse
+	if err := json.NewDecoder(mismatchW.Body).Decode(&mismatchResponse); err != nil {
+		t.Fatalf("failed to decode mismatch response: %v", err)
+	}
+	if len(mismatchResponse.Events) != 0 {
+		t.Fatalf("expected 0 events when scene_id is outside organizer scope, got %d", len(mismatchResponse.Events))
+	}
+}
+
+func TestSearchEvents_BatchSceneFetchFallbackToGetByID(t *testing.T) {
+	eventRepo := scene.NewInMemoryEventRepository()
+	sceneRepo := &batchErrorSceneRepo{InMemorySceneRepository: scene.NewInMemorySceneRepository()}
+	auditRepo := audit.NewInMemoryRepository()
+	rsvpRepo := scene.NewInMemoryRSVPRepository()
+	streamRepo := stream.NewInMemorySessionRepository()
+	handlers := NewEventHandlers(eventRepo, sceneRepo, auditRepo, rsvpRepo, streamRepo, nil)
+
+	baseTime := time.Now().Add(24 * time.Hour)
+	parentScene := &scene.Scene{
+		ID:           uuid.New().String(),
+		Name:         "Fallback Scene",
+		OwnerDID:     "did:plc:fallback",
+		AllowPrecise: true,
+	}
+	if err := sceneRepo.Insert(parentScene); err != nil {
+		t.Fatalf("failed to insert scene: %v", err)
+	}
+	event := &scene.Event{
+		ID:            uuid.New().String(),
+		SceneID:       parentScene.ID,
+		Title:         "Fallback Event",
+		AllowPrecise:  true,
+		PrecisePoint:  &scene.Point{Lat: 40.7128, Lng: -74.0060},
+		CoarseGeohash: "dr5regw",
+		Status:        "scheduled",
+		StartsAt:      baseTime.Add(1 * time.Hour),
+		CreatedAt:     &baseTime,
+		UpdatedAt:     &baseTime,
+	}
+	if err := eventRepo.Insert(event); err != nil {
+		t.Fatalf("failed to insert event: %v", err)
+	}
+
+	query := url.Values{}
+	query.Set("bbox", "-74.2,40.6,-73.8,40.9")
+	query.Set("from", baseTime.Add(-1*time.Hour).Format(time.RFC3339))
+	query.Set("to", baseTime.Add(3*time.Hour).Format(time.RFC3339))
+	req := httptest.NewRequest(http.MethodGet, "/search/events?"+query.Encode(), nil)
+	w := httptest.NewRecorder()
+	handlers.SearchEvents(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected status 200, got %d: %s", w.Code, w.Body.String())
+	}
+	if sceneRepo.batchCalls == 0 {
+		t.Fatal("expected batch scene fetch to be attempted")
+	}
+	if sceneRepo.getByIDCalls == 0 {
+		t.Fatal("expected fallback GetByID calls after batch fetch error")
+	}
+
+	var response SearchEventsResponse
+	if err := json.NewDecoder(w.Body).Decode(&response); err != nil {
+		t.Fatalf("failed to decode response: %v", err)
+	}
+	if len(response.Events) != 1 || response.Events[0].Scene == nil || response.Events[0].Scene.ID != parentScene.ID {
+		t.Fatalf("expected scene payload to be populated via fallback, got %+v", response.Events)
+	}
 }
