@@ -16,7 +16,7 @@ import (
 func TestSearchPosts_Success(t *testing.T) {
 	postRepo := post.NewInMemoryPostRepository()
 	sceneRepo := scene.NewInMemorySceneRepository()
-	handlers := NewSearchHandlers(sceneRepo, postRepo, nil)
+	handlers := NewSearchHandlers(sceneRepo, postRepo, nil, scene.NewInMemoryEventRepository())
 
 	sceneID1 := "scene-1"
 	sceneID2 := "scene-2"
@@ -97,7 +97,7 @@ func TestSearchPosts_Success(t *testing.T) {
 func TestSearchPosts_WithSceneFilter(t *testing.T) {
 	postRepo := post.NewInMemoryPostRepository()
 	sceneRepo := scene.NewInMemorySceneRepository()
-	handlers := NewSearchHandlers(sceneRepo, postRepo, nil)
+	handlers := NewSearchHandlers(sceneRepo, postRepo, nil, scene.NewInMemoryEventRepository())
 
 	sceneID1 := "scene-1"
 	sceneID2 := "scene-2"
@@ -160,7 +160,7 @@ func TestSearchPosts_WithSceneFilter(t *testing.T) {
 func TestSearchPosts_ExcludesModeratedPosts(t *testing.T) {
 	postRepo := post.NewInMemoryPostRepository()
 	sceneRepo := scene.NewInMemorySceneRepository()
-	handlers := NewSearchHandlers(sceneRepo, postRepo, nil)
+	handlers := NewSearchHandlers(sceneRepo, postRepo, nil, scene.NewInMemoryEventRepository())
 
 	sceneID := "scene-1"
 
@@ -238,7 +238,7 @@ func TestSearchPosts_ExcludesModeratedPosts(t *testing.T) {
 func TestSearchPosts_Pagination(t *testing.T) {
 	postRepo := post.NewInMemoryPostRepository()
 	sceneRepo := scene.NewInMemorySceneRepository()
-	handlers := NewSearchHandlers(sceneRepo, postRepo, nil)
+	handlers := NewSearchHandlers(sceneRepo, postRepo, nil, scene.NewInMemoryEventRepository())
 
 	sceneID := "scene-1"
 
@@ -309,7 +309,7 @@ func TestSearchPosts_Pagination(t *testing.T) {
 func TestSearchPosts_MissingQuery(t *testing.T) {
 	postRepo := post.NewInMemoryPostRepository()
 	sceneRepo := scene.NewInMemorySceneRepository()
-	handlers := NewSearchHandlers(sceneRepo, postRepo, nil)
+	handlers := NewSearchHandlers(sceneRepo, postRepo, nil, scene.NewInMemoryEventRepository())
 
 	// Request without q parameter
 	req := httptest.NewRequest(http.MethodGet, "/search/posts", nil)
@@ -340,7 +340,7 @@ func TestSearchPosts_MissingQuery(t *testing.T) {
 func TestSearchPosts_LimitValidation(t *testing.T) {
 	postRepo := post.NewInMemoryPostRepository()
 	sceneRepo := scene.NewInMemorySceneRepository()
-	handlers := NewSearchHandlers(sceneRepo, postRepo, nil)
+	handlers := NewSearchHandlers(sceneRepo, postRepo, nil, scene.NewInMemoryEventRepository())
 
 	tests := []struct {
 		name           string
@@ -396,7 +396,7 @@ func TestSearchPosts_LimitValidation(t *testing.T) {
 func TestSearchPosts_ExcerptGeneration(t *testing.T) {
 	postRepo := post.NewInMemoryPostRepository()
 	sceneRepo := scene.NewInMemorySceneRepository()
-	handlers := NewSearchHandlers(sceneRepo, postRepo, nil)
+	handlers := NewSearchHandlers(sceneRepo, postRepo, nil, scene.NewInMemoryEventRepository())
 
 	sceneID := "scene-1"
 

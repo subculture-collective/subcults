@@ -191,4 +191,18 @@ func TestSearchGlobal_Validation(t *testing.T) {
 	if w.Code != http.StatusBadRequest {
 		t.Fatalf("expected status 400 for invalid cursor, got %d", w.Code)
 	}
+
+	req = httptest.NewRequest(http.MethodGet, "/search/global?q=music&limit=5", nil)
+	w = httptest.NewRecorder()
+	handlers.SearchGlobal(w, req)
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("expected status 400 when limit is provided, got %d", w.Code)
+	}
+
+	req = httptest.NewRequest(http.MethodGet, "/search/global?q=music&lat=40.7", nil)
+	w = httptest.NewRecorder()
+	handlers.SearchGlobal(w, req)
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("expected status 400 when lat/lon pair is invalid, got %d", w.Code)
+	}
 }

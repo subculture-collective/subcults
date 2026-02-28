@@ -27,16 +27,13 @@ type SearchHandlers struct {
 }
 
 // NewSearchHandlers creates a new SearchHandlers instance.
-func NewSearchHandlers(sceneRepo scene.SceneRepository, postRepo post.PostRepository, trustStore TrustScoreStore, eventRepo ...scene.EventRepository) *SearchHandlers {
-	h := &SearchHandlers{
+func NewSearchHandlers(sceneRepo scene.SceneRepository, postRepo post.PostRepository, trustStore TrustScoreStore, eventRepo scene.EventRepository) *SearchHandlers {
+	return &SearchHandlers{
 		sceneRepo:  sceneRepo,
+		eventRepo:  eventRepo,
 		postRepo:   postRepo,
 		trustStore: trustStore,
 	}
-	if len(eventRepo) > 0 {
-		h.eventRepo = eventRepo[0]
-	}
-	return h
 }
 
 // SceneSearchResponse represents the response for scene search.
@@ -472,45 +469,111 @@ func (h *SearchHandlers) SearchGlobal(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	sceneResults := make([]*scene.Scene, 0)
-	sceneNextCursor := ""
-	if h.sceneRepo != nil {
-		sceneResults, sceneNextCursor, err = h.sceneRepo.SearchScenes(scene.SceneSearchOptions{
-			Query:  q,
-			Limit:  maxGlobalScenes,
-			Cursor: cursorState.SceneCursor,
-		})
-		if err != nil {
-			slog.ErrorContext(r.Context(), "failed to search scenes for global search", "error", err)
-			ctx := middleware.SetErrorCode(r.Context(), ErrCodeInternal)
-			WriteError(w, ctx, http.StatusInternalServerError, ErrCodeInternal, "Failed to search")
+	if query.Get("limit") != "" {
+		ctx := middleware.SetErrorCode(r.Context(), ErrCodeValidation)
+		WriteError(w, ctx, http.StatusBadRequest, ErrCodeValidation, "limit is not supported for global search")
+		return
+	}
+
+	var lat, lng *float64
+	if latStr := strings.TrimSpace(query.Get("lat")); latStr != "" {
+		parsedLat, parseErr := strconv.ParseFloat(latStr, 64)
+		if parseErr != nil || parsedLat < -90 || parsedLat > 90 {
+			ctx := middleware.SetErrorCode(r.Context(), ErrCodeValidation)
+			WriteError(w, ctx, http.StatusBadRequest, ErrCodeValidation, "lat must be a valid latitude between -90 and 90")
 			return
 		}
+		lat = &parsedLat
+	}
+	if lngStr := strings.TrimSpace(query.Get("lon")); lngStr != "" {
+		parsedLng, parseErr := strconv.ParseFloat(lngStr, 64)
+		if parseErr != nil || parsedLng < -180 || parsedLng > 180 {
+			ctx := middleware.SetErrorCode(r.Context(), ErrCodeValidation)
+			WriteError(w, ctx, http.StatusBadRequest, ErrCodeValidation, "lon must be a valid longitude between -180 and 180")
+			return
+		}
+		lng = &parsedLng
+	}
+	if (lat == nil) != (lng == nil) {
+		ctx := middleware.SetErrorCode(r.Context(), ErrCodeValidation)
+		WriteError(w, ctx, http.StatusBadRequest, ErrCodeValidation, "lat and lon must be provided together")
+		return
+	}
+
+	sceneResults := make([]*scene.Scene, 0)
+	sceneNextCursor := ""
+	sceneResults, sceneNextCursor, err = h.sceneRepo.SearchScenes(scene.SceneSearchOptions{
+		Lat:              lat,
+		Lng:              lng,
+		Query:            q,
+		Limit:            maxGlobalScenes,
+		Cursor:           cursorState.SceneCursor,
+		DisableProximity: lat == nil && lng == nil,
+	})
+	if err != nil {
+		slog.ErrorContext(r.Context(), "failed to search scenes for global search", "error", err)
+		ctx := middleware.SetErrorCode(r.Context(), ErrCodeInternal)
+		WriteError(w, ctx, http.StatusInternalServerError, ErrCodeInternal, "Failed to search")
+		return
 	}
 
 	eventResults := make([]*scene.Event, 0)
 	eventNextCursor := ""
-	if h.eventRepo != nil {
-		now := time.Now()
-		from := now.AddDate(-defaultEventPastYearsForGlobalSearch, 0, 0)
-		to := now.AddDate(defaultEventFutureYearsForGlobalSearch, 0, 0)
-		eventResults, eventNextCursor, err = h.eventRepo.SearchEvents(scene.EventSearchOptions{
-			MinLng: -180,
-			MinLat: -90,
-			MaxLng: 180,
-			MaxLat: 90,
-			From:   from,
-			To:     to,
-			Query:  q,
-			Limit:  maxGlobalEvents,
-			Cursor: cursorState.EventCursor,
-		})
-		if err != nil {
-			slog.ErrorContext(r.Context(), "failed to search events for global search", "error", err)
-			ctx := middleware.SetErrorCode(r.Context(), ErrCodeInternal)
-			WriteError(w, ctx, http.StatusInternalServerError, ErrCodeInternal, "Failed to search")
-			return
+	if lat != nil && lng != nil {
+		eventRadiusDegrees := 5.0
+		minLng := *lng - eventRadiusDegrees
+		maxLng := *lng + eventRadiusDegrees
+		minLat := *lat - eventRadiusDegrees
+		maxLat := *lat + eventRadiusDegrees
+		if minLng < -180 {
+			minLng = -180
 		}
+		if maxLng > 180 {
+			maxLng = 180
+		}
+		if minLat < -90 {
+			minLat = -90
+		}
+		if maxLat > 90 {
+			maxLat = 90
+		}
+		searchNow := time.Now()
+		from := searchNow.AddDate(-defaultEventPastYearsForGlobalSearch, 0, 0)
+		to := searchNow.AddDate(defaultEventFutureYearsForGlobalSearch, 0, 0)
+		eventResults, eventNextCursor, err = h.eventRepo.SearchEvents(scene.EventSearchOptions{
+			MinLng:           minLng,
+			MinLat:           minLat,
+			MaxLng:           maxLng,
+			MaxLat:           maxLat,
+			From:             from,
+			To:               to,
+			Query:            q,
+			Limit:            maxGlobalEvents,
+			Cursor:           cursorState.EventCursor,
+			DisableProximity: false,
+		})
+	} else {
+		searchNow := time.Now()
+		from := searchNow.AddDate(-defaultEventPastYearsForGlobalSearch, 0, 0)
+		to := searchNow.AddDate(defaultEventFutureYearsForGlobalSearch, 0, 0)
+		eventResults, eventNextCursor, err = h.eventRepo.SearchEvents(scene.EventSearchOptions{
+			MinLng:           -180,
+			MinLat:           -90,
+			MaxLng:           180,
+			MaxLat:           90,
+			From:             from,
+			To:               to,
+			Query:            q,
+			Limit:            maxGlobalEvents,
+			Cursor:           cursorState.EventCursor,
+			DisableProximity: true,
+		})
+	}
+	if err != nil {
+		slog.ErrorContext(r.Context(), "failed to search events for global search", "error", err)
+		ctx := middleware.SetErrorCode(r.Context(), ErrCodeInternal)
+		WriteError(w, ctx, http.StatusInternalServerError, ErrCodeInternal, "Failed to search")
+		return
 	}
 
 	postResults := make([]*post.Post, 0)
@@ -592,22 +655,9 @@ func (h *SearchHandlers) SearchGlobal(w http.ResponseWriter, r *http.Request) {
 		return scored[i].score > scored[j].score
 	})
 
-	limit := MaxGlobalLimit
-	if limitStr := query.Get("limit"); limitStr != "" {
-		parsedLimit, parseErr := strconv.Atoi(limitStr)
-		if parseErr != nil || parsedLimit < 1 {
-			ctx := middleware.SetErrorCode(r.Context(), ErrCodeValidation)
-			WriteError(w, ctx, http.StatusBadRequest, ErrCodeValidation, "limit must be a positive integer")
-			return
-		}
-		if parsedLimit < limit {
-			limit = parsedLimit
-		}
-	}
-
-	results := make([]*GlobalSearchResult, 0, min(limit, len(scored)))
+	results := make([]*GlobalSearchResult, 0, min(MaxGlobalLimit, len(scored)))
 	for _, item := range scored {
-		if len(results) >= limit {
+		if len(results) >= MaxGlobalLimit {
 			break
 		}
 		results = append(results, item.result)
@@ -645,7 +695,7 @@ func decodeGlobalSearchCursor(cursor string) (globalSearchCursor, error) {
 	if strings.TrimSpace(cursor) == "" {
 		return globalSearchCursor{}, nil
 	}
-	decoded, err := base64.StdEncoding.DecodeString(cursor)
+	decoded, err := base64.RawURLEncoding.DecodeString(cursor)
 	if err != nil {
 		return globalSearchCursor{}, err
 	}
@@ -662,7 +712,7 @@ func encodeGlobalSearchCursor(state globalSearchCursor) string {
 		slog.Error("failed to encode global search cursor", "error", err)
 		return ""
 	}
-	return base64.StdEncoding.EncodeToString(encoded)
+	return base64.RawURLEncoding.EncodeToString(encoded)
 }
 
 // SearchPosts handles GET /search/posts - searches for posts with text relevance and scene filter.
