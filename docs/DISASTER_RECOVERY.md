@@ -88,7 +88,7 @@ ls -lh backups/
 ./scripts/restore.sh backups/subcults_20260221_120000.sql.gz
 
 # Apply any pending migrations
-make migrate-up
+make migrate-up-prod
 
 # Verify
 curl http://localhost:8080/health/ready

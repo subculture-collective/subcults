@@ -67,8 +67,7 @@ docker compose up -d --force-recreate
 
 # (Optional but recommended) run migrations from repo root
 cd ..
-set -a && source deploy/.env && set +a
-./scripts/migrate.sh up
+make migrate-up-prod
 
 # Verify health (inside containers; no host port publishing required)
 docker compose -f deploy/compose.yml exec -T api wget --no-verbose --tries=1 --spider http://localhost:8080/health/live
@@ -97,7 +96,7 @@ Before deploying:
 - [ ] `CORS_ALLOWED_ORIGINS` set to your public frontend origin(s)
 - [ ] Docker `web` network exists and Caddy is attached
 - [ ] Images build successfully (`docker compose -f deploy/compose.yml build`)
-- [ ] Migrations run successfully (`./scripts/migrate.sh up`)
+- [ ] Migrations run successfully (`make migrate-up-prod`)
 - [ ] Health checks pass in running containers
 
 ## Docker Images
@@ -145,7 +144,7 @@ If deployment causes issues:
 
 3. **Rollback the last migration** (if needed):
    ```bash
-   ./scripts/migrate.sh down 1
+   make migrate-down-prod
    ```
 
 ## Kubernetes (Future)

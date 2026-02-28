@@ -62,6 +62,51 @@ LABEL org.opencontainers.image.title="subcults-frontend" \
 RUN rm -f /etc/nginx/conf.d/default.conf && \
     rm -rf /usr/share/nginx/html/*
 
+# Nginx non-root runtime prep
+# - use /tmp for pid/temp paths
+# - ensure writable dirs for nginx user
+RUN mkdir -p \
+      /tmp/nginx/client_temp \
+      /tmp/nginx/proxy_temp \
+      /tmp/nginx/fastcgi_temp \
+      /tmp/nginx/uwsgi_temp \
+      /tmp/nginx/scgi_temp \
+      /var/cache/nginx \
+      /var/run && \
+    chown -R nginx:nginx \
+      /tmp/nginx \
+      /var/cache/nginx \
+      /var/run \
+      /usr/share/nginx/html
+
+# Main nginx config override for non-root runtime
+COPY <<'NGINX_MAIN_CONF' /etc/nginx/nginx.conf
+user nginx;
+worker_processes auto;
+pid /tmp/nginx.pid;
+
+events {
+    worker_connections 1024;
+}
+
+http {
+    include /etc/nginx/mime.types;
+    default_type application/octet-stream;
+
+    sendfile on;
+    keepalive_timeout 65;
+
+    # writable temp paths for non-root
+    client_body_temp_path /tmp/nginx/client_temp;
+    proxy_temp_path       /tmp/nginx/proxy_temp;
+    fastcgi_temp_path     /tmp/nginx/fastcgi_temp;
+    uwsgi_temp_path       /tmp/nginx/uwsgi_temp;
+    scgi_temp_path        /tmp/nginx/scgi_temp;
+
+    include /etc/nginx/conf.d/*.conf;
+}
+NGINX_MAIN_CONF
+
 # Production nginx configuration
 COPY <<'NGINX_CONF' /etc/nginx/conf.d/default.conf
 server {

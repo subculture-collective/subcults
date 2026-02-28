@@ -9,6 +9,7 @@ set -euo pipefail
 #
 # Usage:
 #   ./scripts/deploy.sh                # Deploy latest from current branch
+#   ./scripts/deploy.sh --redeploy     # Explicitly trigger redeploy
 #   ./scripts/deploy.sh --status       # Show current active slot
 #   ./scripts/deploy.sh --rollback     # Restart services with currently available images
 #
@@ -74,6 +75,42 @@ wait_for_http() {
     return 1
 }
 
+wait_for_container_health() {
+    local service="$1"
+    local max_attempts="${2:-90}"
+    local interval="${3:-2}"
+
+    local cid
+    cid="$(compose ps -q "$service" 2>/dev/null || true)"
+    if [[ -z "$cid" ]]; then
+        err "No container found for service '$service'"
+        return 1
+    fi
+
+    log "Waiting for $service container health to become healthy..."
+    for i in $(seq 1 "$max_attempts"); do
+        local state health
+        state="$(docker inspect --format '{{.State.Status}}' "$cid" 2>/dev/null || echo unknown)"
+        health="$(docker inspect --format '{{if .State.Health}}{{.State.Health.Status}}{{else}}none{{end}}' "$cid" 2>/dev/null || echo unknown)"
+
+        if [[ "$health" == "healthy" ]]; then
+            log "$service health is healthy (attempt $i/$max_attempts)"
+            return 0
+        fi
+
+        # If no healthcheck is defined, fall back to running state.
+        if [[ "$health" == "none" && "$state" == "running" ]]; then
+            log "$service is running (no healthcheck) (attempt $i/$max_attempts)"
+            return 0
+        fi
+
+        sleep "$interval"
+    done
+
+    warn "$service health did not become healthy within timeout"
+    return 1
+}
+
 run_migrations() {
     load_env
 
@@ -83,7 +120,13 @@ run_migrations() {
     fi
 
     log "Running database migrations..."
-    if (cd "$PROJECT_DIR" && DATABASE_URL="$DATABASE_URL" ./scripts/migrate.sh up); then
+    if (
+        cd "$PROJECT_DIR" && \
+        DATABASE_URL="$DATABASE_URL" \
+        MIGRATE_USE_DOCKER=1 \
+        MIGRATE_DOCKER_NETWORK=subcults-internal \
+        ./scripts/migrate.sh up
+    ); then
         log "Migrations completed"
     else
         warn "Migration command failed — continuing deploy (run migrations manually if required)"
@@ -110,19 +153,21 @@ run_smoke_tests() {
         log "  PASS: /health/ready"
     fi
 
-    # Frontend nginx health
-    if ! compose exec -T frontend sh -c "wget --no-verbose --tries=1 --spider 'http://localhost/nginx-health'" >/dev/null 2>&1; then
+    # Frontend nginx health (probe from API container on shared web network)
+    if ! compose exec -T api sh -c "wget --no-verbose --tries=1 --spider 'http://frontend/nginx-health'" >/dev/null 2>&1; then
         err "  FAIL: frontend /nginx-health"
         ((failures++))
     else
         log "  PASS: frontend /nginx-health"
     fi
 
-    # Indexer health
-    if ! compose exec -T indexer sh -c "wget --no-verbose --tries=1 --spider 'http://localhost:9090/health'" >/dev/null 2>&1; then
-        warn "  WARN: indexer /health"
-    else
+    # Indexer health: prefer container health status to avoid transient startup noise.
+    if wait_for_container_health "indexer" 1 1 >/dev/null 2>&1; then
+        log "  PASS: indexer container health"
+    elif compose exec -T indexer sh -c "wget --no-verbose --tries=1 --spider 'http://localhost:9090/health'" >/dev/null 2>&1; then
         log "  PASS: indexer /health"
+    else
+        warn "  WARN: indexer health check"
     fi
 
     if [[ "$failures" -gt 0 ]]; then
@@ -168,12 +213,14 @@ cmd_deploy() {
         exit 1
     fi
 
-    if ! wait_for_http "frontend" "http://localhost/nginx-health" 30 2; then
+    if ! wait_for_http "api" "http://frontend/nginx-health" 30 2; then
         err "Frontend failed health checks"
         exit 1
     fi
 
-    if ! wait_for_http "indexer" "http://localhost:9090/health" 30 2; then
+    # Indexer startup can lag while establishing upstream connections.
+    # Use container health with a longer window to reduce false warnings.
+    if ! wait_for_container_health "indexer" 180 2; then
         warn "Indexer did not become healthy in time"
     fi
 
@@ -200,6 +247,9 @@ cmd_rollback() {
 
 # Main
 case "${1:-}" in
+    --redeploy)
+        cmd_deploy
+        ;;
     --status)
         cmd_status
         ;;
@@ -207,9 +257,10 @@ case "${1:-}" in
         cmd_rollback
         ;;
     --help|-h)
-        echo "Usage: $0 [--status|--rollback|--help]"
+        echo "Usage: $0 [--redeploy|--status|--rollback|--help]"
         echo ""
         echo "  (no args)    Build, migrate, recreate, and verify services"
+        echo "  --redeploy   Explicit redeploy command (same as no args)"
         echo "  --status     Show current deployment status"
         echo "  --rollback   Best-effort service restart"
         echo "  --help       Show this help"
