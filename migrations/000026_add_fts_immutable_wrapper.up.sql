@@ -20,46 +20,43 @@ AS $$
     SELECT to_tsvector('english', $1);
 $$;
 
-COMMENT ON FUNCTION to_tsvector_immutable(text) IS 
-    'IMMUTABLE wrapper for to_tsvector with hard-coded english configuration. ' ||
-    'Required for functional GIN indexes on tsvector expressions.';
+COMMENT ON FUNCTION to_tsvector_immutable(text) IS
+    'IMMUTABLE wrapper for to_tsvector with hard-coded english configuration. Required for functional GIN indexes on tsvector expressions.';
 
 -- ============================================
 -- STEP 2: Add FTS GIN index for scenes
 -- ============================================
 
--- Full-text search on scenes: name + description + tags
+-- Full-text search on scenes: name + description
 -- Excludes soft-deleted scenes
-CREATE INDEX IF NOT EXISTS idx_scenes_name_desc_tags_fts ON scenes 
+CREATE INDEX IF NOT EXISTS idx_scenes_name_desc_tags_fts ON scenes
 USING GIN(
     to_tsvector_immutable(
         COALESCE(name, '') || ' ' ||
-        COALESCE(description, '') || ' ' ||
-        COALESCE(array_to_string(tags, ' '), '')
+        COALESCE(description, '')
     )
 )
 WHERE deleted_at IS NULL;
 
-COMMENT ON INDEX idx_scenes_name_desc_tags_fts IS 
-    'Full-text search index on scene name, description, and tags using IMMUTABLE wrapper';
+COMMENT ON INDEX idx_scenes_name_desc_tags_fts IS
+    'Full-text search index on scene name and description using IMMUTABLE wrapper';
 
 -- ============================================
 -- STEP 3: Add FTS GIN index for events
 -- ============================================
 
--- Full-text search on events: title + tags
+-- Full-text search on events: title
 -- Excludes soft-deleted and cancelled events
-CREATE INDEX IF NOT EXISTS idx_events_title_tags_fts ON events 
+CREATE INDEX IF NOT EXISTS idx_events_title_tags_fts ON events
 USING GIN(
     to_tsvector_immutable(
-        COALESCE(title, '') || ' ' ||
-        COALESCE(array_to_string(tags, ' '), '')
+        COALESCE(title, '')
     )
 )
 WHERE deleted_at IS NULL AND cancelled_at IS NULL;
 
-COMMENT ON INDEX idx_events_title_tags_fts IS 
-    'Full-text search index on event title and tags using IMMUTABLE wrapper';
+COMMENT ON INDEX idx_events_title_tags_fts IS
+    'Full-text search index on event title using IMMUTABLE wrapper';
 
 -- ============================================
 -- STEP 4: Add FTS GIN index for posts
@@ -67,11 +64,11 @@ COMMENT ON INDEX idx_events_title_tags_fts IS
 
 -- Full-text search on posts: text content
 -- Excludes soft-deleted posts
-CREATE INDEX IF NOT EXISTS idx_posts_text_fts ON posts 
+CREATE INDEX IF NOT EXISTS idx_posts_text_fts ON posts
 USING GIN(
     to_tsvector_immutable(COALESCE(text, ''))
 )
 WHERE deleted_at IS NULL;
 
-COMMENT ON INDEX idx_posts_text_fts IS 
+COMMENT ON INDEX idx_posts_text_fts IS
     'Full-text search index on post text content using IMMUTABLE wrapper';

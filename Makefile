@@ -1,5 +1,6 @@
+
 .PHONY: help build build-api build-frontend test test-coverage test-integration test-all test-e2e test-load lint clean tidy verify fmt \
-	migrate-up migrate-down compose-up compose-down logs dev dev-api dev-frontend dev-indexer \
+	migrate-up migrate-down migrate-up-prod migrate-down-prod compose-up compose-down redeploy logs dev dev-api dev-frontend dev-indexer \
 	docker-build docker-build-api docker-build-indexer docker-build-frontend docker-size
 
 # Default target
@@ -7,6 +8,7 @@
 
 # Docker Compose configuration
 DOCKER_COMPOSE_FILE ?= docker-compose.yml
+MIGRATE_ENV_FILE ?= ./configs/dev.env
 
 ## help: Display this help message
 help:
@@ -94,13 +96,27 @@ verify:
 fmt:
 	go fmt ./...
 
-## migrate-up: Apply all pending database migrations
+## migrate-up: Apply all pending database migrations (default env: configs/dev.env)
 migrate-up:
-	@set -a && . ./configs/dev.env && set +a && ./scripts/migrate.sh up
+	@test -f $(MIGRATE_ENV_FILE) || (echo "Error: $(MIGRATE_ENV_FILE) not found" && exit 1)
+	@set -a && . $(MIGRATE_ENV_FILE) && set +a && ./scripts/migrate.sh up
 
-## migrate-down: Rollback the last database migration
+## migrate-down: Rollback the last database migration (default env: configs/dev.env)
 migrate-down:
-	@set -a && . ./configs/dev.env && set +a && ./scripts/migrate.sh down 1
+	@test -f $(MIGRATE_ENV_FILE) || (echo "Error: $(MIGRATE_ENV_FILE) not found" && exit 1)
+	@set -a && . $(MIGRATE_ENV_FILE) && set +a && ./scripts/migrate.sh down 1
+
+## migrate-up-prod: Apply all pending migrations using deploy/.env
+migrate-up-prod: MIGRATE_ENV_FILE=./deploy/.env
+migrate-up-prod: export MIGRATE_USE_DOCKER=1
+migrate-up-prod: export MIGRATE_DOCKER_NETWORK=subcults-internal
+migrate-up-prod: migrate-up
+
+## migrate-down-prod: Rollback last migration using deploy/.env
+migrate-down-prod: MIGRATE_ENV_FILE=./deploy/.env
+migrate-down-prod: export MIGRATE_USE_DOCKER=1
+migrate-down-prod: export MIGRATE_DOCKER_NETWORK=subcults-internal
+migrate-down-prod: migrate-down
 
 ## compose-up: Start all services with Docker Compose
 compose-up:
@@ -111,6 +127,10 @@ compose-up:
 compose-down:
 	@test -f $(DOCKER_COMPOSE_FILE) || (echo "Error: $(DOCKER_COMPOSE_FILE) not found" && exit 1)
 	docker compose -f $(DOCKER_COMPOSE_FILE) down
+
+## redeploy: Rebuild, migrate, and recreate production services via deploy script
+redeploy:
+	./scripts/deploy.sh --redeploy
 
 ## dev: Run API and frontend development servers (requires: compose-up, database migrations)
 dev:

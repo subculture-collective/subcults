@@ -19,6 +19,8 @@ set -euo pipefail
 # Configuration
 MIGRATIONS_PATH="${MIGRATIONS_PATH:-./migrations}"
 MIGRATE_IMAGE="migrate/migrate:v4.17.0"
+MIGRATE_DOCKER_NETWORK="${MIGRATE_DOCKER_NETWORK:-host}"
+MIGRATE_USE_DOCKER="${MIGRATE_USE_DOCKER:-0}"
 
 # Show usage
 usage() {
@@ -40,6 +42,8 @@ usage() {
     echo "Environment Variables:"
     echo "  DATABASE_URL      - PostgreSQL connection string (required)"
     echo "  MIGRATIONS_PATH   - Path to migrations directory (default: ./migrations)"
+    echo "  MIGRATE_DOCKER_NETWORK - Docker network for docker fallback (default: host)"
+    echo "  MIGRATE_USE_DOCKER - Force docker migration even if local migrate binary exists (0/1)"
     exit 0
 }
 
@@ -57,6 +61,14 @@ fi
 
 # Detect if we should use Docker or local binary
 use_docker() {
+    if [[ "${MIGRATE_USE_DOCKER}" == "1" ]] || [[ "${MIGRATE_USE_DOCKER}" == "true" ]]; then
+        if command -v docker &>/dev/null; then
+            return 0
+        fi
+        echo "Error: MIGRATE_USE_DOCKER is set but docker is not available" >&2
+        exit 1
+    fi
+
     if command -v migrate &>/dev/null; then
         return 1  # Use local binary
     fi
@@ -90,7 +102,7 @@ validate_version() {
 # Run migrate command
 run_migrate() {
     local args=("$@")
-    
+
     if use_docker; then
         # Resolve absolute path for migrations directory
         local migrations_abs_path
@@ -103,13 +115,12 @@ run_migrate() {
                 migrations_abs_path="$(cd "$(dirname "${MIGRATIONS_PATH}")" && pwd)/$(basename "${MIGRATIONS_PATH}")"
             fi
         fi
-        
-        # Use Docker with volume mount for migrations
-        # Note: --network host is used to allow the container to connect to databases
-        # running on the host or accessible via host network. For production deployments
-        # with containerized databases, consider using Docker networks instead.
+
+        # Use Docker with volume mount for migrations.
+        # Default network is "host" for localhost DBs; override with
+        # MIGRATE_DOCKER_NETWORK for service-name DBs (e.g. subcults-postgres).
         docker run --rm \
-            --network host \
+            --network "${MIGRATE_DOCKER_NETWORK}" \
             -v "${migrations_abs_path}:/migrations:ro" \
             "${MIGRATE_IMAGE}" \
             -path=/migrations \
