@@ -97,6 +97,9 @@ type EventSearchOptions struct {
 	From             time.Time          // Start of time window
 	To               time.Time          // End of time window
 	Query            string             // Text search query (optional)
+	Status           string             // Status filter: upcoming, live, past, cancelled (optional)
+	SceneID          string             // Scene ID filter (optional)
+	SceneIDs         []string           // Scene scope filter (optional, OR match)
 	Limit            int                // Max results per page
 	Cursor           string             // Pagination cursor
 	TrustScores      map[string]float64 // Map of sceneID -> trust score (optional, for ranking)
@@ -891,17 +894,36 @@ func (r *InMemoryEventRepository) SearchEvents(opts EventSearchOptions) ([]*Even
 
 	// Check if trust ranking is enabled
 	includeTrust := len(opts.TrustScores) > 0
+	allowedSceneIDs := make(map[string]struct{}, len(opts.SceneIDs))
+	for _, sceneID := range opts.SceneIDs {
+		allowedSceneIDs[sceneID] = struct{}{}
+	}
 
 	// Collect and rank matching events
 	rankedEvents := make([]rankedEvent, 0)
 	for _, event := range r.events {
-		// Skip cancelled events
-		if event.Status == "cancelled" {
+		// Skip cancelled events by default (unless explicitly requested)
+		if opts.Status == "" && event.Status == "cancelled" {
 			continue
 		}
 
 		// Skip deleted events
 		if event.DeletedAt != nil {
+			continue
+		}
+
+		// Apply scene filters
+		if opts.SceneID != "" && event.SceneID != opts.SceneID {
+			continue
+		}
+		if len(allowedSceneIDs) > 0 {
+			if _, ok := allowedSceneIDs[event.SceneID]; !ok {
+				continue
+			}
+		}
+
+		// Apply status filter
+		if !matchesEventStatusFilter(event, opts.Status, now) {
 			continue
 		}
 
@@ -1006,6 +1028,23 @@ func (r *InMemoryEventRepository) SearchEvents(opts EventSearchOptions) ([]*Even
 	}
 
 	return results, nextCursor, nil
+}
+
+func matchesEventStatusFilter(event *Event, statusFilter string, now time.Time) bool {
+	switch statusFilter {
+	case "":
+		return true
+	case "cancelled":
+		return event.Status == "cancelled"
+	case "live":
+		return event.Status == "live"
+	case "past":
+		return event.Status == "ended" || (event.Status == "scheduled" && event.StartsAt.Before(now))
+	case "upcoming":
+		return event.Status == "scheduled" && event.StartsAt.After(now)
+	default:
+		return false
+	}
 }
 
 // parseFloat parses a string as float64 with error context.

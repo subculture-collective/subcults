@@ -779,3 +779,122 @@ type failingTrustStore struct{}
 func (f *failingTrustStore) GetScore(sceneID string) (*TrustScore, error) {
 	return nil, fmt.Errorf("simulated trust store error")
 }
+
+func TestSearchEvents_StatusSceneOrganizerAndParentScene(t *testing.T) {
+	eventRepo := scene.NewInMemoryEventRepository()
+	sceneRepo := scene.NewInMemorySceneRepository()
+	auditRepo := audit.NewInMemoryRepository()
+	rsvpRepo := scene.NewInMemoryRSVPRepository()
+	streamRepo := stream.NewInMemorySessionRepository()
+	handlers := NewEventHandlers(eventRepo, sceneRepo, auditRepo, rsvpRepo, streamRepo, nil)
+
+	baseTime := time.Now().Add(24 * time.Hour)
+	organizerDID := "did:plc:organizer123"
+	otherDID := "did:plc:other456"
+
+	organizerScene := &scene.Scene{
+		ID:           uuid.New().String(),
+		Name:         "Organizer Scene",
+		OwnerDID:     organizerDID,
+		AllowPrecise: true,
+	}
+	otherScene := &scene.Scene{
+		ID:           uuid.New().String(),
+		Name:         "Other Scene",
+		OwnerDID:     otherDID,
+		AllowPrecise: true,
+	}
+	if err := sceneRepo.Insert(organizerScene); err != nil {
+		t.Fatalf("failed to insert organizer scene: %v", err)
+	}
+	if err := sceneRepo.Insert(otherScene); err != nil {
+		t.Fatalf("failed to insert other scene: %v", err)
+	}
+
+	upcomingEvent := &scene.Event{
+		ID:            uuid.New().String(),
+		SceneID:       organizerScene.ID,
+		Title:         "Organizer Upcoming Event",
+		Description:   "test event",
+		AllowPrecise:  true,
+		PrecisePoint:  &scene.Point{Lat: 40.7128, Lng: -74.0060},
+		CoarseGeohash: "dr5regw",
+		Status:        "scheduled",
+		StartsAt:      baseTime.Add(2 * time.Hour),
+		CreatedAt:     &baseTime,
+		UpdatedAt:     &baseTime,
+	}
+	cancelledEvent := &scene.Event{
+		ID:            uuid.New().String(),
+		SceneID:       organizerScene.ID,
+		Title:         "Organizer Cancelled Event",
+		Description:   "cancelled event",
+		AllowPrecise:  true,
+		PrecisePoint:  &scene.Point{Lat: 40.7129, Lng: -74.0059},
+		CoarseGeohash: "dr5regw",
+		Status:        "cancelled",
+		StartsAt:      baseTime.Add(3 * time.Hour),
+		CreatedAt:     &baseTime,
+		UpdatedAt:     &baseTime,
+	}
+	otherOrganizerEvent := &scene.Event{
+		ID:            uuid.New().String(),
+		SceneID:       otherScene.ID,
+		Title:         "Other Organizer Event",
+		Description:   "other organizer",
+		AllowPrecise:  true,
+		PrecisePoint:  &scene.Point{Lat: 40.7130, Lng: -74.0058},
+		CoarseGeohash: "dr5regw",
+		Status:        "scheduled",
+		StartsAt:      baseTime.Add(4 * time.Hour),
+		CreatedAt:     &baseTime,
+		UpdatedAt:     &baseTime,
+	}
+	for _, event := range []*scene.Event{upcomingEvent, cancelledEvent, otherOrganizerEvent} {
+		if err := eventRepo.Insert(event); err != nil {
+			t.Fatalf("failed to insert event %s: %v", event.ID, err)
+		}
+	}
+
+	startDate := baseTime.Add(-1 * time.Hour).Format(time.RFC3339)
+	endDate := baseTime.Add(8 * time.Hour).Format(time.RFC3339)
+
+	url := fmt.Sprintf("/search/events?bbox=-74.2,40.6,-73.8,40.9&start_date=%s&end_date=%s&status=upcoming&organizer=%s&scene_id=%s", startDate, endDate, organizerDID, organizerScene.ID)
+	req := httptest.NewRequest(http.MethodGet, url, nil)
+	w := httptest.NewRecorder()
+	handlers.SearchEvents(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected status 200, got %d: %s", w.Code, w.Body.String())
+	}
+
+	var response SearchEventsResponse
+	if err := json.NewDecoder(w.Body).Decode(&response); err != nil {
+		t.Fatalf("failed to decode response: %v", err)
+	}
+	if len(response.Events) != 1 {
+		t.Fatalf("expected 1 event for organizer+scene+upcoming filters, got %d", len(response.Events))
+	}
+	if response.Events[0].ID != upcomingEvent.ID {
+		t.Fatalf("expected upcoming event %s, got %s", upcomingEvent.ID, response.Events[0].ID)
+	}
+	if response.Events[0].Scene == nil || response.Events[0].Scene.ID != organizerScene.ID {
+		t.Fatalf("expected parent scene info for scene %s", organizerScene.ID)
+	}
+
+	cancelledURL := fmt.Sprintf("/search/events?bbox=-74.2,40.6,-73.8,40.9&from=%s&to=%s&status=cancelled&scene_id=%s", startDate, endDate, organizerScene.ID)
+	cancelledReq := httptest.NewRequest(http.MethodGet, cancelledURL, nil)
+	cancelledW := httptest.NewRecorder()
+	handlers.SearchEvents(cancelledW, cancelledReq)
+
+	if cancelledW.Code != http.StatusOK {
+		t.Fatalf("expected status 200 for cancelled filter, got %d: %s", cancelledW.Code, cancelledW.Body.String())
+	}
+	var cancelledResponse SearchEventsResponse
+	if err := json.NewDecoder(cancelledW.Body).Decode(&cancelledResponse); err != nil {
+		t.Fatalf("failed to decode cancelled response: %v", err)
+	}
+	if len(cancelledResponse.Events) != 1 || cancelledResponse.Events[0].ID != cancelledEvent.ID {
+		t.Fatalf("expected cancelled event %s when filtering cancelled status", cancelledEvent.ID)
+	}
+}

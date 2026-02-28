@@ -531,3 +531,98 @@ func TestSearchEvents_CursorPrecision(t *testing.T) {
 		t.Errorf("expected 5 unique events across all pages, got %d", len(seenIDs))
 	}
 }
+
+func TestSearchEvents_StatusAndSceneFilters(t *testing.T) {
+	repo := NewInMemoryEventRepository()
+	baseTime := time.Now().Add(24 * time.Hour)
+
+	upcomingEvent := &Event{
+		ID:            uuid.New().String(),
+		SceneID:       "scene-a",
+		Title:         "Upcoming",
+		AllowPrecise:  true,
+		PrecisePoint:  &Point{Lat: 40.7128, Lng: -74.0060},
+		CoarseGeohash: "dr5regw",
+		Status:        "scheduled",
+		StartsAt:      baseTime.Add(2 * time.Hour),
+		CreatedAt:     &baseTime,
+		UpdatedAt:     &baseTime,
+	}
+	cancelledEvent := &Event{
+		ID:            uuid.New().String(),
+		SceneID:       "scene-a",
+		Title:         "Cancelled",
+		AllowPrecise:  true,
+		PrecisePoint:  &Point{Lat: 40.7129, Lng: -74.0059},
+		CoarseGeohash: "dr5regw",
+		Status:        "cancelled",
+		StartsAt:      baseTime.Add(3 * time.Hour),
+		CreatedAt:     &baseTime,
+		UpdatedAt:     &baseTime,
+	}
+	otherSceneEvent := &Event{
+		ID:            uuid.New().String(),
+		SceneID:       "scene-b",
+		Title:         "Other Scene",
+		AllowPrecise:  true,
+		PrecisePoint:  &Point{Lat: 40.7130, Lng: -74.0058},
+		CoarseGeohash: "dr5regw",
+		Status:        "scheduled",
+		StartsAt:      baseTime.Add(4 * time.Hour),
+		CreatedAt:     &baseTime,
+		UpdatedAt:     &baseTime,
+	}
+
+	for _, event := range []*Event{upcomingEvent, cancelledEvent, otherSceneEvent} {
+		if err := repo.Insert(event); err != nil {
+			t.Fatalf("failed to insert event: %v", err)
+		}
+	}
+
+	commonOptions := EventSearchOptions{
+		MinLng: -74.2,
+		MinLat: 40.6,
+		MaxLng: -73.8,
+		MaxLat: 40.9,
+		From:   baseTime.Add(-1 * time.Hour),
+		To:     baseTime.Add(8 * time.Hour),
+		Limit:  10,
+	}
+
+	upcomingResults, _, err := repo.SearchEvents(EventSearchOptions{
+		MinLng:   commonOptions.MinLng,
+		MinLat:   commonOptions.MinLat,
+		MaxLng:   commonOptions.MaxLng,
+		MaxLat:   commonOptions.MaxLat,
+		From:     commonOptions.From,
+		To:       commonOptions.To,
+		Limit:    commonOptions.Limit,
+		Status:   "upcoming",
+		SceneID:  "scene-a",
+		SceneIDs: []string{"scene-a"},
+	})
+	if err != nil {
+		t.Fatalf("failed to search upcoming events: %v", err)
+	}
+	if len(upcomingResults) != 1 || upcomingResults[0].ID != upcomingEvent.ID {
+		t.Fatalf("expected only upcoming scene-a event %s, got %+v", upcomingEvent.ID, upcomingResults)
+	}
+
+	cancelledResults, _, err := repo.SearchEvents(EventSearchOptions{
+		MinLng:  commonOptions.MinLng,
+		MinLat:  commonOptions.MinLat,
+		MaxLng:  commonOptions.MaxLng,
+		MaxLat:  commonOptions.MaxLat,
+		From:    commonOptions.From,
+		To:      commonOptions.To,
+		Limit:   commonOptions.Limit,
+		Status:  "cancelled",
+		SceneID: "scene-a",
+	})
+	if err != nil {
+		t.Fatalf("failed to search cancelled events: %v", err)
+	}
+	if len(cancelledResults) != 1 || cancelledResults[0].ID != cancelledEvent.ID {
+		t.Fatalf("expected only cancelled scene-a event %s, got %+v", cancelledEvent.ID, cancelledResults)
+	}
+}
