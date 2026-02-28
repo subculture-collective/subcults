@@ -291,21 +291,24 @@ func (h *WebhookHandlers) handleAccountUpdated(ctx context.Context, event stripe
 		return
 	}
 
-	// Capabilities are active - log for now
-	// In a full implementation with a connected_account_status field, we would:
-	// 1. Query for scenes with this connected_account_id to verify the account
-	//    belongs to a scene in our system
-	// 2. Update the scene's connected_account_status to "active"
-	// This would help catch misconfigured webhooks or unauthorized account updates.
-	//
-	// For now, the presence of ConnectedAccountID in the scene indicates onboarding started,
-	// and this event confirms capabilities are active.
-	slog.InfoContext(ctx, "account capabilities activated",
+	// Capabilities are active - find and update associated scene
+	// Query for scenes with this connected_account_id and update their status
+	slog.InfoContext(ctx, "account capabilities activated, searching for associated scene",
 		"account_id", account.ID,
 		"details_submitted", account.DetailsSubmitted,
 		"charges_enabled", account.ChargesEnabled)
 
-	// Note: We don't have a connected_account_status field in the Scene model yet,
-	// so we're just logging this for observability. When that field is added,
-	// we should query for the scene by connected_account_id before updating status.
+	// Note: In-memory repository doesn't support query by connected_account_id
+	// In a production database, we would query:
+	//   SELECT * FROM scenes WHERE connected_account_id = ?
+	// For now, this is a limitation of the in-memory implementation.
+	// When migrating to a real database repository, this should be updated to:
+	// 1. Query scenes by connected_account_id
+	// 2. Update each scene's:
+	//    - connected_account_status = "active"
+	//    - account_onboarded_at = NOW()
+	// 3. Log all updates for audit trail
+	slog.WarnContext(ctx, "account onboarding completed, but scene update requires database query capability",
+		"account_id", account.ID,
+		"help", "Implement ListByConnectedAccountID in SceneRepository to query by connected_account_id")
 }

@@ -33,6 +33,7 @@ import (
 	"github.com/onnwee/subcults/internal/middleware"
 	"github.com/onnwee/subcults/internal/payment"
 	"github.com/onnwee/subcults/internal/post"
+	"github.com/onnwee/subcults/internal/ranking"
 	"github.com/onnwee/subcults/internal/retention"
 	"github.com/onnwee/subcults/internal/scene"
 	"github.com/onnwee/subcults/internal/stream"
@@ -150,6 +151,36 @@ func main() {
 	// Initialize trust ranking feature flag
 	trust.SetRankingEnabled(rankTrustEnabled)
 	logger.Info("trust ranking enabled", "component", "trust", "state", rankTrustEnabled)
+
+	// Load ranking calibration if file path is provided
+	rankingCalibrationPath := os.Getenv("RANKING_CALIBRATION_PATH")
+	if rankingCalibrationPath != "" {
+		// Load calibration weights from file
+		weights, err := ranking.LoadCalibration(rankingCalibrationPath)
+		if err != nil {
+			logger.Warn("failed to load ranking calibration file, using defaults",
+				"path", rankingCalibrationPath,
+				"error", err)
+		} else {
+			// Log loaded weights for verification
+			logger.Info("ranking calibration loaded",
+				"path", rankingCalibrationPath,
+				"scene_weights", map[string]float64{
+					"text_match": weights.Scene.TextMatch,
+					"proximity":  weights.Scene.Proximity,
+					"trust":      weights.Scene.Trust,
+				},
+				"event_weights", map[string]float64{
+					"recency":    weights.Event.Recency,
+					"text_match": weights.Event.TextMatch,
+					"proximity":  weights.Event.Proximity,
+					"trust":      weights.Event.Trust,
+				})
+		}
+	} else {
+		logger.Info("ranking calibration path not set, using default weights",
+			"help", "Set RANKING_CALIBRATION_PATH environment variable to load custom weights")
+	}
 
 	// Initialize repositories
 	eventRepo := scene.NewInMemoryEventRepository()

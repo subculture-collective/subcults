@@ -457,6 +457,70 @@ func (h *PaymentHandlers) GetPaymentStatus(w http.ResponseWriter, r *http.Reques
 	}
 }
 
+// OnboardingStatusResponse represents the current onboarding status for a scene.
+type OnboardingStatusResponse struct {
+	SceneID                 string `json:"scene_id"`
+	ConnectedAccountID      *string `json:"connected_account_id,omitempty"`
+	ConnectedAccountStatus  string `json:"connected_account_status"` // pending, active, restricted
+	AccountOnboardedAt      *string `json:"account_onboarded_at,omitempty"`
+}
+
+// GetOnboardingStatus returns the current Stripe onboarding status for a scene.
+// GET /payments/onboarding/{sceneID}
+func (h *PaymentHandlers) GetOnboardingStatus(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	// Get authenticated user DID from context
+	userDID := middleware.GetUserDID(ctx)
+	if userDID == "" {
+		ctx = middleware.SetErrorCode(ctx, ErrCodeUnauthorized)
+		WriteError(w, ctx, http.StatusUnauthorized, ErrCodeUnauthorized, "authentication required")
+		return
+	}
+
+	// Extract scene ID from URL (should be set by router)
+	sceneID := r.PathValue("sceneID")
+	if sceneID == "" {
+		ctx = middleware.SetErrorCode(ctx, ErrCodeBadRequest)
+		WriteError(w, ctx, http.StatusBadRequest, ErrCodeBadRequest, "scene_id is required")
+		return
+	}
+
+	// Get scene from repository
+	existingScene, err := h.sceneRepo.GetByID(sceneID)
+	if err != nil {
+		slog.ErrorContext(ctx, "failed to get scene", "scene_id", sceneID, "error", err)
+		ctx = middleware.SetErrorCode(ctx, ErrCodeNotFound)
+		WriteError(w, ctx, http.StatusNotFound, ErrCodeNotFound, "scene not found")
+		return
+	}
+
+	// Verify requesting user owns the scene
+	if !existingScene.IsOwner(userDID) {
+		ctx = middleware.SetErrorCode(ctx, ErrCodeForbidden)
+		WriteError(w, ctx, http.StatusForbidden, ErrCodeForbidden, "only scene owner can view onboarding status")
+		return
+	}
+
+	// Build response with current status
+	response := OnboardingStatusResponse{
+		SceneID:                sceneID,
+		ConnectedAccountID:     existingScene.ConnectedAccountID,
+		ConnectedAccountStatus: existingScene.ConnectedAccountStatus,
+	}
+
+	// Include timestamp if onboarding is complete
+	if existingScene.AccountOnboardedAt != nil {
+		response.AccountOnboardedAt = &[]string{existingScene.AccountOnboardedAt.Format(time.RFC3339)}[0]
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	if err := json.NewEncoder(w).Encode(response); err != nil {
+		slog.Error("failed to encode response", "error", err)
+	}
+}
+
 // isTerminalPaymentStatus returns true if the payment status is in a terminal state
 // where subsequent polls will not change the result (e.g., succeeded, failed, etc.).
 // This is used to enable short-lived HTTP caching to reduce repeated repository/DB reads.
