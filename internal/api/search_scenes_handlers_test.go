@@ -16,7 +16,7 @@ import (
 // TestSearchScenes_Success tests successful scene search.
 func TestSearchScenes_Success(t *testing.T) {
 	sceneRepo := scene.NewInMemorySceneRepository()
-	handlers := NewSearchHandlers(sceneRepo, nil, nil)
+	handlers := NewSearchHandlers(sceneRepo, nil, nil, scene.NewInMemoryEventRepository())
 
 	now := time.Now()
 
@@ -94,7 +94,7 @@ func TestSearchScenes_Success(t *testing.T) {
 // TestSearchScenes_Pagination tests cursor pagination.
 func TestSearchScenes_Pagination(t *testing.T) {
 	sceneRepo := scene.NewInMemorySceneRepository()
-	handlers := NewSearchHandlers(sceneRepo, nil, nil)
+	handlers := NewSearchHandlers(sceneRepo, nil, nil, scene.NewInMemoryEventRepository())
 
 	now := time.Now()
 
@@ -163,7 +163,7 @@ func TestSearchScenes_Pagination(t *testing.T) {
 // TestSearchScenes_BboxValidation tests bbox parameter validation.
 func TestSearchScenes_BboxValidation(t *testing.T) {
 	sceneRepo := scene.NewInMemorySceneRepository()
-	handlers := NewSearchHandlers(sceneRepo, nil, nil)
+	handlers := NewSearchHandlers(sceneRepo, nil, nil, scene.NewInMemoryEventRepository())
 
 	tests := []struct {
 		name       string
@@ -224,7 +224,7 @@ func TestSearchScenes_BboxValidation(t *testing.T) {
 // TestSearchScenes_RequiresBbox tests that bbox parameter is required.
 func TestSearchScenes_RequiresBbox(t *testing.T) {
 	sceneRepo := scene.NewInMemorySceneRepository()
-	handlers := NewSearchHandlers(sceneRepo, nil, nil)
+	handlers := NewSearchHandlers(sceneRepo, nil, nil, scene.NewInMemoryEventRepository())
 
 	// Request with neither q nor bbox
 	req := httptest.NewRequest(http.MethodGet, "/search/scenes", nil)
@@ -250,7 +250,7 @@ func TestSearchScenes_RequiresBbox(t *testing.T) {
 // TestSearchScenes_LimitValidation tests limit parameter validation.
 func TestSearchScenes_LimitValidation(t *testing.T) {
 	sceneRepo := scene.NewInMemorySceneRepository()
-	handlers := NewSearchHandlers(sceneRepo, nil, nil)
+	handlers := NewSearchHandlers(sceneRepo, nil, nil, scene.NewInMemoryEventRepository())
 
 	now := time.Now()
 
@@ -314,7 +314,7 @@ func TestSearchScenes_LimitValidation(t *testing.T) {
 // TestSearchScenes_HiddenScenesExcluded tests that hidden scenes are excluded from search results.
 func TestSearchScenes_HiddenScenesExcluded(t *testing.T) {
 	sceneRepo := scene.NewInMemorySceneRepository()
-	handlers := NewSearchHandlers(sceneRepo, nil, nil)
+	handlers := NewSearchHandlers(sceneRepo, nil, nil, scene.NewInMemoryEventRepository())
 
 	now := time.Now()
 
@@ -380,7 +380,7 @@ func TestSearchScenes_TrustRankingFlag(t *testing.T) {
 	mockTrustStore.SetScore("scene1", 0.9)
 	mockTrustStore.SetScore("scene2", 0.3)
 
-	handlers := NewSearchHandlers(sceneRepo, nil, mockTrustStore)
+	handlers := NewSearchHandlers(sceneRepo, nil, mockTrustStore, scene.NewInMemoryEventRepository())
 
 	now := time.Now()
 
@@ -444,7 +444,7 @@ func TestSearchScenes_TrustRankingFlag(t *testing.T) {
 
 func TestSearchScenes_LatLonAndGenresFilter(t *testing.T) {
 	sceneRepo := scene.NewInMemorySceneRepository()
-	handlers := NewSearchHandlers(sceneRepo, nil, nil)
+	handlers := NewSearchHandlers(sceneRepo, nil, nil, scene.NewInMemoryEventRepository())
 	now := time.Now()
 
 	techno := &scene.Scene{

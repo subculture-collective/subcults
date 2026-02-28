@@ -73,32 +73,34 @@ type SceneRepository interface {
 
 // SceneSearchOptions configures the search parameters for scene queries.
 type SceneSearchOptions struct {
-	MinLng      float64            // Bounding box min longitude
-	MinLat      float64            // Bounding box min latitude
-	MaxLng      float64            // Bounding box max longitude
-	MaxLat      float64            // Bounding box max latitude
-	Lat         *float64           // Reference latitude for proximity ranking (optional)
-	Lng         *float64           // Reference longitude for proximity ranking (optional)
-	Query       string             // Text search query (optional)
-	Genres      []string           // Genre/tag filters (optional, OR match)
-	Limit       int                // Max results per page (max 50)
-	Offset      int                // Offset pagination (applied before cursor, optional)
-	Cursor      string             // Pagination cursor
-	TrustScores map[string]float64 // Map of sceneID -> trust score (optional, for ranking)
+	MinLng           float64            // Bounding box min longitude
+	MinLat           float64            // Bounding box min latitude
+	MaxLng           float64            // Bounding box max longitude
+	MaxLat           float64            // Bounding box max latitude
+	Lat              *float64           // Reference latitude for proximity ranking (optional)
+	Lng              *float64           // Reference longitude for proximity ranking (optional)
+	Query            string             // Text search query (optional)
+	Genres           []string           // Genre/tag filters (optional, OR match)
+	Limit            int                // Max results per page (max 50)
+	Offset           int                // Offset pagination (applied before cursor, optional)
+	Cursor           string             // Pagination cursor
+	TrustScores      map[string]float64 // Map of sceneID -> trust score (optional, for ranking)
+	DisableProximity bool               // Disable proximity scoring and use neutral value
 }
 
 // EventSearchOptions configures the search parameters for event queries.
 type EventSearchOptions struct {
-	MinLng      float64            // Bounding box min longitude
-	MinLat      float64            // Bounding box min latitude
-	MaxLng      float64            // Bounding box max longitude
-	MaxLat      float64            // Bounding box max latitude
-	From        time.Time          // Start of time window
-	To          time.Time          // End of time window
-	Query       string             // Text search query (optional)
-	Limit       int                // Max results per page
-	Cursor      string             // Pagination cursor
-	TrustScores map[string]float64 // Map of sceneID -> trust score (optional, for ranking)
+	MinLng           float64            // Bounding box min longitude
+	MinLat           float64            // Bounding box min latitude
+	MaxLng           float64            // Bounding box max longitude
+	MaxLat           float64            // Bounding box max latitude
+	From             time.Time          // Start of time window
+	To               time.Time          // End of time window
+	Query            string             // Text search query (optional)
+	Limit            int                // Max results per page
+	Cursor           string             // Pagination cursor
+	TrustScores      map[string]float64 // Map of sceneID -> trust score (optional, for ranking)
+	DisableProximity bool               // Disable proximity scoring and use neutral value
 }
 
 // EventRepository defines the interface for event data operations.
@@ -470,7 +472,10 @@ func (r *InMemorySceneRepository) SearchScenes(opts SceneSearchOptions) ([]*Scen
 		}
 
 		// Calculate proximity score
-		proximityScore := CalculateSceneProximityScore(scene, centerLat, centerLng)
+		proximityScore := 0.5
+		if !opts.DisableProximity {
+			proximityScore = CalculateSceneProximityScore(scene, centerLat, centerLng)
+		}
 
 		// Get trust score if available
 		trustScore := 0.0
@@ -928,7 +933,10 @@ func (r *InMemoryEventRepository) SearchEvents(opts EventSearchOptions) ([]*Even
 		// Calculate ranking components
 		recencyWeight := CalculateRecencyWeight(event.StartsAt, now, windowSpan)
 		textMatchScore := CalculateTextMatchScore(event, opts.Query)
-		proximityScore := CalculateProximityScore(event, centerLat, centerLng)
+		proximityScore := 0.5
+		if !opts.DisableProximity {
+			proximityScore = CalculateProximityScore(event, centerLat, centerLng)
+		}
 
 		// Get trust score for the event's scene
 		trustScore := 0.0

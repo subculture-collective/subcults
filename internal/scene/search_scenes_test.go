@@ -101,6 +101,61 @@ func TestSearchScenes_TextSearch(t *testing.T) {
 	}
 }
 
+func TestSearchScenes_DisableProximityNeutralizesDistanceBias(t *testing.T) {
+	repo := NewInMemorySceneRepository()
+	now := time.Now()
+
+	sceneFar := &Scene{
+		ID:            "scene-a",
+		Name:          "Music Scene",
+		Description:   "music",
+		OwnerDID:      "did:plc:user1",
+		AllowPrecise:  true,
+		PrecisePoint:  &Point{Lat: 40.7, Lng: -74.0},
+		CoarseGeohash: "dr5regw",
+		Visibility:    VisibilityPublic,
+		CreatedAt:     &now,
+		UpdatedAt:     &now,
+	}
+	sceneNearZero := &Scene{
+		ID:            "scene-b",
+		Name:          "Music Scene",
+		Description:   "music",
+		OwnerDID:      "did:plc:user2",
+		AllowPrecise:  true,
+		PrecisePoint:  &Point{Lat: 0.1, Lng: 0.1},
+		CoarseGeohash: "s000000",
+		Visibility:    VisibilityPublic,
+		CreatedAt:     &now,
+		UpdatedAt:     &now,
+	}
+	if err := repo.Insert(sceneFar); err != nil {
+		t.Fatalf("failed to insert sceneFar: %v", err)
+	}
+	if err := repo.Insert(sceneNearZero); err != nil {
+		t.Fatalf("failed to insert sceneNearZero: %v", err)
+	}
+
+	results, _, err := repo.SearchScenes(SceneSearchOptions{
+		Query:            "music",
+		Limit:            10,
+		DisableProximity: true,
+	})
+	if err != nil {
+		t.Fatalf("failed to search scenes: %v", err)
+	}
+	if len(results) != 2 {
+		t.Fatalf("expected 2 results, got %d", len(results))
+	}
+	found := map[string]bool{}
+	for _, result := range results {
+		found[result.ID] = true
+	}
+	if !found["scene-a"] || !found["scene-b"] {
+		t.Fatalf("expected both scenes when proximity is disabled, got %+v", found)
+	}
+}
+
 // TestSearchScenes_Pagination tests cursor pagination for scene search.
 func TestSearchScenes_Pagination(t *testing.T) {
 	repo := NewInMemorySceneRepository()
