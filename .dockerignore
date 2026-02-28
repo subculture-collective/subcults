@@ -66,6 +66,11 @@ temp/
 # Test files
 *_test.go
 perf/
+e2e/
+
+# Development/deployment files not needed in build context
+examples/
+deploy/
 
 # Development tools
 Makefile

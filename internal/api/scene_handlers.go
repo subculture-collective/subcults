@@ -510,6 +510,11 @@ func (h *SceneHandlers) DeleteScene(w http.ResponseWriter, r *http.Request) {
 			WriteError(w, ctx, http.StatusNotFound, ErrCodeNotFound, "Scene not found")
 			return
 		}
+		if err == scene.ErrSceneDeleted {
+			ctx := middleware.SetErrorCode(r.Context(), ErrCodeSceneDeleted)
+			WriteError(w, ctx, http.StatusNotFound, ErrCodeSceneDeleted, "Scene not found")
+			return
+		}
 		slog.ErrorContext(r.Context(), "failed to retrieve scene", "error", err, "scene_id", sceneID)
 		ctx := middleware.SetErrorCode(r.Context(), ErrCodeInternal)
 		WriteError(w, ctx, http.StatusInternalServerError, ErrCodeInternal, "Failed to retrieve scene")

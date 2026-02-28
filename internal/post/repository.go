@@ -3,10 +3,11 @@
 package post
 
 import (
+	"encoding/base64"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"sort"
-	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -19,6 +20,36 @@ var (
 	ErrPostNotFound = errors.New("post not found")
 	ErrPostDeleted  = errors.New("post has been deleted")
 )
+
+// PostScoreCursor represents the pagination cursor for post search results.
+type PostScoreCursor struct {
+	Score float64 `json:"score"` // Composite score of last post
+	ID    string  `json:"id"`    // Post ID for stable ordering
+}
+
+// EncodePostScoreCursor encodes a post score cursor to a base64 string.
+func EncodePostScoreCursor(score float64, id string) string {
+	cursor := PostScoreCursor{Score: score, ID: id}
+	data, _ := json.Marshal(cursor)
+	return base64.URLEncoding.EncodeToString(data)
+}
+
+// DecodePostScoreCursor decodes a base64 post score cursor string.
+// Returns (nil, nil) for empty input, or an error for invalid cursors.
+func DecodePostScoreCursor(encoded string) (*PostScoreCursor, error) {
+	if encoded == "" {
+		return nil, nil
+	}
+	data, err := base64.URLEncoding.DecodeString(encoded)
+	if err != nil {
+		return nil, fmt.Errorf("invalid cursor encoding: %w", err)
+	}
+	var cursor PostScoreCursor
+	if err := json.Unmarshal(data, &cursor); err != nil {
+		return nil, fmt.Errorf("invalid cursor format: %w", err)
+	}
+	return &cursor, nil
+}
 
 // Attachment represents a media attachment on a post with sanitized metadata.
 // Supports both legacy URL-based attachments and new key-based attachments with metadata.
@@ -527,25 +558,25 @@ func (r *InMemoryPostRepository) SearchPosts(query string, sceneID *string, limi
 		return candidates[i].post.ID < candidates[j].post.ID
 	})
 
-	// Apply cursor filter if provided
-	// Cursor format: "score:id"
+	// Apply cursor filter if provided (base64-encoded JSON)
 	if cursor != "" {
-		parts := strings.Split(cursor, ":")
-		if len(parts) == 2 {
-			cursorScore, err := strconv.ParseFloat(parts[0], 64)
-			if err == nil {
-				cursorID := parts[1]
-				// In (score DESC, id ASC) order, items after the cursor are:
-				// - posts with strictly lower score than the cursor score, or
-				// - posts with the same score but an ID greater than the cursor ID.
-				filtered := make([]scoredPost, 0, len(candidates))
-				for _, candidate := range candidates {
-					if candidate.score < cursorScore || (candidate.score == cursorScore && candidate.post.ID > cursorID) {
-						filtered = append(filtered, candidate)
-					}
+		decodedCursor, err := DecodePostScoreCursor(cursor)
+		if err != nil {
+			return nil, "", fmt.Errorf("invalid cursor: %w", err)
+		}
+		if decodedCursor != nil {
+			cursorScore := decodedCursor.Score
+			cursorID := decodedCursor.ID
+			// In (score DESC, id ASC) order, items after the cursor are:
+			// - posts with strictly lower score than the cursor score, or
+			// - posts with the same score but an ID greater than the cursor ID.
+			filtered := make([]scoredPost, 0, len(candidates))
+			for _, candidate := range candidates {
+				if candidate.score < cursorScore || (candidate.score == cursorScore && candidate.post.ID > cursorID) {
+					filtered = append(filtered, candidate)
 				}
-				candidates = filtered
 			}
+			candidates = filtered
 		}
 	}
 
@@ -560,7 +591,7 @@ func (r *InMemoryPostRepository) SearchPosts(query string, sceneID *string, limi
 		}
 		// Next cursor points to the last returned post
 		lastCandidate := candidates[limit-1]
-		nextCursor = fmt.Sprintf("%.6f:%s", lastCandidate.score, lastCandidate.post.ID)
+		nextCursor = EncodePostScoreCursor(lastCandidate.score, lastCandidate.post.ID)
 	} else {
 		results = make([]*Post, len(candidates))
 		for i, candidate := range candidates {

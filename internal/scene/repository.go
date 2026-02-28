@@ -786,18 +786,15 @@ func (r *InMemoryEventRepository) SearchByBboxAndTime(minLng, minLat, maxLng, ma
 	var cursorTime time.Time
 	var cursorID string
 
-	// Parse cursor if provided (format: "RFC3339|ID")
-	// Using | as separator to avoid conflicts with colons in RFC3339 timestamps
+	// Parse cursor if provided (base64-encoded JSON)
 	if cursor != "" {
-		parts := strings.Split(cursor, "|")
-		if len(parts) == 2 {
-			parsedTime, err := time.Parse(time.RFC3339, parts[0])
-			if err == nil {
-				// Truncate to second precision to match RFC3339 format
-				// This ensures comparison works correctly
-				cursorTime = parsedTime.Truncate(time.Second)
-				cursorID = parts[1]
-			}
+		decodedCursor, err := DecodeEventTimeCursor(cursor)
+		if err != nil {
+			return nil, "", fmt.Errorf("invalid cursor: %w", err)
+		}
+		if decodedCursor != nil {
+			cursorTime = decodedCursor.StartsAt.Truncate(time.Second)
+			cursorID = decodedCursor.ID
 		}
 	}
 
@@ -868,8 +865,7 @@ func (r *InMemoryEventRepository) SearchByBboxAndTime(minLng, minLat, maxLng, ma
 		// We have more results than requested, truncate and set cursor
 		if limit > 0 {
 			lastEvent := results[limit-1]
-			// Use | as separator to avoid conflicts with colons in RFC3339 timestamps
-			nextCursor = lastEvent.StartsAt.Format(time.RFC3339) + "|" + lastEvent.ID
+			nextCursor = EncodeEventTimeCursor(lastEvent.StartsAt, lastEvent.ID)
 			results = results[:limit]
 		}
 	}
@@ -894,15 +890,15 @@ func (r *InMemoryEventRepository) SearchEvents(opts EventSearchOptions) ([]*Even
 	var cursorScore float64
 	var cursorID string
 
-	// Parse cursor if provided (format: "score|ID")
+	// Parse cursor if provided (base64-encoded JSON)
 	if opts.Cursor != "" {
-		parts := strings.Split(opts.Cursor, "|")
-		if len(parts) == 2 {
-			// Parse score (negative because we sort descending)
-			if parsedScore, err := parseFloat(parts[0], "score"); err == nil {
-				cursorScore = parsedScore
-				cursorID = parts[1]
-			}
+		decodedCursor, err := DecodeEventScoreCursor(opts.Cursor)
+		if err != nil {
+			return nil, "", fmt.Errorf("invalid cursor: %w", err)
+		}
+		if decodedCursor != nil {
+			cursorScore = decodedCursor.Score
+			cursorID = decodedCursor.ID
 		}
 	}
 
@@ -1046,9 +1042,7 @@ func (r *InMemoryEventRepository) SearchEvents(opts EventSearchOptions) ([]*Even
 		// We have more results than requested, truncate and set cursor
 		if opts.Limit > 0 {
 			lastRanked := rankedEvents[opts.Limit-1]
-			// Format: "score|ID" with full precision to avoid skipping events
-			// Use strconv.FormatFloat with full precision (-1) to preserve exact score
-			nextCursor = strconv.FormatFloat(lastRanked.score, 'f', -1, 64) + "|" + lastRanked.event.ID
+			nextCursor = EncodeEventScoreCursor(lastRanked.score, lastRanked.event.ID)
 			results = results[:opts.Limit]
 		}
 	}

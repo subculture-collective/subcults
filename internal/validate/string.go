@@ -94,7 +94,7 @@ func String(s string, constraints StringConstraints) (string, error) {
 // Uses word boundary detection to avoid false positives (e.g., "Drop Zone" vs "DROP TABLE").
 func checkSQLKeywords(s string) error {
 	upper := strings.ToUpper(s)
-	
+
 	// Check for SQL comment patterns (these are always suspicious)
 	commentPatterns := []string{"--", "/*", "*/", ";--"}
 	for _, pattern := range commentPatterns {
@@ -102,14 +102,14 @@ func checkSQLKeywords(s string) error {
 			return fmt.Errorf("%w: contains %q", ErrSQLKeyword, pattern)
 		}
 	}
-	
+
 	// Check for SQL keywords with word boundary detection
 	// Split into words to avoid false positives like "Drop Zone" or "Executive"
 	words := strings.FieldsFunc(upper, func(r rune) bool {
 		// Split on non-alphanumeric characters
 		return !((r >= 'A' && r <= 'Z') || (r >= '0' && r <= '9') || r == '_')
 	})
-	
+
 	sqlKeywordSet := map[string]bool{
 		"SELECT": true, "INSERT": true, "UPDATE": true, "DELETE": true,
 		"DROP": true, "CREATE": true, "ALTER": true, "TRUNCATE": true,
@@ -117,18 +117,18 @@ func checkSQLKeywords(s string) error {
 		// Removed common words: JOIN, WHERE, FROM (too many false positives)
 		// These are less likely to indicate SQL injection in user-facing fields
 	}
-	
+
 	for _, word := range words {
 		if sqlKeywordSet[word] {
 			return fmt.Errorf("%w: contains SQL keyword %q", ErrSQLKeyword, word)
 		}
 	}
-	
+
 	// Check for stored procedure prefixes
 	if strings.Contains(upper, "XP_") || strings.Contains(upper, "SP_") {
 		return fmt.Errorf("%w: contains stored procedure prefix", ErrSQLKeyword)
 	}
-	
+
 	return nil
 }
 
@@ -149,7 +149,7 @@ func SanitizeString(s string, constraints StringConstraints) (string, error) {
 }
 
 // SceneName validates a scene name according to Subcults requirements:
-// - 1-100 characters
+// - 3-64 characters
 // - Letters, numbers, spaces, dash, underscore, period only
 // - HTML sanitized
 // Note: SQL keyword checking is disabled for scene names to avoid false positives
@@ -157,8 +157,8 @@ func SanitizeString(s string, constraints StringConstraints) (string, error) {
 // Parameterized queries provide the primary SQL injection defense.
 func SceneName(name string) (string, error) {
 	return SanitizeString(name, StringConstraints{
-		MinLength:        1,
-		MaxLength:        100,
+		MinLength:        3,
+		MaxLength:        64,
 		AllowedPattern:   sceneNamePattern,
 		CheckSQLKeywords: false, // Disabled to avoid false positives
 		AllowEmpty:       false,
@@ -167,14 +167,14 @@ func SceneName(name string) (string, error) {
 }
 
 // EventTitle validates an event title according to Subcults requirements:
-// - 1-200 characters
+// - 3-80 characters
 // - HTML sanitized
 // Note: SQL keyword checking is disabled for event titles to avoid false positives
 // with legitimate event names. Parameterized queries provide the primary SQL injection defense.
 func EventTitle(title string) (string, error) {
 	return SanitizeString(title, StringConstraints{
-		MinLength:        1,
-		MaxLength:        200,
+		MinLength:        3,
+		MaxLength:        80,
 		CheckSQLKeywords: false, // Disabled to avoid false positives
 		AllowEmpty:       false,
 		TrimSpace:        true,

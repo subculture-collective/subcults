@@ -21,6 +21,10 @@ spec:
         app.kubernetes.io/part-of: subcults
     spec:
       terminationGracePeriodSeconds: 30
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
       containers:
         - name: indexer
           image: ghcr.io/subculture-collective/subcults-indexer:latest
@@ -34,6 +38,12 @@ spec:
                 name: subcults-config
             - secretRef:
                 name: subcults-secrets
+          securityContext:
+            readOnlyRootFilesystem: true
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
           resources:
             requests:
               memory: '128Mi'

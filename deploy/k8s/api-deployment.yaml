@@ -26,6 +26,10 @@ spec:
         app.kubernetes.io/part-of: subcults
     spec:
       terminationGracePeriodSeconds: 30
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
       containers:
         - name: api
           image: ghcr.io/subculture-collective/subcults-api:latest
@@ -39,6 +43,15 @@ spec:
                 name: subcults-config
             - secretRef:
                 name: subcults-secrets
+          securityContext:
+            readOnlyRootFilesystem: true
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
           resources:
             requests:
               memory: '256Mi'
@@ -69,6 +82,10 @@ spec:
             periodSeconds: 5
             timeoutSeconds: 3
             failureThreshold: 24
+      volumes:
+        - name: tmp
+          emptyDir:
+            sizeLimit: 64Mi
 ---
 apiVersion: v1
 kind: Service
