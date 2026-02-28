@@ -496,7 +496,7 @@ func main() {
 	postHandlers := api.NewPostHandlers(postRepo, sceneRepo, membershipRepo, metadataService)
 	trustHandlers := api.NewTrustHandlers(sceneRepo, trustDataSource, trustScoreStore, trustDirtyTracker)
 	allianceHandlers := api.NewAllianceHandlers(allianceRepo, sceneRepo, trustDataSource, trustDirtyTracker)
-	searchHandlers := api.NewSearchHandlers(sceneRepo, postRepo, trustStoreAdapter)
+	searchHandlers := api.NewSearchHandlers(sceneRepo, postRepo, trustStoreAdapter, eventRepo)
 
 	// Initialize retention and account handlers
 	retentionRepo := retention.NewInMemoryRepository(logger)
@@ -726,6 +726,19 @@ func main() {
 		}),
 	)
 	mux.Handle("/search/posts", searchPostsHandler)
+
+	searchGlobalHandler := middleware.RateLimiter(rateLimitStore, searchLimit, middleware.UserKeyFunc(), rateLimitMetrics)(
+		http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			switch r.Method {
+			case http.MethodGet:
+				searchHandlers.SearchGlobal(w, r)
+			default:
+				ctx := middleware.SetErrorCode(r.Context(), api.ErrCodeBadRequest)
+				api.WriteError(w, ctx, http.StatusMethodNotAllowed, api.ErrCodeBadRequest, "Method not allowed")
+			}
+		}),
+	)
+	mux.Handle("/search/global", searchGlobalHandler)
 
 	// Stream join handler (with rate limiting: 10 req/min per user)
 	streamJoinHandler := middleware.RateLimiter(rateLimitStore, streamJoinLimit, middleware.UserKeyFunc(), rateLimitMetrics)(

@@ -1,6 +1,7 @@
 package scene
 
 import (
+	"fmt"
 	"testing"
 	"time"
 
@@ -97,6 +98,61 @@ func TestSearchScenes_TextSearch(t *testing.T) {
 	}
 	if foundIDs[scene2.ID] {
 		t.Error("scene2 (Jazz Collective) should not match 'electronic'")
+	}
+}
+
+func TestSearchScenes_DisableProximityNeutralizesDistanceBias(t *testing.T) {
+	repo := NewInMemorySceneRepository()
+	now := time.Now()
+
+	sceneFar := &Scene{
+		ID:            "scene-a",
+		Name:          "Music Scene",
+		Description:   "music",
+		OwnerDID:      "did:plc:user1",
+		AllowPrecise:  true,
+		PrecisePoint:  &Point{Lat: 40.7, Lng: -74.0},
+		CoarseGeohash: "dr5regw",
+		Visibility:    VisibilityPublic,
+		CreatedAt:     &now,
+		UpdatedAt:     &now,
+	}
+	sceneNearZero := &Scene{
+		ID:            "scene-b",
+		Name:          "Music Scene",
+		Description:   "music",
+		OwnerDID:      "did:plc:user2",
+		AllowPrecise:  true,
+		PrecisePoint:  &Point{Lat: 0.1, Lng: 0.1},
+		CoarseGeohash: "s000000",
+		Visibility:    VisibilityPublic,
+		CreatedAt:     &now,
+		UpdatedAt:     &now,
+	}
+	if err := repo.Insert(sceneFar); err != nil {
+		t.Fatalf("failed to insert sceneFar: %v", err)
+	}
+	if err := repo.Insert(sceneNearZero); err != nil {
+		t.Fatalf("failed to insert sceneNearZero: %v", err)
+	}
+
+	results, _, err := repo.SearchScenes(SceneSearchOptions{
+		Query:            "music",
+		Limit:            10,
+		DisableProximity: true,
+	})
+	if err != nil {
+		t.Fatalf("failed to search scenes: %v", err)
+	}
+	if len(results) != 2 {
+		t.Fatalf("expected 2 results, got %d", len(results))
+	}
+	found := map[string]bool{}
+	for _, result := range results {
+		found[result.ID] = true
+	}
+	if !found["scene-a"] || !found["scene-b"] {
+		t.Fatalf("expected both scenes when proximity is disabled, got %+v", found)
 	}
 }
 
@@ -463,5 +519,104 @@ func TestSearchScenes_DeletedScenesExcluded(t *testing.T) {
 
 	if results[0].ID != activeScene.ID {
 		t.Error("expected only active scene in results")
+	}
+}
+
+func TestSearchScenes_GenresFilter(t *testing.T) {
+	repo := NewInMemorySceneRepository()
+	now := time.Now()
+
+	technoScene := &Scene{
+		ID:            uuid.New().String(),
+		Name:          "Warehouse Scene",
+		OwnerDID:      "did:plc:user1",
+		AllowPrecise:  true,
+		PrecisePoint:  &Point{Lat: 40.7128, Lng: -74.0060},
+		CoarseGeohash: "dr5regw",
+		Tags:          []string{"techno"},
+		Visibility:    VisibilityPublic,
+		CreatedAt:     &now,
+		UpdatedAt:     &now,
+	}
+	jazzScene := &Scene{
+		ID:            uuid.New().String(),
+		Name:          "Jazz Scene",
+		OwnerDID:      "did:plc:user2",
+		AllowPrecise:  true,
+		PrecisePoint:  &Point{Lat: 40.7128, Lng: -74.0060},
+		CoarseGeohash: "dr5regw",
+		Tags:          []string{"jazz"},
+		Visibility:    VisibilityPublic,
+		CreatedAt:     &now,
+		UpdatedAt:     &now,
+	}
+
+	if err := repo.Insert(technoScene); err != nil {
+		t.Fatalf("failed to insert techno scene: %v", err)
+	}
+	if err := repo.Insert(jazzScene); err != nil {
+		t.Fatalf("failed to insert jazz scene: %v", err)
+	}
+
+	results, _, err := repo.SearchScenes(SceneSearchOptions{
+		MinLng: -74.1,
+		MinLat: 40.6,
+		MaxLng: -73.9,
+		MaxLat: 40.8,
+		Genres: []string{"techno"},
+		Limit:  10,
+		Offset: 0,
+		Cursor: "",
+		Query:  "",
+	})
+	if err != nil {
+		t.Fatalf("search failed: %v", err)
+	}
+
+	if len(results) != 1 || results[0].ID != technoScene.ID {
+		t.Fatalf("expected only techno scene, got %d results", len(results))
+	}
+}
+
+func TestSearchScenes_OffsetPagination(t *testing.T) {
+	repo := NewInMemorySceneRepository()
+	now := time.Now()
+
+	for i := 0; i < 4; i++ {
+		s := &Scene{
+			ID:            fmt.Sprintf("scene-%d", i),
+			Name:          "Music Scene",
+			OwnerDID:      "did:plc:user1",
+			AllowPrecise:  true,
+			PrecisePoint:  &Point{Lat: 40.7128, Lng: -74.0060},
+			CoarseGeohash: "dr5regw",
+			Tags:          []string{"music"},
+			Visibility:    VisibilityPublic,
+			CreatedAt:     &now,
+			UpdatedAt:     &now,
+		}
+		if err := repo.Insert(s); err != nil {
+			t.Fatalf("failed to insert scene: %v", err)
+		}
+	}
+
+	results, _, err := repo.SearchScenes(SceneSearchOptions{
+		MinLng: -74.1,
+		MinLat: 40.6,
+		MaxLng: -73.9,
+		MaxLat: 40.8,
+		Query:  "music",
+		Limit:  2,
+		Offset: 1,
+	})
+	if err != nil {
+		t.Fatalf("search failed: %v", err)
+	}
+
+	if len(results) != 2 {
+		t.Fatalf("expected 2 results after offset, got %d", len(results))
+	}
+	if results[0].ID != "scene-1" {
+		t.Fatalf("expected first offset result to be scene-1, got %s", results[0].ID)
 	}
 }

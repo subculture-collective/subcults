@@ -25,6 +25,7 @@ func normalizePath(path string) string {
 		"/search/events":     true,
 		"/search/scenes":     true,
 		"/search/posts":      true,
+		"/search/global":     true,
 		"/livekit/token":     true,
 		"/uploads/sign":      true,
 		"/payments/onboard":  true,

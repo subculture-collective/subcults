@@ -11,22 +11,39 @@ import { ErrorBoundary } from '../components/ErrorBoundary';
 import { RequireAuth } from '../guards/RequireAuth';
 import { RequireAdmin } from '../guards/RequireAdmin';
 
-// Eagerly loaded pages
-import { HomePage } from '../pages/HomePage';
-import { SceneDetailPage } from '../pages/SceneDetailPage';
-import { SceneSettingsPage } from '../pages/SceneSettingsPage';
-import { EventDetailPage } from '../pages/EventDetailPage';
-import { AccountPage } from '../pages/AccountPage';
-import { LoginPage } from '../pages/LoginPage';
-import { SettingsPage } from '../pages/SettingsPage';
-import { NotFoundPage } from '../pages/NotFoundPage';
-
-// Lazy loaded pages (heavy dependencies)
+// Lazy loaded pages
+const HomePage = lazy(() =>
+  import('../pages/HomePage').then((module) => ({ default: module.HomePage }))
+);
+const SceneDetailPage = lazy(() =>
+  import('../pages/SceneDetailPage').then((module) => ({ default: module.SceneDetailPage }))
+);
+const SceneSettingsPage = lazy(() =>
+  import('../pages/SceneSettingsPage').then((module) => ({ default: module.SceneSettingsPage }))
+);
+const EventDetailPage = lazy(() =>
+  import('../pages/EventDetailPage').then((module) => ({ default: module.EventDetailPage }))
+);
+const AccountPage = lazy(() =>
+  import('../pages/AccountPage').then((module) => ({ default: module.AccountPage }))
+);
+const LoginPage = lazy(() =>
+  import('../pages/LoginPage').then((module) => ({ default: module.LoginPage }))
+);
+const SettingsPage = lazy(() =>
+  import('../pages/SettingsPage').then((module) => ({ default: module.SettingsPage }))
+);
+const NotFoundPage = lazy(() =>
+  import('../pages/NotFoundPage').then((module) => ({ default: module.NotFoundPage }))
+);
 const StreamPage = lazy(() =>
   import('../pages/StreamPage').then((module) => ({ default: module.StreamPage }))
 );
 const AdminPage = lazy(() =>
   import('../pages/AdminPage').then((module) => ({ default: module.AdminPage }))
+);
+const SearchResultsPage = lazy(() =>
+  import('../pages/SearchResultsPage').then((module) => ({ default: module.SearchResultsPage }))
 );
 const StreamingDemo = lazy(() =>
   import('../StreamingDemo').then((module) => ({ default: module.StreamingDemo }))
@@ -46,34 +63,62 @@ const router = createBrowserRouter(
       element: <AppLayout />,
       errorElement: (
         <ErrorBoundary>
-          <NotFoundPage />
+          <Suspense fallback={<LoadingSkeleton />}>
+            <NotFoundPage />
+          </Suspense>
         </ErrorBoundary>
       ),
       children: [
         // Public routes
         {
           index: true,
-          element: <HomePage />,
+          element: (
+            <Suspense fallback={<LoadingSkeleton />}>
+              <HomePage />
+            </Suspense>
+          ),
         },
         {
           path: 'scenes/:id',
-          element: <SceneDetailPage />,
+          element: (
+            <Suspense fallback={<LoadingSkeleton />}>
+              <SceneDetailPage />
+            </Suspense>
+          ),
         },
         {
           path: 'scenes/:id/settings',
           element: (
             <RequireAuth>
-              <SceneSettingsPage />
+              <Suspense fallback={<LoadingSkeleton />}>
+                <SceneSettingsPage />
+              </Suspense>
             </RequireAuth>
           ),
         },
         {
           path: 'events/:id',
-          element: <EventDetailPage />,
+          element: (
+            <Suspense fallback={<LoadingSkeleton />}>
+              <EventDetailPage />
+            </Suspense>
+          ),
+        },
+        {
+          path: 'search',
+          element: (
+            <Suspense fallback={<LoadingSkeleton />}>
+              <SearchResultsPage />
+            </Suspense>
+          ),
         },
         {
           path: 'account/login',
-          element: <LoginPage />,
+          element: (
+            <Suspense fallback={<LoadingSkeleton />}>
+              <LoginPage />
+            </Suspense>
+          ),
         },
         {
           path: 'demo/streaming',
@@ -97,7 +142,9 @@ const router = createBrowserRouter(
           path: 'account',
           element: (
             <RequireAuth>
-              <AccountPage />
+              <Suspense fallback={<LoadingSkeleton />}>
+                <AccountPage />
+              </Suspense>
             </RequireAuth>
           ),
         },
@@ -105,7 +152,9 @@ const router = createBrowserRouter(
           path: 'settings',
           element: (
             <RequireAuth>
-              <SettingsPage />
+              <Suspense fallback={<LoadingSkeleton />}>
+                <SettingsPage />
+              </Suspense>
             </RequireAuth>
           ),
         },
@@ -135,7 +184,11 @@ const router = createBrowserRouter(
         // 404 catch-all
         {
           path: '*',
-          element: <NotFoundPage />,
+          element: (
+            <Suspense fallback={<LoadingSkeleton />}>
+              <NotFoundPage />
+            </Suspense>
+          ),
         },
       ],
     },

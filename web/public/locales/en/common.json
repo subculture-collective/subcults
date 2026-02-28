@@ -64,6 +64,7 @@
   "search": {
     "placeholder": "Search scenes, events, posts...",
     "searching": "Searching...",
+    "suggestions": "Suggestions",
     "noResults": "No results found for \"{{query}}\"",
     "recentSearches": "Recent Searches",
     "clearAll": "Clear all",
@@ -71,7 +72,40 @@
     "sections": {
       "scenes": "Scenes",
       "events": "Events",
-      "posts": "Posts"
+      "posts": "Posts",
+      "genres": "Genres",
+      "artists": "Artists",
+      "hashtags": "Hashtags"
+    },
+    "results": {
+      "heading": "{{count}} results for \"{{query}}\"",
+      "noResultsHeading": "No results for \"{{query}}\"",
+      "noResultsHint": "Try different keywords or remove filters.",
+      "emptyQueryHeading": "Search Subcults",
+      "emptyQueryHint": "Find scenes, events, and posts.",
+      "searching": "Searching...",
+      "types": {
+        "all": "All",
+        "scenes": "Scenes",
+        "events": "Events",
+        "posts": "Posts"
+      },
+      "sort": {
+        "relevance": "Relevance",
+        "recent": "Most Recent",
+        "trending": "Trending"
+      },
+      "filters": {
+        "label": "Filters",
+        "type": "Type",
+        "sort": "Sort by"
+      },
+      "pagination": {
+        "label": "Pagination",
+        "previous": "Previous",
+        "next": "Next",
+        "page": "Page {{page}}"
+      }
     }
   },
   "profile": {

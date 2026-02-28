@@ -192,6 +192,69 @@ func TestSearchEvents_TextSearch(t *testing.T) {
 	}
 }
 
+func TestSearchEvents_DisableProximityNeutralizesDistanceBias(t *testing.T) {
+	repo := NewInMemoryEventRepository()
+	baseTime := time.Now().Add(24 * time.Hour)
+
+	eventFar := &Event{
+		ID:            "event-a",
+		SceneID:       "scene-a",
+		Title:         "Music Event",
+		Description:   "music",
+		AllowPrecise:  true,
+		PrecisePoint:  &Point{Lat: 40.7, Lng: -74.0},
+		CoarseGeohash: "dr5regw",
+		Status:        "scheduled",
+		StartsAt:      baseTime.Add(1 * time.Hour),
+		CreatedAt:     &baseTime,
+		UpdatedAt:     &baseTime,
+	}
+	eventNearZero := &Event{
+		ID:            "event-b",
+		SceneID:       "scene-b",
+		Title:         "Music Event",
+		Description:   "music",
+		AllowPrecise:  true,
+		PrecisePoint:  &Point{Lat: 0.1, Lng: 0.1},
+		CoarseGeohash: "s000000",
+		Status:        "scheduled",
+		StartsAt:      baseTime.Add(1 * time.Hour),
+		CreatedAt:     &baseTime,
+		UpdatedAt:     &baseTime,
+	}
+	if err := repo.Insert(eventFar); err != nil {
+		t.Fatalf("failed to insert eventFar: %v", err)
+	}
+	if err := repo.Insert(eventNearZero); err != nil {
+		t.Fatalf("failed to insert eventNearZero: %v", err)
+	}
+
+	results, _, err := repo.SearchEvents(EventSearchOptions{
+		MinLng:           -180,
+		MinLat:           -90,
+		MaxLng:           180,
+		MaxLat:           90,
+		From:             baseTime,
+		To:               baseTime.Add(48 * time.Hour),
+		Query:            "music",
+		Limit:            10,
+		DisableProximity: true,
+	})
+	if err != nil {
+		t.Fatalf("failed to search events: %v", err)
+	}
+	if len(results) != 2 {
+		t.Fatalf("expected 2 results, got %d", len(results))
+	}
+	found := map[string]bool{}
+	for _, result := range results {
+		found[result.ID] = true
+	}
+	if !found["event-a"] || !found["event-b"] {
+		t.Fatalf("expected both events when proximity is disabled, got %+v", found)
+	}
+}
+
 // TestSearchEvents_Ranking tests that events are ranked by composite score.
 func TestSearchEvents_Ranking(t *testing.T) {
 	repo := NewInMemoryEventRepository()

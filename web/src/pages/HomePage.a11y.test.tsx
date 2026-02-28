@@ -4,7 +4,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render } from '@testing-library/react';
+import { render, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { HomePage } from './HomePage';
 import { expectNoA11yViolations } from '../test/a11y-helpers';
@@ -39,7 +39,7 @@ describe('HomePage - Accessibility', () => {
     await expectNoA11yViolations(container);
   });
 
-  it('should have proper ARIA labels for map application', () => {
+  it('should have proper ARIA labels for map application', async () => {
     const { getByRole } = render(
       <MemoryRouter>
         <HomePage />
@@ -47,11 +47,14 @@ describe('HomePage - Accessibility', () => {
     );
 
     // MapView component has role="application" and aria-label in the actual implementation
+    await waitFor(() => {
+      expect(getByRole('application')).toBeInTheDocument();
+    });
     const mapApplication = getByRole('application');
     expect(mapApplication).toHaveAttribute('aria-label', 'Interactive map showing scenes and events');
   });
 
-  it('should be keyboard navigable', () => {
+  it('should be keyboard navigable', async () => {
     const { container } = render(
       <MemoryRouter>
         <HomePage />
@@ -59,6 +62,9 @@ describe('HomePage - Accessibility', () => {
     );
 
     // Verify that the map container is present
+    await waitFor(() => {
+      expect(container.querySelector('[data-testid="map-container"]')).toBeInTheDocument();
+    });
     const mapContainer = container.querySelector('[data-testid="map-container"]');
     expect(mapContainer).toBeInTheDocument();
   });
