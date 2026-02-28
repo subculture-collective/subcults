@@ -781,6 +781,22 @@ func (f *failingTrustStore) GetScore(sceneID string) (*TrustScore, error) {
 	return nil, fmt.Errorf("simulated trust store error")
 }
 
+type batchErrorSceneRepo struct {
+	*scene.InMemorySceneRepository
+	batchCalls   int
+	getByIDCalls int
+}
+
+func (r *batchErrorSceneRepo) GetByIDs(ids []string) ([]*scene.Scene, error) {
+	r.batchCalls++
+	return nil, fmt.Errorf("simulated batch scene fetch error")
+}
+
+func (r *batchErrorSceneRepo) GetByID(id string) (*scene.Scene, error) {
+	r.getByIDCalls++
+	return r.InMemorySceneRepository.GetByID(id)
+}
+
 func TestSearchEvents_StatusSceneOrganizerAndParentScene(t *testing.T) {
 	eventRepo := scene.NewInMemoryEventRepository()
 	sceneRepo := scene.NewInMemorySceneRepository()
@@ -929,5 +945,66 @@ func TestSearchEvents_StatusSceneOrganizerAndParentScene(t *testing.T) {
 	}
 	if len(mismatchResponse.Events) != 0 {
 		t.Fatalf("expected 0 events when scene_id is outside organizer scope, got %d", len(mismatchResponse.Events))
+	}
+}
+
+func TestSearchEvents_BatchSceneFetchFallbackToGetByID(t *testing.T) {
+	eventRepo := scene.NewInMemoryEventRepository()
+	sceneRepo := &batchErrorSceneRepo{InMemorySceneRepository: scene.NewInMemorySceneRepository()}
+	auditRepo := audit.NewInMemoryRepository()
+	rsvpRepo := scene.NewInMemoryRSVPRepository()
+	streamRepo := stream.NewInMemorySessionRepository()
+	handlers := NewEventHandlers(eventRepo, sceneRepo, auditRepo, rsvpRepo, streamRepo, nil)
+
+	baseTime := time.Now().Add(24 * time.Hour)
+	parentScene := &scene.Scene{
+		ID:           uuid.New().String(),
+		Name:         "Fallback Scene",
+		OwnerDID:     "did:plc:fallback",
+		AllowPrecise: true,
+	}
+	if err := sceneRepo.Insert(parentScene); err != nil {
+		t.Fatalf("failed to insert scene: %v", err)
+	}
+	event := &scene.Event{
+		ID:            uuid.New().String(),
+		SceneID:       parentScene.ID,
+		Title:         "Fallback Event",
+		AllowPrecise:  true,
+		PrecisePoint:  &scene.Point{Lat: 40.7128, Lng: -74.0060},
+		CoarseGeohash: "dr5regw",
+		Status:        "scheduled",
+		StartsAt:      baseTime.Add(1 * time.Hour),
+		CreatedAt:     &baseTime,
+		UpdatedAt:     &baseTime,
+	}
+	if err := eventRepo.Insert(event); err != nil {
+		t.Fatalf("failed to insert event: %v", err)
+	}
+
+	query := url.Values{}
+	query.Set("bbox", "-74.2,40.6,-73.8,40.9")
+	query.Set("from", baseTime.Add(-1*time.Hour).Format(time.RFC3339))
+	query.Set("to", baseTime.Add(3*time.Hour).Format(time.RFC3339))
+	req := httptest.NewRequest(http.MethodGet, "/search/events?"+query.Encode(), nil)
+	w := httptest.NewRecorder()
+	handlers.SearchEvents(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected status 200, got %d: %s", w.Code, w.Body.String())
+	}
+	if sceneRepo.batchCalls == 0 {
+		t.Fatal("expected batch scene fetch to be attempted")
+	}
+	if sceneRepo.getByIDCalls == 0 {
+		t.Fatal("expected fallback GetByID calls after batch fetch error")
+	}
+
+	var response SearchEventsResponse
+	if err := json.NewDecoder(w.Body).Decode(&response); err != nil {
+		t.Fatalf("failed to decode response: %v", err)
+	}
+	if len(response.Events) != 1 || response.Events[0].Scene == nil || response.Events[0].Scene.ID != parentScene.ID {
+		t.Fatalf("expected scene payload to be populated via fallback, got %+v", response.Events)
 	}
 }

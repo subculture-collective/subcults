@@ -918,6 +918,7 @@ func (r *InMemoryEventRepository) SearchEvents(opts EventSearchOptions) ([]*Even
 	includeTrust := len(opts.TrustScores) > 0
 	var allowedSceneIDs map[string]struct{}
 	if len(opts.SceneIDs) > 0 {
+		// When both SceneID and SceneIDs are provided, both checks are applied as an intersection.
 		allowedSceneIDs = make(map[string]struct{}, len(opts.SceneIDs))
 		for _, sceneID := range opts.SceneIDs {
 			allowedSceneIDs[sceneID] = struct{}{}

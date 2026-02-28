@@ -94,10 +94,14 @@ type EventWithRSVPCounts struct {
 	ActiveStream *stream.ActiveStreamInfo `json:"active_stream,omitempty"`
 }
 
+// sceneBatchFetcher is an optional repository capability for batch scene lookups.
+// SearchEvents uses this when available to reduce per-scene fetches in responses.
 type sceneBatchFetcher interface {
 	GetByIDs(ids []string) ([]*scene.Scene, error)
 }
 
+// toSceneSearchResult converts an internal scene model to a public search-safe
+// scene payload with jittered coordinates for privacy.
 func toSceneSearchResult(parentScene *scene.Scene) *SceneSearchResult {
 	if parentScene == nil {
 		return nil
@@ -887,7 +891,7 @@ func (h *EventHandlers) SearchEvents(w http.ResponseWriter, r *http.Request) {
 	sceneMap := make(map[string]*SceneSearchResult)
 	if len(events) > 0 {
 		sceneIDs := make(map[string]struct{}, len(events))
-		orderedSceneIDs := make([]string, 0, len(events))
+		orderedSceneIDs := make([]string, 0)
 		for _, event := range events {
 			if _, seen := sceneIDs[event.SceneID]; seen {
 				continue
@@ -899,7 +903,7 @@ func (h *EventHandlers) SearchEvents(w http.ResponseWriter, r *http.Request) {
 		if batchRepo, ok := h.sceneRepo.(sceneBatchFetcher); ok {
 			parentScenes, err := batchRepo.GetByIDs(orderedSceneIDs)
 			if err != nil {
-				slog.WarnContext(r.Context(), "failed to batch fetch scenes for event search response", "error", err)
+				slog.WarnContext(r.Context(), "failed to batch fetch scenes for event search response; falling back to individual fetches", "error", err)
 			} else {
 				for _, parentScene := range parentScenes {
 					sceneMap[parentScene.ID] = toSceneSearchResult(parentScene)
