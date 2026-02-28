@@ -315,7 +315,7 @@ func TestUpdatePost_Success(t *testing.T) {
 	sceneID := "scene123"
 	originalPost := &post.Post{
 		SceneID:   &sceneID,
-		AuthorDID: "did:example:alice",
+		AuthorDID: testUserDID,
 		Text:      "Original text",
 		Labels:    []string{"original"},
 	}
@@ -366,7 +366,7 @@ func TestUpdatePost_Labels(t *testing.T) {
 	sceneID := "scene123"
 	originalPost := &post.Post{
 		SceneID:   &sceneID,
-		AuthorDID: "did:example:alice",
+		AuthorDID: testUserDID,
 		Text:      "Test post",
 		Labels:    []string{post.LabelNSFW}, // Use valid moderation label
 	}
@@ -455,7 +455,7 @@ func TestDeletePost_Success(t *testing.T) {
 	sceneID := "scene123"
 	originalPost := &post.Post{
 		SceneID:   &sceneID,
-		AuthorDID: "did:example:alice",
+		AuthorDID: testUserDID,
 		Text:      "Test post",
 	}
 	if err := handlers.repo.Create(originalPost); err != nil {
@@ -488,7 +488,7 @@ func TestDeletePost_SoftDeletedExclusion(t *testing.T) {
 	sceneID := "scene123"
 	originalPost := &post.Post{
 		SceneID:   &sceneID,
-		AuthorDID: "did:example:alice",
+		AuthorDID: testUserDID,
 		Text:      "Test post",
 	}
 	if err := handlers.repo.Create(originalPost); err != nil {
@@ -558,7 +558,7 @@ func TestDeletePost_AlreadyDeleted(t *testing.T) {
 	sceneID := "scene123"
 	originalPost := &post.Post{
 		SceneID:   &sceneID,
-		AuthorDID: "did:example:alice",
+		AuthorDID: testUserDID,
 		Text:      "Test post",
 	}
 	if err := handlers.repo.Create(originalPost); err != nil {
@@ -696,7 +696,7 @@ func TestUpdatePost_InvalidLabel(t *testing.T) {
 	sceneID := "scene123"
 	originalPost := &post.Post{
 		SceneID:   &sceneID,
-		AuthorDID: "did:example:alice",
+		AuthorDID: testUserDID,
 		Text:      "Test post",
 		Labels:    []string{post.LabelNSFW},
 	}
@@ -756,7 +756,7 @@ func TestUpdatePost_ValidModerationLabels(t *testing.T) {
 	sceneID := "scene123"
 	originalPost := &post.Post{
 		SceneID:   &sceneID,
-		AuthorDID: "did:example:alice",
+		AuthorDID: testUserDID,
 		Text:      "Test post",
 		Labels:    []string{},
 	}

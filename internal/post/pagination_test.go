@@ -3,8 +3,6 @@ package post
 import (
 	"fmt"
 	"sort"
-	"strconv"
-	"strings"
 	"testing"
 	"time"
 )
@@ -247,7 +245,7 @@ func TestPostPagination_InsertionOrderIndependence(t *testing.T) {
 }
 
 // TestPostCursor_RoundTrip tests cursor encoding and decoding for posts.
-// Post cursors use "score:id" format.
+// Post cursors use base64-encoded JSON format.
 func TestPostCursor_RoundTrip(t *testing.T) {
 	testCases := []struct {
 		name  string
@@ -278,32 +276,42 @@ func TestPostCursor_RoundTrip(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			// Encode (post cursor format: "score:id")
-			encoded := fmt.Sprintf("%.6f:%s", tc.score, tc.id)
+			// Encode
+			encoded := EncodePostScoreCursor(tc.score, tc.id)
 
 			// Decode
-			parts := strings.Split(encoded, ":")
-			if len(parts) != 2 {
-				t.Fatalf("invalid cursor format: %s", encoded)
-			}
-
-			decodedScore, err := strconv.ParseFloat(parts[0], 64)
+			decoded, err := DecodePostScoreCursor(encoded)
 			if err != nil {
-				t.Fatalf("failed to parse score: %v", err)
+				t.Fatalf("failed to decode cursor: %v", err)
+			}
+			if decoded == nil {
+				t.Fatal("decoded cursor is nil")
 			}
 
-			decodedID := parts[1]
-
-			// Verify (allow small precision loss due to formatting)
-			scoreDiff := decodedScore - tc.score
-			if scoreDiff < -0.000001 || scoreDiff > 0.000001 {
-				t.Errorf("score mismatch: expected %.6f, got %.6f", tc.score, decodedScore)
+			// Verify exact score round-trip
+			if decoded.Score != tc.score {
+				t.Errorf("score mismatch: expected %v, got %v", tc.score, decoded.Score)
 			}
 
-			if decodedID != tc.id {
-				t.Errorf("ID mismatch: expected %s, got %s", tc.id, decodedID)
+			if decoded.ID != tc.id {
+				t.Errorf("ID mismatch: expected %s, got %s", tc.id, decoded.ID)
 			}
 		})
+	}
+
+	// Test empty cursor
+	decoded, err := DecodePostScoreCursor("")
+	if err != nil {
+		t.Fatalf("empty cursor should not error: %v", err)
+	}
+	if decoded != nil {
+		t.Error("empty cursor should decode to nil")
+	}
+
+	// Test invalid cursor
+	_, err = DecodePostScoreCursor("not-valid-base64!!!")
+	if err == nil {
+		t.Error("invalid cursor should return error")
 	}
 }
 

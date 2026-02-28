@@ -421,6 +421,8 @@ func TestUpdateScene_Success(t *testing.T) {
 
 	body, _ := json.Marshal(updateReq)
 	req := httptest.NewRequest(http.MethodPatch, "/scenes/test-scene-id", bytes.NewReader(body))
+	ctx := middleware.SetUserDID(req.Context(), "did:plc:test123")
+	req = req.WithContext(ctx)
 	w := httptest.NewRecorder()
 
 	handlers.UpdateScene(w, req)
@@ -465,6 +467,8 @@ func TestUpdateScene_NotFound(t *testing.T) {
 
 	body, _ := json.Marshal(updateReq)
 	req := httptest.NewRequest(http.MethodPatch, "/scenes/nonexistent-id", bytes.NewReader(body))
+	ctx := middleware.SetUserDID(req.Context(), "did:plc:test123")
+	req = req.WithContext(ctx)
 	w := httptest.NewRecorder()
 
 	handlers.UpdateScene(w, req)
@@ -522,6 +526,8 @@ func TestUpdateScene_DuplicateName(t *testing.T) {
 
 	body, _ := json.Marshal(updateReq)
 	req := httptest.NewRequest(http.MethodPatch, "/scenes/scene-2", bytes.NewReader(body))
+	ctx := middleware.SetUserDID(req.Context(), "did:plc:test123")
+	req = req.WithContext(ctx)
 	w := httptest.NewRecorder()
 
 	handlers.UpdateScene(w, req)
@@ -559,6 +565,8 @@ func TestDeleteScene_Success(t *testing.T) {
 	repo.Insert(testScene)
 
 	req := httptest.NewRequest(http.MethodDelete, "/scenes/test-scene-id", nil)
+	ctx := middleware.SetUserDID(req.Context(), "did:plc:test123")
+	req = req.WithContext(ctx)
 	w := httptest.NewRecorder()
 
 	handlers.DeleteScene(w, req)
@@ -582,6 +590,8 @@ func TestDeleteScene_NotFound(t *testing.T) {
 	handlers := NewSceneHandlers(repo, membershipRepo, streamRepo)
 
 	req := httptest.NewRequest(http.MethodDelete, "/scenes/nonexistent-id", nil)
+	ctx := middleware.SetUserDID(req.Context(), "did:plc:test123")
+	req = req.WithContext(ctx)
 	w := httptest.NewRecorder()
 
 	handlers.DeleteScene(w, req)
@@ -623,6 +633,8 @@ func TestDeleteScene_AlreadyDeleted(t *testing.T) {
 
 	// Try to delete again
 	req := httptest.NewRequest(http.MethodDelete, "/scenes/test-scene-id", nil)
+	ctx := middleware.SetUserDID(req.Context(), "did:plc:test123")
+	req = req.WithContext(ctx)
 	w := httptest.NewRecorder()
 
 	handlers.DeleteScene(w, req)
@@ -655,7 +667,7 @@ func TestValidateSceneName(t *testing.T) {
 		{"valid with underscore", "Test_Scene", false},
 		{"valid with period", "Scene v1.0", false},
 		{"empty", "", true},
-		{"too long", strings.Repeat("a", 101), true},
+		{"too long", strings.Repeat("a", 65), true},
 		{"invalid chars", "Scene<>", true},
 		{"invalid chars @", "Scene@email", true},
 		{"invalid apostrophe", "Mike's Scene", true},
@@ -1851,6 +1863,8 @@ func TestDeleteScene_AlreadyDeletedReturnsSceneDeleted(t *testing.T) {
 
 	// Delete once successfully
 	req1 := httptest.NewRequest(http.MethodDelete, "/scenes/test-scene-id", nil)
+	ctx1 := middleware.SetUserDID(req1.Context(), "did:plc:test123")
+	req1 = req1.WithContext(ctx1)
 	w1 := httptest.NewRecorder()
 	handlers.DeleteScene(w1, req1)
 
@@ -1860,6 +1874,8 @@ func TestDeleteScene_AlreadyDeletedReturnsSceneDeleted(t *testing.T) {
 
 	// Try to delete again - should return scene_deleted error code
 	req2 := httptest.NewRequest(http.MethodDelete, "/scenes/test-scene-id", nil)
+	ctx2 := middleware.SetUserDID(req2.Context(), "did:plc:test123")
+	req2 = req2.WithContext(ctx2)
 	w2 := httptest.NewRecorder()
 	handlers.DeleteScene(w2, req2)
 

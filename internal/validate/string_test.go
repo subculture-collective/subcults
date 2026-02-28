@@ -212,7 +212,7 @@ func TestSceneName(t *testing.T) {
 		},
 		{
 			name:    "scene name too long",
-			input:   strings.Repeat("a", 101),
+			input:   strings.Repeat("a", 65),
 			wantErr: true,
 		},
 		{
@@ -221,8 +221,18 @@ func TestSceneName(t *testing.T) {
 			wantErr: true,
 		},
 		{
-			name:    "single character allowed",
+			name:    "single character too short",
 			input:   "X",
+			wantErr: true,
+		},
+		{
+			name:    "two characters too short",
+			input:   "Ab",
+			wantErr: true,
+		},
+		{
+			name:    "three characters minimum",
+			input:   "Abc",
 			wantErr: false,
 		},
 		{
@@ -259,12 +269,12 @@ func TestEventTitle(t *testing.T) {
 		},
 		{
 			name:    "event title at max length",
-			input:   strings.Repeat("a", 200),
+			input:   strings.Repeat("a", 80),
 			wantErr: false,
 		},
 		{
 			name:    "event title too long",
-			input:   strings.Repeat("a", 201),
+			input:   strings.Repeat("a", 81),
 			wantErr: true,
 		},
 		{

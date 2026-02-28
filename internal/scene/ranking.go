@@ -307,3 +307,63 @@ func DecodeSceneCursor(encoded string) (*SceneCursor, error) {
 
 	return &cursor, nil
 }
+
+// EventScoreCursor represents the pagination cursor for ranked event search results.
+type EventScoreCursor struct {
+	Score float64 `json:"score"` // Composite score of last event
+	ID    string  `json:"id"`    // Event ID for stable ordering
+}
+
+// EncodeEventScoreCursor encodes a score-based event cursor to a base64 string.
+func EncodeEventScoreCursor(score float64, id string) string {
+	cursor := EventScoreCursor{Score: score, ID: id}
+	data, _ := json.Marshal(cursor)
+	return base64.URLEncoding.EncodeToString(data)
+}
+
+// DecodeEventScoreCursor decodes a base64 event score cursor string.
+// Returns (nil, nil) for empty input, or an error for invalid cursors.
+func DecodeEventScoreCursor(encoded string) (*EventScoreCursor, error) {
+	if encoded == "" {
+		return nil, nil
+	}
+	data, err := base64.URLEncoding.DecodeString(encoded)
+	if err != nil {
+		return nil, fmt.Errorf("invalid cursor encoding: %w", err)
+	}
+	var cursor EventScoreCursor
+	if err := json.Unmarshal(data, &cursor); err != nil {
+		return nil, fmt.Errorf("invalid cursor format: %w", err)
+	}
+	return &cursor, nil
+}
+
+// EventTimeCursor represents the pagination cursor for time-ordered event search results.
+type EventTimeCursor struct {
+	StartsAt time.Time `json:"starts_at"` // StartsAt of last event (second precision)
+	ID       string    `json:"id"`        // Event ID for stable ordering
+}
+
+// EncodeEventTimeCursor encodes a time-based event cursor to a base64 string.
+func EncodeEventTimeCursor(startsAt time.Time, id string) string {
+	cursor := EventTimeCursor{StartsAt: startsAt.Truncate(time.Second), ID: id}
+	data, _ := json.Marshal(cursor)
+	return base64.URLEncoding.EncodeToString(data)
+}
+
+// DecodeEventTimeCursor decodes a base64 event time cursor string.
+// Returns (nil, nil) for empty input, or an error for invalid cursors.
+func DecodeEventTimeCursor(encoded string) (*EventTimeCursor, error) {
+	if encoded == "" {
+		return nil, nil
+	}
+	data, err := base64.URLEncoding.DecodeString(encoded)
+	if err != nil {
+		return nil, fmt.Errorf("invalid cursor encoding: %w", err)
+	}
+	var cursor EventTimeCursor
+	if err := json.Unmarshal(data, &cursor); err != nil {
+		return nil, fmt.Errorf("invalid cursor format: %w", err)
+	}
+	return &cursor, nil
+}
