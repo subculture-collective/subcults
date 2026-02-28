@@ -66,6 +66,7 @@ const (
 	maxGlobalPosts                         = 5
 	defaultEventPastYearsForGlobalSearch   = 1
 	defaultEventFutureYearsForGlobalSearch = 5
+	defaultGlobalEventSearchRadiusDegrees  = 5.0
 )
 
 // SearchScenes handles GET /search/scenes - searches for scenes with ranking and pagination.
@@ -519,12 +520,17 @@ func (h *SearchHandlers) SearchGlobal(w http.ResponseWriter, r *http.Request) {
 
 	eventResults := make([]*scene.Event, 0)
 	eventNextCursor := ""
+	searchNow := time.Now()
+	from := searchNow.AddDate(-defaultEventPastYearsForGlobalSearch, 0, 0)
+	to := searchNow.AddDate(defaultEventFutureYearsForGlobalSearch, 0, 0)
 	if lat != nil && lng != nil {
-		eventRadiusDegrees := 5.0
-		minLng := *lng - eventRadiusDegrees
-		maxLng := *lng + eventRadiusDegrees
-		minLat := *lat - eventRadiusDegrees
-		maxLat := *lat + eventRadiusDegrees
+		// Uses degree offsets for a lightweight approximate radius window.
+		// At higher latitudes longitudinal distance per degree shrinks, so this
+		// is an intentionally coarse filter for global text search.
+		minLng := *lng - defaultGlobalEventSearchRadiusDegrees
+		maxLng := *lng + defaultGlobalEventSearchRadiusDegrees
+		minLat := *lat - defaultGlobalEventSearchRadiusDegrees
+		maxLat := *lat + defaultGlobalEventSearchRadiusDegrees
 		if minLng < -180 {
 			minLng = -180
 		}
@@ -537,9 +543,6 @@ func (h *SearchHandlers) SearchGlobal(w http.ResponseWriter, r *http.Request) {
 		if maxLat > 90 {
 			maxLat = 90
 		}
-		searchNow := time.Now()
-		from := searchNow.AddDate(-defaultEventPastYearsForGlobalSearch, 0, 0)
-		to := searchNow.AddDate(defaultEventFutureYearsForGlobalSearch, 0, 0)
 		eventResults, eventNextCursor, err = h.eventRepo.SearchEvents(scene.EventSearchOptions{
 			MinLng:           minLng,
 			MinLat:           minLat,
@@ -553,9 +556,6 @@ func (h *SearchHandlers) SearchGlobal(w http.ResponseWriter, r *http.Request) {
 			DisableProximity: false,
 		})
 	} else {
-		searchNow := time.Now()
-		from := searchNow.AddDate(-defaultEventPastYearsForGlobalSearch, 0, 0)
-		to := searchNow.AddDate(defaultEventFutureYearsForGlobalSearch, 0, 0)
 		eventResults, eventNextCursor, err = h.eventRepo.SearchEvents(scene.EventSearchOptions{
 			MinLng:           -180,
 			MinLat:           -90,
