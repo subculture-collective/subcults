@@ -9,8 +9,12 @@ import { useParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import {
   useStreamingStore,
-  useStreamingConnection,
-  useStreamingActions,
+  useStreamingIsConnected,
+  useStreamingIsConnecting,
+  useStreamingError,
+  useStreamingConnectionQuality,
+  useStreamingConnect,
+  useStreamingDisconnect,
 } from '../stores/streamingStore';
 import { useParticipantStore } from '../stores/participantStore';
 import {
@@ -31,9 +35,13 @@ export const StreamPage: React.FC = () => {
   const { t } = useTranslation('streaming');
   const { error: showError } = useToasts();
   
-  // Global streaming state
-  const { isConnected, isConnecting, error, connectionQuality } = useStreamingConnection();
-  const { connect, disconnect } = useStreamingActions();
+  // Global streaming state (individual selectors to avoid unnecessary re-renders)
+  const isConnected = useStreamingIsConnected();
+  const isConnecting = useStreamingIsConnecting();
+  const error = useStreamingError();
+  const connectionQuality = useStreamingConnectionQuality();
+  const connect = useStreamingConnect();
+  const disconnect = useStreamingDisconnect();
   
   // Participant state
   const participants = useParticipantStore((state) => 

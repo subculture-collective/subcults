@@ -172,7 +172,7 @@ func (h *TelemetryHandlers) PostMetrics(w http.ResponseWriter, r *http.Request) 
 
 		// Sanitize URL to remove PII (query params, hash)
 		sanitizedURL := sanitizeURL(req.URL)
-		
+
 		// Parse User-Agent to extract only browser family (no versions)
 		browserFamily := parseBrowserFamily(req.UserAgent)
 

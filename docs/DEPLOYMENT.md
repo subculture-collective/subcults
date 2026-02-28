@@ -2,9 +2,7 @@
 
 ## Overview
 
-Subcults runs on a VPS with Docker Compose and an external Caddy reverse proxy.
-This guide focuses on deployment readiness for that setup and intentionally keeps
-monitoring/observability optional.
+Subcults runs on a VPS with Docker Compose, Caddy as reverse proxy, and a centralized monitoring stack. This document covers the deployment architecture and procedures.
 
 ## Architecture
 
@@ -13,14 +11,23 @@ Internet → Caddy (TLS + routing) → Docker Compose services
                                      ├── subcults-api:8080
                                      ├── subcults-indexer
                                      └── subcults-frontend:80
+
+Monitoring stack (~/projects/monitoring):
+  Prometheus → scrapes subcults-api:8080/metrics
+  Prometheus → scrapes subcults-indexer:9090/internal/indexer/metrics
+  Grafana → dashboards (api-overview, indexer, streaming-trust, frontend-telemetry)
+  Loki + Promtail → log aggregation
+  Jaeger → distributed tracing (OTLP)
+  Alertmanager → alerts to Slack/PagerDuty
 ```
 
 ## Prerequisites
 
 1. **Docker & Docker Compose v2+** on the VPS
 2. **Caddy** running at `~/projects/caddy` on the `web` Docker network
-3. **Neon Postgres** (managed, external) with PostGIS
-4. **Environment file**: `deploy/.env` with all secrets populated
+3. **Monitoring** running at `~/projects/monitoring` on the `web` and `monitoring` networks
+4. **Neon Postgres** (managed, external) with PostGIS
+5. **Environment file**: `deploy/.env` with all secrets populated
 
 ## Environment Setup
 
@@ -29,11 +36,11 @@ Internet → Caddy (TLS + routing) → Docker Compose services
 docker network create web 2>/dev/null || true
 
 # Copy and fill environment file
-cp deploy/.env.example deploy/.env
+cp configs/dev.env.example deploy/.env
 # Edit deploy/.env with production values
 ```
 
-Required environment variables are documented in `deploy/.env.example`.
+Required environment variables — see `configs/dev.env.example` for the full list.
 
 ## Standard Deployment
 
@@ -53,60 +60,46 @@ Required environment variables are documented in `deploy/.env.example`.
 ### Manual deployment
 
 ```bash
+cd deploy/
+
 # Pull latest code
 git pull origin main
 
-# Ensure network and env
-docker network create web 2>/dev/null || true
-cp deploy/.env.example deploy/.env # first time only
+# Build images
+docker compose build --no-cache
 
-# Build and start services
-cd deploy
-docker compose build
+# Run migrations (if any)
+cd .. && make migrate-up && cd deploy/
+
+# Recreate services
 docker compose up -d --force-recreate
 
-# (Optional but recommended) run migrations from repo root
-cd ..
-set -a && source deploy/.env && set +a
-./scripts/migrate.sh up
-
-# Verify health (inside containers; no host port publishing required)
-docker compose -f deploy/compose.yml exec -T api wget --no-verbose --tries=1 --spider http://localhost:8080/health/live
-docker compose -f deploy/compose.yml exec -T frontend wget --no-verbose --tries=1 --spider http://localhost/nginx-health
-docker compose -f deploy/compose.yml exec -T indexer wget --no-verbose --tries=1 --spider http://localhost:9090/health
+# Verify
+curl -s http://localhost:8080/health/live
+curl -s http://localhost:8080/health/ready
 ```
-
-## Reverse Proxy Wiring (Caddy)
-
-Subcults expects Caddy to reach containers on the shared `web` Docker network.
-
-Route recommendations:
-
-- `/api/*` → `subcults-api:8080`
-- `/health/*` (or chosen health path) → `subcults-api:8080`
-- `/` and static assets → `subcults-frontend:80`
-
-The indexer is internal-only and not intended for direct public routing.
 
 ## Pre-deployment Checklist
 
-Before deploying:
+Before deploying to production:
 
-- [ ] `deploy/.env` created from `deploy/.env.example`
-- [ ] Required secrets and service URLs set
-- [ ] `CORS_ALLOWED_ORIGINS` set to your public frontend origin(s)
-- [ ] Docker `web` network exists and Caddy is attached
-- [ ] Images build successfully (`docker compose -f deploy/compose.yml build`)
-- [ ] Migrations run successfully (`./scripts/migrate.sh up`)
-- [ ] Health checks pass in running containers
+- [ ] All CI checks passing (unit tests, lint, build)
+- [ ] Integration tests passing
+- [ ] Coverage gates met (80%+ backend, 70%+ frontend)
+- [ ] Security scan clean (no CRITICAL vulnerabilities)
+- [ ] Database migrations tested on staging/dev
+- [ ] Feature flags verified for new features
+- [ ] Rollback plan documented
+- [ ] Monitoring dashboards accessible
+- [ ] Alert rules configured for new endpoints/services
 
 ## Docker Images
 
-| Service  | Dockerfile            | Base Image                              | Port            |
-| -------- | --------------------- | --------------------------------------- | --------------- |
-| API      | `Dockerfile.api`      | golang:1.24-alpine → alpine:3.21        | 8080            |
-| Indexer  | `Dockerfile.indexer`  | golang:1.24-alpine → distroless:nonroot | 9090 (internal) |
-| Frontend | `Dockerfile.frontend` | node:22-alpine → nginx:1-alpine-slim    | 80              |
+| Service  | Dockerfile            | Base Image                              | Port |
+| -------- | --------------------- | --------------------------------------- | ---- |
+| API      | `Dockerfile.api`      | golang:1.24-alpine → alpine:3.21        | 8080 |
+| Indexer  | `Dockerfile.indexer`  | golang:1.24-alpine → distroless:nonroot | -    |
+| Frontend | `Dockerfile.frontend` | node:22-alpine → nginx:1-alpine-slim    | 80   |
 
 Build manually:
 
@@ -119,38 +112,65 @@ make docker-build-indexer      # Indexer only
 
 ## Networking
 
-Subcults containers use:
+All Subcults containers join two Docker networks:
 
-- **`web`** (external): shared with Caddy reverse proxy.
-- **`subcults-internal`** (bridge): internal service communication.
+- **`web`** (external): Shared with Caddy reverse proxy. Caddy routes `subcults.subcult.tv` traffic to the appropriate service.
+- **`subcults-internal`** (bridge): Inter-service communication (API ↔ Indexer).
 
-Indexer is attached only to the internal network in Compose, reducing unnecessary exposure.
+Caddy configuration is at `~/projects/caddy/conf.d/subcults.subcult.tv.caddy`.
+
+## Monitoring Integration
+
+The monitoring stack at `~/projects/monitoring` is already configured:
+
+- **Prometheus** scrapes `subcults-api:8080/metrics` and `subcults-indexer:9090/internal/indexer/metrics` every 15s
+- **Grafana** has 4 provisioned dashboards:
+  - `api-overview` — latency, throughput, error rates
+  - `indexer` — processing lag, message rates, reconnections
+  - `streaming-trust` — stream quality, trust recompute, audio metrics
+  - `frontend-telemetry` — client errors, performance metrics
+- **Alertmanager** routes alerts with subcults-specific rules in `prometheus/alerts/subcults.yml`
+- **Loki** collects logs from all Docker containers via Promtail
+- **Jaeger** receives traces via OTLP (port 4317 gRPC, 4318 HTTP)
+
+Access monitoring at `https://sentinel.subcult.tv`.
 
 ## Rollback Procedure
 
-If deployment causes issues:
+If a deployment causes issues:
 
-1. **Quick service restart**:
+1. **Immediate rollback** (< 5 minutes):
 
    ```bash
    ./scripts/deploy.sh --rollback
    ```
 
-2. **Rollback to a known-good commit**:
+2. **Manual rollback** to a specific commit:
 
    ```bash
    git checkout <known-good-commit>
-   ./scripts/deploy.sh
+   cd deploy && docker compose build && docker compose up -d --force-recreate
    ```
 
-3. **Rollback the last migration** (if needed):
+3. **Database rollback** (if migration caused issues):
    ```bash
-   ./scripts/migrate.sh down 1
+   make migrate-down  # Rolls back last migration
    ```
 
 ## Kubernetes (Future)
 
-K8s manifests are in `deploy/k8s/` and Helm chart in `deploy/helm/subcults/`.
+K8s manifests are in `deploy/k8s/` and a Helm chart is in `deploy/helm/subcults/`. These are prepared for when the project scales beyond a single VPS.
+
+```bash
+# Lint Helm chart
+helm lint deploy/helm/subcults/
+
+# Render templates
+helm template subcults deploy/helm/subcults/ -f deploy/helm/subcults/values-prod.yaml
+
+# Deploy to a cluster
+helm install subcults deploy/helm/subcults/ -f deploy/helm/subcults/values-prod.yaml -n subcults
+```
 
 ## Troubleshooting
 
@@ -159,22 +179,25 @@ K8s manifests are in `deploy/k8s/` and Helm chart in `deploy/helm/subcults/`.
 ```bash
 docker compose -f deploy/compose.yml logs api
 docker compose -f deploy/compose.yml logs indexer
-docker compose -f deploy/compose.yml logs frontend
 ```
 
-### Health checks failing
+### Health check failing
 
 ```bash
-docker compose -f deploy/compose.yml exec -T api wget --no-verbose --tries=1 --spider http://localhost:8080/health/live
-docker compose -f deploy/compose.yml exec -T frontend wget --no-verbose --tries=1 --spider http://localhost/nginx-health
-docker compose -f deploy/compose.yml exec -T indexer wget --no-verbose --tries=1 --spider http://localhost:9090/health
+# Check liveness
+curl -v http://localhost:8080/health/live
+
+# Check readiness (includes dependency checks)
+curl -v http://localhost:8080/health/ready
 ```
 
 ### Database connection issues
 
 ```bash
-set -a && source deploy/.env && set +a
+# Test connectivity
 psql "$DATABASE_URL" -c "SELECT 1"
+
+# Check migration state
 ./scripts/migrate.sh version
 ```
 
@@ -183,6 +206,9 @@ psql "$DATABASE_URL" -c "SELECT 1"
 ```bash
 # Check Caddy logs
 docker logs caddy --tail 50
+
+# Verify DNS resolves
+dig subcults.subcult.tv
 
 # Check containers are on web network
 docker network inspect web | grep subcults

@@ -14,6 +14,14 @@ import (
 	"github.com/stripe/stripe-go/v81/webhook"
 )
 
+// Stripe webhook event type constants.
+const (
+	eventCheckoutSessionCompleted = "checkout.session.completed"
+	eventPaymentIntentSucceeded   = "payment_intent.succeeded"
+	eventPaymentIntentFailed      = "payment_intent.payment_failed"
+	eventAccountUpdated           = "account.updated"
+)
+
 // WebhookHandlers holds dependencies for webhook-related HTTP handlers.
 type WebhookHandlers struct {
 	webhookSecret string
@@ -42,8 +50,8 @@ func NewWebhookHandlers(
 func (h *WebhookHandlers) HandleStripeWebhook(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
-	// Read the request body
-	body, err := io.ReadAll(r.Body)
+	// Read the request body (limit to 64KB to prevent abuse)
+	body, err := io.ReadAll(io.LimitReader(r.Body, 65536))
 	if err != nil {
 		ctx = middleware.SetErrorCode(ctx, ErrCodeBadRequest)
 		WriteError(w, ctx, http.StatusBadRequest, ErrCodeBadRequest, "failed to read request body")
@@ -61,10 +69,20 @@ func (h *WebhookHandlers) HandleStripeWebhook(w http.ResponseWriter, r *http.Req
 	// Verify the webhook signature
 	event, err := webhook.ConstructEvent(body, signature, h.webhookSecret)
 	if err != nil {
-		slog.WarnContext(ctx, "webhook signature verification failed", "error", err)
-		ctx = middleware.SetErrorCode(ctx, ErrCodeBadRequest)
-		WriteError(w, ctx, http.StatusBadRequest, ErrCodeBadRequest, "invalid signature")
-		return
+		// Stripe may deliver events using a newer API version than stripe-go expects.
+		// Keep cryptographic signature verification strict, but allow API-version mismatch
+		// to avoid unnecessary webhook downtime when endpoint version drift occurs.
+		event, err = webhook.ConstructEventWithOptions(body, signature, h.webhookSecret, webhook.ConstructEventOptions{
+			IgnoreAPIVersionMismatch: true,
+		})
+		if err != nil {
+			slog.WarnContext(ctx, "webhook signature verification failed", "error", err)
+			ctx = middleware.SetErrorCode(ctx, ErrCodeBadRequest)
+			WriteError(w, ctx, http.StatusBadRequest, ErrCodeBadRequest, "invalid signature")
+			return
+		}
+
+		slog.WarnContext(ctx, "webhook accepted with API version mismatch", "error", err)
 	}
 
 	// Log minimal event info (type and ID only, not full payload)
@@ -87,13 +105,13 @@ func (h *WebhookHandlers) HandleStripeWebhook(w http.ResponseWriter, r *http.Req
 
 	// Route to appropriate handler based on event type
 	switch event.Type {
-	case "checkout.session.completed":
+	case eventCheckoutSessionCompleted:
 		h.handleCheckoutSessionCompleted(ctx, event)
-	case "payment_intent.succeeded":
+	case eventPaymentIntentSucceeded:
 		h.handlePaymentIntentSucceeded(ctx, event)
-	case "payment_intent.payment_failed":
+	case eventPaymentIntentFailed:
 		h.handlePaymentIntentFailed(ctx, event)
-	case "account.updated":
+	case eventAccountUpdated:
 		h.handleAccountUpdated(ctx, event)
 	default:
 		// Unknown event type - log and ignore

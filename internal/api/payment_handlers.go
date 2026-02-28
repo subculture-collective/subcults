@@ -13,6 +13,12 @@ import (
 	"github.com/onnwee/subcults/internal/scene"
 )
 
+// Payment-specific error codes.
+const (
+	ErrCodeAlreadyOnboarded = "already_onboarded"
+	ErrCodeNotOnboarded     = "not_onboarded"
+)
+
 // PaymentHandlers holds dependencies for payment-related HTTP handlers.
 type PaymentHandlers struct {
 	sceneRepo             scene.SceneRepository
@@ -99,8 +105,8 @@ func (h *PaymentHandlers) OnboardScene(w http.ResponseWriter, r *http.Request) {
 
 	// Check if scene already has a connected account
 	if existingScene.ConnectedAccountID != nil && *existingScene.ConnectedAccountID != "" {
-		ctx = middleware.SetErrorCode(ctx, "already_onboarded")
-		WriteError(w, ctx, http.StatusBadRequest, "already_onboarded", "scene is already onboarded for payments")
+		ctx = middleware.SetErrorCode(ctx, ErrCodeAlreadyOnboarded)
+		WriteError(w, ctx, http.StatusBadRequest, ErrCodeAlreadyOnboarded, "scene is already onboarded for payments")
 		return
 	}
 
@@ -257,8 +263,8 @@ func (h *PaymentHandlers) CreateCheckoutSession(w http.ResponseWriter, r *http.R
 
 	// Validate scene has connected account
 	if existingScene.ConnectedAccountID == nil || *existingScene.ConnectedAccountID == "" {
-		ctx = middleware.SetErrorCode(ctx, "not_onboarded")
-		WriteError(w, ctx, http.StatusBadRequest, "not_onboarded", "scene must be onboarded for payments before creating checkout session")
+		ctx = middleware.SetErrorCode(ctx, ErrCodeNotOnboarded)
+		WriteError(w, ctx, http.StatusBadRequest, ErrCodeNotOnboarded, "scene must be onboarded for payments before creating checkout session")
 		return
 	}
 
@@ -271,9 +277,10 @@ func (h *PaymentHandlers) CreateCheckoutSession(w http.ResponseWriter, r *http.R
 		}
 	}
 
-	// Note: In a real implementation, we would fetch the total amount from Stripe Price API
-	// For now, we'll compute the fee based on a placeholder amount of $100 (10000 cents)
-	// This will be properly calculated when Stripe processes the actual prices
+	// BUG: Application fee is calculated from a hardcoded placeholder amount ($100).
+	// This means the application fee will be incorrect for any real transaction.
+	// To fix: integrate with the Stripe Price API to fetch actual item prices,
+	// then compute the fee from the real total. See https://stripe.com/docs/api/prices
 	placeholderAmount := int64(10000) // $100 in cents as placeholder
 	applicationFee := int64(float64(placeholderAmount) * h.applicationFeePercent / 100.0)
 

@@ -33,15 +33,15 @@ jobs:
           - image: subcults-api
             dockerfile: Dockerfile.api
             target: production
-            build-args: ""
+            build-args: ''
           - image: subcults-indexer
             dockerfile: Dockerfile.indexer
-            target: ""
-            build-args: ""
+            target: ''
+            build-args: ''
           - image: subcults-frontend
             dockerfile: Dockerfile.frontend
             target: production
-            build-args: ""
+            build-args: ''
 
     steps:
       - name: Checkout code

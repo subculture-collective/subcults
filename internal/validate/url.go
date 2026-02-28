@@ -139,9 +139,8 @@ func checkSSRF(hostname string) error {
 	resolver := &net.Resolver{}
 	ips, err := resolver.LookupIP(ctx, "ip", hostname)
 	if err != nil {
-		// If we can't resolve, allow it (DNS errors handled elsewhere)
-		// This prevents blocking legitimate domains with temporary DNS issues
-		return nil
+		// Fail closed: reject URLs with unresolvable hostnames to prevent SSRF
+		return fmt.Errorf("%w: failed to resolve hostname: %v", ErrSSRFRisk, err)
 	}
 
 	// Check each resolved IP

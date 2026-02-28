@@ -506,7 +506,6 @@ func main() {
 	searchLimit := middleware.RateLimitConfig{
 		RequestsPerWindow: 100,
 		WindowDuration:    time.Minute,
-		BurstFactor:       1.5, // allow up to 150 req/min for brief spikes
 	}
 	streamJoinLimit := middleware.RateLimitConfig{
 		RequestsPerWindow: 10,
@@ -531,11 +530,7 @@ func main() {
 	generalLimit := middleware.RateLimitConfig{
 		RequestsPerWindow: 1000,
 		WindowDuration:    time.Minute,
-		BurstFactor:       1.5, // allow up to 1500 req/min for brief spikes
 	}
-
-	// Internal service bypass: requests carrying X-Internal-Token bypass rate limiting.
-	internalBypass := middleware.InternalServiceBypassFunc(cfg.InternalServiceToken)
 
 	// Create HTTP server with routes
 	mux := http.NewServeMux()
@@ -1090,13 +1085,10 @@ func main() {
 	// Request flow (what executes first to last):
 	// 1. Tracing - OpenTelemetry instrumentation (if enabled)
 	// 2. CORS - Cross-origin resource sharing (if configured)
-	// 3. Canary routing - traffic splitting/rollback logic (if enabled)
-	// 4. General rate limiting (1000 req/min per IP) - blocks excessive requests early
-	// 5. Security headers - adds defense-in-depth response headers
-	// 6. Request body size limits - caps JSON/upload body sizes
-	// 7. HTTP metrics - captures request duration, sizes, and counts
-	// 8. RequestID - generates/extracts request IDs for tracing
-	// 9. Logging - logs requests with all context
+	// 3. General rate limiting (1000 req/min per IP) - blocks excessive requests early
+	// 4. HTTP metrics - captures request duration, sizes, and counts
+	// 5. RequestID - generates/extracts request IDs for tracing
+	// 6. Logging - logs requests with all context
 	var handler http.Handler = mux
 
 	// Apply middleware in reverse order of execution
@@ -1115,8 +1107,8 @@ func main() {
 	// Then security headers (defense-in-depth, duplicates Caddy headers)
 	handler = middleware.SecurityHeaders(handler)
 
-	// Then rate limiting (with internal service bypass)
-	handler = middleware.RateLimiterWithBypass(rateLimitStore, generalLimit, middleware.IPKeyFunc(), rateLimitMetrics, internalBypass)(handler)
+	// Then rate limiting
+	handler = middleware.RateLimiter(rateLimitStore, generalLimit, middleware.IPKeyFunc(), rateLimitMetrics)(handler)
 
 	// Then canary routing (if enabled)
 	if cfg.CanaryEnabled {

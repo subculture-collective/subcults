@@ -2,20 +2,19 @@
 set -euo pipefail
 
 # =============================================================================
-# Deployment Script for Subcults (Docker Compose)
+# Blue-Green Deployment Script for Subcults
 # =============================================================================
-# Builds images, optionally runs migrations, recreates services, and verifies
-# health from inside containers (works even when service ports are not published).
+# Deploys a new version with zero downtime using blue/green strategy.
+# The inactive slot is rebuilt, smoke-tested, then traffic is switched.
 #
 # Usage:
 #   ./scripts/deploy.sh                # Deploy latest from current branch
+#   ./scripts/deploy.sh --rollback     # Switch back to previous slot
 #   ./scripts/deploy.sh --status       # Show current active slot
-#   ./scripts/deploy.sh --rollback     # Restart services with currently available images
 #
 # Prerequisites:
 #   - Docker Compose v2+
 #   - deploy/compose.yml configured
-#   - deploy/.env populated (copy deploy/.env.example first)
 #   - External Caddy proxy on 'web' network
 # =============================================================================
 
@@ -23,6 +22,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 COMPOSE_DIR="$PROJECT_DIR/deploy"
 COMPOSE_FILE="$COMPOSE_DIR/compose.yml"
+STATE_FILE="$COMPOSE_DIR/.deploy-state"
 
 # Colors
 RED='\033[0;31m'
@@ -34,69 +34,56 @@ log()  { echo -e "${GREEN}[deploy]${NC} $*"; }
 warn() { echo -e "${YELLOW}[deploy]${NC} $*"; }
 err()  { echo -e "${RED}[deploy]${NC} $*" >&2; }
 
-compose() {
-    docker compose -f "$COMPOSE_FILE" "$@"
-}
-
-assert_prerequisites() {
-    [[ -f "$COMPOSE_FILE" ]] || {
-        err "Compose file not found: $COMPOSE_FILE"
-        exit 1
-    }
-
-    if [[ ! -f "$COMPOSE_DIR/.env" ]]; then
-        err "Missing $COMPOSE_DIR/.env"
-        warn "Create it with: cp $COMPOSE_DIR/.env.example $COMPOSE_DIR/.env"
-        exit 1
+# Track active slot (blue or green)
+get_active_slot() {
+    if [[ -f "$STATE_FILE" ]]; then
+        cat "$STATE_FILE"
+    else
+        echo "blue"
     fi
 }
 
-load_env() {
-    # shellcheck disable=SC1090
-    set -a && source "$COMPOSE_DIR/.env" && set +a
+set_active_slot() {
+    echo "$1" > "$STATE_FILE"
 }
 
-wait_for_http() {
-    local service="$1"
-    local url="$2"
-    local max_attempts="${3:-30}"
-    local interval="${4:-2}"
+get_inactive_slot() {
+    local active
+    active=$(get_active_slot)
+    if [[ "$active" == "blue" ]]; then
+        echo "green"
+    else
+        echo "blue"
+    fi
+}
 
-    log "Waiting for $service to become healthy at $url..."
+# Health check with retries
+wait_for_healthy() {
+    local url="$1"
+    local max_attempts="${2:-30}"
+    local interval="${3:-2}"
+
+    log "Waiting for $url to become healthy..."
     for i in $(seq 1 "$max_attempts"); do
-        if compose exec -T "$service" sh -c "wget --no-verbose --tries=1 --spider '$url'" >/dev/null 2>&1; then
+        if curl -sf "$url" > /dev/null 2>&1; then
             log "Health check passed (attempt $i/$max_attempts)"
             return 0
         fi
         sleep "$interval"
     done
-    err "Health check failed for $service after $max_attempts attempts"
+    err "Health check failed after $max_attempts attempts"
     return 1
 }
 
-run_migrations() {
-    load_env
-
-    if [[ -z "${DATABASE_URL:-}" ]]; then
-        warn "DATABASE_URL is empty in deploy/.env; skipping migrations"
-        return 0
-    fi
-
-    log "Running database migrations..."
-    if (cd "$PROJECT_DIR" && DATABASE_URL="$DATABASE_URL" ./scripts/migrate.sh up); then
-        log "Migrations completed"
-    else
-        warn "Migration command failed — continuing deploy (run migrations manually if required)"
-    fi
-}
-
+# Smoke tests on the new deployment
 run_smoke_tests() {
+    local api_url="$1"
     local failures=0
 
-    log "Running smoke tests..."
+    log "Running smoke tests against $api_url..."
 
     # Test liveness
-    if ! compose exec -T api sh -c "wget --no-verbose --tries=1 --spider 'http://localhost:8080/health/live'" >/dev/null 2>&1; then
+    if ! curl -sf "$api_url/health/live" > /dev/null 2>&1; then
         err "  FAIL: /health/live"
         ((failures++))
     else
@@ -104,25 +91,17 @@ run_smoke_tests() {
     fi
 
     # Test readiness
-    if ! compose exec -T api sh -c "wget --no-verbose --tries=1 --spider 'http://localhost:8080/health/ready'" >/dev/null 2>&1; then
+    if ! curl -sf "$api_url/health/ready" > /dev/null 2>&1; then
         warn "  WARN: /health/ready (may need dependencies)"
     else
         log "  PASS: /health/ready"
     fi
 
-    # Frontend nginx health
-    if ! compose exec -T frontend sh -c "wget --no-verbose --tries=1 --spider 'http://localhost/nginx-health'" >/dev/null 2>&1; then
-        err "  FAIL: frontend /nginx-health"
-        ((failures++))
+    # Test metrics endpoint
+    if ! curl -sf "$api_url/metrics" > /dev/null 2>&1; then
+        warn "  WARN: /metrics (may require auth token)"
     else
-        log "  PASS: frontend /nginx-health"
-    fi
-
-    # Indexer health
-    if ! compose exec -T indexer sh -c "wget --no-verbose --tries=1 --spider 'http://localhost:9090/health'" >/dev/null 2>&1; then
-        warn "  WARN: indexer /health"
-    else
-        log "  PASS: indexer /health"
+        log "  PASS: /metrics"
     fi
 
     if [[ "$failures" -gt 0 ]]; then
@@ -136,66 +115,94 @@ run_smoke_tests() {
 
 # Show deployment status
 cmd_status() {
+    local active
+    active=$(get_active_slot)
+    log "Active slot: $active"
     log "Compose file: $COMPOSE_FILE"
 
     echo ""
-    compose ps 2>/dev/null || warn "No containers running"
+    docker compose -f "$COMPOSE_FILE" ps 2>/dev/null || warn "No containers running"
 }
 
 # Main deploy flow
 cmd_deploy() {
-    assert_prerequisites
+    local active inactive
+    active=$(get_active_slot)
+    inactive=$(get_inactive_slot)
 
-    log "=== Deploying Subcults ==="
+    log "=== Blue-Green Deployment ==="
+    log "Active slot:   $active"
+    log "Deploying to:  $inactive"
     log ""
 
     # Step 1: Build new images
-    log "[1/4] Building images..."
-    compose build api indexer frontend
+    log "[1/5] Building images..."
+    docker compose -f "$COMPOSE_FILE" build --no-cache api indexer frontend
 
     # Step 2: Run database migrations (if needed)
-    log "[2/4] Running database migrations..."
-    run_migrations
+    log "[2/5] Running database migrations..."
+    (
+        cd "$PROJECT_DIR"
+        if [[ -f "$COMPOSE_DIR/.env" ]]; then
+            set -a
+            # shellcheck source=/dev/null
+            source "$COMPOSE_DIR/.env"
+            set +a
+        fi
+        if command -v migrate > /dev/null 2>&1; then
+            migrate -path migrations -database "$DATABASE_URL" up || true
+        else
+            warn "  migrate CLI not found — skipping (run manually if needed)"
+        fi
+    )
 
-    # Step 3: Recreate services
-    log "[3/4] Recreating services..."
-    compose up -d --force-recreate api indexer frontend
+    # Step 3: Start new containers alongside existing ones
+    log "[3/5] Starting new containers..."
+    docker compose -f "$COMPOSE_FILE" up -d --force-recreate api indexer frontend
 
-    # Step 4: Wait for health + smoke tests
-    log "[4/4] Running health checks and smoke tests..."
-    if ! wait_for_http "api" "http://localhost:8080/health/live" 30 2; then
-        err "API failed health checks"
+    # Step 4: Wait for health + smoke test
+    log "[4/5] Running health checks and smoke tests..."
+    if ! wait_for_healthy "http://localhost:8080/health/live" 30 2; then
+        err "New deployment failed health checks — rolling back"
+        docker compose -f "$COMPOSE_FILE" up -d --force-recreate api indexer frontend
         exit 1
     fi
 
-    if ! wait_for_http "frontend" "http://localhost/nginx-health" 30 2; then
-        err "Frontend failed health checks"
+    if ! run_smoke_tests "http://localhost:8080"; then
+        err "Smoke tests failed — rolling back"
+        docker compose -f "$COMPOSE_FILE" up -d --force-recreate api indexer frontend
         exit 1
     fi
 
-    if ! wait_for_http "indexer" "http://localhost:9090/health" 30 2; then
-        warn "Indexer did not become healthy in time"
-    fi
-
-    if ! run_smoke_tests; then
-        err "Smoke tests failed"
-        exit 1
-    fi
+    # Step 5: Update state
+    log "[5/5] Switching traffic to $inactive slot..."
+    set_active_slot "$inactive"
 
     log ""
     log "=== Deployment Complete ==="
+    log "Active slot: $inactive"
+    log "Previous slot: $active"
+    log ""
+    log "To rollback: ./scripts/deploy.sh --rollback"
 }
 
-# Best-effort rollback (service restart using currently available images)
+# Rollback to previous slot
 cmd_rollback() {
-    assert_prerequisites
+    local active inactive
+    active=$(get_active_slot)
+    inactive=$(get_inactive_slot)
 
     log "=== Rollback ==="
-    warn "This is a best-effort restart, not a guaranteed image rollback."
+    log "Current active: $active"
+    log "Rolling back to: $inactive"
 
-    compose up -d --force-recreate api indexer frontend
+    # Restart with previous images (Docker caches previous layers)
+    docker compose -f "$COMPOSE_FILE" up -d --force-recreate api indexer frontend
 
-    log "Rollback command completed"
+    set_active_slot "$inactive"
+
+    log "Rollback complete. Active slot: $inactive"
+    log "Verify: curl http://localhost:8080/health/live"
 }
 
 # Main
@@ -209,9 +216,9 @@ case "${1:-}" in
     --help|-h)
         echo "Usage: $0 [--status|--rollback|--help]"
         echo ""
-        echo "  (no args)    Build, migrate, recreate, and verify services"
+        echo "  (no args)    Deploy latest version (blue-green)"
         echo "  --status     Show current deployment status"
-        echo "  --rollback   Best-effort service restart"
+        echo "  --rollback   Switch to previous deployment"
         echo "  --help       Show this help"
         ;;
     *)

@@ -8,7 +8,7 @@ import { render } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { StreamPage } from './StreamPage';
 import { expectNoA11yViolations } from '../test/a11y-helpers';
-import * as streamingStore from '../stores/streamingStore';
+import { useStreamingError } from '../stores/streamingStore';
 
 // Mock i18next
 vi.mock('react-i18next', () => ({
@@ -43,16 +43,12 @@ vi.mock('../stores/streamingStore', () => ({
     };
     return selector ? selector(state) : state;
   }),
-  useStreamingConnection: vi.fn(() => ({
-    isConnected: false,
-    isConnecting: false,
-    error: null,
-    connectionQuality: 'good',
-  })),
-  useStreamingActions: vi.fn(() => ({
-    connect: vi.fn(),
-    disconnect: vi.fn(),
-  })),
+  useStreamingIsConnected: vi.fn(() => false),
+  useStreamingIsConnecting: vi.fn(() => false),
+  useStreamingError: vi.fn(() => null),
+  useStreamingConnectionQuality: vi.fn(() => 'good'),
+  useStreamingConnect: vi.fn(() => vi.fn()),
+  useStreamingDisconnect: vi.fn(() => vi.fn()),
 }));
 
 vi.mock('../stores/participantStore', () => ({
@@ -104,13 +100,8 @@ describe('StreamPage - Accessibility', () => {
   });
 
   it('should use alert role for error messages', () => {
-    // Mock the streaming connection to return an error
-    vi.mocked(streamingStore.useStreamingConnection).mockReturnValueOnce({
-      isConnected: false,
-      isConnecting: false,
-      error: 'Connection failed',
-      connectionQuality: 'poor',
-    });
+    // Mock the streaming error hook to return an error
+    vi.mocked(useStreamingError).mockReturnValueOnce('Connection failed');
 
     const { container } = render(
       <MemoryRouter initialEntries={['/streams/test-room']}>

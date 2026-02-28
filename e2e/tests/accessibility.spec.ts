@@ -61,14 +61,14 @@ test.describe('Accessibility', () => {
   test('buttons are keyboard accessible', async ({ page }) => {
     await page.goto('/');
     await page.waitForTimeout(2000);
-    
+
     const buttons = page.locator('button:visible');
     const count = await buttons.count();
-    
+
     for (let i = 0; i < Math.min(count, 5); i++) {
       const button = buttons.nth(i);
       await button.focus();
-      const isFocused = await button.evaluate(el => el === document.activeElement);
+      const isFocused = await button.evaluate((el) => el === document.activeElement);
       expect(isFocused).toBe(true);
     }
   });
@@ -76,7 +76,7 @@ test.describe('Accessibility', () => {
   test('color contrast meets WCAG AA', async ({ page }) => {
     await page.goto('/');
     await page.waitForTimeout(2000);
-    
+
     // Check that text elements have reasonable contrast
     // This is a basic check — full contrast testing needs axe-core
     const textElements = page.locator('p, h1, h2, h3, a, button, label');

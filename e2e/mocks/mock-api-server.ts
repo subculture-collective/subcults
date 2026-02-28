@@ -1,6 +1,6 @@
 /**
  * Mock API Server for E2E Testing
- * 
+ *
  * Simulates the Subcults API server endpoints needed for streaming tests.
  * Primarily handles LiveKit token generation.
  */
@@ -13,7 +13,7 @@ export class MockAPIServer {
   private app: Express;
   private server: Server | null = null;
   private mockLiveKit: MockLiveKitServer;
-  
+
   constructor(
     private port: number = 8080,
     private liveKitPort: number = 7880
@@ -29,13 +29,13 @@ export class MockAPIServer {
    */
   private setupMiddleware(): void {
     this.app.use(express.json());
-    
+
     // CORS for testing
     this.app.use((req, res, next) => {
       res.header('Access-Control-Allow-Origin', '*');
       res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
       res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization');
-      
+
       if (req.method === 'OPTIONS') {
         res.sendStatus(200);
       } else {
@@ -125,8 +125,8 @@ export class MockAPIServer {
             owner_did: 'did:plc:owner2',
             coarse_geohash: 'u33db8',
             allow_precise: false,
-            latitude: 52.5200,
-            longitude: 13.4050,
+            latitude: 52.52,
+            longitude: 13.405,
           },
         ],
         total: 2,
@@ -224,14 +224,14 @@ export class MockAPIServer {
     // LiveKit token generation (matches production API contract)
     this.app.post('/api/livekit/token', (req: Request, res: Response) => {
       const { room_id, scene_id, event_id } = req.body;
-      
+
       if (!room_id) {
         res.status(400).json({
           error: 'room_id is required',
         });
         return;
       }
-      
+
       // Validate room_id format (alphanumeric, hyphens, underscores, colons, max 128 chars)
       // Matches production: ^[a-zA-Z0-9_:-]{1,128}$
       if (!/^[a-zA-Z0-9_:-]{1,128}$/.test(room_id)) {
@@ -240,7 +240,7 @@ export class MockAPIServer {
         });
         return;
       }
-      
+
       // Derive identity from scene/event IDs (deterministic for E2E tests)
       const identityParts: string[] = ['e2e'];
       if (scene_id) {
@@ -250,10 +250,10 @@ export class MockAPIServer {
         identityParts.push(`event-${event_id}`);
       }
       const identity = identityParts.join(':');
-      
+
       const token = this.mockLiveKit.generateToken(room_id, identity);
       const expiresAt = new Date(Date.now() + 300000).toISOString(); // 5 minutes
-      
+
       // Match production response structure (snake_case)
       res.json({
         token,
@@ -264,7 +264,7 @@ export class MockAPIServer {
     // Simulate latency for testing
     this.app.post('/api/test/simulate-latency', (req: Request, res: Response) => {
       const { roomId, delayMs } = req.body;
-      
+
       if (roomId) {
         this.mockLiveKit.simulateNetworkDelay(roomId, delayMs || 1000);
         res.json({ success: true, roomId, delayMs });
@@ -276,7 +276,7 @@ export class MockAPIServer {
     // Simulate packet loss for testing
     this.app.post('/api/test/simulate-packet-loss', (req: Request, res: Response) => {
       const { roomId, lossPercentage } = req.body;
-      
+
       if (roomId) {
         this.mockLiveKit.simulatePacketLoss(roomId, lossPercentage || 10);
         res.json({ success: true, roomId, lossPercentage });
@@ -289,13 +289,13 @@ export class MockAPIServer {
     this.app.get('/api/test/room/:roomId', (req: Request, res: Response) => {
       const roomId = Array.isArray(req.params.roomId) ? req.params.roomId[0] : req.params.roomId;
       const room = this.mockLiveKit.getRoom(roomId);
-      
+
       if (room) {
         res.json({
           id: room.id,
           isLocked: room.isLocked,
           participantCount: room.participants.size,
-          participants: Array.from(room.participants.values()).map(p => ({
+          participants: Array.from(room.participants.values()).map((p) => ({
             identity: p.identity,
             name: p.name,
             isOrganizer: p.isOrganizer,
@@ -316,7 +316,7 @@ export class MockAPIServer {
   async start(): Promise<void> {
     // Start LiveKit mock first
     await this.mockLiveKit.start();
-    
+
     // Then start API server
     return new Promise((resolve) => {
       this.server = this.app.listen(this.port, () => {
@@ -339,7 +339,7 @@ export class MockAPIServer {
         });
       });
     }
-    
+
     // Stop LiveKit mock
     await this.mockLiveKit.stop();
   }

@@ -124,7 +124,7 @@ When a vulnerability is detected:
 
 In addition to automated scanning, we follow these security practices:
 
-- **Minimal Docker Images**: Use distroless images to reduce attack surface
+- **Minimal Docker Images**: Use minimal base images (Alpine, distroless) to reduce attack surface
 - **Dependency Pinning**: Lock dependency versions in `go.sum` and `package-lock.json`
 - **Regular Updates**: Review and update dependencies weekly via Dependabot
 - **Security Reviews**: All dependency updates reviewed by maintainers

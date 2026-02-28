@@ -71,6 +71,7 @@ func CORS(cfg CORSConfig) func(http.Handler) http.Handler {
 
 			// Origin is allowed - set CORS headers
 			w.Header().Set("Access-Control-Allow-Origin", origin)
+			w.Header().Add("Vary", "Origin")
 
 			if cfg.AllowCredentials {
 				w.Header().Set("Access-Control-Allow-Credentials", "true")

@@ -4,17 +4,17 @@ This directory contains Kubernetes manifests for the Subcults platform.
 
 ## Manifests
 
-| File | Description |
-|------|-------------|
-| `namespace.yaml` | Subcults namespace |
-| `configmap.yaml` | Non-secret configuration (env, ports, feature flags) |
-| `secrets.yaml.template` | Secret template — fill in before applying |
-| `api-deployment.yaml` | API Deployment (3 replicas) + Service + HPA |
-| `indexer-statefulset.yaml` | Indexer StatefulSet (1 replica) + Service |
-| `frontend-deployment.yaml` | Frontend Deployment (2 replicas) + Service |
-| `network-policies.yaml` | Inter-service traffic restrictions |
-| `pod-disruption-budgets.yaml` | PDBs for API and Frontend |
-| `migration-job.yaml` | Pre-deployment database migration Job |
+| File                          | Description                                          |
+| ----------------------------- | ---------------------------------------------------- |
+| `namespace.yaml`              | Subcults namespace                                   |
+| `configmap.yaml`              | Non-secret configuration (env, ports, feature flags) |
+| `secrets.yaml.template`       | Secret template — fill in before applying            |
+| `api-deployment.yaml`         | API Deployment (3 replicas) + Service + HPA          |
+| `indexer-statefulset.yaml`    | Indexer StatefulSet (1 replica) + Service            |
+| `frontend-deployment.yaml`    | Frontend Deployment (2 replicas) + Service           |
+| `network-policies.yaml`       | Inter-service traffic restrictions                   |
+| `pod-disruption-budgets.yaml` | PDBs for API and Frontend                            |
+| `migration-job.yaml`          | Pre-deployment database migration Job                |
 
 ## Quick Start
 

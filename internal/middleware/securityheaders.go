@@ -14,7 +14,7 @@ func SecurityHeaders(next http.Handler) http.Handler {
 		h.Set("Strict-Transport-Security", "max-age=63072000; includeSubDomains; preload")
 		h.Set("Permissions-Policy", "camera=(), microphone=(self), geolocation=(self)")
 		h.Set("X-XSS-Protection", "1; mode=block")
-		h.Set("Content-Security-Policy-Report-Only",
+		h.Set("Content-Security-Policy",
 			"default-src 'self'; "+
 				"script-src 'self'; "+
 				"style-src 'self' 'unsafe-inline'; "+

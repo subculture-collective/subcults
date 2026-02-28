@@ -78,6 +78,10 @@ export class ErrorBoundary extends Component<Props, State> {
     }
   }
 
+  handleRetry = () => {
+    this.setState({ hasError: false, error: null, errorInfo: null });
+  };
+
   handleReload = () => {
     window.location.reload();
   };
@@ -143,7 +147,7 @@ export class ErrorBoundary extends Component<Props, State> {
           <div style={{ display: 'flex', gap: '1rem', marginBottom: '2rem' }}>
             <button
               ref={this.errorButtonRef}
-              onClick={this.handleReload}
+              onClick={this.handleRetry}
               aria-describedby="error-title"
               style={{
                 padding: '0.75rem 1.5rem',
@@ -151,6 +155,22 @@ export class ErrorBoundary extends Component<Props, State> {
                 backgroundColor: 'white',
                 color: '#1a1a1a',
                 border: 'none',
+                borderRadius: '4px',
+                cursor: 'pointer',
+                fontWeight: '600',
+              }}
+            >
+              Try Again
+            </button>
+            <button
+              onClick={this.handleReload}
+              aria-describedby="error-title"
+              style={{
+                padding: '0.75rem 1.5rem',
+                fontSize: '1rem',
+                backgroundColor: 'transparent',
+                color: 'white',
+                border: '2px solid white',
                 borderRadius: '4px',
                 cursor: 'pointer',
                 fontWeight: '600',

@@ -138,12 +138,12 @@ func (h *PostHandlers) CreatePost(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Get author DID from context (would typically come from auth middleware)
+	// Get author DID from context (set by auth middleware)
 	authorDID := middleware.GetUserDID(r.Context())
 	if authorDID == "" {
-		// For now, allow unauthenticated posts with a default DID
-		// In production, this should return 401 Unauthorized
-		authorDID = "did:example:anonymous"
+		ctx := middleware.SetErrorCode(r.Context(), ErrCodeAuthFailed)
+		WriteError(w, ctx, http.StatusUnauthorized, ErrCodeAuthFailed, "authentication required")
+		return
 	}
 
 	// Enrich attachments with metadata if service is configured

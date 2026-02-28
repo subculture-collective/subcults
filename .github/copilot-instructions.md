@@ -1,5 +1,15 @@
 # Subcults - AI Agent Development Guide
 
+## Design System
+
+This project uses a unified design system. See [design-system.md](../design-system.md).
+
+All UI development must follow design-system.md for:
+- Color specifications (dark-first, vermillion accent)
+- Typography rules (Inter Tight display, Inter body, JetBrains Mono data)
+- Component styles (sharp corners, no shadows, underline-based interactions)
+- Spacing system and layout strategy
+
 ## Project Overview
 
 **Subcults** is a privacy-first platform for mapping underground music communities, combining real-time location awareness, live audio streaming, and trust-based discovery. The mission is to empower grassroots music scenes while respecting user privacy and enabling direct artist support.

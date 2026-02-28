@@ -111,6 +111,7 @@ var (
 	ErrMissingR2SecretAccessKey          = errors.New("R2_SECRET_ACCESS_KEY is required")
 	ErrMissingR2Endpoint                 = errors.New("R2_ENDPOINT is required")
 	ErrInvalidPort                       = errors.New("PORT must be a valid integer")
+	ErrJWTSecretTooShort                 = errors.New("JWT secret must be at least 32 bytes")
 )
 
 // Default values for non-secret configuration.
@@ -497,6 +498,15 @@ func (c *Config) Validate() []error {
 	// JWT secret validation: require either legacy JWT_SECRET or JWT_SECRET_CURRENT
 	if c.JWTSecret == "" && c.JWTSecretCurrent == "" {
 		errs = append(errs, ErrMissingJWTSecret)
+	} else {
+		// Validate minimum length for whichever secret is active
+		activeSecret := c.JWTSecretCurrent
+		if activeSecret == "" {
+			activeSecret = c.JWTSecret
+		}
+		if len(activeSecret) < 32 {
+			errs = append(errs, ErrJWTSecretTooShort)
+		}
 	}
 	if c.LiveKitURL == "" {
 		errs = append(errs, ErrMissingLiveKitURL)
@@ -593,7 +603,7 @@ func (c *Config) LogSummary() map[string]string {
 	}
 }
 
-// maskSecret masks a secret value, showing only the first 4 characters followed by ****
+// maskSecret masks a secret value, showing only the last 4 characters preceded by ****
 // If the secret is shorter than 8 characters, it's fully masked.
 func maskSecret(s string) string {
 	if s == "" {
@@ -602,7 +612,7 @@ func maskSecret(s string) string {
 	if len(s) < 8 {
 		return "****"
 	}
-	return s[:4] + "****"
+	return "****" + s[len(s)-4:]
 }
 
 // maskStripeKey masks a Stripe API key, preserving the prefix (sk_live_, sk_test_, etc.)

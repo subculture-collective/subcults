@@ -1,8 +1,8 @@
 package telemetry
 
 import (
-"context"
-"testing"
+	"context"
+	"testing"
 )
 
 func TestInMemoryStore_InsertEvents(t *testing.T) {

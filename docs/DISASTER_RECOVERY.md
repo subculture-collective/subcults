@@ -6,9 +6,9 @@ This document covers backup, restore, and disaster recovery procedures for Subcu
 
 ## Recovery Targets
 
-| Metric | Target | Notes |
-|--------|--------|-------|
-| **RTO** (Recovery Time Objective) | < 1 hour | Time to restore service |
+| Metric                             | Target   | Notes                    |
+| ---------------------------------- | -------- | ------------------------ |
+| **RTO** (Recovery Time Objective)  | < 1 hour | Time to restore service  |
 | **RPO** (Recovery Point Objective) | < 1 hour | Maximum data loss window |
 
 ## Backup Strategy
@@ -22,6 +22,7 @@ Neon provides built-in backup capabilities:
 - **Zero-downtime**: Branch operations don't affect the primary database
 
 To create a branch (instant backup):
+
 ```bash
 # Via Neon CLI
 neonctl branches create --project-id <id> --name backup-$(date +%Y%m%d)
@@ -40,18 +41,20 @@ For additional safety, run manual `pg_dump` backups:
 ```
 
 Backups are stored in `backups/` by default. The script:
+
 - Compresses with gzip
 - Verifies integrity after creation
 - Retains the last 30 backups (auto-cleanup)
 
 ### Backup Schedule
 
-| Type | Frequency | Retention | Location |
-|------|-----------|-----------|----------|
-| Neon PITR | Continuous | Per plan (7-30 days) | Neon cloud |
-| Manual pg_dump | Daily (cron) | 30 days | VPS `backups/` |
+| Type           | Frequency    | Retention            | Location       |
+| -------------- | ------------ | -------------------- | -------------- |
+| Neon PITR      | Continuous   | Per plan (7-30 days) | Neon cloud     |
+| Manual pg_dump | Daily (cron) | 30 days              | VPS `backups/` |
 
 Set up daily cron:
+
 ```bash
 # Add to crontab -e
 0 3 * * * /home/onnwee/projects/subcults/scripts/backup.sh >> /var/log/subcults-backup.log 2>&1
@@ -110,14 +113,14 @@ If the VPS is lost:
 
 ## Data Inventory
 
-| Data | Location | Backup Method | Critical? |
-|------|----------|--------------|-----------|
-| Database (scenes, events, users) | Neon Postgres | PITR + pg_dump | Yes |
-| Media uploads (images, audio) | Cloudflare R2 | R2 replication | Yes |
-| Configuration/secrets | deploy/.env | Manual secure copy | Yes |
-| Monitoring data (metrics) | Prometheus volume | Retention only (30d) | No |
-| Logs | Loki volume | Retention only (90d) | No |
-| Traces | Jaeger/Badger volumes | Retention only (30d) | No |
+| Data                             | Location              | Backup Method        | Critical? |
+| -------------------------------- | --------------------- | -------------------- | --------- |
+| Database (scenes, events, users) | Neon Postgres         | PITR + pg_dump       | Yes       |
+| Media uploads (images, audio)    | Cloudflare R2         | R2 replication       | Yes       |
+| Configuration/secrets            | deploy/.env           | Manual secure copy   | Yes       |
+| Monitoring data (metrics)        | Prometheus volume     | Retention only (30d) | No        |
+| Logs                             | Loki volume           | Retention only (90d) | No        |
+| Traces                           | Jaeger/Badger volumes | Retention only (30d) | No        |
 
 ## Testing
 

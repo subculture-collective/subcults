@@ -49,6 +49,7 @@ interface StreamingState {
   // Reconnection state
   reconnectAttempts: number;
   isReconnecting: boolean;
+  reconnectTimeoutId: ReturnType<typeof setTimeout> | null;
 
   // Room metadata
   sceneId?: string;
@@ -243,6 +244,7 @@ export const useStreamingStore = create<StreamingStore>((set, get) => ({
   isLocalMuted: false,
   reconnectAttempts: 0,
   isReconnecting: false,
+  reconnectTimeoutId: null,
 
   /**
    * Initialize the store (call on app startup)
@@ -442,11 +444,16 @@ export const useStreamingStore = create<StreamingStore>((set, get) => ({
    * Disconnect from current room
    */
   disconnect: () => {
-    const { room } = get();
+    const { room, reconnectTimeoutId } = get();
 
     if (room) {
       room.removeAllListeners();
       room.disconnect();
+    }
+
+    // Clear any pending reconnect timeout
+    if (reconnectTimeoutId) {
+      clearTimeout(reconnectTimeoutId);
     }
 
     // Clear participant store
@@ -462,6 +469,7 @@ export const useStreamingStore = create<StreamingStore>((set, get) => ({
       connectionQuality: 'unknown',
       reconnectAttempts: 0,
       isReconnecting: false,
+      reconnectTimeoutId: null,
     });
 
     console.info('Disconnected from room');
@@ -556,7 +564,8 @@ export const useStreamingStore = create<StreamingStore>((set, get) => ({
 
     console.info(`Scheduling reconnection attempt ${state.reconnectAttempts + 1} in ${delay}ms`);
 
-    setTimeout(() => {
+    const timeoutId = setTimeout(() => {
+      set({ reconnectTimeoutId: null });
       const currentState = get();
 
       // Only reconnect if still disconnected and have room info
@@ -565,6 +574,8 @@ export const useStreamingStore = create<StreamingStore>((set, get) => ({
         currentState.connect(currentState.roomName, currentState.sceneId, currentState.eventId);
       }
     }, delay);
+
+    set({ reconnectTimeoutId: timeoutId });
   },
 }));
 

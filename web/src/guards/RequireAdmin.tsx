@@ -13,8 +13,12 @@ interface RequireAdminProps {
 }
 
 export const RequireAdmin: React.FC<RequireAdminProps> = ({ children }) => {
-  const { isAuthenticated, isAdmin } = useAuth();
+  const { isAuthenticated, isAdmin, isLoading } = useAuth();
   const location = useLocation();
+
+  if (isLoading) {
+    return <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '100vh' }}>Loading...</div>;
+  }
 
   if (!isAuthenticated) {
     // Not authenticated - redirect to login, preserving the attempted location

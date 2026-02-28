@@ -37,10 +37,10 @@ func TestSecurityHeaders(t *testing.T) {
 		})
 	}
 
-	// Verify CSP-Report-Only is present and contains report-uri
-	csp := rec.Header().Get("Content-Security-Policy-Report-Only")
+	// Verify CSP is present and contains report-uri
+	csp := rec.Header().Get("Content-Security-Policy")
 	if csp == "" {
-		t.Error("Content-Security-Policy-Report-Only header is empty")
+		t.Error("Content-Security-Policy header is empty")
 	}
 	if got := rec.Code; got != http.StatusOK {
 		t.Errorf("status = %d, want %d", got, http.StatusOK)
