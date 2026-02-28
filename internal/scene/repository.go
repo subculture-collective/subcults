@@ -894,9 +894,12 @@ func (r *InMemoryEventRepository) SearchEvents(opts EventSearchOptions) ([]*Even
 
 	// Check if trust ranking is enabled
 	includeTrust := len(opts.TrustScores) > 0
-	allowedSceneIDs := make(map[string]struct{}, len(opts.SceneIDs))
-	for _, sceneID := range opts.SceneIDs {
-		allowedSceneIDs[sceneID] = struct{}{}
+	var allowedSceneIDs map[string]struct{}
+	if opts.SceneID == "" && len(opts.SceneIDs) > 0 {
+		allowedSceneIDs = make(map[string]struct{}, len(opts.SceneIDs))
+		for _, sceneID := range opts.SceneIDs {
+			allowedSceneIDs[sceneID] = struct{}{}
+		}
 	}
 
 	// Collect and rank matching events
@@ -1030,6 +1033,10 @@ func (r *InMemoryEventRepository) SearchEvents(opts EventSearchOptions) ([]*Even
 	return results, nextCursor, nil
 }
 
+// matchesEventStatusFilter applies the API status categories to event data.
+// "upcoming", "live", and "cancelled" map directly to status values.
+// "past" includes explicitly ended events and scheduled events that started in
+// the past and have an ended end-time.
 func matchesEventStatusFilter(event *Event, statusFilter string, now time.Time) bool {
 	switch statusFilter {
 	case "":
@@ -1039,7 +1046,16 @@ func matchesEventStatusFilter(event *Event, statusFilter string, now time.Time) 
 	case "live":
 		return event.Status == "live"
 	case "past":
-		return event.Status == "ended" || (event.Status == "scheduled" && event.StartsAt.Before(now))
+		if event.Status == "ended" {
+			return true
+		}
+		if event.Status != "scheduled" || !event.StartsAt.Before(now) {
+			return false
+		}
+		if event.EndsAt != nil {
+			return event.EndsAt.Before(now)
+		}
+		return false
 	case "upcoming":
 		return event.Status == "scheduled" && event.StartsAt.After(now)
 	default:

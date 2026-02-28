@@ -534,7 +534,8 @@ func TestSearchEvents_CursorPrecision(t *testing.T) {
 
 func TestSearchEvents_StatusAndSceneFilters(t *testing.T) {
 	repo := NewInMemoryEventRepository()
-	baseTime := time.Now().Add(24 * time.Hour)
+	now := time.Now()
+	baseTime := now.Add(24 * time.Hour)
 
 	upcomingEvent := &Event{
 		ID:            uuid.New().String(),
@@ -572,8 +573,22 @@ func TestSearchEvents_StatusAndSceneFilters(t *testing.T) {
 		CreatedAt:     &baseTime,
 		UpdatedAt:     &baseTime,
 	}
+	ongoingEndsAt := now.Add(1 * time.Hour)
+	ongoingScheduledEvent := &Event{
+		ID:            uuid.New().String(),
+		SceneID:       "scene-a",
+		Title:         "Ongoing",
+		AllowPrecise:  true,
+		PrecisePoint:  &Point{Lat: 40.7131, Lng: -74.0057},
+		CoarseGeohash: "dr5regw",
+		Status:        "scheduled",
+		StartsAt:      now.Add(-1 * time.Hour),
+		EndsAt:        &ongoingEndsAt,
+		CreatedAt:     &baseTime,
+		UpdatedAt:     &baseTime,
+	}
 
-	for _, event := range []*Event{upcomingEvent, cancelledEvent, otherSceneEvent} {
+	for _, event := range []*Event{upcomingEvent, cancelledEvent, otherSceneEvent, ongoingScheduledEvent} {
 		if err := repo.Insert(event); err != nil {
 			t.Fatalf("failed to insert event: %v", err)
 		}
@@ -590,16 +605,15 @@ func TestSearchEvents_StatusAndSceneFilters(t *testing.T) {
 	}
 
 	upcomingResults, _, err := repo.SearchEvents(EventSearchOptions{
-		MinLng:   commonOptions.MinLng,
-		MinLat:   commonOptions.MinLat,
-		MaxLng:   commonOptions.MaxLng,
-		MaxLat:   commonOptions.MaxLat,
-		From:     commonOptions.From,
-		To:       commonOptions.To,
-		Limit:    commonOptions.Limit,
-		Status:   "upcoming",
-		SceneID:  "scene-a",
-		SceneIDs: []string{"scene-a"},
+		MinLng:  commonOptions.MinLng,
+		MinLat:  commonOptions.MinLat,
+		MaxLng:  commonOptions.MaxLng,
+		MaxLat:  commonOptions.MaxLat,
+		From:    commonOptions.From,
+		To:      commonOptions.To,
+		Limit:   commonOptions.Limit,
+		Status:  "upcoming",
+		SceneID: "scene-a",
 	})
 	if err != nil {
 		t.Fatalf("failed to search upcoming events: %v", err)
@@ -624,5 +638,23 @@ func TestSearchEvents_StatusAndSceneFilters(t *testing.T) {
 	}
 	if len(cancelledResults) != 1 || cancelledResults[0].ID != cancelledEvent.ID {
 		t.Fatalf("expected only cancelled scene-a event %s, got %+v", cancelledEvent.ID, cancelledResults)
+	}
+
+	pastResults, _, err := repo.SearchEvents(EventSearchOptions{
+		MinLng:  commonOptions.MinLng,
+		MinLat:  commonOptions.MinLat,
+		MaxLng:  commonOptions.MaxLng,
+		MaxLat:  commonOptions.MaxLat,
+		From:    now.Add(-2 * time.Hour),
+		To:      now.Add(2 * time.Hour),
+		Limit:   commonOptions.Limit,
+		Status:  "past",
+		SceneID: "scene-a",
+	})
+	if err != nil {
+		t.Fatalf("failed to search past events: %v", err)
+	}
+	if len(pastResults) != 0 {
+		t.Fatalf("expected no past events because ongoing event has not ended, got %+v", pastResults)
 	}
 }
