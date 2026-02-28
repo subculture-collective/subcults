@@ -270,3 +270,44 @@ func TestMetrics_PacketLossThreshold(t *testing.T) {
 		})
 	}
 }
+
+func TestMetrics_ObserveNetworkRTT(t *testing.T) {
+	m := NewMetrics()
+
+	initial := getHistogramSampleCount(m.networkRTT)
+	if initial != 0 {
+		t.Errorf("initial count = %d, want 0", initial)
+	}
+
+	m.ObserveNetworkRTT(50.0)
+	m.ObserveNetworkRTT(100.0)
+	m.ObserveNetworkRTT(200.0)
+
+	count := getHistogramSampleCount(m.networkRTT)
+	if count != 3 {
+		t.Errorf("sample count = %d, want 3", count)
+	}
+
+	sum := getHistogramSampleSum(m.networkRTT)
+	if sum != 350.0 {
+		t.Errorf("sample sum = %f, want 350.0", sum)
+	}
+}
+
+func TestMetrics_IncQualityAlerts(t *testing.T) {
+	m := NewMetrics()
+
+	initial := getCounterValue(m.qualityAlerts)
+	if initial != 0 {
+		t.Errorf("initial value = %f, want 0", initial)
+	}
+
+	for i := 0; i < 5; i++ {
+		m.IncQualityAlerts()
+	}
+
+	final := getCounterValue(m.qualityAlerts)
+	if final != 5 {
+		t.Errorf("final value = %f, want 5", final)
+	}
+}
