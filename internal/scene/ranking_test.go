@@ -383,20 +383,22 @@ func TestCalculateSceneProximityScore(t *testing.T) {
 		expectedMax float64
 	}{
 		{
-			name: "exact center location",
+			name: "exact center location without geohash",
 			scene: &Scene{
 				PrecisePoint: &Point{Lat: 40.7128, Lng: -74.0060},
 			},
-			expectedMin: 1.0,
-			expectedMax: 1.0,
+			// Blended: 0.5*defaultGeohash(0.5) + 0.5*distance(1.0) = 0.75
+			expectedMin: 0.75,
+			expectedMax: 0.75,
 		},
 		{
-			name: "nearby location",
+			name: "nearby location without geohash",
 			scene: &Scene{
 				PrecisePoint: &Point{Lat: 40.7, Lng: -74.0},
 			},
-			expectedMin: 0.8,
-			expectedMax: 1.0,
+			// Blended: 0.5*defaultGeohash(0.5) + 0.5*distance(~0.986) ≈ 0.74
+			expectedMin: 0.70,
+			expectedMax: 0.80,
 		},
 		{
 			name: "no location",
