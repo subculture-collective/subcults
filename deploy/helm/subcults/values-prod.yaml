@@ -13,9 +13,9 @@ frontend:
   replicaCount: 2
 
 config:
-  corsAllowedOrigins: "https://subcults.subcult.tv"
-  tracingSampleRate: "0.1"
-  rankTrustEnabled: "false"
+  corsAllowedOrigins: 'https://subcults.subcult.tv'
+  tracingSampleRate: '0.1'
+  rankTrustEnabled: 'false'
 
 migration:
   enabled: true

@@ -43,19 +43,27 @@ test.describe('Authentication', () => {
     await page.goto('/account/login');
 
     // Fill in invalid credentials (field names may vary)
-    const emailInput = page.locator('input[type="email"], input[type="text"], input[name*="handle"], input[name*="email"]').first();
+    const emailInput = page
+      .locator(
+        'input[type="email"], input[type="text"], input[name*="handle"], input[name*="email"]'
+      )
+      .first();
     const passwordInput = page.locator('input[type="password"]').first();
 
-    if (await emailInput.isVisible() && await passwordInput.isVisible()) {
+    if ((await emailInput.isVisible()) && (await passwordInput.isVisible())) {
       await emailInput.fill('invalid@test.com');
       await passwordInput.fill('wrongpassword');
 
       // Submit
-      const submitButton = page.locator('button[type="submit"], button:has-text("login"), button:has-text("sign in")').first();
+      const submitButton = page
+        .locator('button[type="submit"], button:has-text("login"), button:has-text("sign in")')
+        .first();
       if (await submitButton.isVisible()) {
         await submitButton.click();
         // Should show an error message
-        await expect(page.getByText(/invalid|error|failed|unauthorized/i)).toBeVisible({ timeout: 5000 });
+        await expect(page.getByText(/invalid|error|failed|unauthorized/i)).toBeVisible({
+          timeout: 5000,
+        });
       }
     }
   });
@@ -64,14 +72,20 @@ test.describe('Authentication', () => {
     await interceptAPI(page);
     await page.goto('/account/login');
 
-    const emailInput = page.locator('input[type="email"], input[type="text"], input[name*="handle"], input[name*="email"]').first();
+    const emailInput = page
+      .locator(
+        'input[type="email"], input[type="text"], input[name*="handle"], input[name*="email"]'
+      )
+      .first();
     const passwordInput = page.locator('input[type="password"]').first();
 
-    if (await emailInput.isVisible() && await passwordInput.isVisible()) {
+    if ((await emailInput.isVisible()) && (await passwordInput.isVisible())) {
       await emailInput.fill('testuser@subcults.tv');
       await passwordInput.fill('validpassword');
 
-      const submitButton = page.locator('button[type="submit"], button:has-text("login"), button:has-text("sign in")').first();
+      const submitButton = page
+        .locator('button[type="submit"], button:has-text("login"), button:has-text("sign in")')
+        .first();
       if (await submitButton.isVisible()) {
         await submitButton.click();
         // After login, token should be stored
@@ -83,7 +97,8 @@ test.describe('Authentication', () => {
           };
         });
         // Verify some auth state was persisted
-        const hasAuthState = JSON.stringify(storage).includes('token') ||
+        const hasAuthState =
+          JSON.stringify(storage).includes('token') ||
           JSON.stringify(storage).includes('auth') ||
           JSON.stringify(storage).includes('e2e-access');
         // This is a soft check — the app may store tokens differently

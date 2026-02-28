@@ -13,6 +13,6 @@ frontend:
   replicaCount: 1
 
 config:
-  corsAllowedOrigins: "https://staging.subcults.subcult.tv"
-  tracingSampleRate: "0.5"
-  canaryEnabled: "true"
+  corsAllowedOrigins: 'https://staging.subcults.subcult.tv'
+  tracingSampleRate: '0.5'
+  canaryEnabled: 'true'

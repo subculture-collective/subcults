@@ -43,12 +43,11 @@ const NOTIFICATION_STORAGE_KEY = 'subcults-notification-subscription';
  */
 function getStoredSubscription(): PushSubscriptionData | null {
   try {
-    const stored = localStorage.getItem(NOTIFICATION_STORAGE_KEY);
-    if (stored) {
-      return JSON.parse(stored);
-    }
+    // Clear any legacy stored subscription data — subscriptions should be
+    // obtained from PushManager.getSubscription(), not from localStorage.
+    localStorage.removeItem(NOTIFICATION_STORAGE_KEY);
   } catch (error) {
-    console.warn('[notificationStore] Failed to parse stored subscription:', error);
+    console.warn('[notificationStore] Failed to clear legacy subscription:', error);
   }
   return null;
 }

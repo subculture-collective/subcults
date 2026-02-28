@@ -4,6 +4,7 @@ package middleware
 import (
 	"context"
 	"fmt"
+	"crypto/subtle"
 	"net"
 	"net/http"
 	"strconv"
@@ -123,14 +124,19 @@ type bucket struct {
 // It uses a simple fixed window counter algorithm.
 // Thread-safe for concurrent access.
 type InMemoryRateLimitStore struct {
-	mu      sync.RWMutex
-	buckets map[string]*bucket
+	mu         sync.RWMutex
+	buckets    map[string]*bucket
+	maxBuckets int
 }
+
+// defaultMaxBuckets is the maximum number of tracked keys before rejecting new ones.
+const defaultMaxBuckets = 100000
 
 // NewInMemoryRateLimitStore creates a new in-memory rate limit store.
 func NewInMemoryRateLimitStore() *InMemoryRateLimitStore {
 	return &InMemoryRateLimitStore{
-		buckets: make(map[string]*bucket),
+		buckets:    make(map[string]*bucket),
+		maxBuckets: defaultMaxBuckets,
 	}
 }
 
@@ -143,6 +149,12 @@ func (s *InMemoryRateLimitStore) Allow(ctx context.Context, key string, config R
 	now := time.Now()
 
 	b, exists := s.buckets[key]
+
+	// Protect against memory exhaustion: reject new keys when at capacity
+	if !exists && len(s.buckets) >= s.maxBuckets {
+		return false, 0, 1
+	}
+
 	if !exists || now.After(b.windowEnd) {
 		// New window: reset counts and set burst sub-window if configured.
 		var burstEnd time.Time
@@ -207,11 +219,9 @@ func IPKeyFunc() KeyFunc {
 	return func(r *http.Request) string {
 		// Check X-Forwarded-For header first (for proxied requests)
 		if xff := r.Header.Get("X-Forwarded-For"); xff != "" {
-			// Use the first IP in the chain, trimming whitespace per RFC 7239
-			if idx := strings.Index(xff, ","); idx != -1 {
-				return strings.TrimSpace(xff[:idx])
-			}
-			return strings.TrimSpace(xff)
+			// Use the last (rightmost) IP — the one added by the trusted reverse proxy
+			parts := strings.Split(xff, ",")
+			return strings.TrimSpace(parts[len(parts)-1])
 		}
 		// Check X-Real-IP header
 		if xri := r.Header.Get("X-Real-IP"); xri != "" {
@@ -319,7 +329,8 @@ func InternalServiceBypassFunc(secret string) func(*http.Request) bool {
 		return func(*http.Request) bool { return false }
 	}
 	return func(r *http.Request) bool {
-		return r.Header.Get("X-Internal-Token") == secret
+		token := r.Header.Get("X-Internal-Token")
+		return subtle.ConstantTimeCompare([]byte(token), []byte(secret)) == 1
 	}
 }
 

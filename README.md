@@ -17,7 +17,7 @@ Rebuild the connective tissue of the underground: a trust‑based discovery laye
 ## Initial Stack
 
 - Frontend: Vite + React + TypeScript + MapLibre (MapTiler tiles)
-- Backend: Go (chi) API + Jetstream indexer
+- Backend: Go (net/http) API + Jetstream indexer
 - RTC Audio: LiveKit Cloud (WebRTC SFU, TURN, token issuance)
 - Database: Neon Postgres 16 + PostGIS (geo + FTS)
 - Storage: Cloudflare R2 (media assets, recordings)
@@ -73,8 +73,8 @@ subcults/
 
 ### Prerequisites
 
-- Go 1.21+
-- Node.js 18+
+- Go 1.24+
+- Node.js 22+
 - Docker & Docker Compose
 - libvips 8.x+ (for image processing, optional for API-only development)
 
@@ -339,21 +339,23 @@ Variables are organized into logical groups:
 
 - **`METRICS_PORT`** - Prometheus metrics endpoint port
   - Default: `9090`
-- **`INTERNAL_AUTH_TOKEN`** - Auth token for metrics endpoint
+- **`METRICS_AUTH_TOKEN`** - Auth token for metrics endpoint
   - Leave empty to disable authentication
 
 ### Required Variables
 
-The following variables **must** be set before starting the application:
+The following variables **must** be set before starting the application (fatal on missing):
 
 - `DATABASE_URL` - Database connection
-- `JWT_SECRET` (or `JWT_SECRET_CURRENT`) - Authentication secret
+- `JWT_SECRET` (or `JWT_SECRET_CURRENT`) - Authentication secret (min 32 bytes)
+
+The following variables are **recommended** but the application will start without them (with warnings), gracefully disabling the corresponding features:
+
 - `LIVEKIT_URL`, `LIVEKIT_API_KEY`, `LIVEKIT_API_SECRET` - WebRTC streaming
 - `STRIPE_API_KEY`, `STRIPE_WEBHOOK_SECRET` - Payment processing
+- `STRIPE_ONBOARDING_RETURN_URL`, `STRIPE_ONBOARDING_REFRESH_URL` - Stripe Connect onboarding
 - `MAPTILER_API_KEY` - Map tiles
 - `JETSTREAM_URL` - AT Protocol data ingestion
-
-The application will **fail to start** if any required variable is missing, with clear error messages indicating which variables need to be set.
 
 ### Optional Variables
 
@@ -501,7 +503,7 @@ We run automated vulnerability scanning on all dependencies:
 If you discover a security vulnerability, please:
 
 - **DO NOT** open a public GitHub issue
-- Email: info@subcult.tv
+- Email: security@subcults.dev
 - Include: description, reproduction steps, impact assessment
 
 We will acknowledge reports within 48 hours.

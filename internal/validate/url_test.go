@@ -149,13 +149,13 @@ func TestDefaultURLConstraints(t *testing.T) {
 		wantErr bool
 	}{
 		{
-			name:    "HTTPS allowed",
-			input:   "https://example.com",
+			name:    "HTTPS allowed with resolvable domain",
+			input:   "https://www.google.com",
 			wantErr: false,
 		},
 		{
 			name:    "HTTP blocked by default",
-			input:   "http://example.com",
+			input:   "http://www.google.com",
 			wantErr: true,
 		},
 		{
@@ -182,13 +182,13 @@ func TestPublicWebURLConstraints(t *testing.T) {
 		wantErr bool
 	}{
 		{
-			name:    "HTTPS allowed",
-			input:   "https://example.com",
+			name:    "HTTPS allowed with resolvable domain",
+			input:   "https://www.google.com",
 			wantErr: false,
 		},
 		{
-			name:    "HTTP allowed",
-			input:   "http://example.com",
+			name:    "HTTP allowed with resolvable domain",
+			input:   "http://www.google.com",
 			wantErr: false,
 		},
 		{
@@ -215,9 +215,14 @@ func TestAttachmentURL(t *testing.T) {
 		wantErr bool
 	}{
 		{
-			name:    "valid HTTPS URL",
-			input:   "https://cdn.example.com/image.jpg",
+			name:    "valid HTTPS URL with resolvable domain",
+			input:   "https://www.google.com/image.jpg",
 			wantErr: false,
+		},
+		{
+			name:    "unresolvable domain rejected (SSRF fail-closed)",
+			input:   "https://cdn.example.com/image.jpg",
+			wantErr: true,
 		},
 		{
 			name:    "HTTP not allowed",
@@ -248,14 +253,19 @@ func TestMediaURL(t *testing.T) {
 		wantErr bool
 	}{
 		{
-			name:    "valid HTTPS URL",
-			input:   "https://media.example.com/video.mp4",
+			name:    "valid HTTPS URL with resolvable domain",
+			input:   "https://www.google.com/video.mp4",
 			wantErr: false,
 		},
 		{
-			name:    "HTTP allowed for media",
-			input:   "http://media.example.com/audio.mp3",
+			name:    "HTTP allowed for media with resolvable domain",
+			input:   "http://www.google.com/audio.mp3",
 			wantErr: false,
+		},
+		{
+			name:    "unresolvable domain rejected (SSRF fail-closed)",
+			input:   "https://media.example.com/video.mp4",
+			wantErr: true,
 		},
 		{
 			name:    "localhost blocked",

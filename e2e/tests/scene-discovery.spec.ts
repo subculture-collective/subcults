@@ -33,10 +33,10 @@ test.describe('Scene Discovery', () => {
   test('home page loads map with scene markers', async ({ page }) => {
     await interceptAPI(page);
     await page.goto('/');
-    
+
     // Wait for map to initialize
     await page.waitForTimeout(2000);
-    
+
     // The map container should be rendered
     const mapContainer = page.locator('[class*="map"], [id*="map"], canvas');
     await expect(mapContainer.first()).toBeVisible({ timeout: 10000 });
@@ -45,7 +45,7 @@ test.describe('Scene Discovery', () => {
   test('scene detail page shows scene info', async ({ page }) => {
     await interceptAPI(page);
     await page.goto('/scenes/scene-1');
-    
+
     // Should load without error — look for any content
     await page.waitForTimeout(2000);
     const body = await page.textContent('body');
@@ -55,17 +55,21 @@ test.describe('Scene Discovery', () => {
   test('search returns results', async ({ page }) => {
     await interceptAPI(page);
     await page.goto('/');
-    
+
     // Look for a search input
-    const searchInput = page.locator('input[type="search"], input[placeholder*="search" i], input[aria-label*="search" i]').first();
-    
+    const searchInput = page
+      .locator(
+        'input[type="search"], input[placeholder*="search" i], input[aria-label*="search" i]'
+      )
+      .first();
+
     if (await searchInput.isVisible({ timeout: 3000 }).catch(() => false)) {
       await searchInput.fill('brooklyn');
       await searchInput.press('Enter');
-      
+
       // Wait for search results
       await page.waitForTimeout(1000);
-      
+
       // Should render results
       const body = await page.textContent('body');
       expect(body?.toLowerCase()).toContain('brooklyn');
@@ -81,10 +85,10 @@ test.describe('Scene Discovery', () => {
         body: JSON.stringify({ error: 'Internal Server Error' }),
       });
     });
-    
+
     await page.goto('/scenes/scene-error');
     await page.waitForTimeout(2000);
-    
+
     // Should not show a blank page — error boundary or error message should appear
     const body = await page.textContent('body');
     expect(body?.length).toBeGreaterThan(0);

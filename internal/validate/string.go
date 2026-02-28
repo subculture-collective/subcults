@@ -21,6 +21,9 @@ var (
 	ErrEmpty             = errors.New("string is empty")
 )
 
+// sceneNamePattern is a precompiled regex for allowed scene name characters.
+var sceneNamePattern = regexp.MustCompile(`^[A-Za-z0-9 _\-\.]+$`)
+
 // StringConstraints defines validation constraints for a string.
 type StringConstraints struct {
 	MinLength        int              // Minimum length (0 = no minimum)
@@ -153,11 +156,10 @@ func SanitizeString(s string, constraints StringConstraints) (string, error) {
 // with legitimate venue names like "Drop Zone" or "The Executive Lounge".
 // Parameterized queries provide the primary SQL injection defense.
 func SceneName(name string) (string, error) {
-	pattern := regexp.MustCompile(`^[A-Za-z0-9 _\-\.]+$`)
 	return SanitizeString(name, StringConstraints{
 		MinLength:        1,
 		MaxLength:        100,
-		AllowedPattern:   pattern,
+		AllowedPattern:   sceneNamePattern,
 		CheckSQLKeywords: false, // Disabled to avoid false positives
 		AllowEmpty:       false,
 		TrimSpace:        true,

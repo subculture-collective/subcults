@@ -242,10 +242,10 @@ func TestIPKeyFunc(t *testing.T) {
 			wantKey:       "203.0.113.50",
 		},
 		{
-			name:          "uses first IP from X-Forwarded-For chain",
+			name:          "uses last IP from X-Forwarded-For chain",
 			remoteAddr:    "10.0.0.1:12345",
 			xForwardedFor: "203.0.113.50, 198.51.100.1, 10.0.0.1",
-			wantKey:       "203.0.113.50",
+			wantKey:       "10.0.0.1",
 		},
 		{
 			name:       "prefers X-Real-IP over RemoteAddr",
@@ -269,7 +269,7 @@ func TestIPKeyFunc(t *testing.T) {
 			name:          "trims whitespace in X-Forwarded-For chain",
 			remoteAddr:    "10.0.0.1:12345",
 			xForwardedFor: "  203.0.113.50  ,  198.51.100.1  ",
-			wantKey:       "203.0.113.50",
+			wantKey:       "198.51.100.1",
 		},
 		{
 			name:          "trims whitespace in single X-Forwarded-For",

@@ -4,7 +4,7 @@ codecov:
 coverage:
   precision: 2
   round: down
-  range: "60...90"
+  range: '60...90'
 
   status:
     project:
@@ -20,19 +20,19 @@ coverage:
       auth:
         target: 95%
         paths:
-          - "internal/auth/**"
+          - 'internal/auth/**'
         flags:
           - backend
       geo:
         target: 95%
         paths:
-          - "internal/geo/**"
+          - 'internal/geo/**'
         flags:
           - backend
       payment:
         target: 95%
         paths:
-          - "internal/payment/**"
+          - 'internal/payment/**'
         flags:
           - backend
     patch:
@@ -42,23 +42,23 @@ coverage:
 flags:
   backend:
     paths:
-      - "internal/**"
-      - "cmd/**"
-      - "pkg/**"
+      - 'internal/**'
+      - 'cmd/**'
+      - 'pkg/**'
     carryforward: true
   frontend:
     paths:
-      - "web/src/**"
+      - 'web/src/**'
     carryforward: true
 
 ignore:
-  - "**/*_test.go"
-  - "**/testutil/**"
-  - "**/testdata/**"
-  - "web/src/test/**"
-  - "migrations/**"
-  - "scripts/**"
-  - "perf/**"
-  - "e2e/**"
-  - "docs/**"
-  - "examples/**"
+  - '**/*_test.go'
+  - '**/testutil/**'
+  - '**/testdata/**'
+  - 'web/src/test/**'
+  - 'migrations/**'
+  - 'scripts/**'
+  - 'perf/**'
+  - 'e2e/**'
+  - 'docs/**'
+  - 'examples/**'

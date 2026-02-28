@@ -9,9 +9,18 @@ import (
 	"testing"
 
 	"github.com/onnwee/subcults/internal/membership"
+	"github.com/onnwee/subcults/internal/middleware"
 	"github.com/onnwee/subcults/internal/post"
 	"github.com/onnwee/subcults/internal/scene"
 )
+
+// testUserDID is the DID used in tests to simulate an authenticated user.
+const testUserDID = "did:plc:testuser123"
+
+// withAuthContext attaches a test user DID to the request context.
+func withAuthContext(r *http.Request) *http.Request {
+	return r.WithContext(middleware.SetUserDID(r.Context(), testUserDID))
+}
 
 // Helper function to create a string pointer
 func strPtr(s string) *string {
@@ -46,6 +55,7 @@ func TestCreatePost_Success(t *testing.T) {
 	req.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()
 
+	req = withAuthContext(req)
 	handlers.CreatePost(w, req)
 
 	if w.Code != http.StatusCreated {
@@ -87,6 +97,7 @@ func TestCreatePost_WithEventID(t *testing.T) {
 	req.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()
 
+	req = withAuthContext(req)
 	handlers.CreatePost(w, req)
 
 	if w.Code != http.StatusCreated {
@@ -120,6 +131,7 @@ func TestCreatePost_MissingTarget(t *testing.T) {
 	req.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()
 
+	req = withAuthContext(req)
 	handlers.CreatePost(w, req)
 
 	if w.Code != http.StatusBadRequest {
@@ -155,6 +167,7 @@ func TestCreatePost_EmptyText(t *testing.T) {
 	req.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()
 
+	req = withAuthContext(req)
 	handlers.CreatePost(w, req)
 
 	if w.Code != http.StatusBadRequest {
@@ -191,6 +204,7 @@ func TestCreatePost_TextTooLong(t *testing.T) {
 	req.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()
 
+	req = withAuthContext(req)
 	handlers.CreatePost(w, req)
 
 	if w.Code != http.StatusBadRequest {
@@ -232,6 +246,7 @@ func TestCreatePost_TooManyAttachments(t *testing.T) {
 	req.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()
 
+	req = withAuthContext(req)
 	handlers.CreatePost(w, req)
 
 	if w.Code != http.StatusBadRequest {
@@ -268,6 +283,7 @@ func TestCreatePost_XSSSanitization(t *testing.T) {
 	req.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()
 
+	req = withAuthContext(req)
 	handlers.CreatePost(w, req)
 
 	if w.Code != http.StatusCreated {
@@ -322,6 +338,7 @@ func TestUpdatePost_Success(t *testing.T) {
 	req.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()
 
+	req = withAuthContext(req)
 	handlers.UpdatePost(w, req)
 
 	if w.Code != http.StatusOK {
@@ -372,6 +389,7 @@ func TestUpdatePost_Labels(t *testing.T) {
 	req.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()
 
+	req = withAuthContext(req)
 	handlers.UpdatePost(w, req)
 
 	if w.Code != http.StatusOK {
@@ -412,6 +430,7 @@ func TestUpdatePost_NotFound(t *testing.T) {
 	req.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()
 
+	req = withAuthContext(req)
 	handlers.UpdatePost(w, req)
 
 	if w.Code != http.StatusNotFound {
@@ -447,6 +466,7 @@ func TestDeletePost_Success(t *testing.T) {
 	req := httptest.NewRequest(http.MethodDelete, "/posts/"+originalPost.ID, nil)
 	w := httptest.NewRecorder()
 
+	req = withAuthContext(req)
 	handlers.DeletePost(w, req)
 
 	if w.Code != http.StatusNoContent {
@@ -478,6 +498,7 @@ func TestDeletePost_SoftDeletedExclusion(t *testing.T) {
 	// Delete the post
 	req := httptest.NewRequest(http.MethodDelete, "/posts/"+originalPost.ID, nil)
 	w := httptest.NewRecorder()
+	req = withAuthContext(req)
 	handlers.DeletePost(w, req)
 
 	if w.Code != http.StatusNoContent {
@@ -497,6 +518,7 @@ func TestDeletePost_SoftDeletedExclusion(t *testing.T) {
 	body, _ := json.Marshal(reqBody)
 	req3 := httptest.NewRequest(http.MethodPatch, "/posts/"+originalPost.ID, bytes.NewReader(body))
 	w3 := httptest.NewRecorder()
+	req3 = withAuthContext(req3)
 	handlers.UpdatePost(w3, req3)
 
 	if w3.Code != http.StatusNotFound {
@@ -511,6 +533,7 @@ func TestDeletePost_NotFound(t *testing.T) {
 	req := httptest.NewRequest(http.MethodDelete, "/posts/nonexistent", nil)
 	w := httptest.NewRecorder()
 
+	req = withAuthContext(req)
 	handlers.DeletePost(w, req)
 
 	if w.Code != http.StatusNotFound {
@@ -549,6 +572,7 @@ func TestDeletePost_AlreadyDeleted(t *testing.T) {
 	req := httptest.NewRequest(http.MethodDelete, "/posts/"+originalPost.ID, nil)
 	w := httptest.NewRecorder()
 
+	req = withAuthContext(req)
 	handlers.DeletePost(w, req)
 
 	if w.Code != http.StatusNotFound {
@@ -576,6 +600,7 @@ func TestCreatePost_InvalidLabel(t *testing.T) {
 	req.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()
 
+	req = withAuthContext(req)
 	handlers.CreatePost(w, req)
 
 	if w.Code != http.StatusBadRequest {
@@ -644,6 +669,7 @@ func TestCreatePost_ValidModerationLabels(t *testing.T) {
 			req.Header.Set("Content-Type", "application/json")
 			w := httptest.NewRecorder()
 
+			req = withAuthContext(req)
 			handlers.CreatePost(w, req)
 
 			if w.Code != http.StatusCreated {
@@ -693,6 +719,7 @@ func TestUpdatePost_InvalidLabel(t *testing.T) {
 	req.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()
 
+	req = withAuthContext(req)
 	handlers.UpdatePost(w, req)
 
 	if w.Code != http.StatusBadRequest {
@@ -752,6 +779,7 @@ func TestUpdatePost_ValidModerationLabels(t *testing.T) {
 	req.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()
 
+	req = withAuthContext(req)
 	handlers.UpdatePost(w, req)
 
 	if w.Code != http.StatusOK {
@@ -806,6 +834,7 @@ func TestCreatePost_WithAttachments(t *testing.T) {
 	req.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()
 
+	req = withAuthContext(req)
 	handlers.CreatePost(w, req)
 
 	if w.Code != http.StatusCreated {
@@ -880,6 +909,7 @@ func TestCreatePost_WithMultipleAttachments(t *testing.T) {
 	req.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()
 
+	req = withAuthContext(req)
 	handlers.CreatePost(w, req)
 
 	if w.Code != http.StatusCreated {
@@ -926,6 +956,7 @@ func TestCreatePost_WithAudioAttachment(t *testing.T) {
 	req.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()
 
+	req = withAuthContext(req)
 	handlers.CreatePost(w, req)
 
 	if w.Code != http.StatusCreated {

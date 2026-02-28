@@ -3,7 +3,7 @@
  * Settings and customization for scene organizers
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useEntityStore } from '../stores/entityStore';
 import { useToastStore } from '../stores/toastStore';
@@ -47,6 +47,18 @@ export const SceneSettingsPage: React.FC = () => {
   const addToast = useToastStore((state) => state.addToast);
   const { user: currentUser } = useAuth();
 
+  // Refs for stable references in useEffect
+  const fetchSceneRef = useRef(fetchScene);
+  fetchSceneRef.current = fetchScene;
+  const addToastRef = useRef(addToast);
+  addToastRef.current = addToast;
+  const navigateRef = useRef(navigate);
+  navigateRef.current = navigate;
+  const tRef = useRef(t);
+  tRef.current = t;
+  const currentUserRef = useRef(currentUser);
+  currentUserRef.current = currentUser;
+
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [scene, setScene] = useState<Scene | null>(null);
@@ -77,43 +89,44 @@ export const SceneSettingsPage: React.FC = () => {
     const loadScene = async () => {
       try {
         setLoading(true);
-        const sceneData = await fetchScene(id);
+        const sceneData = await fetchSceneRef.current(id);
         setScene(sceneData);
-        
+
         // Check if current user is the owner
-        const ownerCheck = currentUser?.did === sceneData.owner_did;
+        const ownerCheck = currentUserRef.current?.did === sceneData.owner_did;
         setIsOwner(ownerCheck);
 
         if (!ownerCheck) {
-          addToast({
+          addToastRef.current({
             type: 'error',
-            message: t('errors.notSceneOwner', 'You do not have permission to edit this scene'),
+            message: tRef.current('errors.notSceneOwner', 'You do not have permission to edit this scene'),
           });
-          navigate(`/scenes/${id}`);
+          navigateRef.current(`/scenes/${id}`);
           return;
         }
-        
+
         // Populate form
         setName(sceneData.name || '');
         setDescription(sceneData.description || '');
         setTags(sceneData.tags || []);
-        setVisibility(sceneData.visibility as 'public' | 'private' | 'unlisted' || 'public');
+        const v = sceneData.visibility;
+        setVisibility(v === 'public' || v === 'private' || v === 'unlisted' ? v : 'public');
         if (sceneData.palette) {
           setPalette(sceneData.palette);
         }
-      } catch (error) {
-        addToast({
+      } catch {
+        addToastRef.current({
           type: 'error',
-          message: t('errors.failedToLoadScene', 'Failed to load scene'),
+          message: tRef.current('errors.failedToLoadScene', 'Failed to load scene'),
         });
-        navigate('/');
+        navigateRef.current('/');
       } finally {
         setLoading(false);
       }
     };
 
     loadScene();
-  }, [id, fetchScene, navigate, addToast, t, currentUser]);
+  }, [id]);
 
   const handleSave = async () => {
     if (!id || !scene || !isOwner) return;
@@ -429,6 +442,7 @@ export const SceneSettingsPage: React.FC = () => {
                     value={palette.primary}
                     onChange={(e) => setPalette({ ...palette, primary: e.target.value })}
                     className="w-12 h-12 rounded border border-border cursor-pointer"
+                    aria-label="Primary color picker"
                   />
                   <input
                     type="text"
@@ -452,6 +466,7 @@ export const SceneSettingsPage: React.FC = () => {
                     value={palette.secondary}
                     onChange={(e) => setPalette({ ...palette, secondary: e.target.value })}
                     className="w-12 h-12 rounded border border-border cursor-pointer"
+                    aria-label="Secondary color picker"
                   />
                   <input
                     type="text"
@@ -475,6 +490,7 @@ export const SceneSettingsPage: React.FC = () => {
                     value={palette.accent}
                     onChange={(e) => setPalette({ ...palette, accent: e.target.value })}
                     className="w-12 h-12 rounded border border-border cursor-pointer"
+                    aria-label="Accent color picker"
                   />
                   <input
                     type="text"
@@ -498,6 +514,7 @@ export const SceneSettingsPage: React.FC = () => {
                     value={palette.background}
                     onChange={(e) => setPalette({ ...palette, background: e.target.value })}
                     className="w-12 h-12 rounded border border-border cursor-pointer"
+                    aria-label="Background color picker"
                   />
                   <input
                     type="text"
@@ -521,6 +538,7 @@ export const SceneSettingsPage: React.FC = () => {
                     value={palette.text}
                     onChange={(e) => setPalette({ ...palette, text: e.target.value })}
                     className="w-12 h-12 rounded border border-border cursor-pointer"
+                    aria-label="Text color picker"
                   />
                   <input
                     type="text"

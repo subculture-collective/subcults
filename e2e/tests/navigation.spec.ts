@@ -25,7 +25,9 @@ test.describe('Navigation', () => {
     await page.goto('/');
     await expect(page).toHaveTitle(/subcults/i);
     // The home page should contain the map container
-    await expect(page.locator('[class*="map"], [id*="map"], canvas')).toBeVisible({ timeout: 10000 });
+    await expect(page.locator('[class*="map"], [id*="map"], canvas')).toBeVisible({
+      timeout: 10000,
+    });
   });
 
   test('navigating to unknown route shows 404', async ({ page }) => {

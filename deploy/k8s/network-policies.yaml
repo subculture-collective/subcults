@@ -13,18 +13,18 @@ spec:
     matchLabels:
       app.kubernetes.io/name: subcults-api
   policyTypes:
-  - Ingress
+    - Ingress
   ingress:
-  - from:
-    - podSelector:
-        matchLabels:
-          app.kubernetes.io/name: subcults-frontend
-    - podSelector:
-        matchLabels:
-          app.kubernetes.io/component: ingress
-    ports:
-    - protocol: TCP
-      port: 8080
+    - from:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: subcults-frontend
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/component: ingress
+      ports:
+        - protocol: TCP
+          port: 8080
 ---
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
@@ -36,16 +36,16 @@ spec:
     matchLabels:
       app.kubernetes.io/name: subcults-indexer
   policyTypes:
-  - Ingress
+    - Ingress
   ingress:
-  # Only allow Prometheus to scrape metrics
-  - from:
-    - namespaceSelector:
-        matchLabels:
-          app.kubernetes.io/name: monitoring
-    ports:
-    - protocol: TCP
-      port: 9090
+    # Only allow Prometheus to scrape metrics
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              app.kubernetes.io/name: monitoring
+      ports:
+        - protocol: TCP
+          port: 9090
 ---
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
@@ -57,29 +57,29 @@ spec:
     matchLabels:
       app.kubernetes.io/name: subcults-frontend
   policyTypes:
-  - Ingress
-  - Egress
+    - Ingress
+    - Egress
   ingress:
-  - from:
-    - podSelector:
-        matchLabels:
-          app.kubernetes.io/component: ingress
-    ports:
-    - protocol: TCP
-      port: 80
+    - from:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/component: ingress
+      ports:
+        - protocol: TCP
+          port: 80
   egress:
-  # Frontend only needs to reach the API (for SSR or proxy scenarios)
-  - to:
-    - podSelector:
-        matchLabels:
-          app.kubernetes.io/name: subcults-api
-    ports:
-    - protocol: TCP
-      port: 8080
-  # DNS resolution
-  - to: []
-    ports:
-    - protocol: UDP
-      port: 53
-    - protocol: TCP
-      port: 53
+    # Frontend only needs to reach the API (for SSR or proxy scenarios)
+    - to:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: subcults-api
+      ports:
+        - protocol: TCP
+          port: 8080
+    # DNS resolution
+    - to: []
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53

@@ -3,7 +3,7 @@ name: subcults
 description: Subcults - Privacy-first underground music community platform
 type: application
 version: 0.1.0
-appVersion: "0.1.0"
+appVersion: '0.1.0'
 maintainers:
   - name: subculture-collective
     url: https://github.com/subculture-collective

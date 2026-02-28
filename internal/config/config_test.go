@@ -220,12 +220,12 @@ func TestMaskSecret(t *testing.T) {
 		{
 			name:  "exactly 8 chars",
 			input: "12345678",
-			want:  "1234****",
+			want:  "****5678",
 		},
 		{
 			name:  "long secret",
 			input: "supersecretvalue123456",
-			want:  "supe****",
+			want:  "****3456",
 		},
 	}
 
@@ -268,12 +268,12 @@ func TestMaskStripeKey(t *testing.T) {
 		{
 			name:  "webhook secret",
 			input: "whsec_abcdefghijk",
-			want:  "whse****", // Falls back to generic masking (only 2 underscores)
+			want:  "****hijk", // Falls back to generic masking (shows last 4)
 		},
 		{
 			name:  "non-stripe format",
 			input: "someotherkey",
-			want:  "some****",
+			want:  "****rkey",
 		},
 	}
 
@@ -321,7 +321,7 @@ func TestMaskDatabaseURL(t *testing.T) {
 		{
 			name:  "invalid format",
 			input: "not-a-url",
-			want:  "not-****",
+			want:  "****-url",
 		},
 	}
 
@@ -399,7 +399,7 @@ func TestConfig_Validate(t *testing.T) {
 			name: "fully valid config",
 			config: Config{
 				DatabaseURL:                "postgres://localhost/test",
-				JWTSecret:                  "secret",
+				JWTSecret:                  "supersecret32characterlongvalue!",
 				LiveKitURL:                 "wss://livekit.example.com",
 				LiveKitAPIKey:              "key",
 				LiveKitAPISecret:           "secret",
@@ -416,7 +416,7 @@ func TestConfig_Validate(t *testing.T) {
 			name: "fully valid config with R2",
 			config: Config{
 				DatabaseURL:                "postgres://localhost/test",
-				JWTSecret:                  "secret",
+				JWTSecret:                  "supersecret32characterlongvalue!",
 				LiveKitURL:                 "wss://livekit.example.com",
 				LiveKitAPIKey:              "key",
 				LiveKitAPISecret:           "secret",
@@ -437,7 +437,7 @@ func TestConfig_Validate(t *testing.T) {
 			name: "missing only LiveKitURL",
 			config: Config{
 				DatabaseURL:                "postgres://localhost/test",
-				JWTSecret:                  "secret",
+				JWTSecret:                  "supersecret32characterlongvalue!",
 				LiveKitAPIKey:              "key",
 				LiveKitAPISecret:           "secret",
 				StripeAPIKey:               "sk_test_123",
@@ -483,7 +483,7 @@ func TestLoad_FromYAMLFile(t *testing.T) {
 	yamlContent := `port: 3000
 env: staging
 database_url: postgres://fileuser:filepass@localhost/filedb
-jwt_secret: file_jwt_secret_value_32_chars!
+jwt_secret: file_jwt_secret_value_32_chars!!
 livekit_url: wss://file-livekit.example.com
 livekit_api_key: file_livekit_key
 livekit_api_secret: file_livekit_secret
@@ -536,7 +536,7 @@ func TestLoad_EnvOverridesFile(t *testing.T) {
 	yamlContent := `port: 3000
 env: staging
 database_url: postgres://fileuser:filepass@localhost/filedb
-jwt_secret: file_jwt_secret_value_32_chars!
+jwt_secret: file_jwt_secret_value_32_chars!!
 livekit_url: wss://file-livekit.example.com
 livekit_api_key: file_livekit_key
 livekit_api_secret: file_livekit_secret
@@ -1066,7 +1066,7 @@ func TestLoad_RankTrustEnabled_YAMLOverride(t *testing.T) {
 	yamlContent := `port: 3000
 env: staging
 database_url: postgres://localhost/filedb
-jwt_secret: file_jwt_secret_value_32_chars!
+jwt_secret: file_jwt_secret_value_32_chars!!
 livekit_url: wss://file-livekit.example.com
 livekit_api_key: file_livekit_key
 livekit_api_secret: file_livekit_secret
@@ -1129,7 +1129,7 @@ func TestLoad_RankTrustEnabled_YAMLFalseValue(t *testing.T) {
 	yamlContent := `port: 3000
 env: staging
 database_url: postgres://localhost/filedb
-jwt_secret: file_jwt_secret_value_32_chars!
+jwt_secret: file_jwt_secret_value_32_chars!!
 livekit_url: wss://file-livekit.example.com
 livekit_api_key: file_livekit_key
 livekit_api_secret: file_livekit_secret

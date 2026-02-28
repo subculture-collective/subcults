@@ -9,8 +9,8 @@ Subcults is a privacy-first platform for mapping underground music communities. 
 ### Backend Services
 
 #### API Service (`cmd/api`)
-- **Language**: Go 1.22+
-- **Router**: chi
+- **Language**: Go 1.24+
+- **Router**: net/http (standard library)
 - **Database**: Neon Postgres 16 with PostGIS
 - **Auth**: JWT access + refresh tokens
 - **Purpose**: REST API for scenes, events, payments (Stripe), auth, and media (R2)
@@ -26,7 +26,7 @@ Subcults is a privacy-first platform for mapping underground music communities. 
 - **Build**: SWC for fast compilation
 - **Maps**: MapLibre + MapTiler tiles
 - **Routing**: React Router v6
-- **State**: Simple auth store (placeholder for Zustand/Redux)
+- **State**: Zustand 5
 - **Testing**: Vitest + React Testing Library
 
 ## Frontend Architecture
@@ -43,7 +43,10 @@ The application uses React Router v6 for client-side routing with the following 
 ├── /account/login (LoginPage) - Authentication
 ├── /account (AccountPage) [Protected] - Account management
 ├── /settings (SettingsPage) [Protected] - User settings
-├── /stream/:room (StreamPage) [Protected, Lazy] - Live audio streaming
+├── /streams/:id (StreamPage) [Protected, Lazy] - Live audio streaming
+├── /scenes/:id/settings (SceneSettingsPage) [Protected] - Scene settings
+├── /demo/streaming (DemoStreamPage) - Streaming demo
+├── /demo/stream-ui (DemoStreamUIPage) - Stream UI demo
 ├── /admin (AdminPage) [Admin Only, Lazy] - Admin dashboard
 └── * (NotFoundPage) - 404 fallback
 ```
@@ -274,10 +277,12 @@ web/src/
 │   ├── ClusteredMapView.tsx
 │   ├── DetailPanel.tsx
 │   ├── ErrorBoundary.tsx
-│   └── LoadingSkeleton.tsx
+│   ├── LoadingSkeleton.tsx
+│   └── streaming/     # Streaming UI components
 ├── pages/             # Route-level page components
 │   ├── HomePage.tsx
 │   ├── SceneDetailPage.tsx
+│   ├── SceneSettingsPage.tsx
 │   ├── EventDetailPage.tsx
 │   ├── AccountPage.tsx
 │   ├── LoginPage.tsx
@@ -292,8 +297,13 @@ web/src/
 │   └── RequireAdmin.tsx
 ├── routes/            # Routing configuration
 │   └── index.tsx
-├── stores/            # State management
-│   └── authStore.ts
+├── stores/            # State management (Zustand)
+│   ├── authStore.ts
+│   ├── entityStore.ts
+│   ├── streamingStore.ts
+│   ├── participantStore.ts
+│   ├── toastStore.ts
+│   └── notificationStore.ts
 ├── lib/               # Core libraries
 │   └── api-client.ts
 ├── hooks/             # Custom React hooks
@@ -533,26 +543,32 @@ cd web && npm run build  # Build for production
 - Minimal data collection
 - Explicit consent for precise location sharing
 
+## Implemented Features
+
+- **Full Authentication**: JWT access + refresh tokens with dual-key rotation
+- **Real-time Updates**: LiveKit WebRTC for live audio streaming
+- **Internationalization**: i18next integration
+- **State Management**: Zustand 5 stores (auth, entity, streaming, participants, toasts, notifications)
+- **Advanced Search**: Full-text search with PostGIS geo queries
+- **User Profiles**: DID-based identity via AT Protocol
+- **Direct Payments**: Stripe Connect integration with scene payouts
+- **Rate Limiting**: Tiered rate limiting with Redis + in-memory fallback
+
 ## Future Enhancements
 
 ### Planned Features
 
-1. **Full Authentication**: JWT integration with backend API
-2. **Real-time Updates**: WebSocket connection for live data
-3. **Progressive Web App**: Offline support, install prompt
-4. **Internationalization**: i18next integration
-5. **State Management**: Zustand or Redux integration
-6. **Advanced Search**: Full-text search with filters
-7. **User Profiles**: DID-based identity management
-8. **Direct Payments**: Stripe Connect integration
+1. **Progressive Web App**: Offline support, install prompt
+2. **Lazy-load heavy dependencies**: livekit-client, maplibre-gl
+3. **Go 1.22+ path params**: Migrate from manual path parsing
 
 ### Technical Debt
 
-1. Replace placeholder auth store with production implementation
-2. Implement proper error tracking (Sentry, etc.)
-3. Add OpenAPI schema for API documentation
-4. Implement comprehensive E2E tests with Playwright
-5. Add performance monitoring (Web Vitals, etc.)
+1. Implement proper error tracking (Sentry, etc.)
+2. Add OpenAPI schema for API documentation
+3. Implement comprehensive E2E tests with Playwright
+4. Add performance monitoring (Web Vitals, etc.)
+5. Add full-text search indexes (migration planning needed)
 
 ## References
 

@@ -3,6 +3,7 @@
  * Manages ephemeral toast notifications
  */
 
+import { useMemo } from 'react';
 import { create } from 'zustand';
 
 export type ToastType = 'success' | 'error' | 'info';
@@ -106,23 +107,25 @@ export const useToastStore = create<ToastStore>((set) => ({
  * Provides convenient methods for common toast types
  */
 export function useToasts() {
-  const { addToast, removeToast, clearAll } = useToastStore();
+  const addToast = useToastStore((state) => state.addToast);
+  const removeToast = useToastStore((state) => state.removeToast);
+  const clearAll = useToastStore((state) => state.clearAll);
 
-  return {
-    success: (message: string, duration?: number) => 
+  return useMemo(() => ({
+    success: (message: string, duration?: number) =>
       addToast({ type: 'success', message, duration }),
-    
-    error: (message: string, duration?: number) => 
+
+    error: (message: string, duration?: number) =>
       addToast({ type: 'error', message, duration }),
-    
-    info: (message: string, duration?: number) => 
+
+    info: (message: string, duration?: number) =>
       addToast({ type: 'info', message, duration }),
-    
+
     dismiss: removeToast,
-    
+
     clearAll,
 
     // Advanced: add custom toast with full control
     custom: addToast,
-  };
+  }), [addToast, removeToast, clearAll]);
 }
