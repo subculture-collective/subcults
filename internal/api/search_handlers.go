@@ -734,33 +734,33 @@ func (h *SearchHandlers) SearchPosts(w http.ResponseWriter, r *http.Request) {
 		sceneID = &sceneIDStr
 	}
 
-	// Get optional type filter (text, audio, media)
+	// Get optional type filter (text, image, video, audio, link)
 	postType := strings.ToLower(strings.TrimSpace(query.Get("type")))
-	if postType != "" && postType != "text" && postType != "audio" && postType != "media" {
+	if postType != "" && postType != "text" && postType != "image" && postType != "video" && postType != "audio" && postType != "link" {
 		ctx := middleware.SetErrorCode(r.Context(), ErrCodeValidation)
-		WriteError(w, ctx, http.StatusBadRequest, ErrCodeValidation, "type must be one of: text, audio, media")
+		WriteError(w, ctx, http.StatusBadRequest, ErrCodeValidation, "type must be one of: text, image, video, audio, link")
 		return
 	}
 
-	// Get optional temporal filter (24h, week, month)
-	timeRange := strings.ToLower(strings.TrimSpace(query.Get("time_range")))
-	var createdSince *time.Time
-	if timeRange != "" {
-		now := time.Now()
-		var cutoff time.Time
-		switch timeRange {
-		case "24h":
-			cutoff = now.Add(-24 * time.Hour)
-		case "week":
-			cutoff = now.Add(-7 * 24 * time.Hour)
-		case "month":
-			cutoff = now.Add(-30 * 24 * time.Hour)
-		default:
+	// Get optional temporal filters (RFC3339 timestamps)
+	var createdAfter, createdBefore *time.Time
+	if createdAfterStr := query.Get("created_after"); createdAfterStr != "" {
+		t, err := time.Parse(time.RFC3339, createdAfterStr)
+		if err != nil {
 			ctx := middleware.SetErrorCode(r.Context(), ErrCodeValidation)
-			WriteError(w, ctx, http.StatusBadRequest, ErrCodeValidation, "time_range must be one of: 24h, week, month")
+			WriteError(w, ctx, http.StatusBadRequest, ErrCodeValidation, "created_after must be an RFC3339 timestamp")
 			return
 		}
-		createdSince = &cutoff
+		createdAfter = &t
+	}
+	if createdBeforeStr := query.Get("created_before"); createdBeforeStr != "" {
+		t, err := time.Parse(time.RFC3339, createdBeforeStr)
+		if err != nil {
+			ctx := middleware.SetErrorCode(r.Context(), ErrCodeValidation)
+			WriteError(w, ctx, http.StatusBadRequest, ErrCodeValidation, "created_before must be an RFC3339 timestamp")
+			return
+		}
+		createdBefore = &t
 	}
 
 	// Get pagination parameters
@@ -796,8 +796,11 @@ func (h *SearchHandlers) SearchPosts(w http.ResponseWriter, r *http.Request) {
 	// Apply post-search filters (type and temporal)
 	filtered := make([]*post.Post, 0, len(results))
 	for _, p := range results {
-		// Apply temporal filter
-		if createdSince != nil && p.CreatedAt.Before(*createdSince) {
+		// Apply temporal filters
+		if createdAfter != nil && p.CreatedAt.Before(*createdAfter) {
+			continue
+		}
+		if createdBefore != nil && p.CreatedAt.After(*createdBefore) {
 			continue
 		}
 
@@ -865,8 +868,10 @@ func makeExcerpt(text string, maxLen int) string {
 // matchesPostType checks if a post matches the specified type filter.
 // Type filters:
 // - "text": posts with no attachments or only text content
+// - "image": posts with at least one image/* attachment
+// - "video": posts with at least one video/* attachment
 // - "audio": posts with at least one audio/* attachment
-// - "media": posts with at least one image/* or video/* attachment
+// - "link": posts with at least one link attachment (non-media MIME type)
 func matchesPostType(p *post.Post, postType string) bool {
 	switch postType {
 	case "text":
@@ -877,13 +882,29 @@ func matchesPostType(p *post.Post, postType string) bool {
 		for _, att := range p.Attachments {
 			// If any attachment has a recognized media type, it's not a text-only post
 			mimeType := strings.ToLower(att.Type)
-			if strings.HasPrefix(mimeType, "image/") || 
-			   strings.HasPrefix(mimeType, "video/") || 
-			   strings.HasPrefix(mimeType, "audio/") {
+			if strings.HasPrefix(mimeType, "image/") ||
+				strings.HasPrefix(mimeType, "video/") ||
+				strings.HasPrefix(mimeType, "audio/") {
 				return false
 			}
 		}
 		return true
+	case "image":
+		// Image posts have at least one image/* attachment
+		for _, att := range p.Attachments {
+			if strings.HasPrefix(strings.ToLower(att.Type), "image/") {
+				return true
+			}
+		}
+		return false
+	case "video":
+		// Video posts have at least one video/* attachment
+		for _, att := range p.Attachments {
+			if strings.HasPrefix(strings.ToLower(att.Type), "video/") {
+				return true
+			}
+		}
+		return false
 	case "audio":
 		// Audio posts have at least one audio/* attachment
 		for _, att := range p.Attachments {
@@ -892,11 +913,13 @@ func matchesPostType(p *post.Post, postType string) bool {
 			}
 		}
 		return false
-	case "media":
-		// Media posts have at least one image/* or video/* attachment
+	case "link":
+		// Link posts have at least one attachment that is not an image, video, or audio
 		for _, att := range p.Attachments {
 			mimeType := strings.ToLower(att.Type)
-			if strings.HasPrefix(mimeType, "image/") || strings.HasPrefix(mimeType, "video/") {
+			if att.URL != "" && !strings.HasPrefix(mimeType, "image/") &&
+				!strings.HasPrefix(mimeType, "video/") &&
+				!strings.HasPrefix(mimeType, "audio/") {
 				return true
 			}
 		}
