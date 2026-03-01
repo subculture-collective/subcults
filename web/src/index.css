@@ -1,8 +1,9 @@
 /**
  * Neo-Brutalist Terminal Design System
- * Google Fonts Import for Space Mono
+ * Space Mono / monospace typography (self-hosted via @fontsource/space-mono)
  */
-@import url('https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&display=swap');
+@import '@fontsource/space-mono/400.css';
+@import '@fontsource/space-mono/700.css';
 
 /**
  * Tailwind CSS Directives
@@ -20,6 +21,7 @@
   /* Terminal neutrals */
   --color-background: #000000;
   --color-background-secondary: #0d1117;
+  --color-background-hover: #1a1f2b;
   --color-foreground: #ffffff;
   --color-foreground-secondary: #e2e8f0;
   --color-foreground-muted: #a0aec0;
@@ -29,6 +31,7 @@
   /* Neon accent colors */
   --color-neon-green: #00ff41;
   --color-neon-purple: #7c3aed;
+  --color-neon-purple-dark: #5b21b6;
   --color-neon-magenta: #ff00ff;
   --color-neon-cyan: #00ffff;
 
@@ -57,6 +60,7 @@
 .dark {
   --color-background: #000000;
   --color-background-secondary: #0d1117;
+  --color-background-hover: #1a1f2b;
   --color-foreground: #ffffff;
   --color-foreground-secondary: #e2e8f0;
   --color-foreground-muted: #a0aec0;
@@ -65,6 +69,7 @@
 
   --color-neon-green: #00ff41;
   --color-neon-purple: #7c3aed;
+  --color-neon-purple-dark: #5b21b6;
   --color-neon-magenta: #ff00ff;
   --color-neon-cyan: #00ffff;
 

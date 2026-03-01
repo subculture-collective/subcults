@@ -53,7 +53,7 @@
 
 | State       | Primary     | Hex     | Secondary   | Hex     | Notes                                                                 |
 | ----------- | ----------- | ------- | ----------- | ------- | --------------------------------------------------------------------- |
-| **Success** | Neon Green  | #00FF41 | Dark Green  | #008F11 | Meets AA contrast on #000000 (2.8:1) — add background box if critical |
+| **Success** | Neon Green  | #00FF41 | Dark Green  | #008F11 | Does **not** meet WCAG AA for normal text on #000000 (2.8:1); reserve for large UI elements/icons or place text on a compliant background box |
 | **Error**   | Neon Red    | #FF3333 | Dark Red    | #CC0000 | High visibility; use with caution for WCAG compliance                 |
 | **Warning** | Neon Orange | #FFB000 | Dark Orange | #CC8800 | Eye-catching but readable                                             |
 | **Info**    | Cyan        | #00FFFF | Deep Cyan   | #0088FF | Informational, non-blocking                                           |
@@ -100,7 +100,7 @@ fontFamily: {
 | **h1**      | 32px | **700** | 1.25 (40px) | -0.02em        | Page titles, hero sections    |
 | **h2**      | 24px | **700** | 1.33 (32px) | -0.01em        | Section headings              |
 | **h3**      | 20px | **700** | 1.4 (28px)  | -0.01em        | Subsection titles             |
-| **h4**      | 16px | **600** | 1.5 (24px)  | 0em            | Smaller headings, scene names |
+| **h4**      | 16px | **700** | 1.5 (24px)  | 0em            | Smaller headings, scene names |
 | **body-lg** | 16px | **400** | 1.5 (24px)  | 0em            | Large body text               |
 | **body**    | 14px | **400** | 1.5 (21px)  | 0em            | Default paragraph             |
 | **body-sm** | 12px | **400** | 1.5 (18px)  | 0em            | Small text, captions          |
@@ -443,19 +443,24 @@ All text combinations must meet minimum 4.5:1 (AA):
 ### CSS Variables (`:root`)
 
 ```css
+/* Keep these names in sync with web/src/index.css and web/tailwind.config.js */
 :root {
-  --color-bg-black: #000000;
-  --color-bg-dark: #0d1117;
-  --color-border-dark: #1f1f1f;
-  --color-text-white: #ffffff;
-  --color-text-gray: #e2e8f0;
+  --color-background: #000000;
+  --color-background-secondary: #0d1117;
+  --color-background-hover: #1a1f2b;
+  --color-border: #1f1f1f;
+  --color-border-hover: #404040;
+  --color-foreground: #ffffff;
+  --color-foreground-secondary: #e2e8f0;
   --color-neon-green: #00ff41;
-  --color-purple: #7c3aed;
-  --color-magenta: #ff00ff;
-  --color-cyan: #00ffff;
-  --color-error: #ff3333;
-  --color-success: #008f11;
-  --color-warning: #ffb000;
+  --color-neon-purple: #7c3aed;
+  --color-neon-purple-dark: #5b21b6;
+  --color-neon-magenta: #ff00ff;
+  --color-neon-cyan: #00ffff;
+  --color-status-error: #ff3333;
+  --color-status-success: #00ff41;
+  --color-status-warning: #ffb000;
+  --color-status-info: #00ffff;
 }
 ```
 
