@@ -49,9 +49,9 @@ type RecomputeJobConfig struct {
 	// MaxConcurrency limits parallel recompute operations within a batch.
 	// Default: 5. Higher values increase throughput but may increase DB load.
 	MaxConcurrency int
-	// AdaptiveScheduling enables dynamic interval adjustment based on DB load.
-	// When enabled, interval increases during high load (slow queries) and
-	// decreases during low load. Default: true.
+	// AdaptiveScheduling enables dynamic interval adjustment based on recompute cycle duration.
+	// When enabled, interval increases when the recompute cycle duration exceeds LoadThresholdMs
+	// and decreases when the cycle completes quickly. Default: false.
 	AdaptiveScheduling bool
 	// MinInterval is the minimum interval when adaptive scheduling is enabled.
 	// Default: 10s.
@@ -59,7 +59,7 @@ type RecomputeJobConfig struct {
 	// MaxInterval is the maximum interval when adaptive scheduling is enabled.
 	// Default: 5m.
 	MaxInterval time.Duration
-	// LoadThresholdMs is the average DB query latency threshold (in ms) above
+	// LoadThresholdMs is the average recompute cycle duration threshold (in ms) above
 	// which the job considers the system under high load. Default: 100ms.
 	LoadThresholdMs float64
 }
@@ -117,10 +117,10 @@ func NewRecomputeJob(
 	if config.Timeout == 0 {
 		config.Timeout = DefaultRecomputeTimeout
 	}
-	if config.BatchSize == 0 {
+	if config.BatchSize <= 0 {
 		config.BatchSize = DefaultBatchSize
 	}
-	if config.MaxConcurrency == 0 {
+	if config.MaxConcurrency <= 0 {
 		config.MaxConcurrency = DefaultMaxConcurrency
 	}
 	if config.MinInterval == 0 {
