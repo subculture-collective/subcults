@@ -50,14 +50,25 @@ export const AppLayout: React.FC = () => {
               aria-label="Toggle sidebar"
               aria-expanded={isSidebarOpen}
               className="
-                lg:hidden p-2 sm:p-2.5 rounded-lg min-h-touch min-w-touch
-                text-white hover:bg-underground-lighter
-                focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-primary
+                lg:hidden p-2 sm:p-2.5 rounded-none min-h-touch min-w-touch
+                text-white hover:bg-background-secondary
+                focus:outline-none focus-visible:ring-2 focus-visible:ring-neon-purple
                 touch-manipulation
               "
             >
-              <svg aria-hidden="true" className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+              <svg
+                aria-hidden="true"
+                className="w-6 h-6"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M4 6h16M4 12h16M4 18h16"
+                />
               </svg>
             </button>
 
@@ -86,8 +97,8 @@ export const AppLayout: React.FC = () => {
               <Link
                 to="/account/login"
                 className="
-                  px-3 py-1 sm:px-4 sm:py-1 rounded-lg min-h-touch
-                  bg-white text-underground
+                  px-3 py-1 sm:px-4 sm:py-1 rounded-none min-h-touch
+                  bg-white text-foreground
                   font-medium text-sm sm:text-base
                   hover:bg-gray-100
                   transition-colors
@@ -109,10 +120,7 @@ export const AppLayout: React.FC = () => {
       {/* Main Content Area with Sidebar */}
       <div className="flex flex-1 overflow-hidden">
         {/* Sidebar */}
-        <Sidebar 
-          isOpen={isSidebarOpen} 
-          onClose={() => setIsSidebarOpen(false)}
-        />
+        <Sidebar isOpen={isSidebarOpen} onClose={() => setIsSidebarOpen(false)} />
 
         {/* Main Content */}
         <main

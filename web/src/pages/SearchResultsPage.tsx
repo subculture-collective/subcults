@@ -9,7 +9,12 @@ import { useSearchParams, Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useSearch } from '../hooks/useSearch';
 import { SearchBar } from '../components/SearchBar';
-import type { SearchResultItem, SceneSearchResult, EventSearchResult, PostSearchResult } from '../types/search';
+import type {
+  SearchResultItem,
+  SceneSearchResult,
+  EventSearchResult,
+  PostSearchResult,
+} from '../types/search';
 
 // Constants
 const RESULTS_PER_PAGE = 10;
@@ -129,9 +134,9 @@ const ResultCard: React.FC<ResultCardProps> = ({ item }) => {
     <Link
       to={getResultPath(item)}
       className="
-        block p-4 rounded-lg border border-border
-        bg-background-secondary hover:bg-underground-lighter
-        focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-primary
+        block p-4 rounded-none border border-border
+        bg-background-secondary hover:bg-background-hover
+        focus:outline-none focus-visible:ring-2 focus-visible:ring-neon-purple
         transition-colors theme-transition
       "
     >
@@ -142,7 +147,9 @@ const ResultCard: React.FC<ResultCardProps> = ({ item }) => {
         <div className="flex-1 min-w-0">
           <div className="text-sm font-semibold text-foreground truncate">{displayName}</div>
           {secondaryInfo && (
-            <div className="mt-1 text-xs text-foreground-secondary line-clamp-2">{secondaryInfo}</div>
+            <div className="mt-1 text-xs text-foreground-secondary line-clamp-2">
+              {secondaryInfo}
+            </div>
           )}
         </div>
       </div>
@@ -286,22 +293,23 @@ export const SearchResultsPage: React.FC = () => {
   ];
 
   // Apply type filter
-  const filteredItems = typeParam === 'all'
-    ? allItems
-    : allItems.filter((item) => {
-        if (typeParam === 'scenes') return item.type === 'scene';
-        if (typeParam === 'events') return item.type === 'event';
-        if (typeParam === 'posts') return item.type === 'post';
-        return true;
-      });
+  const filteredItems =
+    typeParam === 'all'
+      ? allItems
+      : allItems.filter((item) => {
+          if (typeParam === 'scenes') return item.type === 'scene';
+          if (typeParam === 'events') return item.type === 'event';
+          if (typeParam === 'posts') return item.type === 'post';
+          return true;
+        });
 
   // Apply sort (client-side approximation; the API should own authoritative sorting.
   // 'recent' uses created_at for posts; scenes/events will sort to the end since they
   // don't carry a created_at field in the current type definitions).
   const sortedItems = [...filteredItems].sort((a, b) => {
     if (sortParam === 'recent') {
-      const aDate = a.type === 'post' ? a.data.created_at ?? '' : '';
-      const bDate = b.type === 'post' ? b.data.created_at ?? '' : '';
+      const aDate = a.type === 'post' ? (a.data.created_at ?? '') : '';
+      const bDate = b.type === 'post' ? (b.data.created_at ?? '') : '';
       return bDate.localeCompare(aDate);
     }
     // relevance / trending: keep original order from API
@@ -332,10 +340,7 @@ export const SearchResultsPage: React.FC = () => {
       {/* Search header bar */}
       <div className="bg-background-secondary border-b border-border px-4 py-3">
         <div className="max-w-5xl mx-auto">
-          <SearchBar
-            placeholder={t('search.placeholder')}
-            className="max-w-2xl"
-          />
+          <SearchBar placeholder={t('search.placeholder')} className="max-w-2xl" />
         </div>
       </div>
 
@@ -346,8 +351,8 @@ export const SearchResultsPage: React.FC = () => {
             {loading
               ? t('search.results.searching')
               : hasResults
-              ? t('search.results.heading', { query, count: totalResultCount })
-              : t('search.results.noResultsHeading', { query })}
+                ? t('search.results.heading', { query, count: totalResultCount })
+                : t('search.results.noResultsHeading', { query })}
           </h1>
         ) : (
           <h1 className="text-lg font-semibold text-foreground mb-4">
@@ -361,7 +366,7 @@ export const SearchResultsPage: React.FC = () => {
             className="hidden md:block w-56 flex-shrink-0"
             aria-label={t('search.results.filters.label')}
           >
-            <div className="bg-background-secondary border border-border rounded-lg p-4 space-y-5 sticky top-4">
+            <div className="bg-background-secondary border border-border rounded-none p-4 space-y-5 sticky top-4">
               {/* Type filter */}
               <div>
                 <h2 className="text-xs font-semibold text-foreground-tertiary uppercase tracking-wider mb-2">
@@ -374,12 +379,14 @@ export const SearchResultsPage: React.FC = () => {
                         onClick={() => handleTypeChange(value)}
                         aria-pressed={isTypeActive(typeParam, value)}
                         className={`
-                          w-full flex items-center gap-2 px-3 py-1.5 rounded-md text-sm
-                          focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-primary
+                          w-full flex items-center gap-2 px-3 py-1.5 rounded-none text-sm
+                          focus:outline-none focus-visible:ring-2 focus-visible:ring-neon-purple
                           transition-colors
-                          ${isTypeActive(typeParam, value)
-                            ? 'bg-brand-primary text-white font-medium'
-                            : 'text-foreground hover:bg-underground-lighter'}
+                          ${
+                            isTypeActive(typeParam, value)
+                              ? 'bg-neon-purple text-white font-medium'
+                              : 'text-foreground hover:bg-background-hover'
+                          }
                         `}
                       >
                         <span aria-hidden="true">{icon}</span>
@@ -402,12 +409,14 @@ export const SearchResultsPage: React.FC = () => {
                         onClick={() => handleSortChange(value)}
                         aria-pressed={isSortActive(sortParam, value)}
                         className={`
-                          w-full text-left px-3 py-1.5 rounded-md text-sm
-                          focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-primary
+                          w-full text-left px-3 py-1.5 rounded-none text-sm
+                          focus:outline-none focus-visible:ring-2 focus-visible:ring-neon-purple
                           transition-colors
-                          ${isSortActive(sortParam, value)
-                            ? 'bg-brand-primary text-white font-medium'
-                            : 'text-foreground hover:bg-underground-lighter'}
+                          ${
+                            isSortActive(sortParam, value)
+                              ? 'bg-neon-purple text-white font-medium'
+                              : 'text-foreground hover:bg-background-hover'
+                          }
                         `}
                       >
                         {t(labelKey)}
@@ -427,7 +436,7 @@ export const SearchResultsPage: React.FC = () => {
                 aria-expanded={isSidebarOpen}
                 aria-controls="mobile-filters"
                 className="
-                  flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm
+                  flex items-center gap-1.5 px-3 py-1.5 rounded-none text-sm
                   bg-background-secondary border border-border text-foreground
                   hover:bg-underground-lighter
                   focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-primary
@@ -461,7 +470,7 @@ export const SearchResultsPage: React.FC = () => {
             {isSidebarOpen && (
               <div
                 id="mobile-filters"
-                className="mt-3 bg-background-secondary border border-border rounded-lg p-4"
+                className="mt-3 bg-background-secondary border border-border rounded-none p-4"
               >
                 <h2 className="text-xs font-semibold text-foreground-tertiary uppercase tracking-wider mb-2">
                   {t('search.results.filters.type')}
@@ -479,9 +488,11 @@ export const SearchResultsPage: React.FC = () => {
                         flex items-center gap-1 px-3 py-1.5 rounded-full text-sm
                         focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-primary
                         transition-colors
-                        ${isTypeActive(typeParam, value)
-                          ? 'bg-brand-primary text-white font-medium'
-                          : 'bg-background border border-border text-foreground hover:bg-underground-lighter'}
+                        ${
+                          isTypeActive(typeParam, value)
+                            ? 'bg-brand-primary text-white font-medium'
+                            : 'bg-background border border-border text-foreground hover:bg-underground-lighter'
+                        }
                       `}
                     >
                       <span aria-hidden="true">{icon}</span>
@@ -497,8 +508,12 @@ export const SearchResultsPage: React.FC = () => {
           <main className="flex-1 min-w-0" id="search-results-main">
             {/* Loading state */}
             {loading && (
-              <div className="flex flex-col items-center justify-center py-16" role="status" aria-live="polite">
-                <div className="inline-block animate-spin rounded-full h-8 w-8 border-2 border-brand-primary border-t-transparent mb-3" />
+              <div
+                className="flex flex-col items-center justify-center py-16"
+                role="status"
+                aria-live="polite"
+              >
+                <div className="inline-block animate-spin rounded-full h-8 w-8 border-2 border-neon-purple border-t-transparent mb-3" />
                 <p className="text-sm text-foreground-secondary">{t('search.results.searching')}</p>
               </div>
             )}
@@ -514,7 +529,9 @@ export const SearchResultsPage: React.FC = () => {
             {/* Empty state – no query */}
             {!loading && !error && !query.trim() && (
               <div className="flex flex-col items-center justify-center py-24 text-center">
-                <span className="text-5xl mb-4" aria-hidden="true">{ICONS.EMPTY}</span>
+                <span className="text-5xl mb-4" aria-hidden="true">
+                  {ICONS.EMPTY}
+                </span>
                 <p className="text-base font-medium text-foreground mb-1">
                   {t('search.results.emptyQueryHeading')}
                 </p>
@@ -527,7 +544,9 @@ export const SearchResultsPage: React.FC = () => {
             {/* Empty state – query with no results */}
             {!loading && !error && query.trim() && !hasResults && (
               <div className="flex flex-col items-center justify-center py-24 text-center">
-                <span className="text-5xl mb-4" aria-hidden="true">{ICONS.EMPTY}</span>
+                <span className="text-5xl mb-4" aria-hidden="true">
+                  {ICONS.EMPTY}
+                </span>
                 <p className="text-base font-medium text-foreground mb-1">
                   {t('search.noResults', { query })}
                 </p>
@@ -591,7 +610,13 @@ export const SearchResultsPage: React.FC = () => {
 
                     {getPaginationPages(safePage, totalPages).map((item, idx) =>
                       item === '…' ? (
-                        <span key={`ellipsis-${idx}`} className="px-1 text-foreground-tertiary select-none" aria-hidden="true">…</span>
+                        <span
+                          key={`ellipsis-${idx}`}
+                          className="px-1 text-foreground-tertiary select-none"
+                          aria-hidden="true"
+                        >
+                          …
+                        </span>
                       ) : (
                         <button
                           key={item}
@@ -599,12 +624,14 @@ export const SearchResultsPage: React.FC = () => {
                           aria-current={(item as number) === safePage ? 'page' : undefined}
                           aria-label={t('search.results.pagination.page', { page: item })}
                           className={`
-                            min-w-[2rem] px-2 py-1.5 rounded-lg text-sm border
-                            focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-primary
+                            min-w-[2rem] px-2 py-1.5 rounded-none text-sm border
+                            focus:outline-none focus-visible:ring-2 focus-visible:ring-neon-purple
                             transition-colors
-                            ${(item as number) === safePage
-                              ? 'bg-brand-primary border-brand-primary text-white font-medium'
-                              : 'bg-background-secondary border-border text-foreground hover:bg-underground-lighter'}
+                            ${
+                              (item as number) === safePage
+                                ? 'bg-neon-purple border-neon-purple text-white font-medium'
+                                : 'bg-background-secondary border-border text-foreground hover:bg-background-hover'
+                            }
                           `}
                         >
                           {item}

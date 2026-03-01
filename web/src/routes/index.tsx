@@ -45,6 +45,12 @@ const AdminPage = lazy(() =>
 const SearchResultsPage = lazy(() =>
   import('../pages/SearchResultsPage').then((module) => ({ default: module.SearchResultsPage }))
 );
+const ScenesPage = lazy(() =>
+  import('../pages/ScenesPage').then((module) => ({ default: module.ScenesPage }))
+);
+const EventsPage = lazy(() =>
+  import('../pages/EventsPage').then((module) => ({ default: module.EventsPage }))
+);
 const StreamingDemo = lazy(() =>
   import('../StreamingDemo').then((module) => ({ default: module.StreamingDemo }))
 );
@@ -79,6 +85,14 @@ const router = createBrowserRouter(
           ),
         },
         {
+          path: 'scenes',
+          element: (
+            <Suspense fallback={<LoadingSkeleton />}>
+              <ScenesPage />
+            </Suspense>
+          ),
+        },
+        {
           path: 'scenes/:id',
           element: (
             <Suspense fallback={<LoadingSkeleton />}>
@@ -94,6 +108,14 @@ const router = createBrowserRouter(
                 <SceneSettingsPage />
               </Suspense>
             </RequireAuth>
+          ),
+        },
+        {
+          path: 'events',
+          element: (
+            <Suspense fallback={<LoadingSkeleton />}>
+              <EventsPage />
+            </Suspense>
           ),
         },
         {

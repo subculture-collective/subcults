@@ -10,11 +10,17 @@ import { createMemoryRouter } from 'react-router-dom';
 import { RequireAuth } from '../guards/RequireAuth';
 import { RequireAdmin } from '../guards/RequireAdmin';
 import { authStore } from '../stores/authStore';
+import { ScenesPage } from '../pages/ScenesPage';
+import { EventsPage } from '../pages/EventsPage';
 
 // Mock pages for testing
 const MockPublicPage = () => <div>Public Page</div>;
 const MockProtectedPage = () => <div>Protected Page</div>;
 const MockAdminPage = () => <div>Admin Page</div>;
+const MockSearchPage = () => {
+  const location = useLocation();
+  return <div data-testid="search-page">Search Page{location.search}</div>;
+};
 interface LocationState {
   from?: { pathname: string };
 }
@@ -249,6 +255,66 @@ describe('Route Guards', () => {
       await waitFor(() => {
         expect(screen.getByText('Admin Page')).toBeInTheDocument();
       });
+    });
+  });
+});
+
+describe('Navigation Redirects', () => {
+  it('redirects /scenes to /search?type=scenes', async () => {
+    const router = createMemoryRouter(
+      [
+        {
+          path: '/scenes',
+          element: <ScenesPage />,
+        },
+        {
+          path: '/search',
+          element: <MockSearchPage />,
+        },
+      ],
+      {
+        initialEntries: ['/scenes'],
+        future: {
+          v7_startTransition: true,
+          v7_relativeSplatPath: true,
+        },
+      }
+    );
+
+    render(<RouterProvider router={router} />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId('search-page')).toBeInTheDocument();
+      expect(screen.getByTestId('search-page').textContent).toContain('?type=scenes');
+    });
+  });
+
+  it('redirects /events to /search?type=events', async () => {
+    const router = createMemoryRouter(
+      [
+        {
+          path: '/events',
+          element: <EventsPage />,
+        },
+        {
+          path: '/search',
+          element: <MockSearchPage />,
+        },
+      ],
+      {
+        initialEntries: ['/events'],
+        future: {
+          v7_startTransition: true,
+          v7_relativeSplatPath: true,
+        },
+      }
+    );
+
+    render(<RouterProvider router={router} />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId('search-page')).toBeInTheDocument();
+      expect(screen.getByTestId('search-page').textContent).toContain('?type=events');
     });
   });
 });
