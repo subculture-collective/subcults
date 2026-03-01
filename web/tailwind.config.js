@@ -26,6 +26,7 @@ export default {
         background: {
           DEFAULT: 'var(--color-background)',
           secondary: 'var(--color-background-secondary)',
+          hover: 'var(--color-background-hover)',
         },
         foreground: {
           DEFAULT: 'var(--color-foreground)',
@@ -35,6 +36,18 @@ export default {
         border: {
           DEFAULT: 'var(--color-border)',
           hover: 'var(--color-border-hover)',
+        },
+        // Backward-compatible aliases for existing components
+        brand: {
+          primary: 'var(--color-neon-purple)',
+          'primary-dark': 'var(--color-neon-purple-dark)',
+          accent: 'var(--color-neon-cyan)',
+          underground: 'var(--color-background-secondary)',
+          'underground-lighter': 'var(--color-background-hover)',
+        },
+        underground: {
+          DEFAULT: 'var(--color-background-secondary)',
+          lighter: 'var(--color-background-hover)',
         },
       },
       spacing: {
@@ -68,6 +81,24 @@ export default {
       animation: {
         // Pulse for live indicators
         pulse: 'pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite',
+        // Entry animations for overlays and panels
+        'fade-in': 'fade-in 0.15s ease-out',
+        'slide-up': 'slide-up 0.2s ease-out',
+        'slide-in': 'slide-in 0.2s ease-out',
+      },
+      keyframes: {
+        'fade-in': {
+          '0%': { opacity: '0' },
+          '100%': { opacity: '1' },
+        },
+        'slide-up': {
+          '0%': { transform: 'translateY(10px)', opacity: '0' },
+          '100%': { transform: 'translateY(0)', opacity: '1' },
+        },
+        'slide-in': {
+          '0%': { transform: 'translateX(100%)' },
+          '100%': { transform: 'translateX(0)' },
+        },
       },
     },
   },

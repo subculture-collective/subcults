@@ -51,8 +51,8 @@ export const AppLayout: React.FC = () => {
               aria-expanded={isSidebarOpen}
               className="
                 lg:hidden p-2 sm:p-2.5 rounded-none min-h-touch min-w-touch
-                text-white hover:bg-underground-lighter
-                focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-primary
+                text-white hover:bg-background-secondary
+                focus:outline-none focus-visible:ring-2 focus-visible:ring-neon-purple
                 touch-manipulation
               "
             >
@@ -98,7 +98,7 @@ export const AppLayout: React.FC = () => {
                 to="/account/login"
                 className="
                   px-3 py-1 sm:px-4 sm:py-1 rounded-none min-h-touch
-                  bg-white text-underground
+                  bg-white text-foreground
                   font-medium text-sm sm:text-base
                   hover:bg-gray-100
                   transition-colors

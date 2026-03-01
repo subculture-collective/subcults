@@ -135,8 +135,8 @@ const ResultCard: React.FC<ResultCardProps> = ({ item }) => {
       to={getResultPath(item)}
       className="
         block p-4 rounded-none border border-border
-        bg-background-secondary hover:bg-underground-lighter
-        focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-primary
+        bg-background-secondary hover:bg-background-hover
+        focus:outline-none focus-visible:ring-2 focus-visible:ring-neon-purple
         transition-colors theme-transition
       "
     >
@@ -380,12 +380,12 @@ export const SearchResultsPage: React.FC = () => {
                         aria-pressed={isTypeActive(typeParam, value)}
                         className={`
                           w-full flex items-center gap-2 px-3 py-1.5 rounded-none text-sm
-                          focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-primary
+                          focus:outline-none focus-visible:ring-2 focus-visible:ring-neon-purple
                           transition-colors
                           ${
                             isTypeActive(typeParam, value)
-                              ? 'bg-brand-primary text-white font-medium'
-                              : 'text-foreground hover:bg-underground-lighter'
+                              ? 'bg-neon-purple text-white font-medium'
+                              : 'text-foreground hover:bg-background-hover'
                           }
                         `}
                       >
@@ -410,12 +410,12 @@ export const SearchResultsPage: React.FC = () => {
                         aria-pressed={isSortActive(sortParam, value)}
                         className={`
                           w-full text-left px-3 py-1.5 rounded-none text-sm
-                          focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-primary
+                          focus:outline-none focus-visible:ring-2 focus-visible:ring-neon-purple
                           transition-colors
                           ${
                             isSortActive(sortParam, value)
-                              ? 'bg-brand-primary text-white font-medium'
-                              : 'text-foreground hover:bg-underground-lighter'
+                              ? 'bg-neon-purple text-white font-medium'
+                              : 'text-foreground hover:bg-background-hover'
                           }
                         `}
                       >
@@ -625,12 +625,12 @@ export const SearchResultsPage: React.FC = () => {
                           aria-label={t('search.results.pagination.page', { page: item })}
                           className={`
                             min-w-[2rem] px-2 py-1.5 rounded-none text-sm border
-                            focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-primary
+                            focus:outline-none focus-visible:ring-2 focus-visible:ring-neon-purple
                             transition-colors
                             ${
                               (item as number) === safePage
-                                ? 'bg-brand-primary border-brand-primary text-white font-medium'
-                                : 'bg-background-secondary border-border text-foreground hover:bg-underground-lighter'
+                                ? 'bg-neon-purple border-neon-purple text-white font-medium'
+                                : 'bg-background-secondary border-border text-foreground hover:bg-background-hover'
                             }
                           `}
                         >
