@@ -14,12 +14,10 @@ import type { Scene } from '../types/scene';
 vi.mock('../stores/entityStore');
 vi.mock('../stores/toastStore');
 vi.mock('../stores/authStore', () => ({
-  authStore: {
-    useAuthState: vi.fn((selector) => {
-      const state = { user: { did: 'test-user-did', role: 'user' as const } };
-      return selector(state);
-    }),
-  },
+  useAuth: () => ({
+    user: { did: 'test-user-did', role: 'user' as const },
+    logout: vi.fn(),
+  }),
 }));
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
@@ -62,7 +60,7 @@ describe('SceneSettingsPage', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    
+
     // Setup store mocks
     (useEntityStore as unknown as ReturnType<typeof vi.fn>).mockImplementation((selector) => {
       const store = {
@@ -221,9 +219,12 @@ describe('SceneSettingsPage', () => {
     fireEvent.click(saveButton);
 
     await waitFor(() => {
-      expect(mockUpdateScene).toHaveBeenCalledWith('test-scene-id', expect.objectContaining({
-        name: 'Updated Name',
-      }));
+      expect(mockUpdateScene).toHaveBeenCalledWith(
+        'test-scene-id',
+        expect.objectContaining({
+          name: 'Updated Name',
+        })
+      );
     });
   });
 
@@ -295,9 +296,12 @@ describe('SceneSettingsPage', () => {
     fireEvent.click(saveButton);
 
     await waitFor(() => {
-      expect(mockUpdateScene).toHaveBeenCalledWith('test-scene-id', expect.objectContaining({
-        visibility: 'private',
-      }));
+      expect(mockUpdateScene).toHaveBeenCalledWith(
+        'test-scene-id',
+        expect.objectContaining({
+          visibility: 'private',
+        })
+      );
     });
   });
 
@@ -360,7 +364,7 @@ describe('SceneSettingsPage', () => {
   });
 
   it('disables save button while saving', async () => {
-    mockUpdateScene.mockImplementation(() => new Promise(resolve => setTimeout(resolve, 100)));
+    mockUpdateScene.mockImplementation(() => new Promise((resolve) => setTimeout(resolve, 100)));
 
     const { getByText } = render(
       <BrowserRouter>

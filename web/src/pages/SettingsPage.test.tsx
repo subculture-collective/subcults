@@ -155,9 +155,11 @@ describe('SettingsPage', () => {
 
     it('should allow toggling location consent', () => {
       renderSettingsPage();
-      const checkbox = screen.getByRole('checkbox', { name: /Allow precise location/i }) as HTMLInputElement;
+      const checkbox = screen.getByRole('checkbox', {
+        name: /Allow precise location/i,
+      }) as HTMLInputElement;
       expect(checkbox.checked).toBe(false);
-      
+
       fireEvent.click(checkbox);
       expect(checkbox.checked).toBe(true);
     });
@@ -230,9 +232,9 @@ describe('SettingsPage', () => {
     it('should show confirmation modal when delete is clicked', async () => {
       renderSettingsPage();
       const deleteButton = screen.getByRole('button', { name: /Delete Account/i });
-      
+
       fireEvent.click(deleteButton);
-      
+
       await waitFor(() => {
         expect(screen.getByText(/Are you absolutely sure/i)).toBeInTheDocument();
       });
@@ -241,9 +243,9 @@ describe('SettingsPage', () => {
     it('should close confirmation modal when cancel is clicked', async () => {
       renderSettingsPage();
       const deleteButton = screen.getByRole('button', { name: /Delete Account/i });
-      
+
       fireEvent.click(deleteButton);
-      
+
       await waitFor(() => {
         expect(screen.getByText(/Are you absolutely sure/i)).toBeInTheDocument();
       });
@@ -270,7 +272,7 @@ describe('SettingsPage', () => {
 
     it('should have accessible form labels', () => {
       renderSettingsPage();
-      
+
       expect(screen.getByLabelText(/Display Name/i)).toBeInTheDocument();
       expect(screen.getByLabelText(/Bio/i)).toBeInTheDocument();
     });
@@ -297,12 +299,12 @@ describe('SettingsPage', () => {
       expect(sectionsContainer).toBeInTheDocument();
     });
 
-    it('should render sections with borders and rounded corners', () => {
+    it('should render sections with borders and sharp corners', () => {
       const { container } = renderSettingsPage();
 
       const sections = container.querySelectorAll('section');
       sections.forEach((section) => {
-        expect(section).toHaveClass('rounded-lg');
+        expect(section).toHaveClass('rounded-none');
       });
     });
   });
@@ -310,7 +312,7 @@ describe('SettingsPage', () => {
   describe('Notifications Settings', () => {
     it('should render notification settings component', () => {
       renderSettingsPage();
-      
+
       // NotificationSettings component should be rendered
       // It has its own heading
       expect(screen.getByRole('heading', { name: /Notifications/i })).toBeInTheDocument();
@@ -320,7 +322,7 @@ describe('SettingsPage', () => {
   describe('Theme State', () => {
     it('should display dark theme when store has dark theme', () => {
       useThemeStore.setState({ theme: 'dark' });
-      
+
       renderSettingsPage();
       expect(screen.getByText('dark')).toBeInTheDocument();
     });

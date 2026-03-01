@@ -173,7 +173,7 @@ describe('ToastContainer', () => {
     render(<ToastContainer />);
 
     const toast = screen.getByRole('status');
-    expect(toast).toHaveClass('bg-green-500');
+    expect(toast).toHaveClass('bg-status-success');
   });
 
   it('uses Tailwind animation classes', () => {

@@ -23,13 +23,13 @@ export interface NotificationBadgeProps {
 /**
  * NotificationBadge shows the current notification count
  */
-export function NotificationBadge({ 
-  className = '', 
+export function NotificationBadge({
+  className = '',
   onClick,
-  notificationCount = 0 
+  notificationCount = 0,
 }: NotificationBadgeProps) {
   const { isSubscribed } = useNotificationState();
-  
+
   const hasNotifications = notificationCount > 0;
 
   return (
@@ -37,10 +37,10 @@ export function NotificationBadge({
       onClick={onClick}
       aria-label={`Notifications${hasNotifications ? `, ${notificationCount} unread` : ''}`}
       className={`
-        relative p-2 rounded-lg min-h-touch min-w-touch
+        relative p-2 rounded-none min-h-touch min-w-touch
         text-foreground hover:bg-underground-lighter
         focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-primary
-        transition-colors touch-manipulation
+        transition-none touch-manipulation
         ${className}
       `}
     >
@@ -68,7 +68,7 @@ export function NotificationBadge({
             inline-flex items-center justify-center
             min-w-[1.25rem] h-5 px-1
             text-xs font-bold text-white
-            bg-red-600 rounded-full
+            bg-status-error rounded-full
           "
           aria-hidden="true"
         >

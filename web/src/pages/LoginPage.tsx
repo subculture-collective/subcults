@@ -85,13 +85,13 @@ export const LoginPage: React.FC = () => {
         </div>
 
         {/* Login Form */}
-        <div className="bg-background-secondary border border-border rounded-lg shadow-lg p-6">
+        <div className="bg-background-secondary border border-border rounded-none shadow-none p-6">
           <form onSubmit={handleSubmit} className="space-y-5">
             {/* Error Message */}
             {error && (
               <div
                 role="alert"
-                className="px-4 py-3 rounded-lg bg-red-500/10 border border-red-500/20 text-red-500"
+                className="px-4 py-3 rounded-none bg-background border border-status-error text-status-error"
               >
                 <p className="text-sm">{error}</p>
               </div>

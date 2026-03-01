@@ -75,10 +75,10 @@ export function ProfileDropdown({ className = '' }: ProfileDropdownProps) {
         aria-haspopup="true"
         aria-label={t('profile.menu')}
         className="
-          flex items-center gap-1 sm:gap-2 p-2 rounded-lg min-h-touch min-w-touch
+          flex items-center gap-1 sm:gap-2 p-2 rounded-none min-h-touch min-w-touch
           text-foreground hover:bg-underground-lighter
           focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-primary
-          transition-colors touch-manipulation
+          transition-none touch-manipulation
         "
       >
         {/* Avatar */}
@@ -93,7 +93,7 @@ export function ProfileDropdown({ className = '' }: ProfileDropdownProps) {
         >
           {user.did.length >= 6 ? user.did.slice(4, 6).toUpperCase() : '??'}
         </div>
-        
+
         {/* Chevron - Hidden on very small screens */}
         <svg
           className={`w-4 h-4 transition-transform hidden xs:block ${isOpen ? 'rotate-180' : ''}`}
@@ -112,7 +112,7 @@ export function ProfileDropdown({ className = '' }: ProfileDropdownProps) {
           className="
             absolute right-0 mt-2 w-64 sm:w-72
             bg-background-secondary border border-border
-            rounded-lg shadow-lg
+            rounded-none shadow-none
             py-2
             z-50
           "
@@ -125,7 +125,7 @@ export function ProfileDropdown({ className = '' }: ProfileDropdownProps) {
               {displayDid}
             </p>
             {isAdmin && (
-              <span className="inline-block mt-1 px-2 py-0.5 text-xs font-medium text-white bg-brand-accent rounded">
+              <span className="inline-block mt-1 px-2 py-0.5 text-xs font-medium text-white bg-brand-accent rounded-full">
                 {t('navigation.admin')}
               </span>
             )}
@@ -185,7 +185,7 @@ export function ProfileDropdown({ className = '' }: ProfileDropdownProps) {
               onClick={handleLogout}
               className="
                 w-full text-left px-4 py-2.5 min-h-touch
-                text-sm text-red-500
+                text-sm text-status-error
                 hover:bg-underground-lighter
                 focus:outline-none focus-visible:bg-underground-lighter
                 touch-manipulation

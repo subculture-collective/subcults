@@ -25,7 +25,7 @@ export const LanguageSelector: React.FC = () => {
         id="language-select"
         value={currentLanguage}
         onChange={handleChange}
-        className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
+        className="px-3 py-2 border border-border rounded-none bg-background text-foreground focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-primary focus:border-brand-primary transition-none"
         aria-label={t('language.select')}
       >
         <option value="en">{t('language.en')}</option>

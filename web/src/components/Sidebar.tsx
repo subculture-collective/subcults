@@ -82,19 +82,32 @@ export function Sidebar({ isOpen = true, onClose, className = '' }: SidebarProps
         <div className="flex flex-col h-full overflow-y-auto">
           {/* Header */}
           <div className="flex items-center justify-between p-3 sm:p-4 border-b border-border lg:hidden">
-            <h2 className="text-base sm:text-lg font-semibold text-foreground">{t('navigation.menu')}</h2>
+            <h2 className="text-base sm:text-lg font-semibold text-foreground">
+              {t('navigation.menu')}
+            </h2>
             <button
               onClick={onClose}
               aria-label={t('actions.close')}
               className="
-                p-2 rounded-lg min-h-touch min-w-touch
+                p-2 rounded-none min-h-touch min-w-touch
                 text-foreground hover:bg-underground-lighter
                 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-primary
                 touch-manipulation
               "
             >
-              <svg aria-hidden="true" className="w-5 h-5 sm:w-6 sm:h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              <svg
+                aria-hidden="true"
+                className="w-5 h-5 sm:w-6 sm:h-6"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M6 18L18 6M6 6l12 12"
+                />
               </svg>
             </button>
           </div>
@@ -111,9 +124,9 @@ export function Sidebar({ isOpen = true, onClose, className = '' }: SidebarProps
                   to={item.path}
                   onClick={handleLinkClick}
                   className={`
-                    flex items-center gap-3 px-3 py-2.5 sm:py-2 rounded-lg min-h-touch
+                    flex items-center gap-3 px-3 py-2.5 sm:py-2 rounded-none min-h-touch
                     text-sm font-medium
-                    transition-colors
+                    transition-none
                     touch-manipulation
                     ${
                       isActive(item.path)
@@ -122,7 +135,9 @@ export function Sidebar({ isOpen = true, onClose, className = '' }: SidebarProps
                     }
                   `}
                 >
-                  <span className="text-base sm:text-lg" aria-hidden="true">{item.icon}</span>
+                  <span className="text-base sm:text-lg" aria-hidden="true">
+                    {item.icon}
+                  </span>
                   <span>{item.label}</span>
                 </Link>
               ))}
@@ -140,9 +155,9 @@ export function Sidebar({ isOpen = true, onClose, className = '' }: SidebarProps
                     to={item.path}
                     onClick={handleLinkClick}
                     className={`
-                      flex items-center gap-3 px-3 py-2.5 sm:py-2 rounded-lg min-h-touch
+                      flex items-center gap-3 px-3 py-2.5 sm:py-2 rounded-none min-h-touch
                       text-sm font-medium
-                      transition-colors
+                      transition-none
                       touch-manipulation
                       ${
                         isActive(item.path)
@@ -151,7 +166,9 @@ export function Sidebar({ isOpen = true, onClose, className = '' }: SidebarProps
                       }
                     `}
                   >
-                    <span className="text-base sm:text-lg" aria-hidden="true">{item.icon}</span>
+                    <span className="text-base sm:text-lg" aria-hidden="true">
+                      {item.icon}
+                    </span>
                     <span>{item.label}</span>
                   </Link>
                 ))}
@@ -171,9 +188,7 @@ export function Sidebar({ isOpen = true, onClose, className = '' }: SidebarProps
 
           {/* Footer */}
           <div className="p-3 sm:p-4 border-t border-border">
-            <p className="text-xs text-foreground-secondary text-center">
-              Subcults v{VERSION}
-            </p>
+            <p className="text-xs text-foreground-secondary text-center">Subcults v{VERSION}</p>
           </div>
         </div>
       </aside>

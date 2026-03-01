@@ -59,14 +59,14 @@ describe('Input', () => {
     it('applies error state styles', () => {
       render(<Input error="Error message" />);
       const input = screen.getByRole('textbox');
-      expect(input).toHaveClass('border-red-500');
+      expect(input).toHaveClass('border-status-error');
       expect(input).toHaveAttribute('aria-invalid', 'true');
     });
 
     it('applies success state styles', () => {
       render(<Input success />);
       const input = screen.getByRole('textbox');
-      expect(input).toHaveClass('border-green-500');
+      expect(input).toHaveClass('border-status-success');
     });
 
     it('applies disabled state', () => {

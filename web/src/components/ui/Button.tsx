@@ -1,7 +1,7 @@
 /**
  * Button Component
  * Unified button component with variants following design system
- * 
+ *
  * Features:
  * - Four variants: primary, secondary, danger, ghost
  * - Consistent sizing and spacing
@@ -22,30 +22,30 @@ export interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElemen
    * @default 'primary'
    */
   variant?: ButtonVariant;
-  
+
   /**
    * Button size
    * @default 'md'
    */
   size?: ButtonSize;
-  
+
   /**
    * Show loading spinner and disable interaction
    * @default false
    */
   isLoading?: boolean;
-  
+
   /**
    * Full width button
    * @default false
    */
   fullWidth?: boolean;
-  
+
   /**
    * Additional CSS classes
    */
   className?: string;
-  
+
   /**
    * Button content
    */
@@ -68,9 +68,9 @@ function getVariantStyles(variant: ButtonVariant): string {
       focus-visible:ring-brand-primary
     `,
     danger: `
-      bg-red-600 hover:bg-red-700
-      text-white border-red-600 hover:border-red-700
-      focus-visible:ring-red-500
+      bg-status-error hover:opacity-90
+      text-white border-status-error
+      focus-visible:ring-status-error
     `,
     ghost: `
       bg-transparent hover:bg-brand-underground-lighter
@@ -78,7 +78,7 @@ function getVariantStyles(variant: ButtonVariant): string {
       focus-visible:ring-brand-primary
     `,
   };
-  
+
   return variants[variant].replace(/\s+/g, ' ').trim();
 }
 
@@ -91,7 +91,7 @@ function getSizeStyles(size: ButtonSize): string {
     md: 'px-5 py-2.5 text-base min-h-touch', // 44px minimum for touch
     lg: 'px-6 py-3 text-lg min-h-[52px]',
   };
-  
+
   return sizes[size];
 }
 
@@ -114,27 +114,23 @@ export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
   ) => {
     const baseStyles = `
       inline-flex items-center justify-center gap-2
-      rounded-lg border font-medium
-      cursor-pointer transition-colors duration-250
+      rounded-none border font-bold uppercase tracking-[0.05em]
+      cursor-pointer transition-none
       focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2
       disabled:opacity-50 disabled:cursor-not-allowed
       theme-transition
       min-w-touch
     `;
-    
+
     const variantStyles = getVariantStyles(variant);
     const sizeStyles = getSizeStyles(size);
     const widthStyle = fullWidth ? 'w-full' : '';
-    
-    const combinedClassName = `${baseStyles} ${variantStyles} ${sizeStyles} ${widthStyle} ${className}`.trim();
-    
+
+    const combinedClassName =
+      `${baseStyles} ${variantStyles} ${sizeStyles} ${widthStyle} ${className}`.trim();
+
     return (
-      <button
-        ref={ref}
-        className={combinedClassName}
-        disabled={disabled || isLoading}
-        {...props}
-      >
+      <button ref={ref} className={combinedClassName} disabled={disabled || isLoading} {...props}>
         {isLoading && (
           <span
             className="inline-block animate-spin rounded-full h-4 w-4 border-2 border-current border-t-transparent"

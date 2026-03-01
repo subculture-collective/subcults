@@ -441,8 +441,9 @@ describe('NotificationSettings', () => {
 
       const badge = screen.getByText('Enabled');
       expect(badge).toBeInTheDocument();
-      expect(badge).toHaveClass('bg-green-100');
-      expect(badge).toHaveClass('text-green-800');
+      expect(badge).toHaveClass('bg-background');
+      expect(badge).toHaveClass('border-status-success');
+      expect(badge).toHaveClass('text-foreground');
     });
 
     it('shows disabled badge with appropriate styling when not subscribed', () => {
@@ -450,8 +451,9 @@ describe('NotificationSettings', () => {
 
       const badge = screen.getByText('Disabled');
       expect(badge).toBeInTheDocument();
-      expect(badge).toHaveClass('bg-gray-100');
-      expect(badge).toHaveClass('text-gray-800');
+      expect(badge).toHaveClass('bg-background');
+      expect(badge).toHaveClass('border-border');
+      expect(badge).toHaveClass('text-foreground-secondary');
     });
   });
 

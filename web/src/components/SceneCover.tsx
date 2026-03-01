@@ -117,7 +117,7 @@ export const SceneCover: React.FC<SceneCoverProps> = ({
     <div
       ref={containerRef}
       className={`
-        relative overflow-hidden bg-gray-200 dark:bg-gray-800
+        relative overflow-hidden bg-background-secondary
         ${onClick ? 'cursor-pointer' : ''}
         ${className}
       `}
@@ -159,7 +159,7 @@ export const SceneCover: React.FC<SceneCoverProps> = ({
         /* Fallback placeholder */
         <div className="w-full h-full flex items-center justify-center">
           <svg
-            className="w-16 h-16 text-gray-400"
+            className="w-16 h-16 text-foreground-muted"
             fill="none"
             stroke="currentColor"
             viewBox="0 0 24 24"
@@ -178,7 +178,7 @@ export const SceneCover: React.FC<SceneCoverProps> = ({
       {/* Loading skeleton */}
       {src && !imageError && !imageLoaded && isInView && (
         <div
-          className="absolute inset-0 bg-gray-300 dark:bg-gray-700 animate-pulse"
+          className="absolute inset-0 bg-background-hover animate-pulse"
           aria-hidden="true"
         />
       )}

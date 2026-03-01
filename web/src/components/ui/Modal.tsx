@@ -1,7 +1,7 @@
 /**
  * Modal Component
  * Unified modal/dialog component with consistent styling
- * 
+ *
  * Features:
  * - Accessible focus trap
  * - ESC key to close
@@ -20,45 +20,45 @@ export interface ModalProps {
    * Whether the modal is open
    */
   isOpen: boolean;
-  
+
   /**
    * Handler called when modal should close
    */
   onClose: () => void;
-  
+
   /**
    * Modal title
    */
   title: string;
-  
+
   /**
    * Modal content
    */
   children: React.ReactNode;
-  
+
   /**
    * Footer content (typically action buttons)
    */
   footer?: React.ReactNode;
-  
+
   /**
    * Close on backdrop click
    * @default true
    */
   closeOnBackdrop?: boolean;
-  
+
   /**
    * Close on ESC key
    * @default true
    */
   closeOnEsc?: boolean;
-  
+
   /**
    * Size variant
    * @default 'md'
    */
   size?: 'sm' | 'md' | 'lg' | 'xl';
-  
+
   /**
    * Additional CSS classes
    */
@@ -100,7 +100,7 @@ export function Modal({
   useEffect(() => {
     if (isOpen) {
       previousFocusRef.current = document.activeElement as HTMLElement;
-      
+
       // Focus close button after animation
       setTimeout(() => {
         closeButtonRef.current?.focus();
@@ -206,17 +206,14 @@ export function Modal({
             className={`
               relative w-full ${sizeClass}
               bg-background-secondary border border-border
-              rounded-lg shadow-xl
+              rounded-none shadow-none
               animate-slide-up
               ${className}
             `.trim()}
           >
             {/* Header */}
             <div className="flex items-start justify-between p-6 pb-4 border-b border-border">
-              <h2
-                id="modal-title"
-                className="text-xl font-semibold text-foreground"
-              >
+              <h2 id="modal-title" className="text-xl font-semibold text-foreground">
                 {title}
               </h2>
               <button
@@ -224,11 +221,11 @@ export function Modal({
                 onClick={onClose}
                 aria-label="Close modal"
                 className="
-                  ml-4 p-1 rounded-lg
+                  ml-4 p-1 rounded-none
                   text-foreground-secondary hover:text-foreground
                   hover:bg-brand-underground-lighter
                   focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-primary
-                  transition-colors
+                  transition-none
                   min-h-touch min-w-touch
                 "
               >
@@ -239,9 +236,7 @@ export function Modal({
             </div>
 
             {/* Body */}
-            <div className="p-6 text-foreground">
-              {children}
-            </div>
+            <div className="p-6 text-foreground">{children}</div>
 
             {/* Footer */}
             {footer && (
@@ -293,11 +288,7 @@ export function ConfirmModal({
           <Button variant="ghost" onClick={onClose} disabled={isLoading}>
             {cancelText}
           </Button>
-          <Button
-            variant={variant}
-            onClick={onConfirm}
-            isLoading={isLoading}
-          >
+          <Button variant={variant} onClick={onConfirm} isLoading={isLoading}>
             {confirmText}
           </Button>
         </>

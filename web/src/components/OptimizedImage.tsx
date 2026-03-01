@@ -180,13 +180,13 @@ export const OptimizedImage: React.FC<OptimizedImageProps> = ({
       {/* Error state */}
       {hasError && (
         <div
-          className={`flex items-center justify-center bg-gray-200 dark:bg-gray-800 ${className}`}
+          className={`flex items-center justify-center bg-background-secondary ${className}`}
           style={{ aspectRatio }}
           role="img"
           aria-label={`Failed to load image: ${alt}`}
         >
           <svg
-            className="w-12 h-12 text-gray-400"
+            className="w-12 h-12 text-foreground-muted"
             fill="none"
             stroke="currentColor"
             viewBox="0 0 24 24"

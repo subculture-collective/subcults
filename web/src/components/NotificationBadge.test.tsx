@@ -36,7 +36,7 @@ describe('NotificationBadge', () => {
     const { container } = render(<NotificationBadge notificationCount={0} />);
     
     // Badge should not be present
-    const badge = container.querySelector('.bg-red-600');
+    const badge = container.querySelector('.bg-status-error');
     expect(badge).not.toBeInTheDocument();
   });
 

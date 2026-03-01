@@ -1,11 +1,10 @@
 import { useRef } from 'react';
 import { ClusteredMapView } from './components/ClusteredMapView';
 import type { MapViewHandle } from './components/MapView';
-import './App.css';
 
 /**
  * Demo application showing ClusteredMapView usage
- * 
+ *
  * To use this demo:
  * 1. Replace App.tsx content with this file
  * 2. Set VITE_MAPTILER_API_KEY in your .env file
@@ -34,30 +33,28 @@ function ClusteredMapDemo() {
   };
 
   return (
-    <div style={{ height: '100vh', display: 'flex', flexDirection: 'column' }}>
-      <div style={{ padding: '1rem', background: '#1a1a1a', color: 'white' }}>
-        <h1 style={{ margin: 0, fontSize: '1.5rem' }}>
-          Subcults - Clustered Scene & Event Map
-        </h1>
-        <p style={{ margin: '0.5rem 0', fontSize: '0.875rem', opacity: 0.8 }}>
+    <div className="h-screen flex flex-col">
+      <div className="p-4 bg-brand-underground text-foreground">
+        <h1 className="text-2xl font-bold">Subcults - Clustered Scene &amp; Event Map</h1>
+        <p className="mt-2 text-sm text-foreground-muted">
           Interactive map with privacy-first clustering of underground music scenes and events
         </p>
-        <div style={{ marginTop: '0.5rem' }}>
-          <button onClick={handleFlyToSF} style={{ marginRight: '0.5rem' }}>
-            📍 San Francisco
+        <div className="mt-2 flex gap-2">
+          <button onClick={handleFlyToSF} className="px-3 py-1 bg-background border border-border text-foreground text-sm rounded-none hover:bg-surface transition-none">
+            San Francisco
           </button>
-          <button onClick={handleFlyToNYC} style={{ marginRight: '0.5rem' }}>
-            📍 New York
+          <button onClick={handleFlyToNYC} className="px-3 py-1 bg-background border border-border text-foreground text-sm rounded-none hover:bg-surface transition-none">
+            New York
           </button>
-          <button onClick={handleFlyToLA}>
-            📍 Los Angeles
+          <button onClick={handleFlyToLA} className="px-3 py-1 bg-background border border-border text-foreground text-sm rounded-none hover:bg-surface transition-none">
+            Los Angeles
           </button>
         </div>
-        <div style={{ marginTop: '0.5rem', fontSize: '0.75rem', opacity: 0.6 }}>
-          💡 Tip: Click clusters to expand • Click markers for details • Blue = Scenes • Pink = Events
+        <div className="mt-2 text-xs text-foreground-muted">
+          Tip: Click clusters to expand &bull; Click markers for details &bull; Blue = Scenes &bull; Pink = Events
         </div>
       </div>
-      <div style={{ flex: 1, position: 'relative' }}>
+      <div className="flex-1 relative">
         <ClusteredMapView
           ref={mapRef}
           enableGeolocation={false}

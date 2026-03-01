@@ -28,19 +28,19 @@ export const JoinStreamButton: React.FC<JoinStreamButtonProps> = ({
     : t('joinButton.join');
 
   const buttonClass = isConnected
-    ? 'bg-green-500'
+    ? 'bg-status-success text-black border border-status-success'
     : isConnecting
-    ? 'bg-gray-500'
-    : 'bg-blue-500 hover:bg-blue-600';
+    ? 'bg-background-secondary text-foreground-secondary border border-border'
+    : 'bg-brand-primary hover:bg-brand-primary-dark text-white border border-brand-primary';
 
   return (
     <button
       onClick={onJoin}
       disabled={disabled || isConnected || isConnecting}
       className={`
-        join-stream-button px-6 py-3 text-base font-semibold rounded-lg
-        border-0 text-white min-w-[150px]
-        transition-all duration-200
+        join-stream-button px-6 py-3 text-base font-bold uppercase tracking-[0.05em] rounded-none
+        min-w-[150px]
+        transition-none
         focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-brand-primary
         disabled:opacity-50 disabled:cursor-not-allowed
         ${buttonClass}

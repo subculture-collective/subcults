@@ -161,6 +161,6 @@
 
 .volume-slider:focus-visible {
   /* Provide visible focus indicator for keyboard users */
-  outline: 2px solid #646cff;
+  outline: 2px solid var(--color-neon-purple);
   outline-offset: 2px;
 }

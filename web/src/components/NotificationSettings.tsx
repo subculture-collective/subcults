@@ -65,7 +65,9 @@ export const NotificationSettings: React.FC = () => {
       setPermission(newPermission);
 
       if (newPermission !== 'granted') {
-        setError('Notification permission was denied. Please enable notifications in your browser settings.');
+        setError(
+          'Notification permission was denied. Please enable notifications in your browser settings.'
+        );
         return;
       }
 
@@ -81,14 +83,14 @@ export const NotificationSettings: React.FC = () => {
       } catch (backendError) {
         console.error(
           '[NotificationSettings] Failed to sync subscription with backend, rolling back subscription:',
-          backendError,
+          backendError
         );
         try {
           await unsubscribeFromPushNotifications();
         } catch (unsubscribeError) {
           console.error(
             '[NotificationSettings] Failed to roll back push subscription after backend failure:',
-            unsubscribeError,
+            unsubscribeError
           );
         }
         setSubscription(null);
@@ -132,21 +134,23 @@ export const NotificationSettings: React.FC = () => {
 
   if (!browserSupported) {
     return (
-      <div className="bg-background-secondary border border-border rounded-lg p-6 theme-transition">
+      <div className="bg-background-secondary border border-border rounded-none p-6 theme-transition">
         <h2 className="text-2xl font-semibold mb-4 text-foreground">Notifications</h2>
-        <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg p-4">
-          <p className="text-yellow-800 dark:text-yellow-200">
-            <strong>Browser not supported:</strong> Your browser does not support Web Push notifications.
-            Please use a modern browser like Chrome, Firefox, Edge, or Safari to enable notifications.
+        <div className="bg-background border border-status-warning rounded-none p-4">
+          <p className="text-foreground-secondary">
+            <strong>Browser not supported:</strong> Your browser does not support Web Push
+            notifications. Please use a modern browser like Chrome, Firefox, Edge, or Safari to
+            enable notifications.
           </p>
         </div>
         <div className="mt-4 text-sm text-foreground-muted">
           <p className="mb-2">
-            <strong>Privacy Note:</strong> Notifications are completely optional and require your explicit consent.
+            <strong>Privacy Note:</strong> Notifications are completely optional and require your
+            explicit consent.
           </p>
           <p>
-            We respect your privacy and will only send notifications about events that matter to you,
-            such as new events near your location, live stream starts, or membership approvals.
+            We respect your privacy and will only send notifications about events that matter to
+            you, such as new events near your location, live stream starts, or membership approvals.
           </p>
         </div>
       </div>
@@ -154,7 +158,7 @@ export const NotificationSettings: React.FC = () => {
   }
 
   return (
-    <div className="bg-background-secondary border border-border rounded-lg p-6 theme-transition">
+    <div className="bg-background-secondary border border-border rounded-none p-6 theme-transition">
       <h2 className="text-2xl font-semibold mb-4 text-foreground">Notifications</h2>
 
       <div className="space-y-4">
@@ -174,8 +178,8 @@ export const NotificationSettings: React.FC = () => {
             <span
               className={`px-3 py-1 rounded-full text-sm font-medium ${
                 isSubscribed
-                  ? 'bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-200'
-                  : 'bg-gray-100 dark:bg-gray-800 text-gray-800 dark:text-gray-200'
+                  ? 'bg-background border border-status-success text-foreground'
+                  : 'bg-background border border-border text-foreground-secondary'
               }`}
             >
               {isSubscribed ? 'Enabled' : 'Disabled'}
@@ -185,9 +189,9 @@ export const NotificationSettings: React.FC = () => {
             <button
               onClick={isSubscribed ? handleDisableNotifications : handleEnableNotifications}
               disabled={isLoading || (!isSubscribed && permission === 'denied')}
-              className={`px-4 py-2 rounded-lg font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
+              className={`px-4 py-2 rounded-none font-bold uppercase tracking-[0.05em] transition-none disabled:opacity-50 disabled:cursor-not-allowed ${
                 isSubscribed
-                  ? 'bg-red-600 hover:bg-red-700 text-white'
+                  ? 'bg-status-error hover:opacity-90 text-white'
                   : 'bg-brand-primary hover:bg-brand-primary-dark text-white'
               }`}
             >
@@ -198,8 +202,8 @@ export const NotificationSettings: React.FC = () => {
 
         {/* Error Message */}
         {error && (
-          <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4">
-            <p className="text-red-800 dark:text-red-200 text-sm">
+          <div className="bg-background border border-status-error rounded-none p-4">
+            <p className="text-status-error text-sm">
               <strong>Error:</strong> {error}
             </p>
           </div>
@@ -207,10 +211,10 @@ export const NotificationSettings: React.FC = () => {
 
         {/* Permission Denied Message */}
         {permission === 'denied' && (
-          <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg p-4">
-            <p className="text-yellow-800 dark:text-yellow-200 text-sm">
-              <strong>Permission denied:</strong> You have blocked notifications for this site.
-              To enable notifications, please update your browser settings and reload the page.
+          <div className="bg-background border border-status-warning rounded-none p-4">
+            <p className="text-foreground-secondary text-sm">
+              <strong>Permission denied:</strong> You have blocked notifications for this site. To
+              enable notifications, please update your browser settings and reload the page.
             </p>
           </div>
         )}
@@ -221,7 +225,7 @@ export const NotificationSettings: React.FC = () => {
             <summary className="cursor-pointer text-foreground-secondary hover:text-foreground">
               Subscription Details (Dev Only)
             </summary>
-            <pre className="mt-2 p-3 bg-background rounded border border-border overflow-x-auto text-xs text-foreground-muted">
+            <pre className="mt-2 p-3 bg-background rounded-none border border-border overflow-x-auto text-xs text-foreground-muted">
               {JSON.stringify({ endpoint: subscription.endpoint }, null, 2)}
             </pre>
           </details>
