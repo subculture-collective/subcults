@@ -15,15 +15,14 @@ import { useLanguageStore } from './stores/languageStore';
 import { sessionReplay } from './lib/session-replay';
 import { initPerformanceMonitoring } from './lib/performance-metrics';
 import { useWebVitals, useNavigationTiming } from './hooks/useWebVitals';
-import './App.css';
 
 function App() {
   // Track Core Web Vitals metrics
   useWebVitals();
-  
+
   // Track navigation and resource timing
   useNavigationTiming();
-  
+
   // Initialize auth on app startup
   useEffect(() => {
     authStore.initialize();
@@ -44,15 +43,15 @@ function App() {
   useEffect(() => {
     // Load settings from localStorage
     useSettingsStore.getState().initializeSettings();
-    
+
     // Initialize performance monitoring after settings are loaded
     const { telemetryOptOut } = useSettingsStore.getState();
     initPerformanceMonitoring(telemetryOptOut);
-    
+
     // Start session replay if user has opted in
     // (will check opt-in status internally)
     sessionReplay.start();
-    
+
     // Cleanup on unmount
     return () => {
       sessionReplay.destroy();
@@ -70,4 +69,3 @@ function App() {
 }
 
 export default App;
-

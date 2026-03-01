@@ -223,7 +223,7 @@ export function SearchBar({
   const handleRemoveHistory = (query: string, event: React.MouseEvent) => {
     event.stopPropagation();
     removeFromHistory(query);
-    
+
     // If no more history, close dropdown
     if (history.length === 1) {
       setIsOpen(false);
@@ -240,9 +240,7 @@ export function SearchBar({
     switch (e.key) {
       case 'ArrowDown':
         e.preventDefault();
-        setSelectedIndex((prev) =>
-          prev < flatResults.length - 1 ? prev + 1 : prev
-        );
+        setSelectedIndex((prev) => (prev < flatResults.length - 1 ? prev + 1 : prev));
         break;
 
       case 'ArrowUp':
@@ -296,9 +294,7 @@ export function SearchBar({
    */
   useEffect(() => {
     if (selectedIndex >= 0 && dropdownRef.current) {
-      const selectedElement = dropdownRef.current.querySelector(
-        `[data-index="${selectedIndex}"]`
-      );
+      const selectedElement = dropdownRef.current.querySelector(`[data-index="${selectedIndex}"]`);
       // Check if scrollIntoView exists (not available in some test environments)
       if (selectedElement && typeof selectedElement.scrollIntoView === 'function') {
         selectedElement.scrollIntoView({ block: 'nearest' });
@@ -330,7 +326,11 @@ export function SearchBar({
       case 'event':
         return item.data.name;
       case 'post':
-        return item.data.title || item.data.content?.substring(0, POST_TITLE_TRUNCATE_LENGTH) || UNTITLED_POST_LABEL;
+        return (
+          item.data.title ||
+          item.data.content?.substring(0, POST_TITLE_TRUNCATE_LENGTH) ||
+          UNTITLED_POST_LABEL
+        );
     }
   };
 
@@ -365,9 +365,7 @@ export function SearchBar({
           aria-expanded={isOpen}
           aria-controls="search-results"
           aria-autocomplete="list"
-          aria-activedescendant={
-            selectedIndex >= 0 ? `search-result-${selectedIndex}` : undefined
-          }
+          aria-activedescendant={selectedIndex >= 0 ? `search-result-${selectedIndex}` : undefined}
           value={inputValue}
           onChange={(e) => handleInputChange(e.target.value)}
           onKeyDown={handleKeyDown}
@@ -382,7 +380,7 @@ export function SearchBar({
           placeholder={searchPlaceholder}
           autoFocus={autoFocus}
           className="
-            w-full pl-10 pr-10 py-2 rounded-lg
+            w-full pl-10 pr-10 py-2 rounded-none
             bg-background-secondary border border-border
             text-foreground placeholder:text-foreground-tertiary
             focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-primary
@@ -414,9 +412,9 @@ export function SearchBar({
           id="search-results"
           role="listbox"
           className="
-            absolute z-50 w-full mt-2 rounded-lg
+            absolute z-50 w-full mt-2 rounded-none
             bg-background-secondary border border-border
-            shadow-lg max-h-96 overflow-y-auto
+            shadow-none max-h-96 overflow-y-auto
           "
         >
           {/* Show Search History when input is empty */}
@@ -462,9 +460,7 @@ export function SearchBar({
                     <span className="text-lg flex-shrink-0" aria-hidden="true">
                       {ICONS.HISTORY}
                     </span>
-                    <span className="flex-1 text-sm text-foreground truncate">
-                      {item.query}
-                    </span>
+                    <span className="flex-1 text-sm text-foreground truncate">{item.query}</span>
                   </button>
                   <button
                     onClick={(e) => handleRemoveHistory(item.query, e)}
@@ -475,7 +471,9 @@ export function SearchBar({
                       p-1 flex-shrink-0
                     "
                   >
-                    <span aria-hidden="true" className="text-sm">{ICONS.CLOSE}</span>
+                    <span aria-hidden="true" className="text-sm">
+                      {ICONS.CLOSE}
+                    </span>
                   </button>
                 </div>
               ))}
@@ -493,89 +491,100 @@ export function SearchBar({
           {/* Error State */}
           {error && !loading && !showHistory && (
             <div className="p-4 text-center">
-              <p className="text-sm text-red-500" role="alert">{error}</p>
+              <p className="text-sm text-status-error" role="alert">
+                {error}
+              </p>
             </div>
           )}
 
           {/* Empty State */}
-          {!loading && !error && !showHistory && inputValue.trim() && hasAutocompleteSuggestions && (
-            <div role="group" aria-labelledby="search-autocomplete-heading">
-              <h3
-                id="search-autocomplete-heading"
-                className="px-3 py-2 text-xs font-semibold text-foreground-tertiary uppercase tracking-wider bg-background"
-              >
-                {t('search.suggestions')}
-              </h3>
+          {!loading &&
+            !error &&
+            !showHistory &&
+            inputValue.trim() &&
+            hasAutocompleteSuggestions && (
+              <div role="group" aria-labelledby="search-autocomplete-heading">
+                <h3
+                  id="search-autocomplete-heading"
+                  className="px-3 py-2 text-xs font-semibold text-foreground-tertiary uppercase tracking-wider bg-background"
+                >
+                  {t('search.suggestions')}
+                </h3>
 
-              {genreSuggestions.length > 0 && (
-                <div role="group" aria-labelledby="search-suggestions-genres-heading">
-                  <h4
-                    id="search-suggestions-genres-heading"
-                    className="px-3 py-2 text-xs font-semibold text-foreground-tertiary uppercase tracking-wider"
-                  >
-                    {t('search.sections.genres')}
-                  </h4>
-                  {genreSuggestions.map((genre) => (
-                    <button
-                      key={`genre-${genre}`}
-                      onClick={() => handleAutocompleteClick(genre)}
-                      className="w-full px-3 py-2 text-left text-sm hover:bg-underground-lighter focus:outline-none focus-visible:bg-underground-lighter"
+                {genreSuggestions.length > 0 && (
+                  <div role="group" aria-labelledby="search-suggestions-genres-heading">
+                    <h4
+                      id="search-suggestions-genres-heading"
+                      className="px-3 py-2 text-xs font-semibold text-foreground-tertiary uppercase tracking-wider"
                     >
-                      {genre}
-                    </button>
-                  ))}
-                </div>
-              )}
+                      {t('search.sections.genres')}
+                    </h4>
+                    {genreSuggestions.map((genre) => (
+                      <button
+                        key={`genre-${genre}`}
+                        onClick={() => handleAutocompleteClick(genre)}
+                        className="w-full px-3 py-2 text-left text-sm hover:bg-underground-lighter focus:outline-none focus-visible:bg-underground-lighter"
+                      >
+                        {genre}
+                      </button>
+                    ))}
+                  </div>
+                )}
 
-              {artistSuggestions.length > 0 && (
-                <div role="group" aria-labelledby="search-suggestions-artists-heading">
-                  <h4
-                    id="search-suggestions-artists-heading"
-                    className="px-3 py-2 text-xs font-semibold text-foreground-tertiary uppercase tracking-wider"
-                  >
-                    {t('search.sections.artists')}
-                  </h4>
-                  {artistSuggestions.map((artist) => (
-                    <button
-                      key={`artist-${artist}`}
-                      onClick={() => handleAutocompleteClick(artist)}
-                      className="w-full px-3 py-2 text-left text-sm hover:bg-underground-lighter focus:outline-none focus-visible:bg-underground-lighter"
+                {artistSuggestions.length > 0 && (
+                  <div role="group" aria-labelledby="search-suggestions-artists-heading">
+                    <h4
+                      id="search-suggestions-artists-heading"
+                      className="px-3 py-2 text-xs font-semibold text-foreground-tertiary uppercase tracking-wider"
                     >
-                      {artist}
-                    </button>
-                  ))}
-                </div>
-              )}
+                      {t('search.sections.artists')}
+                    </h4>
+                    {artistSuggestions.map((artist) => (
+                      <button
+                        key={`artist-${artist}`}
+                        onClick={() => handleAutocompleteClick(artist)}
+                        className="w-full px-3 py-2 text-left text-sm hover:bg-underground-lighter focus:outline-none focus-visible:bg-underground-lighter"
+                      >
+                        {artist}
+                      </button>
+                    ))}
+                  </div>
+                )}
 
-              {hashtagSuggestions.length > 0 && (
-                <div role="group" aria-labelledby="search-suggestions-hashtags-heading">
-                  <h4
-                    id="search-suggestions-hashtags-heading"
-                    className="px-3 py-2 text-xs font-semibold text-foreground-tertiary uppercase tracking-wider"
-                  >
-                    {t('search.sections.hashtags')}
-                  </h4>
-                  {hashtagSuggestions.map((hashtag) => (
-                    <button
-                      key={`hashtag-${hashtag}`}
-                      onClick={() => handleAutocompleteClick(hashtag)}
-                      className="w-full px-3 py-2 text-left text-sm hover:bg-underground-lighter focus:outline-none focus-visible:bg-underground-lighter"
+                {hashtagSuggestions.length > 0 && (
+                  <div role="group" aria-labelledby="search-suggestions-hashtags-heading">
+                    <h4
+                      id="search-suggestions-hashtags-heading"
+                      className="px-3 py-2 text-xs font-semibold text-foreground-tertiary uppercase tracking-wider"
                     >
-                      {hashtag}
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
-          )}
+                      {t('search.sections.hashtags')}
+                    </h4>
+                    {hashtagSuggestions.map((hashtag) => (
+                      <button
+                        key={`hashtag-${hashtag}`}
+                        onClick={() => handleAutocompleteClick(hashtag)}
+                        className="w-full px-3 py-2 text-left text-sm hover:bg-underground-lighter focus:outline-none focus-visible:bg-underground-lighter"
+                      >
+                        {hashtag}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
 
-          {!loading && !error && !hasResults && !showHistory && !hasAutocompleteSuggestions && inputValue.trim() && (
-            <div className="p-4 text-center">
-              <p className="text-sm text-foreground-tertiary">
-                {t('search.noResults', { query: inputValue })}
-              </p>
-            </div>
-          )}
+          {!loading &&
+            !error &&
+            !hasResults &&
+            !showHistory &&
+            !hasAutocompleteSuggestions &&
+            inputValue.trim() && (
+              <div className="p-4 text-center">
+                <p className="text-sm text-foreground-tertiary">
+                  {t('search.noResults', { query: inputValue })}
+                </p>
+              </div>
+            )}
 
           {/* Results */}
           {!loading && !error && !showHistory && hasResults && (

@@ -102,7 +102,7 @@ export function StreamingDemo() {
             {isConnected && (
               <button
                 onClick={disconnect}
-                className="px-6 py-3 bg-red-500 hover:bg-red-600 text-white rounded-lg font-semibold transition-colors"
+                className="px-6 py-3 bg-status-error hover:opacity-90 text-white border border-status-error rounded-none font-bold uppercase tracking-[0.05em] transition-none"
               >
                 Leave Room
               </button>
@@ -110,8 +110,8 @@ export function StreamingDemo() {
           </div>
 
           {error && (
-            <div className="p-4 bg-red-100 dark:bg-red-900/20 border border-red-300 dark:border-red-700 rounded-lg">
-              <p className="text-red-800 dark:text-red-300 text-sm">{error}</p>
+            <div className="p-4 bg-background border border-status-error rounded-none">
+              <p className="text-status-error text-sm">{error}</p>
             </div>
           )}
         </section>

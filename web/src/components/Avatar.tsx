@@ -51,25 +51,16 @@ function getInitials(name: string): string {
 /**
  * Generate a consistent background color based on name
  */
-function getColorFromName(name: string): string {
+function getColorFromName(name: string): { bgClass: string; textClass: string } {
   const colors = [
-    'bg-red-500',
-    'bg-orange-500',
-    'bg-amber-500',
-    'bg-yellow-500',
-    'bg-lime-500',
-    'bg-green-500',
-    'bg-emerald-500',
-    'bg-teal-500',
-    'bg-cyan-500',
-    'bg-sky-500',
-    'bg-blue-500',
-    'bg-indigo-500',
-    'bg-violet-500',
-    'bg-purple-500',
-    'bg-fuchsia-500',
-    'bg-pink-500',
-    'bg-rose-500',
+    { bgClass: 'bg-brand-primary', textClass: 'text-foreground' },
+    { bgClass: 'bg-neon-magenta', textClass: 'text-foreground' },
+    { bgClass: 'bg-status-error', textClass: 'text-foreground' },
+    { bgClass: 'bg-brand-accent', textClass: 'text-background' },
+    { bgClass: 'bg-neon-cyan', textClass: 'text-background' },
+    { bgClass: 'bg-status-info', textClass: 'text-background' },
+    { bgClass: 'bg-neon-green', textClass: 'text-background' },
+    { bgClass: 'bg-status-warning', textClass: 'text-background' },
   ];
   
   // Generate a hash from the name
@@ -172,7 +163,7 @@ export const Avatar: React.FC<AvatarProps> = ({
         <div
           className={`
             w-full h-full flex items-center justify-center
-            ${fallbackColor} text-white font-semibold
+            ${fallbackColor.bgClass} ${fallbackColor.textClass} font-semibold
             ${textSize}
           `}
           aria-label={`${name}'s avatar (initials)`}
@@ -184,7 +175,7 @@ export const Avatar: React.FC<AvatarProps> = ({
       {/* Loading skeleton */}
       {src && !imageError && !imageLoaded && (
         <div
-          className="absolute inset-0 bg-gray-300 dark:bg-gray-700 animate-pulse"
+          className="absolute inset-0 bg-background-hover animate-pulse"
           aria-hidden="true"
         />
       )}
@@ -194,7 +185,7 @@ export const Avatar: React.FC<AvatarProps> = ({
         <div
           className="
             absolute bottom-0 right-0
-            w-3 h-3 bg-green-500 border-2 border-white dark:border-gray-900
+            w-3 h-3 bg-status-success border-2 border-background
             rounded-full
           "
           aria-label="Online"

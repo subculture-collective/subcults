@@ -44,7 +44,7 @@ describe('LoadingSkeleton', () => {
     render(<LoadingSkeleton />);
     
     const loadingSkeleton = screen.getByRole('status');
-    expect(loadingSkeleton).toHaveClass('bg-brand-underground', 'text-white');
+    expect(loadingSkeleton).toHaveClass('bg-background-secondary', 'text-foreground');
   });
 
   it('uses Tailwind animate-spin class', () => {
@@ -79,7 +79,7 @@ describe('LoadingSkeleton', () => {
     
     const spinner = container.querySelector('.animate-spin');
     expect(spinner).toHaveClass('border-4');
-    expect(spinner).toHaveClass('border-white/10', 'border-t-white');
+    expect(spinner).toHaveClass('border-border', 'border-t-neon-purple');
   });
 
   it('spinner has margin below it via Tailwind', () => {

@@ -63,7 +63,7 @@ export const SceneSettingsPage: React.FC = () => {
   const [saving, setSaving] = useState(false);
   const [scene, setScene] = useState<Scene | null>(null);
   const [isOwner, setIsOwner] = useState(false);
-  
+
   // Form state
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
@@ -99,7 +99,10 @@ export const SceneSettingsPage: React.FC = () => {
         if (!ownerCheck) {
           addToastRef.current({
             type: 'error',
-            message: tRef.current('errors.notSceneOwner', 'You do not have permission to edit this scene'),
+            message: tRef.current(
+              'errors.notSceneOwner',
+              'You do not have permission to edit this scene'
+            ),
           });
           navigateRef.current(`/scenes/${id}`);
           return;
@@ -216,11 +219,11 @@ export const SceneSettingsPage: React.FC = () => {
       <div className="min-h-screen bg-background text-foreground p-8">
         <div className="max-w-4xl mx-auto">
           <div className="animate-pulse">
-            <div className="h-8 bg-background-secondary rounded w-1/3 mb-8"></div>
+            <div className="h-8 bg-background-secondary rounded-none w-1/3 mb-8"></div>
             <div className="space-y-6">
-              <div className="h-32 bg-background-secondary rounded"></div>
-              <div className="h-32 bg-background-secondary rounded"></div>
-              <div className="h-32 bg-background-secondary rounded"></div>
+              <div className="h-32 bg-background-secondary rounded-none"></div>
+              <div className="h-32 bg-background-secondary rounded-none"></div>
+              <div className="h-32 bg-background-secondary rounded-none"></div>
             </div>
           </div>
         </div>
@@ -253,11 +256,11 @@ export const SceneSettingsPage: React.FC = () => {
 
         <div className="space-y-6">
           {/* Basic Information */}
-          <section className="bg-background-secondary border border-border rounded-lg p-6">
+          <section className="bg-background-secondary border border-border rounded-none p-6">
             <h2 className="text-2xl font-semibold mb-4 text-foreground">
               {t('scene.settings.basicInfo', 'Basic Information')}
             </h2>
-            
+
             <div className="space-y-4">
               {/* Scene Name */}
               <div>
@@ -271,8 +274,8 @@ export const SceneSettingsPage: React.FC = () => {
                     setName(e.target.value);
                     if (nameError) setNameError(null);
                   }}
-                  className={`w-full px-4 py-2 bg-background border rounded-lg text-foreground focus:outline-none focus:ring-2 focus:ring-brand-primary ${
-                    nameError ? 'border-red-500' : 'border-border'
+                  className={`w-full px-4 py-2 bg-background border rounded-none text-foreground focus:outline-none focus:ring-2 focus:ring-brand-primary ${
+                    nameError ? 'border-status-error' : 'border-border'
                   }`}
                   placeholder={t('scene.namePlaceholder', 'Enter scene name')}
                   maxLength={64}
@@ -281,7 +284,7 @@ export const SceneSettingsPage: React.FC = () => {
                   aria-describedby={nameError ? 'name-error' : undefined}
                 />
                 {nameError && (
-                  <p id="name-error" className="mt-1 text-sm text-red-500">
+                  <p id="name-error" className="mt-1 text-sm text-status-error">
                     {nameError}
                   </p>
                 )}
@@ -295,7 +298,7 @@ export const SceneSettingsPage: React.FC = () => {
                 <textarea
                   value={description}
                   onChange={(e) => setDescription(e.target.value)}
-                  className="w-full px-4 py-2 bg-background border border-border rounded-lg text-foreground focus:outline-none focus:ring-2 focus:ring-brand-primary"
+                  className="w-full px-4 py-2 bg-background border border-border rounded-none text-foreground focus:outline-none focus:ring-2 focus:ring-brand-primary"
                   placeholder={t('scene.descriptionPlaceholder', 'Enter scene description')}
                   rows={4}
                 />
@@ -304,11 +307,11 @@ export const SceneSettingsPage: React.FC = () => {
           </section>
 
           {/* Tags/Genres */}
-          <section className="bg-background-secondary border border-border rounded-lg p-6">
+          <section className="bg-background-secondary border border-border rounded-none p-6">
             <h2 className="text-2xl font-semibold mb-4 text-foreground">
               {t('scene.settings.tags', 'Tags & Genres')}
             </h2>
-            
+
             <div className="space-y-4">
               {/* Tag Input */}
               <div>
@@ -321,12 +324,15 @@ export const SceneSettingsPage: React.FC = () => {
                     value={tagInput}
                     onChange={(e) => setTagInput(e.target.value)}
                     onKeyDown={handleTagInputKeyDown}
-                    className="flex-1 px-4 py-2 bg-background border border-border rounded-lg text-foreground focus:outline-none focus:ring-2 focus:ring-brand-primary"
-                    placeholder={t('scene.tagPlaceholder', 'e.g., techno, underground, experimental')}
+                    className="flex-1 px-4 py-2 bg-background border border-border rounded-none text-foreground focus:outline-none focus:ring-2 focus:ring-brand-primary"
+                    placeholder={t(
+                      'scene.tagPlaceholder',
+                      'e.g., techno, underground, experimental'
+                    )}
                   />
                   <button
                     onClick={handleAddTag}
-                    className="px-6 py-2 bg-brand-primary hover:bg-brand-primary-dark text-white rounded-lg transition-colors"
+                    className="px-6 py-2 bg-brand-primary hover:bg-brand-primary-dark text-white rounded-none transition-none uppercase tracking-[0.05em]"
                   >
                     {t('common.add', 'Add')}
                   </button>
@@ -344,7 +350,7 @@ export const SceneSettingsPage: React.FC = () => {
                       {tag}
                       <button
                         onClick={() => handleRemoveTag(tag)}
-                        className="hover:text-red-400 transition-colors"
+                        className="hover:text-red-400 transition-none"
                         aria-label={t('common.remove', 'Remove')}
                       >
                         ×
@@ -357,11 +363,11 @@ export const SceneSettingsPage: React.FC = () => {
           </section>
 
           {/* Privacy Settings */}
-          <section className="bg-background-secondary border border-border rounded-lg p-6">
+          <section className="bg-background-secondary border border-border rounded-none p-6">
             <h2 className="text-2xl font-semibold mb-4 text-foreground">
               {t('scene.settings.privacy', 'Privacy Settings')}
             </h2>
-            
+
             <div className="space-y-3">
               <label className="flex items-center gap-3 cursor-pointer">
                 <input
@@ -426,11 +432,11 @@ export const SceneSettingsPage: React.FC = () => {
           </section>
 
           {/* Color Customization */}
-          <section className="bg-background-secondary border border-border rounded-lg p-6">
+          <section className="bg-background-secondary border border-border rounded-none p-6">
             <h2 className="text-2xl font-semibold mb-4 text-foreground">
               {t('scene.settings.customization', 'Visual Customization')}
             </h2>
-            
+
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm font-medium text-foreground mb-2">
@@ -441,7 +447,7 @@ export const SceneSettingsPage: React.FC = () => {
                     type="color"
                     value={palette.primary}
                     onChange={(e) => setPalette({ ...palette, primary: e.target.value })}
-                    className="w-12 h-12 rounded border border-border cursor-pointer"
+                    className="w-12 h-12 rounded-none border border-border cursor-pointer"
                     aria-label="Primary color picker"
                   />
                   <input
@@ -450,7 +456,7 @@ export const SceneSettingsPage: React.FC = () => {
                     onChange={(e) => setPalette({ ...palette, primary: e.target.value })}
                     onBlur={(e) => handleColorBlur('primary', e.target.value)}
                     pattern="^#[0-9A-Fa-f]{6}$"
-                    className="flex-1 px-4 py-2 bg-background border border-border rounded-lg text-foreground focus:outline-none focus:ring-2 focus:ring-brand-primary"
+                    className="flex-1 px-4 py-2 bg-background border border-border rounded-none text-foreground focus:outline-none focus:ring-2 focus:ring-brand-primary"
                     placeholder="#3b82f6"
                   />
                 </div>
@@ -465,7 +471,7 @@ export const SceneSettingsPage: React.FC = () => {
                     type="color"
                     value={palette.secondary}
                     onChange={(e) => setPalette({ ...palette, secondary: e.target.value })}
-                    className="w-12 h-12 rounded border border-border cursor-pointer"
+                    className="w-12 h-12 rounded-none border border-border cursor-pointer"
                     aria-label="Secondary color picker"
                   />
                   <input
@@ -474,7 +480,7 @@ export const SceneSettingsPage: React.FC = () => {
                     onChange={(e) => setPalette({ ...palette, secondary: e.target.value })}
                     onBlur={(e) => handleColorBlur('secondary', e.target.value)}
                     pattern="^#[0-9A-Fa-f]{6}$"
-                    className="flex-1 px-4 py-2 bg-background border border-border rounded-lg text-foreground focus:outline-none focus:ring-2 focus:ring-brand-primary"
+                    className="flex-1 px-4 py-2 bg-background border border-border rounded-none text-foreground focus:outline-none focus:ring-2 focus:ring-brand-primary"
                     placeholder="#8b5cf6"
                   />
                 </div>
@@ -489,7 +495,7 @@ export const SceneSettingsPage: React.FC = () => {
                     type="color"
                     value={palette.accent}
                     onChange={(e) => setPalette({ ...palette, accent: e.target.value })}
-                    className="w-12 h-12 rounded border border-border cursor-pointer"
+                    className="w-12 h-12 rounded-none border border-border cursor-pointer"
                     aria-label="Accent color picker"
                   />
                   <input
@@ -498,7 +504,7 @@ export const SceneSettingsPage: React.FC = () => {
                     onChange={(e) => setPalette({ ...palette, accent: e.target.value })}
                     onBlur={(e) => handleColorBlur('accent', e.target.value)}
                     pattern="^#[0-9A-Fa-f]{6}$"
-                    className="flex-1 px-4 py-2 bg-background border border-border rounded-lg text-foreground focus:outline-none focus:ring-2 focus:ring-brand-primary"
+                    className="flex-1 px-4 py-2 bg-background border border-border rounded-none text-foreground focus:outline-none focus:ring-2 focus:ring-brand-primary"
                     placeholder="#ec4899"
                   />
                 </div>
@@ -513,7 +519,7 @@ export const SceneSettingsPage: React.FC = () => {
                     type="color"
                     value={palette.background}
                     onChange={(e) => setPalette({ ...palette, background: e.target.value })}
-                    className="w-12 h-12 rounded border border-border cursor-pointer"
+                    className="w-12 h-12 rounded-none border border-border cursor-pointer"
                     aria-label="Background color picker"
                   />
                   <input
@@ -522,7 +528,7 @@ export const SceneSettingsPage: React.FC = () => {
                     onChange={(e) => setPalette({ ...palette, background: e.target.value })}
                     onBlur={(e) => handleColorBlur('background', e.target.value)}
                     pattern="^#[0-9A-Fa-f]{6}$"
-                    className="flex-1 px-4 py-2 bg-background border border-border rounded-lg text-foreground focus:outline-none focus:ring-2 focus:ring-brand-primary"
+                    className="flex-1 px-4 py-2 bg-background border border-border rounded-none text-foreground focus:outline-none focus:ring-2 focus:ring-brand-primary"
                     placeholder="#ffffff"
                   />
                 </div>
@@ -537,7 +543,7 @@ export const SceneSettingsPage: React.FC = () => {
                     type="color"
                     value={palette.text}
                     onChange={(e) => setPalette({ ...palette, text: e.target.value })}
-                    className="w-12 h-12 rounded border border-border cursor-pointer"
+                    className="w-12 h-12 rounded-none border border-border cursor-pointer"
                     aria-label="Text color picker"
                   />
                   <input
@@ -546,7 +552,7 @@ export const SceneSettingsPage: React.FC = () => {
                     onChange={(e) => setPalette({ ...palette, text: e.target.value })}
                     onBlur={(e) => handleColorBlur('text', e.target.value)}
                     pattern="^#[0-9A-Fa-f]{6}$"
-                    className="flex-1 px-4 py-2 bg-background border border-border rounded-lg text-foreground focus:outline-none focus:ring-2 focus:ring-brand-primary"
+                    className="flex-1 px-4 py-2 bg-background border border-border rounded-none text-foreground focus:outline-none focus:ring-2 focus:ring-brand-primary"
                     placeholder="#000000"
                   />
                 </div>
@@ -554,8 +560,8 @@ export const SceneSettingsPage: React.FC = () => {
             </div>
 
             {paletteError && (
-              <div className="mt-4 p-3 bg-red-100 dark:bg-red-900 border border-red-500 rounded-lg">
-                <p className="text-sm text-red-700 dark:text-red-200">{paletteError}</p>
+              <div className="mt-4 p-3 bg-background border border-status-error rounded-none">
+                <p className="text-sm text-status-error">{paletteError}</p>
               </div>
             )}
 
@@ -565,7 +571,7 @@ export const SceneSettingsPage: React.FC = () => {
                 {t('scene.palette.preview', 'Preview')}
               </h3>
               <div
-                className="rounded-lg p-6 border"
+                className="rounded-none p-6 border"
                 style={{
                   backgroundColor: palette.background,
                   color: palette.text,
@@ -576,23 +582,24 @@ export const SceneSettingsPage: React.FC = () => {
                   {name || t('scene.previewTitle', 'Scene Title')}
                 </h4>
                 <p className="mb-4">
-                  {description || t('scene.previewDescription', 'Scene description will appear here')}
+                  {description ||
+                    t('scene.previewDescription', 'Scene description will appear here')}
                 </p>
                 <div className="flex gap-2">
                   <button
-                    className="px-4 py-2 rounded"
+                    className="px-4 py-2 rounded-none"
                     style={{ backgroundColor: palette.primary, color: '#ffffff' }}
                   >
                     {t('common.primary', 'Primary')}
                   </button>
                   <button
-                    className="px-4 py-2 rounded"
+                    className="px-4 py-2 rounded-none"
                     style={{ backgroundColor: palette.secondary, color: '#ffffff' }}
                   >
                     {t('common.secondary', 'Secondary')}
                   </button>
                   <button
-                    className="px-4 py-2 rounded"
+                    className="px-4 py-2 rounded-none"
                     style={{ backgroundColor: palette.accent, color: '#ffffff' }}
                   >
                     {t('common.accent', 'Accent')}
@@ -603,13 +610,13 @@ export const SceneSettingsPage: React.FC = () => {
           </section>
 
           {/* Members & Alliance Section */}
-          <section className="bg-background-secondary border border-border rounded-lg p-6">
+          <section className="bg-background-secondary border border-border rounded-none p-6">
             <h2 className="text-2xl font-semibold mb-4 text-foreground">
               {t('scene.settings.members', 'Members & Alliances')}
             </h2>
-            
+
             <div className="space-y-4">
-              <div className="flex items-center justify-between p-4 bg-background rounded-lg border border-border">
+              <div className="flex items-center justify-between p-4 bg-background rounded-none border border-border">
                 <div>
                   <div className="font-medium text-foreground">
                     {t('scene.members.manage', 'Member Management')}
@@ -620,24 +627,27 @@ export const SceneSettingsPage: React.FC = () => {
                 </div>
                 <button
                   onClick={() => navigate(`/scenes/${id}/members`)}
-                  className="px-4 py-2 bg-brand-primary hover:bg-brand-primary-dark text-white rounded-lg transition-colors"
+                  className="px-4 py-2 bg-brand-primary hover:bg-brand-primary-dark text-white rounded-none transition-none uppercase tracking-[0.05em]"
                 >
                   {t('scene.members.view', 'View Members')}
                 </button>
               </div>
 
-              <div className="flex items-center justify-between p-4 bg-background rounded-lg border border-border">
+              <div className="flex items-center justify-between p-4 bg-background rounded-none border border-border">
                 <div>
                   <div className="font-medium text-foreground">
                     {t('scene.alliances.manage', 'Alliance Management')}
                   </div>
                   <div className="text-sm text-foreground-secondary">
-                    {t('scene.alliances.description', 'Manage trust relationships with other scenes')}
+                    {t(
+                      'scene.alliances.description',
+                      'Manage trust relationships with other scenes'
+                    )}
                   </div>
                 </div>
                 <button
                   onClick={() => navigate(`/scenes/${id}/alliances`)}
-                  className="px-4 py-2 bg-brand-primary hover:bg-brand-primary-dark text-white rounded-lg transition-colors"
+                  className="px-4 py-2 bg-brand-primary hover:bg-brand-primary-dark text-white rounded-none transition-none uppercase tracking-[0.05em]"
                 >
                   {t('scene.alliances.view', 'View Alliances')}
                 </button>
@@ -646,16 +656,26 @@ export const SceneSettingsPage: React.FC = () => {
           </section>
 
           {/* Verification Status */}
-          <section className="bg-background-secondary border border-border rounded-lg p-6">
+          <section className="bg-background-secondary border border-border rounded-none p-6">
             <h2 className="text-2xl font-semibold mb-4 text-foreground">
               {t('scene.settings.verification', 'Verification Status')}
             </h2>
-            
+
             <div className="space-y-4">
               <div className="flex items-center gap-3">
                 <div className="w-12 h-12 rounded-full bg-green-100 dark:bg-green-900 flex items-center justify-center">
-                  <svg className="w-6 h-6 text-green-600 dark:text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                  <svg
+                    className="w-6 h-6 text-green-600 dark:text-green-400"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M5 13l4 4L19 7"
+                    />
                   </svg>
                 </div>
                 <div className="flex-1">
@@ -663,15 +683,28 @@ export const SceneSettingsPage: React.FC = () => {
                     {t('scene.verification.ownerVerified', 'Owner Verified')}
                   </div>
                   <div className="text-sm text-foreground-secondary">
-                    {t('scene.verification.ownerVerifiedDesc', 'Scene owner identity is verified via AT Protocol DID')}
+                    {t(
+                      'scene.verification.ownerVerifiedDesc',
+                      'Scene owner identity is verified via AT Protocol DID'
+                    )}
                   </div>
                 </div>
               </div>
 
               <div className="flex items-center gap-3 opacity-60">
                 <div className="w-12 h-12 rounded-full bg-gray-100 dark:bg-gray-800 flex items-center justify-center">
-                  <svg className="w-6 h-6 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  <svg
+                    className="w-6 h-6 text-gray-400"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
+                    />
                   </svg>
                 </div>
                 <div className="flex-1">
@@ -679,7 +712,10 @@ export const SceneSettingsPage: React.FC = () => {
                     {t('scene.verification.communityBadge', 'Community Badge')}
                   </div>
                   <div className="text-sm text-foreground-secondary">
-                    {t('scene.verification.communityBadgeDesc', 'Coming soon - earn badges through community engagement')}
+                    {t(
+                      'scene.verification.communityBadgeDesc',
+                      'Coming soon - earn badges through community engagement'
+                    )}
                   </div>
                 </div>
               </div>
@@ -690,14 +726,14 @@ export const SceneSettingsPage: React.FC = () => {
           <div className="flex justify-end gap-4">
             <button
               onClick={() => navigate(`/scenes/${id}`)}
-              className="px-6 py-3 bg-background-secondary hover:bg-underground-lighter border border-border text-foreground rounded-lg transition-colors"
+              className="px-6 py-3 bg-background-secondary hover:bg-underground-lighter border border-border text-foreground rounded-none transition-none uppercase tracking-[0.05em]"
             >
               {t('common.cancel', 'Cancel')}
             </button>
             <button
               onClick={handleSave}
               disabled={saving}
-              className="px-6 py-3 bg-brand-primary hover:bg-brand-primary-dark text-white rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              className="px-6 py-3 bg-brand-primary hover:bg-brand-primary-dark text-white rounded-none transition-none uppercase tracking-[0.05em] disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {saving ? t('common.saving', 'Saving...') : t('common.save', 'Save Changes')}
             </button>

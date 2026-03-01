@@ -1,11 +1,10 @@
 import { useRef } from 'react';
 import { ClusteredMapView } from './components/ClusteredMapView';
 import type { MapViewHandle } from './components/MapView';
-import './App.css';
 
 /**
  * Demo application showing ClusteredMapView usage
- * 
+ *
  * To use this demo:
  * 1. Replace App.tsx content with this file
  * 2. Set VITE_MAPTILER_API_KEY in your .env file
@@ -36,9 +35,7 @@ function ClusteredMapDemo() {
   return (
     <div style={{ height: '100vh', display: 'flex', flexDirection: 'column' }}>
       <div style={{ padding: '1rem', background: '#1a1a1a', color: 'white' }}>
-        <h1 style={{ margin: 0, fontSize: '1.5rem' }}>
-          Subcults - Clustered Scene & Event Map
-        </h1>
+        <h1 style={{ margin: 0, fontSize: '1.5rem' }}>Subcults - Clustered Scene & Event Map</h1>
         <p style={{ margin: '0.5rem 0', fontSize: '0.875rem', opacity: 0.8 }}>
           Interactive map with privacy-first clustering of underground music scenes and events
         </p>
@@ -49,12 +46,11 @@ function ClusteredMapDemo() {
           <button onClick={handleFlyToNYC} style={{ marginRight: '0.5rem' }}>
             📍 New York
           </button>
-          <button onClick={handleFlyToLA}>
-            📍 Los Angeles
-          </button>
+          <button onClick={handleFlyToLA}>📍 Los Angeles</button>
         </div>
         <div style={{ marginTop: '0.5rem', fontSize: '0.75rem', opacity: 0.6 }}>
-          💡 Tip: Click clusters to expand • Click markers for details • Blue = Scenes • Pink = Events
+          💡 Tip: Click clusters to expand • Click markers for details • Blue = Scenes • Pink =
+          Events
         </div>
       </div>
       <div style={{ flex: 1, position: 'relative' }}>

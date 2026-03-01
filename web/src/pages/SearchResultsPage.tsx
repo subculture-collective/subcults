@@ -521,7 +521,7 @@ export const SearchResultsPage: React.FC = () => {
             {/* Error state */}
             {!loading && error && (
               <div className="py-16 text-center" role="alert">
-                <p className="text-sm text-red-500 mb-2">{t('errors.generic')}</p>
+                <p className="text-sm text-status-error mb-2">{t('errors.generic')}</p>
                 <p className="text-xs text-foreground-tertiary">{error}</p>
               </div>
             )}

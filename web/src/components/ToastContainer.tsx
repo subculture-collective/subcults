@@ -25,11 +25,11 @@ function getToastIcon(type: ToastType): string {
 function getToastClasses(type: ToastType): string {
   switch (type) {
     case 'success':
-      return 'bg-green-500';
+      return 'bg-status-success text-black border border-status-success';
     case 'error':
-      return 'bg-red-500';
+      return 'bg-status-error text-white border border-status-error';
     case 'info':
-      return 'bg-blue-500';
+      return 'bg-neon-cyan text-black border border-neon-cyan';
   }
 }
 
@@ -45,8 +45,8 @@ function ToastItem({ toast, onDismiss }: { toast: Toast; onDismiss: (id: string)
       aria-live="polite"
       aria-atomic="true"
       className={`
-        flex items-center gap-3 p-4 rounded-lg shadow-lg
-        text-white min-w-[300px] max-w-[500px]
+        flex items-center gap-3 p-4 rounded-none shadow-none
+        min-w-[300px] max-w-[500px]
         animate-slide-in
         ${toastClasses}
       `.trim()}
@@ -62,10 +62,10 @@ function ToastItem({ toast, onDismiss }: { toast: Toast; onDismiss: (id: string)
           onClick={() => onDismiss(toast.id)}
           aria-label="Dismiss notification"
           className="
-            bg-transparent border-0 text-white cursor-pointer
+            bg-transparent border-0 text-current cursor-pointer
             p-1 text-xl leading-none opacity-80 hover:opacity-100
-            flex-shrink-0 transition-opacity
-            focus:outline-none focus-visible:ring-2 focus-visible:ring-white
+            flex-shrink-0 transition-none
+            focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-primary
           "
         >
           ×

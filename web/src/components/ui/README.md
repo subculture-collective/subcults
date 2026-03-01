@@ -9,17 +9,20 @@ This directory contains the core design system components for the Subcults appli
 Unified button component with multiple variants and states.
 
 **Variants:**
-- `primary` - Main action button (electric blue)
+
+- `primary` - Main action button (neon purple)
 - `secondary` - Secondary actions (subtle background)
 - `danger` - Destructive actions (red)
 - `ghost` - Minimal style, transparent background
 
 **Sizes:**
+
 - `sm` - Small (36px min height)
 - `md` - Medium (44px min height - touch-friendly default)
 - `lg` - Large (52px min height)
 
 **Features:**
+
 - Loading state with spinner
 - Disabled state
 - Full width option
@@ -27,6 +30,7 @@ Unified button component with multiple variants and states.
 - Touch-friendly minimum sizes
 
 **Usage:**
+
 ```tsx
 import { Button } from '@/components/ui';
 
@@ -53,6 +57,7 @@ import { Button } from '@/components/ui';
 Form input component with validation states and accessibility features.
 
 **Features:**
+
 - Label support with required indicator
 - Helper text
 - Error and success states
@@ -61,6 +66,7 @@ Form input component with validation states and accessibility features.
 - Accessible error messages via `aria-describedby`
 
 **Usage:**
+
 ```tsx
 import { Input } from '@/components/ui';
 
@@ -100,6 +106,7 @@ import { Input } from '@/components/ui';
 Dialog/modal component with focus management and accessibility.
 
 **Features:**
+
 - Focus trap
 - ESC key to close
 - Backdrop click to close (configurable)
@@ -108,6 +115,7 @@ Dialog/modal component with focus management and accessibility.
 - Animated entrance
 
 **Usage:**
+
 ```tsx
 import { Modal, ConfirmModal } from '@/components/ui';
 
@@ -147,17 +155,20 @@ import { Modal, ConfirmModal } from '@/components/ui';
 Reusable loading indicator for async operations.
 
 **Sizes:**
+
 - `sm` - 4x4 (16px)
 - `md` - 6x6 (24px)
 - `lg` - 8x8 (32px)
 - `xl` - 12x12 (48px)
 
 **Features:**
+
 - Accessible with aria-label
 - Screen reader support
 - Consistent animation
 
 **Usage:**
+
 ```tsx
 import { LoadingSpinner, FullPageLoader } from '@/components/ui';
 
@@ -178,31 +189,37 @@ import { LoadingSpinner, FullPageLoader } from '@/components/ui';
 ### Colors
 
 **Brand Colors:**
-- Primary: `#646cff` (Electric blue)
-- Primary Light: `#747bff`
-- Primary Dark: `#535bf2`
-- Accent: `#61dafb` (Cyan)
+
+- Primary: `#7C3AED` (Neon purple)
+- Primary Dark: `#5B21B6`
+- Accent: `#00FFFF` (Cyan)
+- Secondary Accent: `#FF00FF` (Magenta)
+- Success Accent: `#00FF41` (Neon green)
 
 **Semantic Colors:**
+
 - Success: `green-500`
 - Error: `red-500`, `red-600`, `red-700`
 - Info: `blue-500`
 
 **Surface Colors:**
+
 - Background: CSS var `--color-background`
 - Background Secondary: CSS var `--color-background-secondary`
-- Underground: `#1a1a1a` (Tailwind: `bg-brand-underground`)
-- Underground Light: `#242424` (Tailwind: `bg-brand-underground-light`)
-- Underground Lighter: `#2d2d2d` (Tailwind: `bg-brand-underground-lighter`)
+- Background Hover: CSS var `--color-background-hover`
+- Border: CSS var `--color-border`
+- Border Hover: CSS var `--color-border-hover`
 
 ### Typography
 
 **Font Family:**
-```
-system-ui, Avenir, Helvetica, Arial, sans-serif
+
+```text
+'Space Mono', monospace
 ```
 
 **Font Sizes:**
+
 - `text-xs` - 0.75rem (12px)
 - `text-sm` - 0.875rem (14px)
 - `text-base` - 1rem (16px)
@@ -213,28 +230,31 @@ system-ui, Avenir, Helvetica, Arial, sans-serif
 ### Spacing
 
 **Touch Targets:**
+
 - Minimum touch target: `44px` (accessible)
 - Smaller acceptable: `36px` (for dense UIs)
 
 **Gaps:**
+
 - `gap-2` - 0.5rem (8px)
 - `gap-3` - 0.75rem (12px)
 - `gap-4` - 1rem (16px)
 
 ### Border Radius
 
-- `rounded-lg` - 0.5rem (8px) - buttons, inputs, cards
-- `rounded-xl` - 0.75rem (12px) - tags
-- `rounded-full` - 50% - spinners, avatars
+- `rounded-none` - 0px (default for most components)
+- `rounded-full` - 50% (allowed for badges, avatars, spinners)
 
 ### Animations
 
 **Durations:**
+
 - Fast: `200ms` - fades
 - Standard: `250ms` - colors, opacity
 - Moderate: `300ms` - slides, transforms
 
 **Available Animations:**
+
 - `animate-fade-in` - Fade in entrance
 - `animate-slide-up` - Slide up from bottom
 - `animate-slide-in` - Slide in from right (toasts and panels)
@@ -247,6 +267,7 @@ system-ui, Avenir, Helvetica, Arial, sans-serif
 ### Focus Indicators
 
 All interactive components use visible focus indicators:
+
 ```css
 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-primary
 ```
@@ -254,6 +275,7 @@ focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-primary
 ### Color Contrast
 
 All color combinations meet WCAG AA standards:
+
 - Text on background: ≥4.5:1
 - Large text on background: ≥3:1
 - UI components: ≥3:1
@@ -296,6 +318,7 @@ npm test -- LoadingSpinner.test.tsx --run
 ### Converting from Inline Styles
 
 **Before:**
+
 ```tsx
 <button
   style={{
@@ -310,17 +333,17 @@ npm test -- LoadingSpinner.test.tsx --run
 ```
 
 **After:**
+
 ```tsx
 import { Button } from '@/components/ui';
 
-<Button variant="primary">
-  Click me
-</Button>
+<Button variant="primary">Click me</Button>;
 ```
 
 ### Converting Custom Buttons
 
 **Before:**
+
 ```tsx
 <button className={`custom-btn ${isPrimary ? 'primary' : 'secondary'}`}>
   {isLoading ? 'Loading...' : 'Submit'}
@@ -328,12 +351,13 @@ import { Button } from '@/components/ui';
 ```
 
 **After:**
+
 ```tsx
 import { Button } from '@/components/ui';
 
 <Button variant={isPrimary ? 'primary' : 'secondary'} isLoading={isLoading}>
   Submit
-</Button>
+</Button>;
 ```
 
 ---
@@ -341,6 +365,7 @@ import { Button } from '@/components/ui';
 ## Future Enhancements
 
 Planned components:
+
 - [ ] Checkbox component
 - [ ] Radio button component
 - [ ] Select/Dropdown component
