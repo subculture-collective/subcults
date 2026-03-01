@@ -14,9 +14,16 @@ import { useSettingsStore } from './stores/settingsStore';
 import { useLanguageStore } from './stores/languageStore';
 import { sessionReplay } from './lib/session-replay';
 import { initPerformanceMonitoring } from './lib/performance-metrics';
+import { useWebVitals, useNavigationTiming } from './hooks/useWebVitals';
 import './App.css';
 
 function App() {
+  // Track Core Web Vitals metrics
+  useWebVitals();
+  
+  // Track navigation and resource timing
+  useNavigationTiming();
+  
   // Initialize auth on app startup
   useEffect(() => {
     authStore.initialize();
