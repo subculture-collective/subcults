@@ -1,192 +1,145 @@
 # Subcults Design System
 
-**Style**: Bold Typography (Editorial Dark)
-**Last Updated**: 2026-02-28
+**Neo-Brutalist Terminal Aesthetic**
+
+**Style**: Retro/Cyberpunk/Terminal + Underground Music Platform
+**Vibe**: Raw, high-contrast, edgy underground music discovery with digital grit
+**Last Updated**: 2026-03-01
 
 ---
 
 ## Design Philosophy
 
-**Confident. Editorial. Deliberate.** Subcults is a manifesto for underground music communities, not a polished SaaS product. The design treats typography as the primary visual structure - text is the hero, space is the frame, and interaction reveals detail. Every word earns its place.
+**Raw. Unpolished. Neon.** Subcults rejects polished SaaS aesthetics. This design embraces neo-brutalism's sharp corners, high contrast, and raw typography—infused with cyberpunk terminal aesthetics (neon glows, dark backgrounds, visible scanlines). Every design decision treats the interface like an underground music zine from the '90s remixed through a cyberpunk terminal.
 
 ### Core Principles
 
-1. **Type as Hero**: Headlines are the visual centerpiece. A well-set 80pt headline is more compelling than any stock photo. Scene names, event titles, and discovery headers drive the visual hierarchy.
+1. **Sharp Corners Everywhere**: No rounded corners except where physically necessary (avatars, pills). Brutalism demands precision; curves soften power.
 
-2. **Extreme Scale Contrast**: 6:1+ ratio between H1 and body text. This creates editorial drama that separates Subcults from generic SaaS platforms.
+2. **Visible Structure**: Borders, dividers, and grid lines are visible. Hide nothing. The frame is as important as the content.
 
-3. **Deliberate Negative Space**: Dark space is the frame around type. Generous margins make content feel intentional, curated - not algorithmic.
+3. **High Contrast is Justice**: Color isolation on pure dark backgrounds. Neon primary colors on `#000000` or `#0D1117`. Accessibility meets anarchism.
 
-4. **Strict Hierarchy**: Every element has a clear rank. The eye flows: headline > subhead > body > action. No two elements compete for attention.
+4. **Monospace Typography**: `Space Mono` for all contexts (headings, body, UI). Monospace evokes terminal culture, old-school computing, DIY authenticity.
 
-5. **Restrained Palette**: Near-black, warm white, and one accent (vermillion). More colors dilute typographic impact. Let the letter shapes do the work.
+5. **Neon Accents Sparingly**: Neon green, magenta, cyan are highlights—not noise. Use glow effects only on interactive elements, live indicators, errors.
 
-### The Vibe
-
-The page feels like a gallery exhibition or underground music zine. Every word is placed with intent. Visual signatures:
-- Massive headlines that command scroll
-- Tight letter-spacing on display text (`-0.04em` to `-0.06em`)
-- Wide letter-spacing on labels (`0.1em` to `0.2em`)
-- Text that bleeds to edge on mobile
-- Underlines as the primary interactive affordance
-- Sharp corners throughout - no rounded edges except avatars and pills
-
-### What This Design Is NOT
-
-- Not friendly SaaS with rounded cards and soft shadows
-- Not generic dark mode with colors inverted
-- Not minimalist to the point of being boring
-- Not a copy of Spotify/SoundCloud - this is editorial, not streaming UI
+6. **No Smooth Animations**: Transitions are instant by default. Movement is functional, not decorative. Terminal culture has no time for easing functions.
 
 ---
 
-## Design Token System
+## Color Palette
 
-### Colors (Dark Mode Primary)
+### Neutrals (Required)
 
-Subcults is dark-first. The dark palette is the definitive identity.
+| Name                  | Hex     | RGB           | Purpose                                |
+| --------------------- | ------- | ------------- | -------------------------------------- |
+| **bg-terminal-black** | #000000 | 0, 0, 0       | Pure black; primary background         |
+| **bg-dark-charcoal**  | #0D1117 | 13, 17, 23    | Alternative dark (for elevation/cards) |
+| **border-dark**       | #1F1F1F | 31, 31, 31    | Dark borders, subtle dividers          |
+| **text-white**        | #FFFFFF | 255, 255, 255 | Primary text, high contrast            |
+| **text-light-gray**   | #E2E8F0 | 226, 232, 240 | Secondary text                         |
 
-```
-background:        #0A0A0A    // Near-black canvas (never pure #000)
-background-alt:    #0F0F0F    // Slight elevation from canvas
-foreground:        #FAFAFA    // Warm white primary text
-muted:             #1A1A1A    // Elevated surfaces, cards, panels
-muted-foreground:  #737373    // Secondary text, descriptions, metadata
-accent:            #FF3D00    // Vermillion - warm, urgent, visible
-accent-foreground: #0A0A0A    // Dark text on accent surfaces
-accent-hover:      #FF5722    // Lighter vermillion for hover states
-border:            #262626    // Barely-there structural dividers
-border-hover:      #404040    // Borders on interaction
-input:             #1A1A1A    // Input field backgrounds
-card:              #0F0F0F    // Card elevation from canvas
-ring:              #FF3D00    // Focus ring color (matches accent)
-```
+### Neon Accent Colors
 
-**Light Mode Adaptation** (secondary):
-```
-background:        #FAFAFA
-background-alt:    #F5F5F5
-foreground:        #0A0A0A
-muted:             #E5E5E5
-muted-foreground:  #737373
-accent:            #FF3D00    // Vermillion stays consistent
-accent-foreground: #FAFAFA
-border:            #E5E5E5
-border-hover:      #FF3D00
-```
+| Name               | Hex     | RGB          | Purpose                  | Best Use                                    |
+| ------------------ | ------- | ------------ | ------------------------ | ------------------------------------------- |
+| **neon-green**     | #00FF41 | 0, 255, 65   | Success, primary accents | Live indicators, check marks, active states |
+| **purple-primary** | #7C3AED | 124, 58, 237 | Links, primary actions   | Buttons, links, interactive elements        |
+| **magenta**        | #FF00FF | 255, 0, 255  | Secondary accent, energy | Scene badges, secondary calls-to-action     |
+| **cyan**           | #00FFFF | 0, 255, 255  | Info, tertiary accent    | Information states, hover effects           |
 
-**Color Usage Rules**:
-- Vermillion is for interactive elements, live indicators, and key CTAs only - never decoration
-- Secondary text uses `muted-foreground` (#737373) exclusively - no random grays
-- Full-width horizontal rules use `border` color
-- "Live" streaming indicators can pulse in vermillion
-- Scene/event status badges use vermillion sparingly
+### Intent Colors
 
-**Contrast Ratios**:
-- `foreground` on `background`: 18.1:1 (exceeds AAA)
-- `muted-foreground` on `background`: 5.3:1 (meets AA)
-- `accent` on `background`: 5.4:1 (meets AA for large text)
-- `accent` on `muted`: 5.1:1 (meets AA for large text)
+| State       | Primary     | Hex     | Secondary   | Hex     | Notes                                                                 |
+| ----------- | ----------- | ------- | ----------- | ------- | --------------------------------------------------------------------- |
+| **Success** | Neon Green  | #00FF41 | Dark Green  | #008F11 | Meets AA contrast on #000000 (2.8:1) — add background box if critical |
+| **Error**   | Neon Red    | #FF3333 | Dark Red    | #CC0000 | High visibility; use with caution for WCAG compliance                 |
+| **Warning** | Neon Orange | #FFB000 | Dark Orange | #CC8800 | Eye-catching but readable                                             |
+| **Info**    | Cyan        | #00FFFF | Deep Cyan   | #0088FF | Informational, non-blocking                                           |
 
-### Typography
+### Contrast Guarantees
 
-**Font Stack**:
-- **Headlines**: `"Inter Tight", "Inter", system-ui, sans-serif` - Tighter default spacing, clean geometric forms
-- **Body**: `"Inter", system-ui, sans-serif` - Clean, highly readable at all sizes
-- **Mono/Data**: `"JetBrains Mono", "Fira Code", monospace` - Technical precision for stats, coordinates, timestamps
+All critical text combinations:
+
+- **#FFFFFF on #000000**: 21:1 ✓ **AAA**
+- **#E2E8F0 on #0D1117**: 11.3:1 ✓ **AAA**
+- **#00FFFF on #000000**: 6.3:1 ✓ **AA**
+- **#7C3AED on #000000**: 5.6:1 ✓ **AA**
+- **#FF3333 on #000000**: 3.9:1 ⚠ Limited use; add box background if critical text
+- **#00FF41 on #000000**: 2.8:1 ⚠ Use only for non-text UI (icons, dots; add background box for text)
+
+---
+
+## Typography
+
+**Primary Font**: `'Space Mono', monospace` (all contexts—headings, body, labels, data)
+
+**Google Fonts Import**:
 
 ```css
-@import url('https://fonts.googleapis.com/css2?family=Inter+Tight:wght@400;500;600;700;800;900&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&display=swap');
 ```
 
 **Tailwind Config**:
+
 ```js
 fontFamily: {
-  display: ['"Inter Tight"', '"Inter"', 'system-ui', 'sans-serif'],
-  sans: ['"Inter"', 'system-ui', 'sans-serif'],
-  mono: ['"JetBrains Mono"', '"Fira Code"', 'monospace'],
+  display: ['"Space Mono"', 'monospace'],
+  sans: ['"Space Mono"', 'monospace'],
+  mono: ['"Space Mono"', 'monospace'],
 }
 ```
 
-**Type Scale**:
-```
-xs:    0.75rem    (12px)  — fine print, timestamps
-sm:    0.875rem   (14px)  — captions, metadata
-base:  1rem       (16px)  — body text
-lg:    1.125rem   (18px)  — lead paragraphs, scene descriptions
-xl:    1.25rem    (20px)  — subheads
-2xl:   1.5rem     (24px)  — section intros
-3xl:   2rem       (32px)  — H3 (scene names in lists)
-4xl:   2.5rem     (40px)  — H2 (section headers)
-5xl:   3.5rem     (56px)  — H1 mobile
-6xl:   4.5rem     (72px)  — H1 tablet
-7xl:   6rem       (96px)  — H1 desktop
-8xl:   8rem       (128px) — Hero statement
-9xl:   10rem      (160px) — Decorative numbers (scene counts, stats)
-```
+**Why Space Mono everywhere**: Monospace is synonymous with terminal culture, early internet, and DIY computing—the spiritual core of underground music communities. Mixing fonts dilutes the aesthetic.
 
-**Tracking**:
-```
-tighter:  -0.06em   — Display headlines (hero, discovery header)
-tight:    -0.04em   — Large headings (section titles)
-normal:   -0.01em   — Body text (slightly tightened from browser default)
-wide:     0.05em    — Small labels
-wider:    0.1em     — All-caps labels, navigation
-widest:   0.2em     — Sparse emphasis (section tags)
-```
+### Type Scale
 
-**Line Heights**:
-```
-none:     1         — Single-line headlines
-tight:    1.1       — Multi-line headlines
-snug:     1.25      — Subheads
-normal:   1.6       — Body text
-relaxed:  1.75      — Long-form reading (event descriptions)
-```
+| Role        | Size | Weight  | Line Height | Letter Spacing | Use Case                      |
+| ----------- | ---- | ------- | ----------- | -------------- | ----------------------------- |
+| **h1**      | 32px | **700** | 1.25 (40px) | -0.02em        | Page titles, hero sections    |
+| **h2**      | 24px | **700** | 1.33 (32px) | -0.01em        | Section headings              |
+| **h3**      | 20px | **700** | 1.4 (28px)  | -0.01em        | Subsection titles             |
+| **h4**      | 16px | **600** | 1.5 (24px)  | 0em            | Smaller headings, scene names |
+| **body-lg** | 16px | **400** | 1.5 (24px)  | 0em            | Large body text               |
+| **body**    | 14px | **400** | 1.5 (21px)  | 0em            | Default paragraph             |
+| **body-sm** | 12px | **400** | 1.5 (18px)  | 0em            | Small text, captions          |
+| **label**   | 12px | **700** | 1.33 (16px) | 0.05em         | Form labels, badges           |
+| **code**    | 13px | **400** | 1.4 (18px)  | 0em            | Code blocks                   |
 
-**Type Treatment**:
-- Headlines use `font-display` (Inter Tight), weight 600-900, `tracking-tighter`
-- Body uses `font-sans` (Inter), weight 400-500
-- Data labels (coordinates, timestamps, counts) use `font-mono`, weight 400, `tracking-wider`, `uppercase`
-- All-caps used for section labels, navigation, badges, and status indicators
-- Scene names and event titles stay in title case for readability
+**Weight Constraint**: Space Mono provides only **400** and **700**. Use 700 for all headings/emphasis; 400 for body/secondary.
 
-### Border Radius
+---
 
-```
-radius:       0px     — Default. Sharp corners everywhere.
-Exception:    rounded-full — ONLY for avatars, pill badges, and status dots
-```
+## Iconography
 
-No `rounded-md`, `rounded-lg`, `rounded-xl`. It's either sharp or fully round. This creates the editorial, gallery-like precision.
+**Source**: [Lucide Icons](https://lucide.dev/) or [Feather Icons](https://feathericons.com/) (simple SVG set)
 
-### Shadows & Effects
+**Constraints**:
 
-**No traditional shadows.** Depth comes from:
-- Typography scale contrast (large muted text behind smaller bright text)
-- Accent underlines (2-3px vermillion lines under interactive elements)
-- Full-width horizontal rules (dividers)
-- Background color alternation (`background` and `muted`)
+- Size: 24×24 viewBox (consistent across all icons)
+- Stroke width: 2px (standard), 1.5px (dense layouts)
+- Fill: Never (outline/stroke only)
+- Color: `currentColor` (inherits text color) by default; explicit `text-neon-green`, `text-magenta` for accent states
+- No emoji as UI icons
 
-```
-shadow:       none
-textShadow:   none
-```
+**Examples**: Menu, Home, Search, Settings, Plus, Trash, Check, X, Edit, AlertCircle, Info
 
-**Subtle Noise Grain**: A barely-visible fractal noise pattern at 1.5% opacity overlays the page background, adding tactile quality to the dark canvas without distraction.
+---
 
-```css
-.bg-noise::after {
-  content: '';
-  position: fixed;
-  inset: 0;
-  pointer-events: none;
-  opacity: 0.015;
-  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence baseFrequency='0.65' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E");
-}
-```
+## Spacing System
 
-**Accent Bars**: Thin horizontal vermillion bars (`h-1`, `w-16`) serve as visual anchors on key section headers and featured content.
+**Base Unit**: 8px (8px increments throughout)
+
+| Name    | px   | rem  | Tailwind  |
+| ------- | ---- | ---- | --------- |
+| **xs**  | 4px  | 0.25 | space-0.5 |
+| **sm**  | 8px  | 0.5  | space-1   |
+| **md**  | 16px | 1    | space-2   |
+| **lg**  | 24px | 1.5  | space-3   |
+| **xl**  | 32px | 2    | space-4   |
+| **2xl** | 48px | 3    | space-6   |
+| **3xl** | 64px | 4    | space-8   |
 
 ---
 
@@ -194,372 +147,394 @@ textShadow:   none
 
 ### Buttons
 
-**Primary Button** (text-only with animated underline):
-```
-- No background fill
-- Text: accent color (#FF3D00)
-- Animated underline: absolute span, h-0.5, bg-accent
-- Base: scale-x-100 → hover: scale-x-110
-- Uppercase, tracking-wider (0.1em)
-- Font-weight: 600 (semibold)
-- Padding: py-2 (sm), py-3 (md), py-4 (lg) — px-0
-- Active: translate-y-px (subtle press)
-- Transition: 150ms all
-- Focus-visible: ring-2 ring-accent ring-offset-2
+**Style**: Solid, high-contrast, sharp corners, uppercase, bold
+
+#### Primary Button
+
+```css
+background-color: #7c3aed; /* Purple primary */
+color: #ffffff;
+border: 1px solid #7c3aed;
+border-radius: 0px; /* NO rounding */
+padding: 11px 16px; /* Tight padding */
+font-size: 12px;
+font-weight: 700;
+text-transform: uppercase;
+letter-spacing: 0.05em;
+cursor: pointer;
+
+/* Hover */
+background-color: #6d28d9; /* Darker purple */
+
+/* Focus */
+outline: 2px solid #7c3aed;
+outline-offset: 2px;
+
+/* Active/Pressed */
+background-color: #5b21b6;
 ```
 
-**Secondary/Outline Button**:
-```
-- Border: 1px solid foreground
-- Text: foreground
-- No background initially
-- Hover: bg-foreground, text becomes background (full inversion)
-- Sharp corners (0px radius)
-- Padding: px-6 py-3
-- Uppercase, tracking-wider
-```
+#### Button Variants
 
-**Ghost Button**:
-```
-- No border, no fill
-- Text: muted-foreground
-- Hover: text becomes foreground
-- Underline appears via scale-x-0 → scale-x-100
-- h-px underline (thinner than primary)
-```
+| Variant     | Background  | Border  | Text    | Hover BG | Notes              |
+| ----------- | ----------- | ------- | ------- | -------- | ------------------ |
+| **Primary** | #7C3AED     | #7C3AED | #FFFFFF | #6D28D9  | Main action        |
+| **Success** | #00FF41     | #00FF41 | #000000 | #008F11  | Positive action    |
+| **Danger**  | #FF3333     | #FF3333 | #FFFFFF | #CC0000  | Destructive action |
+| **Ghost**   | transparent | #7C3AED | #7C3AED | #1F1F1F  | Secondary action   |
 
 **All Buttons**:
-- `min-h-[44px]` touch target
-- `focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2`
-- `disabled:pointer-events-none disabled:opacity-50`
+
+- `border-radius: 0px`
+- Focus: `outline 2px solid [color] / 2px offset`
+- Touch target: `min-h-[44px] min-w-[44px]`
+- `disabled:opacity-50 disabled:cursor-not-allowed`
 - `whitespace-nowrap`
 
-### Cards / Containers
+### Cards & Containers
 
-**Minimal card usage.** Content separates primarily by:
-- Generous section padding (`py-20` to `py-40`)
-- Full-width horizontal borders (`border-t` / `border-b`)
-- Typography scale changes
-- Background color alternation (`background` ↔ `muted`)
+**Style**: Visible borders, no shadows, sharp corners, grid-aligned
 
-When cards are necessary (scene cards, event cards, pricing):
-```
-- Border: 1px solid border color
-- Background: transparent
-- No radius (sharp corners)
-- No shadow
-- Padding: p-6 (mobile) → p-8 (desktop)
-- Hover: border color shifts to border-hover (150ms)
+```css
+border: 1px solid #1f1f1f;
+background-color: #0d1117;
+border-radius: 0px; /* NO rounding */
+padding: 16px;
 ```
 
-**Featured/Highlighted Cards** (promoted scenes, live events):
-```
-- Border: 2px solid accent
-- Small accent badge above content (bg-accent, px-3 py-1, uppercase mono)
-- No background change — border is the differentiator
+**Featured/Highlighted Card** (promoted scenes, live events):
+
+```css
+border: 2px solid #7c3aed; /* Thicker border, primary color */
+background-color: #0d1117;
 ```
 
-**Map Overlay Cards** (scene detail panels):
-```
-- Background: background with 95% opacity for map readability
-- Border: 1px solid border
-- Backdrop-filter: blur(4px) — subtle for legibility without heavy glass effect
-- Sharp corners
+**Error/Alert Card**:
+
+```css
+border: 2px solid #ff3333; /* Neon red border */
+background-color: #0d1117;
 ```
 
-### Inputs
+### Form Inputs
 
-```
-- Background: input color (#1A1A1A)
-- Border: 1px solid border
-- Border-radius: 0px (sharp)
-- Height: h-12 (mobile) → h-14 (desktop)
-- Font-size: text-base (16px — prevents iOS zoom)
-- Padding: px-4
-- Text: foreground
-- Placeholder: muted-foreground
-- Focus: border-accent, outline-none, no ring, no glow
-- Transition: colors 150ms
-- Disabled: cursor-not-allowed, opacity-50
-```
+```css
+border: 1px solid #1f1f1f;
+background-color: #000000;
+color: #ffffff;
+border-radius: 0px; /* NO rounding */
+padding: 10px 12px;
+font-family: 'Space Mono', monospace;
+font-size: 14px;
+font-weight: 400;
 
-### Navigation
+/* Placeholder */
+color: #737373; /* Muted gray */
 
-```
-- Background: background (solid, not transparent)
-- Border-bottom: 1px solid border
-- Links: font-mono, uppercase, tracking-wider, text-sm
-- Active link: text-accent with accent underline
-- Hover: text-foreground (from muted-foreground)
-- Logo: font-display, font-bold, tracking-tight
+/* Focus */
+border-color: #7c3aed;
+outline: 2px solid #7c3aed;
+outline-offset: 0px;
 ```
 
-### Badges / Tags
+### Links
 
+```css
+color: #00ffff; /* Cyan for visibility */
+text-decoration: underline solid 1px;
+cursor: pointer;
+
+/* Hover */
+color: #7c3aed; /* Shift to purple */
+text-decoration: underline wavy; /* Subtle wavy underline */
+
+/* Active */
+color: #ff00ff; /* Magenta when active */
 ```
-- Scene genre tags: border 1px solid border, text-xs, font-mono, uppercase, tracking-widest
-- Live indicator: rounded-full, bg-accent, h-2 w-2, animate-pulse
-- Status badges: px-3 py-1, font-mono, text-xs, uppercase
+
+### Dividers & Borders
+
+```css
+border: 1px solid #1f1f1f;
+margin: 16px 0;
 ```
 
 ---
 
-## Layout Strategy
+## Effects & Animations
+
+### Glow Effects (Neon)
+
+Use sparingly for interactive feedback, live indicators, error states:
+
+#### Subtle Glow (Focus, Hover)
+
+```css
+text-shadow: 0 0 8px rgba(124, 58, 237, 0.5); /* Purple glow */
+```
+
+#### Intense Glow (Error, Live Status)
+
+```css
+text-shadow:
+  0 0 16px #ff3333,
+  0 0 8px #ff3333; /* Red glow */
+
+/* Or for success */
+text-shadow:
+  0 0 16px #00ff41,
+  0 0 8px #00ff41; /* Green glow */
+```
+
+#### Box Glow
+
+```css
+box-shadow:
+  0 0 16px rgba(0, 255, 65, 0.3),
+  /* Outer green */ inset 0 0 16px rgba(0, 255, 65, 0.1); /* Inner glow */
+```
+
+### Scanlines (Optional Retro Effect)
+
+Add retro CRT scanline effect to sections (disabled by default, opt-in per component):
+
+```css
+background-image: repeating-linear-gradient(
+  0deg,
+  rgba(0, 0, 0, 0.15),
+  rgba(0, 0, 0, 0.15) 1px,
+  transparent 1px,
+  transparent 2px
+);
+```
+
+### Transitions
+
+**Philosophy**: Instant by default, minimal animations only for functional feedback
+
+```css
+/* Buttons, inputs: instant state change */
+transition: none;
+
+/* Or explicit instant on specific properties */
+transition:
+  background-color 0ms,
+  border-color 0ms;
+
+/* Hover state: instant feedback */
+transition: none;
+
+/* Focus outline: instant visibility */
+transition: none;
+```
+
+**Exception**: Loading spinners, streaming indicators can use CSS `animation` (not `transition`) for continuous loops.
+
+### Respect Motion Preferences
+
+```css
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+```
+
+---
+
+## Layout & Responsive Design
 
 ### Container
-```
-maxWidth:  1200px (max-w-5xl)
-padding:   px-6 (mobile), px-12 (tablet), px-16 (desktop)
-```
 
-### Section Spacing
-```
-py-20   (80px)  — tight sections
-py-28   (112px) — standard sections
-py-40   (160px) — hero / major CTA sections
+```css
+max-width: 1280px; /* xl breakpoint */
+margin: 0 auto;
+padding: 0 16px; /* 16px left/right gutter */
 ```
 
-### Grid Philosophy
-- **Asymmetric grids**: 7/5 or 8/4 column splits instead of 6/6
-- **Staggered alignment**: Elements don't always align top
-- **Text columns**: max-w-2xl for readability, headlines can span full width
-- **Map layout**: Map takes primary space, side panels use narrow columns
+### Grid System (12-column)
 
-### Section Dividers
-- Full-width `border-t border-border`
-- Gradient line accents: `bg-gradient-to-r from-transparent via-white/10 to-transparent`
-- Background color alternation between sections
-
----
-
-## Effects & Animation
-
-### Motion Philosophy
-
-**Fast and decisive.** No bouncy easing. No playful delays. Movement is confident and direct — like the underground music scenes Subcults serves.
-
-```
-duration: 150ms  — micro-interactions (buttons, underlines, focus)
-duration: 200ms  — standard transitions (card borders, color changes)
-duration: 500ms  — image hover effects, panel transitions
-easing:   cubic-bezier(0.25, 0, 0, 1)  — fast-out, crisp stop
+```css
+display: grid;
+grid-template-columns: repeat(12, 1fr);
+gap: 16px; /* 2× base unit */
 ```
 
-### Specific Effects
+### Sections
 
-**Link/Button interactions**:
-- Underline scale animation (`scale-x-0` → `scale-x-100` on hover)
-- Text color transition (150ms)
-- Active press feedback: `translate-y-px`
-- No scale, no glow, no bounce
-
-**Card hover**:
-- Border color lightens to `border-hover`
-- No lift, no shadow, no scale
-- Background color change on feature cards (transparent → muted)
-
-**Page scroll animations** (optional, Framer Motion):
-- Fade in + slide up (opacity 0→1, translateY 20px→0) over 500ms
-- Stagger children by 80ms
-- Viewport trigger: once only, 15% threshold
-- **Must respect** `prefers-reduced-motion`
-
-**Live streaming indicators**:
-- Vermillion dot with `animate-pulse` (loading indicators only)
-- Audio waveform visualization - no infinite decorative animations
-
-### Animation Accessibility
-- All animations wrapped in `@media (prefers-reduced-motion: no-preference)`
-- Reduced motion fallback: instant state changes, no transitions
-- No infinite decorative animations (only functional: loading spinners, live indicators)
-- Use `ease-out` for entering elements, `ease-in` for exiting (never `linear` for UI transitions)
-
----
-
-## Iconography
-
-From `lucide-react`:
+```css
+margin-bottom: 48px; /* 3xl spacing */
+padding: 32px 0; /* Vertical breathing room */
+border-top: 1px solid #1f1f1f; /* Visible separator */
 ```
-- Stroke width: 1.5px (thinner than default for editorial elegance)
-- Size by context:
-  - 16px: inline with small text, button arrows
-  - 18px: navigation, controls
-  - 20px: standard icons
-  - 24px: feature section, empty states
-- Color: currentColor (inherits text color)
-- Accent icons: explicitly text-accent
-- Style: Always outline/stroke — never filled
-- Use sparingly — text labels preferred over icon-only buttons
-```
-
----
-
-## Responsive Strategy
-
-### Mobile-First Typography Scaling
-- Hero headline: `text-4xl` → `text-5xl` (sm) → `text-6xl` (md) → `text-7xl` (lg) → `text-8xl` (xl)
-- Section titles: `text-3xl` → `text-4xl` (md) → `text-5xl` (lg)
-- Body text: `text-base` throughout, `md:text-lg` on key sections
-- Maintain hierarchy ratio at all breakpoints
-
-### Layout Shifts
-- Scene grid: 1 col → 2 col (sm) → 3 col (lg)
-- Event list: stacked → 2 col (md)
-- Map + panel: stacked (mobile) → side-by-side (lg)
-- Footer: 2 col → 4 col (md)
-- Asymmetric grids collapse to stacked on mobile
-
-### Spacing Adjustments
-- Section padding: `py-20` (mobile) → `py-28` (md) → `py-32`/`py-40` (lg)
-- Container: `px-6` (mobile) → `px-12` (md) → `px-16` (lg)
-- Gap: `gap-4` → `gap-6` → `gap-8` progression
-
-### Mobile-Specific
-- Touch targets minimum 44x44px (`min-h-touch min-w-touch`)
-- Reserve space for dynamic content with skeleton loaders (avoid layout shifts)
-- Keep editorial aesthetic on mobile — don't strip personality for smaller screens
-- Stack email/search inputs with buttons on mobile, side-by-side on tablet+
-- Navigation collapses to hamburger with full-screen overlay
 
 ### Breakpoints
-```
-xs:   375px   — iPhone SE
-sm:   640px   — Small tablets
-md:   768px   — Tablets / landscape phones
-lg:   1024px  — Desktop
-xl:   1280px  — Large desktop
-2xl:  1536px  — Ultra-wide
-```
+
+| Name    | px     | Use               |
+| ------- | ------ | ----------------- |
+| **sm**  | 640px  | Tablets portrait  |
+| **md**  | 768px  | Tablets landscape |
+| **lg**  | 1024px | Laptops           |
+| **xl**  | 1280px | Desktops          |
+| **2xl** | 1536px | Large desktops    |
+
+### Mobile-First Strategy
+
+- Stack cards vertically on mobile
+- Typography: scale headings per breakpoint
+- Inputs: full-width on mobile, 50% width on tablet+
+- Touch targets: minimum 44×44px everywhere
+- No horizontal scroll (ever)
 
 ---
 
-## Accessibility Requirements
+## Accessibility Requirements (WCAG 2.1 AA+)
 
-### WCAG 2.1 AA Compliance (Minimum)
+### Contrast
 
-**Contrast**:
-- Primary text: 18.1:1 ratio (exceeds AAA)
-- Secondary text: 5.3:1 ratio (meets AA)
-- Accent on dark: 5.4:1 ratio (meets AA for large text)
-- All text-color combinations must pass AA minimum
+All text combinations must meet minimum 4.5:1 (AA):
 
-**Focus States**:
-- 2px accent outline on all interactive elements
-- 2px offset from element edge
-- No glow, no fill change — outline only
-- Visible on all interactive elements including custom components
+- ✓ White (#FFFFFF) on black (#000000): 21:1
+- ✓ Light gray (#E2E8F0) on #0D1117: 11.3:1
+- ✓ Cyan (#00FFFF) on black: 6.3:1
+- ✓ Purple (#7C3AED) on black: 5.6:1
+- ⚠ Neon green (#00FF41) on black: 2.8:1 — use for non-text UI only or add background box
 
-**Typography**:
-- Body text minimum 16px (prevents iOS zoom)
-- Line-height minimum 1.5 for body
-- No thin weights below 400
+### Focus & Keyboard
 
-**Interaction**:
-- Touch targets minimum 44x44px
-- Underlines 2px+ for visibility
-- Color is never the sole indicator — always pair with icon, label, or position
-- Error messages use `aria-live="polite"` or `role="alert"`
-- All images require descriptive `alt` text
+- [ ] All interactive elements have visible focus outlines (2px, offset 2px)
+- [ ] Focus order matches visual reading order
+- [ ] Tab/Shift+Tab navigation works throughout
+- [ ] Escape key closes modals, dropdowns
+- [ ] Enter/Space activates buttons
 
-**Motion**:
-- `prefers-reduced-motion` respected for all animations
-- Essential interactions work without animation
-- No auto-playing audio or video
+### Semantics
+
+- [ ] Navigation uses `<nav>` element
+- [ ] Main content in `<main>`
+- [ ] Section headers use proper `<h1>`, `<h2>`, `<h3>` (not skipped levels)
+- [ ] Form labels explicitly linked to inputs (`<label for="...">`)
+- [ ] Buttons are `<button>` elements (not divs), links are `<a>`
+
+### Images & Alt Text
+
+- [ ] All meaningful images have descriptive `alt` text
+- [ ] Decorative images: `alt=""` (empty)
+- [ ] Alt text describes content, not "image of" or "picture of"
+
+### Error Handling
+
+- [ ] Error messages use `role="alert"` or `aria-live="polite"`
+- [ ] Color is never the only indicator (pair with icon, text, or position)
+- [ ] Error messages are concise and actionable
+
+### Motion
+
+- [ ] Respect `prefers-reduced-motion` media query
+- [ ] No infinite decorative animations
+- [ ] No auto-playing audio/video without user control
 
 ---
 
 ## Tailwind Configuration Reference
 
-The following shows how to adapt `tailwind.config.js` for this design system:
+### CSS Variables (`:root`)
+
+```css
+:root {
+  --color-bg-black: #000000;
+  --color-bg-dark: #0d1117;
+  --color-border-dark: #1f1f1f;
+  --color-text-white: #ffffff;
+  --color-text-gray: #e2e8f0;
+  --color-neon-green: #00ff41;
+  --color-purple: #7c3aed;
+  --color-magenta: #ff00ff;
+  --color-cyan: #00ffff;
+  --color-error: #ff3333;
+  --color-success: #008f11;
+  --color-warning: #ffb000;
+}
+```
+
+### Tailwind `config.js` Extension
 
 ```js
-// tailwind.config.js
 export default {
   darkMode: 'class',
   theme: {
     extend: {
       colors: {
-        background: {
-          DEFAULT: 'var(--color-background)',
-          alt: 'var(--color-background-alt)',
+        terminal: {
+          black: 'var(--color-bg-black)',
+          dark: 'var(--color-bg-dark)',
         },
-        foreground: {
-          DEFAULT: 'var(--color-foreground)',
-          muted: 'var(--color-foreground-muted)',
+        neon: {
+          green: 'var(--color-neon-green)',
+          purple: 'var(--color-purple)',
+          magenta: 'var(--color-magenta)',
+          cyan: 'var(--color-cyan)',
         },
-        accent: {
-          DEFAULT: 'var(--color-accent)',
-          foreground: 'var(--color-accent-foreground)',
-          hover: 'var(--color-accent-hover)',
+        status: {
+          error: 'var(--color-error)',
+          success: 'var(--color-success)',
+          warning: 'var(--color-warning)',
         },
-        border: {
-          DEFAULT: 'var(--color-border)',
-          hover: 'var(--color-border-hover)',
-        },
-        muted: {
-          DEFAULT: 'var(--color-muted)',
-          foreground: 'var(--color-muted-foreground)',
-        },
-        input: 'var(--color-input)',
-        card: 'var(--color-card)',
-        ring: 'var(--color-ring)',
       },
       fontFamily: {
-        display: ['"Inter Tight"', '"Inter"', 'system-ui', 'sans-serif'],
-        sans: ['"Inter"', 'system-ui', 'sans-serif'],
-        mono: ['"JetBrains Mono"', '"Fira Code"', 'monospace'],
+        mono: ['"Space Mono"', 'monospace'],
       },
       borderRadius: {
-        none: '0px',  // Default for all elements
-      },
-      letterSpacing: {
-        tighter: '-0.06em',
-        tight: '-0.04em',
-        normal: '-0.01em',
-        wide: '0.05em',
-        wider: '0.1em',
-        widest: '0.2em',
+        none: '0px', // Default everywhere
       },
     },
   },
-}
+};
 ```
 
-### CSS Variables
+---
 
-```css
-:root {
-  /* Dark mode (default/primary) */
-  --color-background: #0A0A0A;
-  --color-background-alt: #0F0F0F;
-  --color-foreground: #FAFAFA;
-  --color-foreground-muted: #737373;
-  --color-accent: #FF3D00;
-  --color-accent-foreground: #0A0A0A;
-  --color-accent-hover: #FF5722;
-  --color-border: #262626;
-  --color-border-hover: #404040;
-  --color-muted: #1A1A1A;
-  --color-muted-foreground: #737373;
-  --color-input: #1A1A1A;
-  --color-card: #0F0F0F;
-  --color-ring: #FF3D00;
-}
+## Implementation Checklist
 
-.light {
-  --color-background: #FAFAFA;
-  --color-background-alt: #F5F5F5;
-  --color-foreground: #0A0A0A;
-  --color-foreground-muted: #737373;
-  --color-accent: #FF3D00;
-  --color-accent-foreground: #FAFAFA;
-  --color-accent-hover: #FF5722;
-  --color-border: #E5E5E5;
-  --color-border-hover: #FF3D00;
-  --color-muted: #E5E5E5;
-  --color-muted-foreground: #737373;
-  --color-input: #F5F5F5;
-  --color-card: #FFFFFF;
-  --color-ring: #FF3D00;
-}
-```
+### Visual Quality
+
+- [ ] No emoji used as UI icons
+- [ ] Icons from consistent set (Lucide/Feather)
+- [ ] No rounded corners except avatars/pills (`border-radius: 0`)
+- [ ] All borders visible (no hidden structure)
+- [ ] Color palette follows token system (no scattered hex values)
+
+### Interaction
+
+- [ ] All clickable surfaces have `cursor: pointer`
+- [ ] Hover/focus states provide clear visual feedback
+- [ ] Transitions are instant or minimal (no easing)
+- [ ] Focus outlines always visible (2px, offset 2px, #7C3AED)
+- [ ] Keyboard navigation fully functional
+
+### Contrast & Accessibility
+
+- [ ] All text meets 4.5:1 contrast minimum
+- [ ] Form inputs have associated labels
+- [ ] Color not used as sole indicator
+- [ ] Respects `prefers-reduced-motion`
+- [ ] Images have descriptive alt text
+
+### Layout
+
+- [ ] Works at 320px, 640px, 1024px, 1440px
+- [ ] No horizontal scroll on any breakpoint
+- [ ] Touch targets: minimum 44×44px
+- [ ] Fixed elements don't cover content
+
+---
+
+## Design Rationale
+
+This system rejects Bootstrap's "friendly SaaS" aesthetic (rounded corners, soft shadows, pastels) in favor of **neo-brutalism's raw honesty** (sharp corners, visible borders, high contrast) combined with **terminal/cyberpunk culture** (monospace typography, neon glows, dark backgrounds).
+
+The result feels like an underground music zine collided with the early internet—authentic, edgy, unpolished, and unapologetically digital. It signals to users that Subcults is not a polished corporate platform, but a grassroots community tool built by and for scenes.
+
+Every design decision serves the mission: **presence over popularity, scene sovereignty with explicit consent.**

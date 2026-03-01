@@ -1,4 +1,10 @@
 /**
+ * Neo-Brutalist Terminal Design System
+ * Google Fonts Import for Space Mono
+ */
+@import url('https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&display=swap');
+
+/**
  * Tailwind CSS Directives
  */
 @tailwind base;
@@ -6,24 +12,37 @@
 @tailwind utilities;
 
 /**
- * CSS Variables for Runtime Theme Switching
- * These are exposed from Tailwind theme for dark mode toggling
+ * CSS Variables - Neo-Brutalist Terminal Design System
+ * Primary: Terminal dark mode (pure dark backgrounds)
+ * Accents: Neon purple, green, magenta, cyan
  */
 :root {
-  /* Light mode colors (default) */
-  --color-background: #ffffff;
-  --color-background-secondary: #f9f9f9;
-  --color-foreground: #213547;
-  --color-foreground-secondary: #464646;
-  --color-foreground-muted: #888888;
-  --color-border: #e5e5e5;
-  --color-border-hover: #646cff;
+  /* Terminal neutrals */
+  --color-background: #000000;
+  --color-background-secondary: #0d1117;
+  --color-foreground: #ffffff;
+  --color-foreground-secondary: #e2e8f0;
+  --color-foreground-muted: #a0aec0;
+  --color-border: #1f1f1f;
+  --color-border-hover: #404040;
 
-  /* Typography */
-  font-family: system-ui, Avenir, Helvetica, Arial, sans-serif;
+  /* Neon accent colors */
+  --color-neon-green: #00ff41;
+  --color-neon-purple: #7c3aed;
+  --color-neon-magenta: #ff00ff;
+  --color-neon-cyan: #00ffff;
+
+  /* Status colors */
+  --color-status-error: #ff3333;
+  --color-status-success: #00ff41;
+  --color-status-warning: #ffb000;
+  --color-status-info: #00ffff;
+
+  /* Typography - Space Mono everywhere */
+  font-family: 'Space Mono', monospace;
   line-height: 1.5;
   font-weight: 400;
-  
+
   /* Rendering optimizations */
   font-synthesis: none;
   text-rendering: optimizeLegibility;
@@ -32,18 +51,23 @@
 }
 
 /**
- * Dark Mode Theme Variables
- * Applied when 'dark' class is on root element
+ * Dark Mode Theme Variables (Same as :root in neo-brutalist)
+ * Dark mode is the primary theme
  */
 .dark {
-  --color-background: #242424;
-  --color-background-secondary: #1a1a1a;
-  --color-foreground: rgba(255, 255, 255, 0.87);
-  --color-foreground-secondary: rgba(255, 255, 255, 0.7);
-  --color-foreground-muted: #888888;
-  --color-border: #404040;
-  --color-border-hover: #646cff;
-  
+  --color-background: #000000;
+  --color-background-secondary: #0d1117;
+  --color-foreground: #ffffff;
+  --color-foreground-secondary: #e2e8f0;
+  --color-foreground-muted: #a0aec0;
+  --color-border: #1f1f1f;
+  --color-border-hover: #404040;
+
+  --color-neon-green: #00ff41;
+  --color-neon-purple: #7c3aed;
+  --color-neon-magenta: #ff00ff;
+  --color-neon-cyan: #00ffff;
+
   color-scheme: dark;
 }
 
@@ -63,31 +87,48 @@
   }
 
   a {
-    @apply font-medium text-brand-primary no-underline hover:text-brand-primary-dark;
-    transition: color 0.25s;
+    @apply text-neon-cyan no-underline hover:text-neon-purple;
+    text-decoration: underline solid 1px;
+    transition: none; /* Instant feedback */
   }
 
   h1 {
-    @apply text-2xl sm:text-3xl md:text-4xl lg:text-5xl leading-tight;
+    @apply text-2xl sm:text-3xl md:text-4xl lg:text-5xl leading-tight font-bold;
+    font-family: 'Space Mono', monospace;
   }
 
   h2 {
-    @apply text-2xl sm:text-3xl md:text-4xl leading-tight;
+    @apply text-2xl sm:text-3xl md:text-4xl leading-tight font-bold;
+    font-family: 'Space Mono', monospace;
   }
 
   h3 {
-    @apply text-xl sm:text-2xl md:text-3xl leading-tight;
+    @apply text-xl sm:text-2xl md:text-3xl leading-tight font-bold;
+    font-family: 'Space Mono', monospace;
   }
 
   button {
-    @apply rounded-lg border border-transparent px-5 py-2.5 text-base font-medium
-           cursor-pointer transition-colors duration-250
-           bg-background-secondary hover:border-brand-primary
-           focus:outline-none focus-visible:outline focus-visible:outline-4
-           focus-visible:outline-brand-primary;
-    /* Ensure buttons are touch-friendly */
-    @apply min-h-touch min-w-touch;
+    border-radius: 0px; /* Sharp corners */
+    @apply border border-neon-purple bg-neon-purple px-4 py-2.5 text-base font-bold
+           text-white cursor-pointer min-h-touch min-w-touch;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    font-family: 'Space Mono', monospace;
+    transition: none; /* Instant feedback */
     touch-action: manipulation;
+  }
+
+  button:hover {
+    @apply bg-purple-700;
+    transition: none; /* Instant hover feedback */
+  }
+
+  button:active {
+    @apply bg-purple-900;
+  }
+
+  button:focus-visible {
+    @apply outline-2 outline-offset-2 outline-neon-purple;
   }
 }
 
