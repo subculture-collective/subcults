@@ -48,7 +48,15 @@ type Scene struct {
 	OwnerUserID *string  `json:"owner_user_id,omitempty"` // FK to users table
 
 	// Payments
-	ConnectedAccountID *string `json:"connected_account_id,omitempty"` // Stripe Connect Express account ID
+	ConnectedAccountID     *string `json:"connected_account_id,omitempty"`      // Stripe Connect Express account ID
+	ConnectedAccountStatus string  `json:"connected_account_status,omitempty"`   // pending, active, or restricted
+	AccountOnboardedAt     *time.Time `json:"account_onboarded_at,omitempty"`    // When Stripe account was fully onboarded
+
+	// Moderation (admin visibility controls)
+	ModerationStatus  string     `json:"moderation_status,omitempty"`  // visible, hidden, flagged, or suspended
+	ModerationReason  *string    `json:"moderation_reason,omitempty"`  // Reason for moderation action
+	ModeratedBy       *string    `json:"moderated_by,omitempty"`       // User DID of moderator
+	ModerationTimestamp *time.Time `json:"moderation_timestamp,omitempty"` // When moderation action was taken
 
 	// Timestamps
 	CreatedAt *time.Time `json:"created_at,omitempty"`

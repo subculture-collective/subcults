@@ -28,6 +28,7 @@ export interface TelemetryEvent {
  * - search.event - Event search performed
  * - search.post - Post search performed
  * - stream.join - Joined audio stream
+ * - stream.join_completed - Completed joining audio stream with latency breakdown
  * - stream.leave - Left audio stream
  * - scene.view - Viewed scene details
  * - event.view - Viewed event details
@@ -40,5 +41,6 @@ export interface TelemetryEvent {
  * - Example payloads:
  *   - search.scene: { query_length: 5, results_count: 10 }
  *   - stream.join: { room_id: "uuid", duration_ms: 1234 }
+ *   - stream.join_completed: { total_ms: 2500, token_fetch_ms: 500, room_connect_ms: 1200, audio_sub_ms: 800 }
  *   - scene.view: { scene_id: "uuid" }
  */

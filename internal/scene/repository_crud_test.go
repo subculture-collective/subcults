@@ -1,6 +1,7 @@
 package scene
 
 import (
+	"strconv"
 	"testing"
 	"time"
 )
@@ -476,5 +477,156 @@ func TestEventRepository_GetByRecordKey_DeepCopy(t *testing.T) {
 	}
 	if original.PrecisePoint.Lat != 40.7128 {
 		t.Error("Deep copy violated: mutation of PrecisePoint affected repository")
+	}
+}
+
+// --- SceneRepository: Stripe Onboarding Status ---
+
+func TestSceneRepository_StripeOnboardingStatus_Update(t *testing.T) {
+	repo := NewInMemorySceneRepository()
+
+	acctID := strconv.FormatInt(1234567890, 10)
+	scene := &Scene{
+		ID:                      "scene-stripe-1",
+		Name:                    "Stripe Scene",
+		OwnerDID:                "did:plc:owner1",
+		CoarseGeohash:           "dr5regw",
+		AllowPrecise:            false,
+		ConnectedAccountID:      &acctID,
+		ConnectedAccountStatus:  "pending",
+	}
+
+	if err := repo.Insert(scene); err != nil {
+		t.Fatalf("Insert failed: %v", err)
+	}
+
+	// Update status to active
+	scene.ConnectedAccountStatus = "active"
+	now := time.Now()
+	scene.AccountOnboardedAt = &now
+
+	if err := repo.Update(scene); err != nil {
+		t.Fatalf("Update failed: %v", err)
+	}
+
+	retrieved, err := repo.GetByID("scene-stripe-1")
+	if err != nil {
+		t.Fatalf("GetByID failed: %v", err)
+	}
+
+	if retrieved.ConnectedAccountStatus != "active" {
+		t.Errorf("Expected status 'active', got '%s'", retrieved.ConnectedAccountStatus)
+	}
+	if retrieved.AccountOnboardedAt == nil {
+		t.Error("Expected AccountOnboardedAt to be set")
+	}
+}
+
+func TestSceneRepository_StripeOnboardingStatus_DefaultValues(t *testing.T) {
+	repo := NewInMemorySceneRepository()
+
+	scene := &Scene{
+		ID:            "scene-stripe-default",
+		Name:          "New Scene",
+		OwnerDID:      "did:plc:owner1",
+		CoarseGeohash: "dr5regw",
+		AllowPrecise:  false,
+	}
+
+	if err := repo.Insert(scene); err != nil {
+		t.Fatalf("Insert failed: %v", err)
+	}
+
+	retrieved, _ := repo.GetByID("scene-stripe-default")
+
+	// Default status should be empty string (as struct zero value)
+	// The database will enforce DEFAULT 'pending'
+	if retrieved.ConnectedAccountStatus != "" && retrieved.ConnectedAccountStatus != "pending" {
+		t.Errorf("Unexpected ConnectedAccountStatus: '%s'", retrieved.ConnectedAccountStatus)
+	}
+	if retrieved.AccountOnboardedAt != nil {
+		t.Error("Expected AccountOnboardedAt to be nil for new scene")
+	}
+}
+
+// --- SceneRepository: Moderation Status ---
+
+func TestSceneRepository_ModerationStatus_HiddenScene(t *testing.T) {
+	repo := NewInMemorySceneRepository()
+
+	scene := &Scene{
+		ID:                  "scene-mod-1",
+		Name:                "Moderated Scene",
+		OwnerDID:            "did:plc:owner1",
+		CoarseGeohash:       "dr5regw",
+		AllowPrecise:        false,
+		ModerationStatus:    "hidden",
+		ModerationReason:    strPtr("Spam content"),
+		ModeratedBy:         strPtr("did:plc:admin1"),
+		ModerationTimestamp: &[]time.Time{time.Now()}[0],
+	}
+
+	if err := repo.Insert(scene); err != nil {
+		t.Fatalf("Insert failed: %v", err)
+	}
+
+	retrieved, err := repo.GetByID("scene-mod-1")
+	if err != nil {
+		t.Fatalf("GetByID failed: %v", err)
+	}
+
+	if retrieved.ModerationStatus != "hidden" {
+		t.Errorf("Expected status 'hidden', got '%s'", retrieved.ModerationStatus)
+	}
+	if retrieved.ModerationReason == nil || *retrieved.ModerationReason != "Spam content" {
+		t.Errorf("Expected reason 'Spam content', got %v", retrieved.ModerationReason)
+	}
+	if retrieved.ModeratedBy == nil || *retrieved.ModeratedBy != "did:plc:admin1" {
+		t.Errorf("Expected moderated_by 'did:plc:admin1', got %v", retrieved.ModeratedBy)
+	}
+	if retrieved.ModerationTimestamp == nil {
+		t.Error("Expected ModerationTimestamp to be set")
+	}
+}
+
+func TestSceneRepository_ModerationStatus_RemoveModeration(t *testing.T) {
+	repo := NewInMemorySceneRepository()
+
+	scene := &Scene{
+		ID:                  "scene-mod-2",
+		Name:                "Moderated Scene",
+		OwnerDID:            "did:plc:owner1",
+		CoarseGeohash:       "dr5regw",
+		AllowPrecise:        false,
+		ModerationStatus:    "suspended",
+		ModerationReason:    strPtr("Severe violation"),
+		ModeratedBy:         strPtr("did:plc:admin1"),
+		ModerationTimestamp: &[]time.Time{time.Now()}[0],
+	}
+
+	if err := repo.Insert(scene); err != nil {
+		t.Fatalf("Insert failed: %v", err)
+	}
+
+	// Remove moderation: revert to visible status
+	scene.ModerationStatus = "visible"
+	scene.ModerationReason = nil
+	scene.ModeratedBy = nil
+	scene.ModerationTimestamp = nil
+
+	if err := repo.Update(scene); err != nil {
+		t.Fatalf("Update failed: %v", err)
+	}
+
+	retrieved, _ := repo.GetByID("scene-mod-2")
+
+	if retrieved.ModerationStatus != "visible" {
+		t.Errorf("Expected status 'visible', got '%s'", retrieved.ModerationStatus)
+	}
+	if retrieved.ModeratedBy != nil {
+		t.Errorf("Expected moderated_by to be nil, got %v", retrieved.ModeratedBy)
+	}
+	if retrieved.ModerationTimestamp != nil {
+		t.Error("Expected ModerationTimestamp to be nil after removal")
 	}
 }

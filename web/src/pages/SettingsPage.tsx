@@ -21,6 +21,7 @@ import { ConfirmModal } from '../components/ui/Modal';
 import { useTheme } from '../stores/themeStore';
 import { useAuth } from '../stores/authStore';
 import { useToasts } from '../stores/toastStore';
+import { useFileValidation, FileValidationPresets } from '../hooks/useFileValidation';
 // TODO: Uncomment when API endpoints are implemented
 // import { apiClient } from '../lib/api-client';
 
@@ -37,6 +38,9 @@ export const SettingsPage: React.FC = () => {
   const theme = useTheme();
   const { user, logout } = useAuth();
   const toast = useToasts();
+  
+  // File validation for avatars
+  const validateAvatar = useFileValidation(FileValidationPresets.images);
   
   // Profile state
   const [profile, setProfile] = useState<UserProfile>({
@@ -76,15 +80,10 @@ export const SettingsPage: React.FC = () => {
     const file = event.target.files?.[0];
     if (!file) return;
     
-    // Validate file type
-    if (!file.type.startsWith('image/')) {
-      setProfileError('Please select a valid image file');
-      return;
-    }
-    
-    // Validate file size (max 5MB)
-    if (file.size > 5 * 1024 * 1024) {
-      setProfileError('Image must be smaller than 5MB');
+    // Validate file using validation hook
+    const validation = validateAvatar(file);
+    if (!validation.isValid) {
+      setProfileError(validation.error);
       return;
     }
     
@@ -105,7 +104,7 @@ export const SettingsPage: React.FC = () => {
       console.error('Failed to read file:', error);
       setProfileError('Failed to read image file');
     }
-  }, []);
+  }, [validateAvatar]);
   
   // Upload avatar to backend
   const handleAvatarUpload = async (file: File, previewUrl: string) => {
