@@ -119,8 +119,8 @@ describe('WCAG AA Contrast Ratios', () => {
 
       const ratio = getContrastRatio(brandPrimary, background);
 
-      // Just below 4.5:1 for normal text, but meets 3:1 for large text
-      expect(ratio).toBeGreaterThanOrEqual(3);
+      // 5.70:1 meets WCAG AA for normal text (≥4.5:1)
+      expect(ratio).toBeGreaterThanOrEqual(4.5);
     });
 
     it('brand-primary-dark text on white background meets WCAG AA', () => {
@@ -191,8 +191,8 @@ describe('WCAG AA Contrast Ratios', () => {
 
       const ratio = getContrastRatio(foreground, background);
 
-      // Just below 4.5:1, but adequate for large text and buttons
-      expect(ratio).toBeGreaterThanOrEqual(3);
+      // 5.70:1 meets WCAG AA for normal text (≥4.5:1)
+      expect(ratio).toBeGreaterThanOrEqual(4.5);
     });
   });
 
