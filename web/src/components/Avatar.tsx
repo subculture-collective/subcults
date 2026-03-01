@@ -39,12 +39,12 @@ export interface AvatarProps {
 function getInitials(name: string): string {
   const trimmed = name.trim();
   if (!trimmed) return '?';
-  
+
   const parts = trimmed.split(/\s+/);
   if (parts.length === 1) {
     return parts[0].substring(0, 2).toUpperCase();
   }
-  
+
   return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
 }
 
@@ -62,13 +62,13 @@ function getColorFromName(name: string): { bgClass: string; textClass: string } 
     { bgClass: 'bg-neon-green', textClass: 'text-background' },
     { bgClass: 'bg-status-warning', textClass: 'text-background' },
   ];
-  
+
   // Generate a hash from the name
   let hash = 0;
   for (let i = 0; i < name.length; i++) {
     hash = name.charCodeAt(i) + ((hash << 5) - hash);
   }
-  
+
   const index = Math.abs(hash) % colors.length;
   return colors[index];
 }
@@ -174,10 +174,7 @@ export const Avatar: React.FC<AvatarProps> = ({
 
       {/* Loading skeleton */}
       {src && !imageError && !imageLoaded && (
-        <div
-          className="absolute inset-0 bg-background-hover animate-pulse"
-          aria-hidden="true"
-        />
+        <div className="absolute inset-0 bg-background-hover animate-pulse" aria-hidden="true" />
       )}
 
       {/* Online indicator */}

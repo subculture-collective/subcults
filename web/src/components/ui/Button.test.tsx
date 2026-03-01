@@ -55,44 +55,52 @@ describe('Button', () => {
     it('calls onClick when clicked', async () => {
       const handleClick = vi.fn();
       const user = userEvent.setup();
-      
+
       render(<Button onClick={handleClick}>Click me</Button>);
       await user.click(screen.getByRole('button'));
-      
+
       expect(handleClick).toHaveBeenCalledTimes(1);
     });
 
     it('does not call onClick when disabled', async () => {
       const handleClick = vi.fn();
       const user = userEvent.setup();
-      
-      render(<Button disabled onClick={handleClick}>Disabled</Button>);
-      
+
+      render(
+        <Button disabled onClick={handleClick}>
+          Disabled
+        </Button>
+      );
+
       const button = screen.getByRole('button');
       expect(button).toBeDisabled();
-      
+
       // User event will skip interaction with disabled elements
       await user.click(button).catch(() => {
         // Expected to fail for disabled button
       });
-      
+
       expect(handleClick).not.toHaveBeenCalled();
     });
 
     it('does not call onClick when loading', async () => {
       const handleClick = vi.fn();
       const user = userEvent.setup();
-      
-      render(<Button isLoading onClick={handleClick}>Loading</Button>);
-      
+
+      render(
+        <Button isLoading onClick={handleClick}>
+          Loading
+        </Button>
+      );
+
       const button = screen.getByRole('button');
       expect(button).toBeDisabled();
-      
+
       // User event will skip interaction with disabled elements
       await user.click(button).catch(() => {
         // Expected to fail for disabled button
       });
-      
+
       expect(handleClick).not.toHaveBeenCalled();
     });
   });

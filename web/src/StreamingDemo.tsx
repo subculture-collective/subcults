@@ -6,12 +6,12 @@
 import { useState } from 'react';
 import { useLiveAudio } from './hooks/useLiveAudio';
 import { useLatencyStore } from './stores/latencyStore';
-import { 
-  JoinStreamButton, 
+import {
+  JoinStreamButton,
   StreamLatencyOverlay,
   ParticipantList,
   AudioControls,
-  ConnectionIndicator 
+  ConnectionIndicator,
 } from './components/streaming';
 
 /**
@@ -21,7 +21,7 @@ import {
 export function StreamingDemo() {
   const [roomName] = useState('demo-room');
   const [showOverlay, setShowOverlay] = useState(true);
-  
+
   const {
     isConnected,
     isConnecting,
@@ -40,7 +40,7 @@ export function StreamingDemo() {
   const handleJoin = async () => {
     // Record t0: Join button click
     recordJoinClicked();
-    
+
     // Connect to room
     await connect();
   };
@@ -68,7 +68,9 @@ export function StreamingDemo() {
             </div>
             <div className="flex items-center justify-between">
               <span className="text-foreground-secondary">Connection Quality:</span>
-              <span className="px-2 py-1 bg-background rounded text-sm capitalize">{connectionQuality}</span>
+              <span className="px-2 py-1 bg-background rounded text-sm capitalize">
+                {connectionQuality}
+              </span>
             </div>
             <div className="flex items-center justify-between">
               <label htmlFor="overlay-toggle" className="text-foreground-secondary">
@@ -91,14 +93,14 @@ export function StreamingDemo() {
             <h2 className="text-xl font-semibold text-foreground">Connection</h2>
             <ConnectionIndicator quality={connectionQuality} />
           </div>
-          
+
           <div className="flex gap-4">
             <JoinStreamButton
               isConnected={isConnected}
               isConnecting={isConnecting}
               onJoin={handleJoin}
             />
-            
+
             {isConnected && (
               <button
                 onClick={disconnect}
@@ -135,10 +137,7 @@ export function StreamingDemo() {
             <h2 className="text-xl font-semibold text-foreground">
               Participants ({participants.length + (localParticipant ? 1 : 0)})
             </h2>
-            <ParticipantList
-              participants={participants}
-              localParticipant={localParticipant}
-            />
+            <ParticipantList participants={participants} localParticipant={localParticipant} />
           </section>
         )}
 
@@ -149,12 +148,21 @@ export function StreamingDemo() {
             <li>Ensure VITE_LIVEKIT_WS_URL is set in your environment</li>
             <li>Click "Join Room" to connect to the audio room</li>
             <li>The latency overlay will appear showing join performance metrics</li>
-            <li>Overlay shows:
+            <li>
+              Overlay shows:
               <ul className="list-disc list-inside ml-6 mt-1 space-y-1">
-                <li><strong>Total:</strong> End-to-end join latency (target: &lt;2s)</li>
-                <li><strong>Token fetch:</strong> Time to get token from backend</li>
-                <li><strong>Room connect:</strong> Time to establish LiveKit connection</li>
-                <li><strong>Audio sub:</strong> Time until first audio track is ready</li>
+                <li>
+                  <strong>Total:</strong> End-to-end join latency (target: &lt;2s)
+                </li>
+                <li>
+                  <strong>Token fetch:</strong> Time to get token from backend
+                </li>
+                <li>
+                  <strong>Room connect:</strong> Time to establish LiveKit connection
+                </li>
+                <li>
+                  <strong>Audio sub:</strong> Time until first audio track is ready
+                </li>
               </ul>
             </li>
             <li>Use the checkbox above to toggle overlay visibility</li>

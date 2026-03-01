@@ -129,9 +129,7 @@ describe('NotificationSettings', () => {
     it('shows appropriate description when disabled', () => {
       render(<NotificationSettings />);
 
-      expect(
-        screen.getByText(/Enable notifications to stay updated/i)
-      ).toBeInTheDocument();
+      expect(screen.getByText(/Enable notifications to stay updated/i)).toBeInTheDocument();
     });
 
     it('shows appropriate description when enabled', () => {
@@ -146,9 +144,7 @@ describe('NotificationSettings', () => {
 
       render(<NotificationSettings />);
 
-      expect(
-        screen.getByText(/You will receive notifications/i)
-      ).toBeInTheDocument();
+      expect(screen.getByText(/You will receive notifications/i)).toBeInTheDocument();
     });
   });
 
@@ -204,9 +200,7 @@ describe('NotificationSettings', () => {
       await user.click(button);
 
       await waitFor(() => {
-        expect(mockSetError).toHaveBeenCalledWith(
-          expect.stringContaining('permission was denied')
-        );
+        expect(mockSetError).toHaveBeenCalledWith(expect.stringContaining('permission was denied'));
       });
     });
 
@@ -368,9 +362,7 @@ describe('NotificationSettings', () => {
       render(<NotificationSettings />);
 
       expect(screen.getByText(/Permission denied:/i)).toBeInTheDocument();
-      expect(
-        screen.getByText(/You have blocked notifications for this site/i)
-      ).toBeInTheDocument();
+      expect(screen.getByText(/You have blocked notifications for this site/i)).toBeInTheDocument();
     });
 
     it('does not show warning when permission is not denied', () => {

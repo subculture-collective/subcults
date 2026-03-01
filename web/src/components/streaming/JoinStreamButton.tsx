@@ -20,18 +20,18 @@ export const JoinStreamButton: React.FC<JoinStreamButtonProps> = ({
   disabled = false,
 }) => {
   const { t } = useTranslation('streaming');
-  
+
   const buttonText = isConnecting
     ? t('joinButton.connecting')
     : isConnected
-    ? t('joinButton.connected')
-    : t('joinButton.join');
+      ? t('joinButton.connected')
+      : t('joinButton.join');
 
   const buttonClass = isConnected
     ? 'bg-status-success text-black border border-status-success'
     : isConnecting
-    ? 'bg-background-secondary text-foreground-secondary border border-border'
-    : 'bg-brand-primary hover:bg-brand-primary-dark text-white border border-brand-primary';
+      ? 'bg-background-secondary text-foreground-secondary border border-border'
+      : 'bg-brand-primary hover:bg-brand-primary-dark text-white border border-brand-primary';
 
   return (
     <button
