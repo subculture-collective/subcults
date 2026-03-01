@@ -350,7 +350,7 @@ export const SceneSettingsPage: React.FC = () => {
                       {tag}
                       <button
                         onClick={() => handleRemoveTag(tag)}
-                        className="hover:text-red-400 transition-none"
+                        className="hover:text-status-error transition-none"
                         aria-label={t('common.remove', 'Remove')}
                       >
                         ×

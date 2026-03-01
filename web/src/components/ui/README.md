@@ -337,7 +337,7 @@ npm test -- LoadingSpinner.test.tsx --run
 ```tsx
 import { Button } from '@/components/ui';
 
-<Button variant="primary">Click me</Button>;
+<Button variant="primary">Click me</Button>
 ```
 
 ### Converting Custom Buttons
@@ -357,7 +357,7 @@ import { Button } from '@/components/ui';
 
 <Button variant={isPrimary ? 'primary' : 'secondary'} isLoading={isLoading}>
   Submit
-</Button>;
+</Button>
 ```
 
 ---
