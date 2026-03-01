@@ -64,6 +64,10 @@ type SceneRepository interface {
 	// Returns empty slice if no scenes found.
 	ListByOwner(ownerDID string) ([]*Scene, error)
 
+	// ListByConnectedAccountID retrieves all non-deleted scenes with the given Stripe
+	// connected account ID. Returns empty slice if no scenes found.
+	ListByConnectedAccountID(connectedAccountID string) ([]*Scene, error)
+
 	// SearchScenes searches for scenes with text matching, geo filtering, ranking, and pagination.
 	// Filters out deleted and hidden scenes, applies text search if query is provided,
 	// and ranks results by composite score (text + proximity + trust).
@@ -379,6 +383,27 @@ func (r *InMemorySceneRepository) ListByOwner(ownerDID string) ([]*Scene, error)
 	for _, scene := range r.scenes {
 		if scene.DeletedAt == nil && scene.OwnerDID == ownerDID {
 			// Return a copy to avoid external modification
+			sceneCopy := *scene
+			if scene.PrecisePoint != nil {
+				pointCopy := *scene.PrecisePoint
+				sceneCopy.PrecisePoint = &pointCopy
+			}
+			result = append(result, &sceneCopy)
+		}
+	}
+
+	return result, nil
+}
+
+// ListByConnectedAccountID retrieves all non-deleted scenes with the given Stripe connected account ID.
+// Returns empty slice if no scenes found.
+func (r *InMemorySceneRepository) ListByConnectedAccountID(connectedAccountID string) ([]*Scene, error) {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+
+	var result []*Scene
+	for _, scene := range r.scenes {
+		if scene.DeletedAt == nil && scene.ConnectedAccountID != nil && *scene.ConnectedAccountID == connectedAccountID {
 			sceneCopy := *scene
 			if scene.PrecisePoint != nil {
 				pointCopy := *scene.PrecisePoint

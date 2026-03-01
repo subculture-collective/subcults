@@ -85,8 +85,9 @@ export const UserSearchBar: React.FC<UserSearchBarProps> = ({
           style={{
             flex: 1,
             padding: '0.75rem',
-            border: '1px solid #ddd',
-            borderRadius: '0.25rem',
+            border: '1px solid #262626',
+            backgroundColor: '#1A1A1A',
+            color: '#FAFAFA',
             fontSize: '0.875rem',
           }}
         />
@@ -96,10 +97,9 @@ export const UserSearchBar: React.FC<UserSearchBarProps> = ({
             onClick={() => setShowFilters(!showFilters)}
             style={{
               padding: '0.75rem 1rem',
-              backgroundColor: showFilters ? '#d1425c' : '#f5f5f5',
-              color: showFilters ? 'white' : '#333',
-              border: '1px solid #ddd',
-              borderRadius: '0.25rem',
+              backgroundColor: showFilters ? '#FF3D00' : '#1A1A1A',
+              color: showFilters ? '#0A0A0A' : '#FAFAFA',
+              border: '1px solid #262626',
               cursor: 'pointer',
               fontWeight: 500,
             }}
@@ -115,15 +115,14 @@ export const UserSearchBar: React.FC<UserSearchBarProps> = ({
         <div style={{
           marginTop: '0.5rem',
           padding: '1rem',
-          backgroundColor: '#fafafa',
-          border: '1px solid #eee',
-          borderRadius: '0.25rem',
+          backgroundColor: '#0F0F0F',
+          border: '1px solid #262626',
           display: 'grid',
           gridTemplateColumns: 'repeat(2, 1fr)',
           gap: '1rem',
         }}>
           <div>
-            <label style={{ fontSize: '0.875rem', fontWeight: 500 }}>
+            <label style={{ fontSize: '0.875rem', fontWeight: 500, color: '#FAFAFA' }}>
               Min Trust Score
             </label>
             <input
@@ -139,13 +138,13 @@ export const UserSearchBar: React.FC<UserSearchBarProps> = ({
               }}
               style={{ width: '100%', marginTop: '0.25rem' }}
             />
-            <span style={{ fontSize: '0.75rem', color: '#999' }}>
+            <span style={{ fontSize: '0.75rem', color: '#737373' }}>
               {((filters.minTrustScore ?? 0) * 100).toFixed(0)}%
             </span>
           </div>
 
           <div>
-            <label style={{ fontSize: '0.875rem', fontWeight: 500 }}>
+            <label style={{ fontSize: '0.875rem', fontWeight: 500, color: '#FAFAFA' }}>
               Role
             </label>
             <select
@@ -159,8 +158,9 @@ export const UserSearchBar: React.FC<UserSearchBarProps> = ({
                 width: '100%',
                 padding: '0.5rem',
                 marginTop: '0.25rem',
-                border: '1px solid #ddd',
-                borderRadius: '0.25rem',
+                border: '1px solid #262626',
+                backgroundColor: '#1A1A1A',
+                color: '#FAFAFA',
                 fontSize: '0.875rem',
               }}
             >
@@ -173,7 +173,7 @@ export const UserSearchBar: React.FC<UserSearchBarProps> = ({
           </div>
 
           <div>
-            <label style={{ fontSize: '0.875rem', fontWeight: 500 }}>
+            <label style={{ fontSize: '0.875rem', fontWeight: 500, color: '#FAFAFA' }}>
               <input
                 type="checkbox"
                 checked={filters.verified ?? false}
@@ -189,7 +189,7 @@ export const UserSearchBar: React.FC<UserSearchBarProps> = ({
           </div>
 
           <div>
-            <label style={{ fontSize: '0.875rem', fontWeight: 500 }}>
+            <label style={{ fontSize: '0.875rem', fontWeight: 500, color: '#FAFAFA' }}>
               Min Followers
             </label>
             <input
@@ -205,8 +205,9 @@ export const UserSearchBar: React.FC<UserSearchBarProps> = ({
                 width: '100%',
                 padding: '0.5rem',
                 marginTop: '0.25rem',
-                border: '1px solid #ddd',
-                borderRadius: '0.25rem',
+                border: '1px solid #262626',
+                backgroundColor: '#1A1A1A',
+                color: '#FAFAFA',
                 fontSize: '0.875rem',
               }}
             />
@@ -223,23 +224,21 @@ export const UserSearchBar: React.FC<UserSearchBarProps> = ({
             left: 0,
             right: 0,
             marginTop: '0.25rem',
-            backgroundColor: 'white',
-            border: '1px solid #ddd',
-            borderRadius: '0.25rem',
-            boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
+            backgroundColor: '#0F0F0F',
+            border: '1px solid #262626',
             zIndex: 1000,
             maxHeight: '300px',
             overflowY: 'auto',
           }}
         >
           {loading && (
-            <div style={{ padding: '1rem', textAlign: 'center', color: '#999' }}>
+            <div style={{ padding: '1rem', textAlign: 'center', color: '#737373' }}>
               Searching...
             </div>
           )}
 
           {error && (
-            <div style={{ padding: '1rem', color: '#d1425c', fontSize: '0.875rem' }}>
+            <div style={{ padding: '1rem', color: '#FF3D00', fontSize: '0.875rem' }}>
               {error}
             </div>
           )}
@@ -250,8 +249,8 @@ export const UserSearchBar: React.FC<UserSearchBarProps> = ({
               onClick={() => handleSelectUser(user)}
               style={{
                 padding: '0.75rem 1rem',
-                borderBottom: '1px solid #f0f0f0',
-                backgroundColor: index === selectedIndex ? '#f5f5f5' : 'white',
+                borderBottom: '1px solid #262626',
+                backgroundColor: index === selectedIndex ? '#1A1A1A' : '#0F0F0F',
                 cursor: 'pointer',
                 display: 'flex',
                 alignItems: 'center',
@@ -274,11 +273,11 @@ export const UserSearchBar: React.FC<UserSearchBarProps> = ({
               )}
 
               <div style={{ flex: 1 }}>
-                <div style={{ fontWeight: 500, fontSize: '0.875rem' }}>
+                <div style={{ fontWeight: 500, fontSize: '0.875rem', color: '#FAFAFA' }}>
                   {user.name} {user.verified && '✓'}
                 </div>
                 {user.trustScore !== undefined && (
-                  <div style={{ fontSize: '0.75rem', color: '#999' }}>
+                  <div style={{ fontSize: '0.75rem', color: '#737373' }}>
                     Trust: {(user.trustScore * 100).toFixed(0)}% • {user.followers || 0} followers
                   </div>
                 )}
@@ -287,7 +286,7 @@ export const UserSearchBar: React.FC<UserSearchBarProps> = ({
           ))}
 
           {!loading && results.length === 0 && query && (
-            <div style={{ padding: '1rem', textAlign: 'center', color: '#999', fontSize: '0.875rem' }}>
+            <div style={{ padding: '1rem', textAlign: 'center', color: '#737373', fontSize: '0.875rem' }}>
               No users found
             </div>
           )}

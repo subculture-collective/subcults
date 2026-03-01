@@ -144,7 +144,7 @@ type EventParams struct {
 // Returns the composite score (typically in [0, 0.7-0.8] range depending on trust flag).
 func CompositeScoreScene(params SceneParams, weights *Weights) float64 {
 	if weights == nil {
-		weights = DefaultWeights()
+		weights = GetActiveWeights()
 	}
 
 	score := (params.Text * weights.Scene.TextMatch) +
@@ -170,7 +170,7 @@ func CompositeScoreScene(params SceneParams, weights *Weights) float64 {
 // Returns the composite score (typically in [0, 0.9-1.0] range depending on trust flag).
 func CompositeScoreEvent(params EventParams, weights *Weights) float64 {
 	if weights == nil {
-		weights = DefaultWeights()
+		weights = GetActiveWeights()
 	}
 
 	score := (params.Recency * weights.Event.Recency) +

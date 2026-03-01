@@ -41,18 +41,24 @@ export function useWebVitals(): void {
   const emit = useTelemetry();
   
   useEffect(() => {
-    // Track if we've already sent metrics (to avoid duplicates)
+    if (typeof PerformanceObserver === 'undefined') {
+      return;
+    }
+
+    // Track if we've already sent metrics (to avoid duplicates for one-shot metrics)
     const sentMetrics = new Set<string>();
     
     /**
-     * Send a metric if it hasn't been sent already
+     * Send a metric. LCP and CLS can update over time, so always emit their latest value.
+     * Other metrics (FCP, INP, TTFB) are emitted only once.
      */
     const emitMetric = (name: string, value: number, threshold: number): void => {
-      if (sentMetrics.has(name)) {
-        return;
+      if (name !== 'LCP' && name !== 'CLS') {
+        if (sentMetrics.has(name)) {
+          return;
+        }
+        sentMetrics.add(name);
       }
-      
-      sentMetrics.add(name);
       
       const isGood = name === 'CLS' 
         ? value <= threshold 
@@ -64,7 +70,6 @@ export function useWebVitals(): void {
         rating: isGood ? 'good' : value <= threshold * 1.5 ? 'needs-improvement' : 'poor',
       });
     };
-    
     // Track LCP (Largest Contentful Paint)
     const lcpObserver = new PerformanceObserver((entryList) => {
       const entries = entryList.getEntries();

@@ -117,7 +117,7 @@ export const RankingCalibrationPanel: React.FC<RankingCalibrationPanelProps> = (
 
     if (!onSubmit) {
       // Just emit event if no callback provided
-      emit('admin.ranking.calibrate', weights);
+      emit('admin.ranking.calibrate', weights as unknown as Record<string, unknown>);
       setSuccess(true);
       return;
     }
@@ -127,7 +127,7 @@ export const RankingCalibrationPanel: React.FC<RankingCalibrationPanelProps> = (
 
     try {
       await onSubmit(weights);
-      emit('admin.ranking.calibrate_success', weights);
+      emit('admin.ranking.calibrate_success', weights as unknown as Record<string, unknown>);
       setSuccess(true);
     } catch (err) {
       const errorMsg = err instanceof Error ? err.message : 'Failed to save ranking weights';
@@ -154,15 +154,14 @@ export const RankingCalibrationPanel: React.FC<RankingCalibrationPanelProps> = (
   return (
     <div style={{ 
       padding: '1.5rem',
-      border: '1px solid #e5e5e5',
-      borderRadius: '0.5rem',
-      backgroundColor: '#fafafa',
+      border: '1px solid #262626',
+      backgroundColor: '#0F0F0F',
     }}>
-      <h2 style={{ fontSize: '1.25rem', fontWeight: 600, marginBottom: '1rem' }}>
+      <h2 style={{ fontSize: '1.25rem', fontWeight: 600, marginBottom: '1rem', color: '#FAFAFA' }}>
         Ranking Algorithm Calibration
       </h2>
       
-      <p style={{ marginBottom: '1.5rem', color: '#666' }}>
+      <p style={{ marginBottom: '1.5rem', color: '#737373' }}>
         Adjust the weights below to control how scenes and events are ranked in search results.
         Weights must sum to 1.0 and are automatically normalized when you adjust them.
       </p>
@@ -171,10 +170,10 @@ export const RankingCalibrationPanel: React.FC<RankingCalibrationPanelProps> = (
         {/* Text Relevance Weight */}
         <div style={{ marginBottom: '1.5rem' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
-            <label style={{ fontWeight: 500 }}>
+            <label style={{ fontWeight: 500, color: '#FAFAFA' }}>
               Text Relevance
             </label>
-            <span style={{ fontSize: '0.875rem', color: '#666' }}>
+            <span style={{ fontSize: '0.875rem', color: '#737373' }}>
               {(weights.textRelevance * 100).toFixed(1)}%
             </span>
           </div>
@@ -193,7 +192,7 @@ export const RankingCalibrationPanel: React.FC<RankingCalibrationPanelProps> = (
             }}
             title="How much to weight full-text search relevance"
           />
-          <p style={{ fontSize: '0.875rem', color: '#999', marginTop: '0.25rem' }}>
+          <p style={{ fontSize: '0.875rem', color: '#737373', marginTop: '0.25rem' }}>
             How much to weight full-text search relevance (keyword matches)
           </p>
         </div>
@@ -201,10 +200,10 @@ export const RankingCalibrationPanel: React.FC<RankingCalibrationPanelProps> = (
         {/* Proximity Score Weight */}
         <div style={{ marginBottom: '1.5rem' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
-            <label style={{ fontWeight: 500 }}>
+            <label style={{ fontWeight: 500, color: '#FAFAFA' }}>
               Geographic Proximity
             </label>
-            <span style={{ fontSize: '0.875rem', color: '#666' }}>
+            <span style={{ fontSize: '0.875rem', color: '#737373' }}>
               {(weights.proximityScore * 100).toFixed(1)}%
             </span>
           </div>
@@ -223,7 +222,7 @@ export const RankingCalibrationPanel: React.FC<RankingCalibrationPanelProps> = (
             }}
             title="How much to weight geographic proximity"
           />
-          <p style={{ fontSize: '0.875rem', color: '#999', marginTop: '0.25rem' }}>
+          <p style={{ fontSize: '0.875rem', color: '#737373', marginTop: '0.25rem' }}>
             How much to prioritize results near the user's location
           </p>
         </div>
@@ -231,10 +230,10 @@ export const RankingCalibrationPanel: React.FC<RankingCalibrationPanelProps> = (
         {/* Recency Weight */}
         <div style={{ marginBottom: '1.5rem' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
-            <label style={{ fontWeight: 500 }}>
+            <label style={{ fontWeight: 500, color: '#FAFAFA' }}>
               Recency
             </label>
-            <span style={{ fontSize: '0.875rem', color: '#666' }}>
+            <span style={{ fontSize: '0.875rem', color: '#737373' }}>
               {(weights.recency * 100).toFixed(1)}%
             </span>
           </div>
@@ -253,7 +252,7 @@ export const RankingCalibrationPanel: React.FC<RankingCalibrationPanelProps> = (
             }}
             title="How much to weight recency"
           />
-          <p style={{ fontSize: '0.875rem', color: '#999', marginTop: '0.25rem' }}>
+          <p style={{ fontSize: '0.875rem', color: '#737373', marginTop: '0.25rem' }}>
             How much to prioritize newer content
           </p>
         </div>
@@ -261,10 +260,10 @@ export const RankingCalibrationPanel: React.FC<RankingCalibrationPanelProps> = (
         {/* Trust Weight */}
         <div style={{ marginBottom: '1.5rem' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
-            <label style={{ fontWeight: 500 }}>
+            <label style={{ fontWeight: 500, color: '#FAFAFA' }}>
               Trust Score
             </label>
-            <span style={{ fontSize: '0.875rem', color: '#666' }}>
+            <span style={{ fontSize: '0.875rem', color: '#737373' }}>
               {(weights.trustWeight * 100).toFixed(1)}%
             </span>
           </div>
@@ -283,7 +282,7 @@ export const RankingCalibrationPanel: React.FC<RankingCalibrationPanelProps> = (
             }}
             title="How much to weight user trust scores"
           />
-          <p style={{ fontSize: '0.875rem', color: '#999', marginTop: '0.25rem' }}>
+          <p style={{ fontSize: '0.875rem', color: '#737373', marginTop: '0.25rem' }}>
             How much to weight alliance-based trust scores
           </p>
         </div>
@@ -292,12 +291,11 @@ export const RankingCalibrationPanel: React.FC<RankingCalibrationPanelProps> = (
         <div style={{
           padding: '1rem',
           marginBottom: '1.5rem',
-          backgroundColor: isValid ? '#f0f9f7' : '#fef0f0',
-          border: `1px solid ${isValid ? '#d1ede9' : '#f5d6d6'}`,
-          borderRadius: '0.5rem',
+          backgroundColor: '#1A1A1A',
+          border: `1px solid ${isValid ? '#262626' : '#FF3D00'}`,
         }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <span style={{ fontSize: '0.875rem', color: isValid ? '#164b47' : '#8b3c3c' }}>
+            <span style={{ fontSize: '0.875rem', color: isValid ? '#737373' : '#FF3D00' }}>
               Total: {(sum * 100).toFixed(1)}%
               {isValid ? ' ✓' : ' (must equal 100%)'}
             </span>
@@ -309,10 +307,9 @@ export const RankingCalibrationPanel: React.FC<RankingCalibrationPanelProps> = (
           <div style={{
             padding: '0.75rem',
             marginBottom: '1.5rem',
-            backgroundColor: '#fef0f0',
-            border: '1px solid #f5d6d6',
-            borderRadius: '0.5rem',
-            color: '#8b3c3c',
+            backgroundColor: '#1A1A1A',
+            border: '1px solid #FF3D00',
+            color: '#FF3D00',
             fontSize: '0.875rem',
           }}>
             {error}
@@ -324,10 +321,9 @@ export const RankingCalibrationPanel: React.FC<RankingCalibrationPanelProps> = (
           <div style={{
             padding: '0.75rem',
             marginBottom: '1.5rem',
-            backgroundColor: '#f0f9f7',
-            border: '1px solid #d1ede9',
-            borderRadius: '0.5rem',
-            color: '#164b47',
+            backgroundColor: '#1A1A1A',
+            border: '1px solid #262626',
+            color: '#737373',
             fontSize: '0.875rem',
           }}>
             Ranking weights saved successfully ✓
@@ -342,10 +338,9 @@ export const RankingCalibrationPanel: React.FC<RankingCalibrationPanelProps> = (
             style={{
               flex: 1,
               padding: '0.75rem 1rem',
-              backgroundColor: '#d1425c',
-              color: 'white',
+              backgroundColor: '#FF3D00',
+              color: '#0A0A0A',
               border: 'none',
-              borderRadius: '0.25rem',
               fontWeight: 500,
               cursor: !isValid || isDisabled || isSubmitting ? 'not-allowed' : 'pointer',
               opacity: !isValid || isDisabled || isSubmitting ? 0.6 : 1,
@@ -362,10 +357,9 @@ export const RankingCalibrationPanel: React.FC<RankingCalibrationPanelProps> = (
             style={{
               flex: 1,
               padding: '0.75rem 1rem',
-              backgroundColor: '#f5f5f5',
-              color: '#333',
-              border: '1px solid #ddd',
-              borderRadius: '0.25rem',
+              backgroundColor: '#1A1A1A',
+              color: '#FAFAFA',
+              border: '1px solid #262626',
               fontWeight: 500,
               cursor: isDisabled || isSubmitting ? 'not-allowed' : 'pointer',
               opacity: isDisabled || isSubmitting ? 0.6 : 1,
