@@ -578,10 +578,12 @@ func TestRecomputeJob_TimeoutAbort(t *testing.T) {
 
 	job := NewRecomputeJob(
 		RecomputeJobConfig{
-			Interval: 100 * time.Millisecond,
-			Logger:   slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError})),
-			Metrics:  metrics,
-			Timeout:  500 * time.Millisecond, // Very short timeout to trigger abort
+			Interval:       100 * time.Millisecond,
+			Logger:         slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError})),
+			Metrics:        metrics,
+			Timeout:        500 * time.Millisecond, // Very short timeout to trigger abort
+			BatchSize:      2,                      // Small batch size to allow timeout between batches
+			MaxConcurrency: 1,                      // Serial processing to ensure predictable timeout
 		},
 		dirtyTracker,
 		slowDataSource,
@@ -597,11 +599,13 @@ func TestRecomputeJob_TimeoutAbort(t *testing.T) {
 	}
 
 	// Some scenes should still be dirty (not all processed)
+	// With batch size 2 and 200ms delay per scene, first batch takes 400ms
+	// Second batch should hit the 500ms timeout
 	if count := dirtyTracker.DirtyCount(); count == 0 {
 		t.Error("dirty count should be > 0 due to timeout abort")
 	}
 
-	// Not all scores should be stored
+	// Not all scores should be stored (only first batch of 2 scenes)
 	allScores := scoreStore.AllScores()
 	if len(allScores) >= 10 {
 		t.Errorf("stored scores = %d, should be < 10 due to timeout", len(allScores))
@@ -865,10 +869,12 @@ func TestRecomputeJob_WithJobMetricsTimeout(t *testing.T) {
 
 	job := NewRecomputeJob(
 		RecomputeJobConfig{
-			Interval:   100 * time.Millisecond,
-			Logger:     slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError})),
-			JobMetrics: jobMetrics,
-			Timeout:    500 * time.Millisecond, // Very short timeout to trigger abort
+			Interval:       100 * time.Millisecond,
+			Logger:         slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError})),
+			JobMetrics:     jobMetrics,
+			Timeout:        500 * time.Millisecond, // Very short timeout to trigger abort
+			BatchSize:      2,                      // Small batch size to allow timeout between batches
+			MaxConcurrency: 1,                      // Serial processing to ensure predictable timeout
 		},
 		dirtyTracker,
 		slowDataSource,

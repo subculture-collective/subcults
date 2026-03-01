@@ -734,6 +734,35 @@ func (h *SearchHandlers) SearchPosts(w http.ResponseWriter, r *http.Request) {
 		sceneID = &sceneIDStr
 	}
 
+	// Get optional type filter (text, image, video, audio, link)
+	postType := strings.ToLower(strings.TrimSpace(query.Get("type")))
+	if postType != "" && postType != "text" && postType != "image" && postType != "video" && postType != "audio" && postType != "link" {
+		ctx := middleware.SetErrorCode(r.Context(), ErrCodeValidation)
+		WriteError(w, ctx, http.StatusBadRequest, ErrCodeValidation, "type must be one of: text, image, video, audio, link")
+		return
+	}
+
+	// Get optional temporal filters (RFC3339 timestamps)
+	var createdAfter, createdBefore *time.Time
+	if createdAfterStr := query.Get("created_after"); createdAfterStr != "" {
+		t, err := time.Parse(time.RFC3339, createdAfterStr)
+		if err != nil {
+			ctx := middleware.SetErrorCode(r.Context(), ErrCodeValidation)
+			WriteError(w, ctx, http.StatusBadRequest, ErrCodeValidation, "created_after must be an RFC3339 timestamp")
+			return
+		}
+		createdAfter = &t
+	}
+	if createdBeforeStr := query.Get("created_before"); createdBeforeStr != "" {
+		t, err := time.Parse(time.RFC3339, createdBeforeStr)
+		if err != nil {
+			ctx := middleware.SetErrorCode(r.Context(), ErrCodeValidation)
+			WriteError(w, ctx, http.StatusBadRequest, ErrCodeValidation, "created_before must be an RFC3339 timestamp")
+			return
+		}
+		createdBefore = &t
+	}
+
 	// Get pagination parameters
 	cursor := query.Get("cursor")
 
@@ -764,9 +793,30 @@ func (h *SearchHandlers) SearchPosts(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Convert to search results with excerpts
-	searchResults := make([]*PostSearchResult, 0, len(results))
+	// Apply post-search filters (type and temporal)
+	filtered := make([]*post.Post, 0, len(results))
 	for _, p := range results {
+		// Apply temporal filters
+		if createdAfter != nil && p.CreatedAt.Before(*createdAfter) {
+			continue
+		}
+		if createdBefore != nil && p.CreatedAt.After(*createdBefore) {
+			continue
+		}
+
+		// Apply type filter
+		if postType != "" {
+			if !matchesPostType(p, postType) {
+				continue
+			}
+		}
+
+		filtered = append(filtered, p)
+	}
+
+	// Convert to search results with excerpts
+	searchResults := make([]*PostSearchResult, 0, len(filtered))
+	for _, p := range filtered {
 		result := &PostSearchResult{
 			ID:        p.ID,
 			Excerpt:   makeExcerpt(p.Text, 160),
@@ -813,4 +863,68 @@ func makeExcerpt(text string, maxLen int) string {
 
 	// Otherwise just truncate at max length
 	return truncated + "..."
+}
+
+// matchesPostType checks if a post matches the specified type filter.
+// Type filters:
+// - "text": posts with no attachments or only text content
+// - "image": posts with at least one image/* attachment
+// - "video": posts with at least one video/* attachment
+// - "audio": posts with at least one audio/* attachment
+// - "link": posts with at least one link attachment (non-media MIME type)
+func matchesPostType(p *post.Post, postType string) bool {
+	switch postType {
+	case "text":
+		// Text posts have no attachments or only legacy/unknown types
+		if len(p.Attachments) == 0 {
+			return true
+		}
+		for _, att := range p.Attachments {
+			// If any attachment has a recognized media type, it's not a text-only post
+			mimeType := strings.ToLower(att.Type)
+			if strings.HasPrefix(mimeType, "image/") ||
+				strings.HasPrefix(mimeType, "video/") ||
+				strings.HasPrefix(mimeType, "audio/") {
+				return false
+			}
+		}
+		return true
+	case "image":
+		// Image posts have at least one image/* attachment
+		for _, att := range p.Attachments {
+			if strings.HasPrefix(strings.ToLower(att.Type), "image/") {
+				return true
+			}
+		}
+		return false
+	case "video":
+		// Video posts have at least one video/* attachment
+		for _, att := range p.Attachments {
+			if strings.HasPrefix(strings.ToLower(att.Type), "video/") {
+				return true
+			}
+		}
+		return false
+	case "audio":
+		// Audio posts have at least one audio/* attachment
+		for _, att := range p.Attachments {
+			if strings.HasPrefix(strings.ToLower(att.Type), "audio/") {
+				return true
+			}
+		}
+		return false
+	case "link":
+		// Link posts have at least one attachment that is not an image, video, or audio
+		for _, att := range p.Attachments {
+			mimeType := strings.ToLower(att.Type)
+			if att.URL != "" && !strings.HasPrefix(mimeType, "image/") &&
+				!strings.HasPrefix(mimeType, "video/") &&
+				!strings.HasPrefix(mimeType, "audio/") {
+				return true
+			}
+		}
+		return false
+	default:
+		return true // Unknown type, include by default
+	}
 }

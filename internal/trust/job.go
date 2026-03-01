@@ -43,6 +43,25 @@ type RecomputeJobConfig struct {
 	JobMetrics jobs.Reporter
 	// Timeout for each recompute cycle.
 	Timeout time.Duration
+	// BatchSize is the maximum number of scenes to process in one batch.
+	// Default: 500. Lower values reduce contention, higher values improve throughput.
+	BatchSize int
+	// MaxConcurrency limits parallel recompute operations within a batch.
+	// Default: 5. Higher values increase throughput but may increase DB load.
+	MaxConcurrency int
+	// AdaptiveScheduling enables dynamic interval adjustment based on recompute cycle duration.
+	// When enabled, interval increases when the recompute cycle duration exceeds LoadThresholdMs
+	// and decreases when the cycle completes quickly. Default: false.
+	AdaptiveScheduling bool
+	// MinInterval is the minimum interval when adaptive scheduling is enabled.
+	// Default: 10s.
+	MinInterval time.Duration
+	// MaxInterval is the maximum interval when adaptive scheduling is enabled.
+	// Default: 5m.
+	MaxInterval time.Duration
+	// LoadThresholdMs is the average recompute cycle duration threshold (in ms) above
+	// which the job considers the system under high load. Default: 100ms.
+	LoadThresholdMs float64
 }
 
 // DefaultRecomputeInterval is the default interval between recompute cycles.
@@ -51,6 +70,21 @@ const DefaultRecomputeInterval = 30 * time.Second
 // DefaultRecomputeTimeout is the default timeout for a single recompute cycle.
 const DefaultRecomputeTimeout = 30 * time.Second
 
+// DefaultBatchSize is the default number of scenes to process per batch.
+const DefaultBatchSize = 500
+
+// DefaultMaxConcurrency is the default max parallel recompute operations.
+const DefaultMaxConcurrency = 5
+
+// DefaultMinInterval is the default minimum interval for adaptive scheduling.
+const DefaultMinInterval = 10 * time.Second
+
+// DefaultMaxInterval is the default maximum interval for adaptive scheduling.
+const DefaultMaxInterval = 5 * time.Minute
+
+// DefaultLoadThresholdMs is the default high-load threshold in milliseconds.
+const DefaultLoadThresholdMs = 100.0
+
 // RecomputeJob periodically recalculates trust scores for dirty scenes.
 type RecomputeJob struct {
 	config       RecomputeJobConfig
@@ -58,10 +92,13 @@ type RecomputeJob struct {
 	dataSource   DataSource
 	scoreStore   ScoreStore
 
-	mu      sync.Mutex
-	running bool
-	stopCh  chan struct{}
-	doneCh  chan struct{}
+	mu                sync.Mutex
+	running           bool
+	stopCh            chan struct{}
+	doneCh            chan struct{}
+	currentInterval   time.Duration
+	recentDurations   []float64 // Ring buffer for adaptive scheduling
+	recentDurationsIdx int
 }
 
 // NewRecomputeJob creates a new trust score recompute job.
@@ -80,12 +117,29 @@ func NewRecomputeJob(
 	if config.Timeout == 0 {
 		config.Timeout = DefaultRecomputeTimeout
 	}
+	if config.BatchSize <= 0 {
+		config.BatchSize = DefaultBatchSize
+	}
+	if config.MaxConcurrency <= 0 {
+		config.MaxConcurrency = DefaultMaxConcurrency
+	}
+	if config.MinInterval == 0 {
+		config.MinInterval = DefaultMinInterval
+	}
+	if config.MaxInterval == 0 {
+		config.MaxInterval = DefaultMaxInterval
+	}
+	if config.LoadThresholdMs == 0 {
+		config.LoadThresholdMs = DefaultLoadThresholdMs
+	}
 
 	return &RecomputeJob{
-		config:       config,
-		dirtyTracker: dirtyTracker,
-		dataSource:   dataSource,
-		scoreStore:   scoreStore,
+		config:          config,
+		dirtyTracker:    dirtyTracker,
+		dataSource:      dataSource,
+		scoreStore:      scoreStore,
+		currentInterval: config.Interval,
+		recentDurations: make([]float64, 10), // Track last 10 runs for adaptive scheduling
 	}
 }
 
@@ -136,7 +190,12 @@ func (j *RecomputeJob) IsRunning() bool {
 func (j *RecomputeJob) run(ctx context.Context) {
 	defer close(j.doneCh)
 
-	ticker := time.NewTicker(j.config.Interval)
+	// Use current interval (may be adjusted dynamically)
+	j.mu.Lock()
+	interval := j.currentInterval
+	j.mu.Unlock()
+
+	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
 
 	for {
@@ -149,11 +208,26 @@ func (j *RecomputeJob) run(ctx context.Context) {
 			return
 		case <-ticker.C:
 			j.recomputeDirtyScenes(ctx)
+
+			// Adjust interval if adaptive scheduling is enabled
+			if j.config.AdaptiveScheduling {
+				j.mu.Lock()
+				newInterval := j.currentInterval
+				j.mu.Unlock()
+
+				if newInterval != interval {
+					interval = newInterval
+					ticker.Reset(interval)
+					j.config.Logger.Debug("adjusted recompute interval",
+						"new_interval", interval)
+				}
+			}
 		}
 	}
 }
 
 // recomputeDirtyScenes processes all dirty scenes and updates their trust scores.
+// Uses batching and concurrency control for improved throughput.
 func (j *RecomputeJob) recomputeDirtyScenes(parentCtx context.Context) {
 	dirtyScenes := j.dirtyTracker.GetDirtyScenes()
 	if len(dirtyScenes) == 0 {
@@ -166,22 +240,51 @@ func (j *RecomputeJob) recomputeDirtyScenes(parentCtx context.Context) {
 
 	// Track metrics
 	startTime := time.Now()
-	sceneCount := len(dirtyScenes)
+	totalScenes := len(dirtyScenes)
 	var successCount int
 	var varianceSum float64
 	var varianceCount int
 
 	j.config.Logger.Info("recomputing trust scores",
-		"dirty_count", sceneCount)
+		"dirty_count", totalScenes,
+		"batch_size", j.config.BatchSize,
+		"max_concurrency", j.config.MaxConcurrency)
 
-	// Process each scene
-	for i, sceneID := range dirtyScenes {
-		// Check timeout
+	// Process in batches
+	for batchStart := 0; batchStart < totalScenes; batchStart += j.config.BatchSize {
+		batchEnd := batchStart + j.config.BatchSize
+		if batchEnd > totalScenes {
+			batchEnd = totalScenes
+		}
+		batch := dirtyScenes[batchStart:batchEnd]
+
+		// Process batch with concurrency control
+		batchStartTime := time.Now()
+		batchSuccess := j.processBatch(ctx, batch, &varianceSum, &varianceCount)
+		successCount += batchSuccess
+		batchDuration := time.Since(batchStartTime).Seconds() * 1000 // Convert to ms
+
+		// Track batch metrics
+		if j.config.Metrics != nil {
+			j.config.Metrics.ObserveBatchDuration(batchDuration)
+			if batchDuration > 0 {
+				entitiesPerSec := float64(len(batch)) / (batchDuration / 1000.0)
+				j.config.Metrics.ObserveEntitiesPerSecond(entitiesPerSec)
+			}
+		}
+
+		j.config.Logger.Debug("batch completed",
+			"batch_idx", batchStart/j.config.BatchSize,
+			"batch_size", len(batch),
+			"batch_success", batchSuccess,
+			"batch_duration_ms", batchDuration)
+
+		// Check for timeout
 		select {
 		case <-ctx.Done():
 			j.config.Logger.Error("trust recompute timeout exceeded",
-				"processed", i,
-				"total", sceneCount,
+				"processed", batchEnd,
+				"total", totalScenes,
 				"timeout", j.config.Timeout)
 			if j.config.Metrics != nil {
 				j.config.Metrics.IncRecomputeErrors()
@@ -202,46 +305,6 @@ func (j *RecomputeJob) recomputeDirtyScenes(parentCtx context.Context) {
 			return
 		default:
 		}
-
-		// Get previous score for variance calculation
-		var previousScore float64
-		var hasPreviousScore bool
-		if prevScoreObj, err := j.scoreStore.GetScore(sceneID); err == nil && prevScoreObj != nil {
-			previousScore = prevScoreObj.Score
-			hasPreviousScore = true
-		}
-
-		// Recompute scene
-		newScore, err := j.recomputeSceneWithScore(sceneID)
-		if err != nil {
-			j.config.Logger.Error("failed to recompute trust score",
-				"scene_id", sceneID,
-				"error", err)
-			if j.config.Metrics != nil {
-				j.config.Metrics.IncRecomputeErrors()
-			}
-			if j.config.JobMetrics != nil {
-				j.config.JobMetrics.IncJobErrors(jobs.JobTypeTrustRecompute, "recompute_error")
-			}
-			continue
-		}
-
-		// Calculate variance for this scene
-		if hasPreviousScore {
-			variance := abs(newScore - previousScore)
-			varianceSum += variance
-			varianceCount++
-		}
-
-		j.dirtyTracker.ClearDirty(sceneID)
-		successCount++
-
-		// Log batch progress every 10 scenes
-		if (i+1)%10 == 0 {
-			j.config.Logger.Debug("recompute progress",
-				"processed", i+1,
-				"total", sceneCount)
-		}
 	}
 
 	// Calculate metrics
@@ -253,7 +316,7 @@ func (j *RecomputeJob) recomputeDirtyScenes(parentCtx context.Context) {
 
 	// Determine job status
 	status := jobs.StatusSuccess
-	if successCount < sceneCount {
+	if successCount < totalScenes {
 		status = jobs.StatusFailure
 	}
 
@@ -271,12 +334,156 @@ func (j *RecomputeJob) recomputeDirtyScenes(parentCtx context.Context) {
 		j.config.JobMetrics.ObserveJobDuration(jobs.JobTypeTrustRecompute, duration)
 	}
 
+	// Adjust interval based on duration (adaptive scheduling)
+	if j.config.AdaptiveScheduling {
+		j.adjustInterval(duration)
+	}
+
 	// Completion log with required fields
 	j.config.Logger.Info("trust recompute completed",
 		"duration_seconds", duration,
 		"scenes_processed", successCount,
-		"scenes_failed", sceneCount-successCount,
+		"scenes_failed", totalScenes-successCount,
 		"avg_weight_variance", avgVariance)
+}
+
+// processBatch processes a batch of scenes with controlled concurrency.
+// Returns the number of successfully processed scenes.
+func (j *RecomputeJob) processBatch(ctx context.Context, sceneIDs []string, varianceSum *float64, varianceCount *int) int {
+	// Semaphore for concurrency control
+	sem := make(chan struct{}, j.config.MaxConcurrency)
+	var wg sync.WaitGroup
+	var mu sync.Mutex
+	var successCount int
+
+	for _, sceneID := range sceneIDs {
+		sceneID := sceneID // Capture for goroutine
+
+		// Check context cancellation
+		select {
+		case <-ctx.Done():
+			// Context cancelled, stop spawning new goroutines
+			goto done
+		default:
+		}
+
+		// Acquire semaphore (non-blocking with context check)
+		select {
+		case sem <- struct{}{}:
+		case <-ctx.Done():
+			goto done
+		}
+
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			defer func() { <-sem }() // Release semaphore
+
+			// Get previous score for variance calculation
+			var previousScore float64
+			var hasPreviousScore bool
+			if prevScoreObj, err := j.scoreStore.GetScore(sceneID); err == nil && prevScoreObj != nil {
+				previousScore = prevScoreObj.Score
+				hasPreviousScore = true
+			}
+
+			// Recompute scene
+			newScore, err := j.recomputeSceneWithScore(sceneID)
+			if err != nil {
+				j.config.Logger.Error("failed to recompute trust score",
+					"scene_id", sceneID,
+					"error", err)
+				if j.config.Metrics != nil {
+					j.config.Metrics.IncRecomputeErrors()
+				}
+				if j.config.JobMetrics != nil {
+					j.config.JobMetrics.IncJobErrors(jobs.JobTypeTrustRecompute, "recompute_error")
+				}
+				return
+			}
+
+			// Calculate variance for this scene
+			if hasPreviousScore {
+				variance := abs(newScore - previousScore)
+				mu.Lock()
+				*varianceSum += variance
+				*varianceCount++
+				mu.Unlock()
+			}
+
+			j.dirtyTracker.ClearDirty(sceneID)
+
+			mu.Lock()
+			successCount++
+			mu.Unlock()
+		}()
+	}
+
+done:
+	// Wait for all goroutines to complete
+	wg.Wait()
+
+	return successCount
+}
+
+// adjustInterval adjusts the recompute interval based on observed duration.
+// Implements adaptive scheduling per issue #172.
+func (j *RecomputeJob) adjustInterval(duration float64) {
+	j.mu.Lock()
+	defer j.mu.Unlock()
+
+	// Update recent durations ring buffer
+	j.recentDurations[j.recentDurationsIdx] = duration
+	j.recentDurationsIdx = (j.recentDurationsIdx + 1) % len(j.recentDurations)
+
+	// Calculate average duration
+	var sum float64
+	count := 0
+	for _, d := range j.recentDurations {
+		if d > 0 {
+			sum += d
+			count++
+		}
+	}
+	if count == 0 {
+		return
+	}
+	avgDuration := sum / float64(count)
+
+	// Convert load threshold to seconds
+	loadThresholdSec := j.config.LoadThresholdMs / 1000.0
+
+	// Adjust interval based on average duration
+	newInterval := j.currentInterval
+	if avgDuration > loadThresholdSec {
+		// High load: increase interval (back off)
+		newInterval = time.Duration(float64(j.currentInterval) * 1.5)
+		if newInterval > j.config.MaxInterval {
+			newInterval = j.config.MaxInterval
+		}
+	} else {
+		// Low load: decrease interval (speed up)
+		newInterval = time.Duration(float64(j.currentInterval) * 0.8)
+		if newInterval < j.config.MinInterval {
+			newInterval = j.config.MinInterval
+		}
+	}
+
+	if newInterval != j.currentInterval {
+		j.config.Logger.Info("adaptive scheduling: adjusting interval",
+			"old_interval", j.currentInterval,
+			"new_interval", newInterval,
+			"avg_duration_sec", avgDuration,
+			"load_threshold_sec", loadThresholdSec)
+		j.currentInterval = newInterval
+	}
+}
+
+// GetCurrentInterval returns the current recompute interval (for testing).
+func (j *RecomputeJob) GetCurrentInterval() time.Duration {
+	j.mu.Lock()
+	defer j.mu.Unlock()
+	return j.currentInterval
 }
 
 // abs returns the absolute value of a float64.

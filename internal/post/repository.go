@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"math"
 	"sort"
 	"strings"
 	"sync"
@@ -527,16 +528,32 @@ func (r *InMemoryPostRepository) SearchPosts(query string, sceneID *string, limi
 			continue
 		}
 
-		// Calculate composite score
-		// Formula: score = (text_rank * 0.75) + (scene_trust * 0.25 if enabled else 0)
-		score := textScore * 0.75
-
-		// Add trust score component if available
-		if post.SceneID != nil && trustScores != nil {
-			if trustScore, ok := trustScores[*post.SceneID]; ok {
-				score += trustScore * 0.25
+		// Calculate recency score (exponential decay over 30 days)
+		// Posts from the last 24h get score ~1.0, 1 week old ~0.8, 1 month old ~0.1
+		const decayHalfLife = 7 * 24 * time.Hour // 7 days
+		postAge := time.Since(post.CreatedAt)
+		recencyScore := 1.0
+		if postAge > 0 {
+			// Exponential decay: score = exp(-ln(2) * age / halfLife)
+			recencyScore = float64(int(1000*math.Exp(-0.693147*postAge.Hours()/decayHalfLife.Hours()))) / 1000.0
+			if recencyScore < 0.01 {
+				recencyScore = 0.01 // Floor to avoid zero scores
 			}
 		}
+
+		// Calculate trust score from alliance-based trust weights (keyed by scene ID).
+		// Falls back to 0.0 when trust scores are unavailable or post has no scene.
+		trustScore := 0.0
+		if trustScores != nil && post.SceneID != nil {
+			if ts, ok := trustScores[*post.SceneID]; ok {
+				trustScore = ts
+			}
+		}
+
+		// Calculate composite score per issue #333:
+		// relevance (0.4) + recency (0.3) + engagement (0.2) + trust (0.1)
+		// engagementScore is 0.0 until per-post engagement metrics are available.
+		score := (textScore * 0.4) + (recencyScore * 0.3) + (trustScore * 0.1)
 
 		candidates = append(candidates, scoredPost{
 			post:      post,

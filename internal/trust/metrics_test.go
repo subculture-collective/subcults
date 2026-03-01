@@ -13,10 +13,10 @@ func TestNewMetrics(t *testing.T) {
 		t.Fatal("NewMetrics() returned nil")
 	}
 
-	// Verify all collectors are initialized
+	// Verify all collectors are initialized (includes 2 new metrics from issue #172)
 	collectors := m.Collectors()
-	if len(collectors) != 5 {
-		t.Errorf("expected 5 collectors, got %d", len(collectors))
+	if len(collectors) != 7 {
+		t.Errorf("expected 7 collectors, got %d", len(collectors))
 	}
 }
 
@@ -36,11 +36,13 @@ func TestMetrics_Register(t *testing.T) {
 		}
 
 		expectedNames := map[string]bool{
-			MetricTrustRecomputeTotal:          false,
-			MetricTrustRecomputeErrors:         false,
-			MetricTrustRecomputeDuration:       false,
-			MetricTrustLastRecomputeTimestamp:  false,
-			MetricTrustLastRecomputeSceneCount: false,
+			MetricTrustRecomputeTotal:             false,
+			MetricTrustRecomputeErrors:            false,
+			MetricTrustRecomputeDuration:          false,
+			MetricTrustLastRecomputeTimestamp:     false,
+			MetricTrustLastRecomputeSceneCount:    false,
+			MetricTrustRecomputeBatchDuration:     false, // Added in issue #172
+			MetricTrustRecomputeEntitiesPerSecond: false, // Added in issue #172
 		}
 
 		for _, family := range families {
