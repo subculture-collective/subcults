@@ -109,6 +109,11 @@ func (h *ModerationHandlers) MuteScene(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Normalize empty moderation status (e.g., from in-memory repo or legacy rows)
+	if existingScene.ModerationStatus == "" {
+		existingScene.ModerationStatus = "visible"
+	}
+
 	// Check if already muted
 	if existingScene.ModerationStatus != "visible" && existingScene.ModerationStatus != "flagged" {
 		ctx = middleware.SetErrorCode(ctx, ErrCodeModerationExists)

@@ -6,6 +6,7 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
+	"time"
 
 	"github.com/onnwee/subcults/internal/middleware"
 	"github.com/onnwee/subcults/internal/payment"
@@ -291,24 +292,39 @@ func (h *WebhookHandlers) handleAccountUpdated(ctx context.Context, event stripe
 		return
 	}
 
-	// Capabilities are active - find and update associated scene
-	// Query for scenes with this connected_account_id and update their status
+	// Capabilities are active - find and update associated scenes
 	slog.InfoContext(ctx, "account capabilities activated, searching for associated scene",
 		"account_id", account.ID,
 		"details_submitted", account.DetailsSubmitted,
 		"charges_enabled", account.ChargesEnabled)
 
-	// Note: In-memory repository doesn't support query by connected_account_id
-	// In a production database, we would query:
-	//   SELECT * FROM scenes WHERE connected_account_id = ?
-	// For now, this is a limitation of the in-memory implementation.
-	// When migrating to a real database repository, this should be updated to:
-	// 1. Query scenes by connected_account_id
-	// 2. Update each scene's:
-	//    - connected_account_status = "active"
-	//    - account_onboarded_at = NOW()
-	// 3. Log all updates for audit trail
-	slog.WarnContext(ctx, "account onboarding completed, but scene update requires database query capability",
-		"account_id", account.ID,
-		"help", "Implement ListByConnectedAccountID in SceneRepository to query by connected_account_id")
+	scenes, err := h.sceneRepo.ListByConnectedAccountID(account.ID)
+	if err != nil {
+		slog.ErrorContext(ctx, "failed to query scenes by connected_account_id",
+			"account_id", account.ID,
+			"error", err)
+		return
+	}
+
+	if len(scenes) == 0 {
+		slog.WarnContext(ctx, "no scenes found for connected account",
+			"account_id", account.ID)
+		return
+	}
+
+	now := time.Now()
+	for _, s := range scenes {
+		s.ConnectedAccountStatus = "active"
+		s.AccountOnboardedAt = &now
+		if updateErr := h.sceneRepo.Update(s); updateErr != nil {
+			slog.ErrorContext(ctx, "failed to update scene onboarding status",
+				"account_id", account.ID,
+				"scene_id", s.ID,
+				"error", updateErr)
+			continue
+		}
+		slog.InfoContext(ctx, "scene onboarding status updated to active",
+			"account_id", account.ID,
+			"scene_id", s.ID)
+	}
 }

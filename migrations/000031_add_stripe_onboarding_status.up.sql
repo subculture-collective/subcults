@@ -4,7 +4,7 @@
 
 -- Add onboarding status column to scenes table
 -- Status values: pending (not started), active (fully onboarded), restricted (limited access)
-ALTER TABLE scenes ADD COLUMN IF NOT EXISTS connected_account_status VARCHAR(50) DEFAULT 'pending';
+ALTER TABLE scenes ADD COLUMN IF NOT EXISTS connected_account_status VARCHAR(50) NOT NULL DEFAULT 'pending';
 
 -- Add timestamp for when account was fully onboarded
 ALTER TABLE scenes ADD COLUMN IF NOT EXISTS account_onboarded_at TIMESTAMPTZ;

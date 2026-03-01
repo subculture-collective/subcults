@@ -5,7 +5,35 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
+	"sync"
 )
+
+// activeWeightsCache holds the process-wide calibration weights set at startup.
+var activeWeightsCache struct {
+	mu      sync.RWMutex
+	weights *Weights
+}
+
+// SetActiveWeights stores calibrated weights for process-wide use.
+// Call once during application initialization after loading the calibration file.
+// Thread-safe via mutex.
+func SetActiveWeights(w *Weights) {
+	activeWeightsCache.mu.Lock()
+	defer activeWeightsCache.mu.Unlock()
+	activeWeightsCache.weights = w
+}
+
+// GetActiveWeights returns the active calibration weights.
+// Falls back to DefaultWeights() when SetActiveWeights has not been called.
+// Thread-safe via mutex.
+func GetActiveWeights() *Weights {
+	activeWeightsCache.mu.RLock()
+	defer activeWeightsCache.mu.RUnlock()
+	if activeWeightsCache.weights != nil {
+		return activeWeightsCache.weights
+	}
+	return DefaultWeights()
+}
 
 // SceneWeights defines the ranking weights for scene search.
 type SceneWeights struct {

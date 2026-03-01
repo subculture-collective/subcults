@@ -162,6 +162,8 @@ func main() {
 				"path", rankingCalibrationPath,
 				"error", err)
 		} else {
+			// Apply loaded weights as the active ranking configuration
+			ranking.SetActiveWeights(weights)
 			// Log loaded weights for verification
 			logger.Info("ranking calibration loaded",
 				"path", rankingCalibrationPath,
