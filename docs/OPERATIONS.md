@@ -232,7 +232,94 @@ If you observe high latency or timeouts:
 
 3. **Increase Timeout**: Set `TRUST_RECOMPUTE_TIMEOUT_SEC` to a higher value (e.g., 60 or 120 seconds)
 
-4. **Reduce Batch Size**: If processing large batches, consider implementing a dirty scene limit per cycle
+4. **Adjust Batch Size**: Configure batch processing size via `RecomputeJobConfig.BatchSize` (default: 500 scenes per batch)
+
+### Trust Recompute Job Tuning Parameters (Issue #172)
+
+The trust recompute job supports advanced tuning for throughput and resource management:
+
+#### Batching Configuration
+
+```go
+RecomputeJobConfig{
+    BatchSize:       500,  // Scenes per batch (default: 500)
+    MaxConcurrency:  5,    // Parallel operations per batch (default: 5)
+}
+```
+
+**BatchSize** - Number of scenes to process in one batch before checking timeout:
+- **Lower values (100-250)**: Reduce contention, slower throughput, more frequent logging
+- **Higher values (500-1000)**: Better throughput, higher DB load, less granular progress
+- **Recommended**: Start with default 500; reduce if observing high DB contention
+
+**MaxConcurrency** - Maximum parallel scene recomputes within a batch:
+- **Lower values (1-3)**: Serial processing, minimal DB load, slower throughput
+- **Higher values (5-10)**: Parallel processing, higher throughput, increased DB load
+- **Recommended**: Start with default 5; increase if DB can handle load, decrease if seeing connection pool exhaustion
+
+#### Adaptive Scheduling
+
+```go
+RecomputeJobConfig{
+    AdaptiveScheduling: true,         // Enable dynamic interval (default: false)
+    MinInterval:        10 * time.Second,  // Fastest interval (default: 10s)
+    MaxInterval:        5 * time.Minute,   // Slowest interval (default: 5m)
+    LoadThresholdMs:    100.0,        // High-load threshold in ms (default: 100ms)
+}
+```
+
+When enabled, the job monitors recent recompute durations and adjusts the interval:
+- **High load** (avg duration > LoadThresholdMs): Interval increases by 1.5x (backs off)
+- **Low load** (avg duration < LoadThresholdMs): Interval decreases by 0.8x (speeds up)
+- Interval is clamped between MinInterval and MaxInterval
+
+**LoadThresholdMs** - Average duration threshold for "high load":
+- **Lower values (50-75ms)**: More sensitive, backs off earlier
+- **Higher values (100-200ms)**: Less sensitive, tolerates longer durations
+- **Recommended**: Start with 100ms; increase if acceptable latencies are higher
+
+#### New Metrics (Issue #172)
+
+**`trust_recompute_batch_duration_ms`** - Histogram of batch processing time in milliseconds
+- Buckets: 10, 50, 100, 250, 500, 1000, 2500, 5000 ms
+- Use to identify batch-level performance bottlenecks
+
+**`trust_recompute_entities_per_sec`** - Histogram of throughput in scenes per second
+- Buckets: 1, 5, 10, 25, 50, 100, 250, 500 scenes/sec
+- Use to monitor sustained throughput under load
+
+#### Example Tuning Scenarios
+
+**Scenario 1: High DB Contention**
+```go
+config := RecomputeJobConfig{
+    BatchSize:       100,   // Smaller batches
+    MaxConcurrency:  2,     // Reduce parallel load
+    AdaptiveScheduling: true,
+    LoadThresholdMs: 150.0, // Tolerate higher latency
+}
+```
+
+**Scenario 2: Maximize Throughput (Low DB Load)**
+```go
+config := RecomputeJobConfig{
+    BatchSize:       1000,  // Larger batches
+    MaxConcurrency:  10,    // More parallelism
+    AdaptiveScheduling: false, // Fixed interval
+}
+```
+
+**Scenario 3: Adaptive with Conservative Limits**
+```go
+config := RecomputeJobConfig{
+    BatchSize:          500,
+    MaxConcurrency:     5,
+    AdaptiveScheduling: true,
+    MinInterval:        30 * time.Second,  // Don't run too often
+    MaxInterval:        10 * time.Minute,  // Cap backoff
+    LoadThresholdMs:    75.0,              // Sensitive to load
+}
+```
 
 ### Troubleshooting
 

@@ -8,11 +8,13 @@ import (
 
 // Metrics names as constants for consistency.
 const (
-	MetricTrustRecomputeTotal          = "trust_recompute_total"
-	MetricTrustRecomputeErrors         = "trust_recompute_errors_total"
-	MetricTrustRecomputeDuration       = "trust_recompute_duration_seconds"
-	MetricTrustLastRecomputeTimestamp  = "trust_last_recompute_timestamp"
-	MetricTrustLastRecomputeSceneCount = "trust_last_recompute_scene_count"
+	MetricTrustRecomputeTotal             = "trust_recompute_total"
+	MetricTrustRecomputeErrors            = "trust_recompute_errors_total"
+	MetricTrustRecomputeDuration          = "trust_recompute_duration_seconds"
+	MetricTrustLastRecomputeTimestamp     = "trust_last_recompute_timestamp"
+	MetricTrustLastRecomputeSceneCount    = "trust_last_recompute_scene_count"
+	MetricTrustRecomputeBatchDuration     = "trust_recompute_batch_duration_ms"
+	MetricTrustRecomputeEntitiesPerSecond = "trust_recompute_entities_per_sec"
 )
 
 // Metrics contains Prometheus metrics for trust score recomputation.
@@ -23,6 +25,8 @@ type Metrics struct {
 	recomputeDuration       prometheus.Histogram
 	lastRecomputeTimestamp  prometheus.Gauge
 	lastRecomputeSceneCount prometheus.Gauge
+	batchDuration           prometheus.Histogram
+	entitiesPerSecond       prometheus.Histogram
 }
 
 // NewMetrics creates and returns a new Metrics instance with all collectors initialized.
@@ -50,6 +54,16 @@ func NewMetrics() *Metrics {
 			Name: MetricTrustLastRecomputeSceneCount,
 			Help: "Number of scenes processed in the last trust score recomputation",
 		}),
+		batchDuration: prometheus.NewHistogram(prometheus.HistogramOpts{
+			Name:    MetricTrustRecomputeBatchDuration,
+			Help:    "Histogram of trust score recomputation batch duration in milliseconds",
+			Buckets: []float64{10, 50, 100, 250, 500, 1000, 2500, 5000},
+		}),
+		entitiesPerSecond: prometheus.NewHistogram(prometheus.HistogramOpts{
+			Name:    MetricTrustRecomputeEntitiesPerSecond,
+			Help:    "Histogram of trust score recomputation throughput in entities per second",
+			Buckets: []float64{1, 5, 10, 25, 50, 100, 250, 500},
+		}),
 	}
 }
 
@@ -62,6 +76,8 @@ func (m *Metrics) Register(reg prometheus.Registerer) error {
 		m.recomputeDuration,
 		m.lastRecomputeTimestamp,
 		m.lastRecomputeSceneCount,
+		m.batchDuration,
+		m.entitiesPerSecond,
 	}
 
 	for _, c := range collectors {
@@ -97,6 +113,16 @@ func (m *Metrics) SetLastRecomputeSceneCount(count float64) {
 	m.lastRecomputeSceneCount.Set(count)
 }
 
+// ObserveBatchDuration records a batch processing duration sample in milliseconds.
+func (m *Metrics) ObserveBatchDuration(ms float64) {
+	m.batchDuration.Observe(ms)
+}
+
+// ObserveEntitiesPerSecond records a throughput sample in entities per second.
+func (m *Metrics) ObserveEntitiesPerSecond(rate float64) {
+	m.entitiesPerSecond.Observe(rate)
+}
+
 // Collectors returns all Prometheus collectors for testing.
 func (m *Metrics) Collectors() []prometheus.Collector {
 	return []prometheus.Collector{
@@ -105,5 +131,7 @@ func (m *Metrics) Collectors() []prometheus.Collector {
 		m.recomputeDuration,
 		m.lastRecomputeTimestamp,
 		m.lastRecomputeSceneCount,
+		m.batchDuration,
+		m.entitiesPerSecond,
 	}
 }

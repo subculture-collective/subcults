@@ -734,6 +734,35 @@ func (h *SearchHandlers) SearchPosts(w http.ResponseWriter, r *http.Request) {
 		sceneID = &sceneIDStr
 	}
 
+	// Get optional type filter (text, audio, media)
+	postType := strings.ToLower(strings.TrimSpace(query.Get("type")))
+	if postType != "" && postType != "text" && postType != "audio" && postType != "media" {
+		ctx := middleware.SetErrorCode(r.Context(), ErrCodeValidation)
+		WriteError(w, ctx, http.StatusBadRequest, ErrCodeValidation, "type must be one of: text, audio, media")
+		return
+	}
+
+	// Get optional temporal filter (24h, week, month)
+	timeRange := strings.ToLower(strings.TrimSpace(query.Get("time_range")))
+	var createdSince *time.Time
+	if timeRange != "" {
+		now := time.Now()
+		var cutoff time.Time
+		switch timeRange {
+		case "24h":
+			cutoff = now.Add(-24 * time.Hour)
+		case "week":
+			cutoff = now.Add(-7 * 24 * time.Hour)
+		case "month":
+			cutoff = now.Add(-30 * 24 * time.Hour)
+		default:
+			ctx := middleware.SetErrorCode(r.Context(), ErrCodeValidation)
+			WriteError(w, ctx, http.StatusBadRequest, ErrCodeValidation, "time_range must be one of: 24h, week, month")
+			return
+		}
+		createdSince = &cutoff
+	}
+
 	// Get pagination parameters
 	cursor := query.Get("cursor")
 
@@ -764,9 +793,27 @@ func (h *SearchHandlers) SearchPosts(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Convert to search results with excerpts
-	searchResults := make([]*PostSearchResult, 0, len(results))
+	// Apply post-search filters (type and temporal)
+	filtered := make([]*post.Post, 0, len(results))
 	for _, p := range results {
+		// Apply temporal filter
+		if createdSince != nil && p.CreatedAt.Before(*createdSince) {
+			continue
+		}
+
+		// Apply type filter
+		if postType != "" {
+			if !matchesPostType(p, postType) {
+				continue
+			}
+		}
+
+		filtered = append(filtered, p)
+	}
+
+	// Convert to search results with excerpts
+	searchResults := make([]*PostSearchResult, 0, len(filtered))
+	for _, p := range filtered {
 		result := &PostSearchResult{
 			ID:        p.ID,
 			Excerpt:   makeExcerpt(p.Text, 160),
@@ -813,4 +860,48 @@ func makeExcerpt(text string, maxLen int) string {
 
 	// Otherwise just truncate at max length
 	return truncated + "..."
+}
+
+// matchesPostType checks if a post matches the specified type filter.
+// Type filters:
+// - "text": posts with no attachments or only text content
+// - "audio": posts with at least one audio/* attachment
+// - "media": posts with at least one image/* or video/* attachment
+func matchesPostType(p *post.Post, postType string) bool {
+	switch postType {
+	case "text":
+		// Text posts have no attachments or only legacy/unknown types
+		if len(p.Attachments) == 0 {
+			return true
+		}
+		for _, att := range p.Attachments {
+			// If any attachment has a recognized media type, it's not a text-only post
+			mimeType := strings.ToLower(att.Type)
+			if strings.HasPrefix(mimeType, "image/") || 
+			   strings.HasPrefix(mimeType, "video/") || 
+			   strings.HasPrefix(mimeType, "audio/") {
+				return false
+			}
+		}
+		return true
+	case "audio":
+		// Audio posts have at least one audio/* attachment
+		for _, att := range p.Attachments {
+			if strings.HasPrefix(strings.ToLower(att.Type), "audio/") {
+				return true
+			}
+		}
+		return false
+	case "media":
+		// Media posts have at least one image/* or video/* attachment
+		for _, att := range p.Attachments {
+			mimeType := strings.ToLower(att.Type)
+			if strings.HasPrefix(mimeType, "image/") || strings.HasPrefix(mimeType, "video/") {
+				return true
+			}
+		}
+		return false
+	default:
+		return true // Unknown type, include by default
+	}
 }
