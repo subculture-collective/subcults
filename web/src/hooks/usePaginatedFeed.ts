@@ -58,8 +58,8 @@ export interface UsePaginatedFeedResult<T> {
  * @example
  * ```tsx
  * const { items, loading, loadMore, hasMore } = usePaginatedFeed(
- *   async (cursor) => {
- *     const response = await fetch(`/api/scenes?limit=20&cursor=${cursor}`);
+ *   async (cursor, signal) => {
+ *     const response = await fetch(`/api/scenes?limit=20&cursor=${cursor}`, { signal });
  *     return response.json();
  *   }
  * );
@@ -72,8 +72,7 @@ export interface UsePaginatedFeedResult<T> {
  * ```
  */
 export function usePaginatedFeed<T extends { id: string }>(
-  fetchFn: (cursor?: string) => Promise<{ items: T[]; cursor: PaginationCursor }>,
-  pageSize: number = 20
+  fetchFn: (cursor?: string, signal?: AbortSignal) => Promise<{ items: T[]; cursor: PaginationCursor }>,
 ): UsePaginatedFeedResult<T> {
   const [items, setItems] = useState<T[]>([]);
   const [loading, setLoading] = useState(false);
@@ -94,6 +93,8 @@ export function usePaginatedFeed<T extends { id: string }>(
     if (abortControllerRef.current) {
       abortControllerRef.current.abort();
     }
+    const abortController = new AbortController();
+    abortControllerRef.current = abortController;
     
     // Clear state
     setItems([]);
@@ -106,7 +107,7 @@ export function usePaginatedFeed<T extends { id: string }>(
       const fetchId = `feed-fetch-${++fetchCounterRef.current}`;
       performance.mark(`${fetchId}-start`);
       
-      const result = await fetchFn();
+      const result = await fetchFn(undefined, abortController.signal);
       
       performance.mark(`${fetchId}-end`);
       performance.measure(`${fetchId}-total`, `${fetchId}-start`, `${fetchId}-end`);
@@ -143,11 +144,18 @@ export function usePaginatedFeed<T extends { id: string }>(
     setLoadingMore(true);
     setError(null);
 
+    // Create a new abort controller for this loadMore request
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+    const abortController = new AbortController();
+    abortControllerRef.current = abortController;
+
     try {
       const fetchId = `feed-more-${++fetchCounterRef.current}`;
       performance.mark(`${fetchId}-start`);
       
-      const result = await fetchFn(cursor.next);
+      const result = await fetchFn(cursor.next, abortController.signal);
       
       performance.mark(`${fetchId}-end`);
       performance.measure(`${fetchId}-total`, `${fetchId}-start`, `${fetchId}-end`);
@@ -212,7 +220,7 @@ export function usePaginatedScenes(
   const apiUrl = import.meta.env.VITE_API_URL || '/api';
   
   const fetchFn = useCallback(
-    async (cursor?: string) => {
+    async (cursor?: string, signal?: AbortSignal) => {
       const params = new URLSearchParams();
       
       if (cursor) {
@@ -229,7 +237,7 @@ export function usePaginatedScenes(
       }
       params.append('limit', '20');
       
-      const response = await fetch(`${apiUrl}/scenes?${params}`);
+      const response = await fetch(`${apiUrl}/scenes?${params}`, { signal });
       if (!response.ok) {
         throw new Error(`Failed to fetch scenes: ${response.statusText}`);
       }
@@ -262,7 +270,7 @@ export function usePaginatedEvents(
   const apiUrl = import.meta.env.VITE_API_URL || '/api';
   
   const fetchFn = useCallback(
-    async (cursor?: string) => {
+    async (cursor?: string, signal?: AbortSignal) => {
       const params = new URLSearchParams();
       
       if (cursor) {
@@ -279,7 +287,7 @@ export function usePaginatedEvents(
       }
       params.append('limit', '20');
       
-      const response = await fetch(`${apiUrl}/events?${params}`);
+      const response = await fetch(`${apiUrl}/events?${params}`, { signal });
       if (!response.ok) {
         throw new Error(`Failed to fetch events: ${response.statusText}`);
       }

@@ -154,19 +154,15 @@ export function useUserSearch(options: {
           params.append('minFollowers', filters.minFollowers.toString());
         }
 
-        const response = await fetch(`/api/users/search?${params}`, {
-          signal: abortController.signal,
-        });
+        const data = await apiClient.get<{ results?: UserSearchResult[] }>(
+          `/users/search?${params}`,
+          { signal: abortController.signal, skipAutoRetry: true },
+        );
 
-        if (!response.ok) {
-          throw new Error(`Search failed: ${response.statusText}`);
-        }
-
-        const data = await response.json();
-        
         // Only update if this request wasn't cancelled
         if (!abortController.signal.aborted) {
-          setResults(data.results || data || []);
+          const resultsData = data.results ?? [];
+          setResults(resultsData);
           setError(null);
         }
       } catch (err) {

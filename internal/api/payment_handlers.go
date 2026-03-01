@@ -502,16 +502,24 @@ func (h *PaymentHandlers) GetOnboardingStatus(w http.ResponseWriter, r *http.Req
 		return
 	}
 
-	// Build response with current status
+	// Build response with current status.
+	// Normalize empty string to "pending" for in-memory repos and any rows that predate
+	// the NOT NULL DEFAULT 'pending' constraint added in migration 000031.
+	connectedStatus := existingScene.ConnectedAccountStatus
+	if connectedStatus == "" {
+		connectedStatus = "pending"
+	}
+
 	response := OnboardingStatusResponse{
 		SceneID:                sceneID,
 		ConnectedAccountID:     existingScene.ConnectedAccountID,
-		ConnectedAccountStatus: existingScene.ConnectedAccountStatus,
+		ConnectedAccountStatus: connectedStatus,
 	}
 
 	// Include timestamp if onboarding is complete
 	if existingScene.AccountOnboardedAt != nil {
-		response.AccountOnboardedAt = &[]string{existingScene.AccountOnboardedAt.Format(time.RFC3339)}[0]
+		ts := existingScene.AccountOnboardedAt.Format(time.RFC3339)
+		response.AccountOnboardedAt = &ts
 	}
 
 	w.Header().Set("Content-Type", "application/json")
