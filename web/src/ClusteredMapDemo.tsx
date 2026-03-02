@@ -33,7 +33,7 @@ function ClusteredMapDemo() {
   };
 
   return (
-    <div className="h-screen flex flex-col">
+    <div className="flex flex-col h-screen">
       <div className="p-4 bg-brand-underground text-foreground">
         <h1 className="text-2xl font-bold">Subcults - Clustered Scene &amp; Event Map</h1>
         <p className="mt-2 text-sm text-foreground-muted">
@@ -60,10 +60,11 @@ function ClusteredMapDemo() {
           </button>
         </div>
         <div className="mt-2 text-xs text-foreground-muted">
-          Tip: Click clusters to expand &bull; Click markers for details &bull; Blue = Scenes &bull; Pink = Events
+          Tip: Click clusters to expand &bull; Click markers for details &bull; Blue = Scenes &bull;
+          Pink = Events
         </div>
       </div>
-      <div className="flex-1 relative">
+      <div className="relative flex-1">
         <ClusteredMapView
           ref={mapRef}
           enableGeolocation={false}
