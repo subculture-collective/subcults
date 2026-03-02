@@ -504,10 +504,11 @@ class ApiClient {
    * @note Results respect visibility settings and location privacy. Private scenes are excluded.
    */
   async searchScenes(query: string, limit: number = 10, signal?: AbortSignal): Promise<Scene[]> {
-    return this.get(`/search/scenes?q=${encodeURIComponent(query)}&limit=${limit}`, {
+    const response = await this.get<{ results: Scene[] }>(`/search/scenes?q=${encodeURIComponent(query)}&limit=${limit}`, {
       signal,
       skipAutoRetry: true, // Don't retry searches
     });
+    return response.results || [];
   }
 
   /**
@@ -519,10 +520,15 @@ class ApiClient {
    * @note Results respect visibility settings and location privacy. Private events are excluded.
    */
   async searchEvents(query: string, limit: number = 10, signal?: AbortSignal): Promise<Event[]> {
-    return this.get(`/search/events?q=${encodeURIComponent(query)}&limit=${limit}`, {
-      signal,
-      skipAutoRetry: true, // Don't retry searches
-    });
+    // Provide a global bounding box as the backend currently requires it
+    const response = await this.get<{ results: Event[] }>(
+      `/search/events?q=${encodeURIComponent(query)}&bbox=-180,-90,180,90&limit=${limit}`,
+      {
+        signal,
+        skipAutoRetry: true, // Don't retry searches
+      }
+    );
+    return response.results || [];
   }
 
   /**
@@ -534,10 +540,11 @@ class ApiClient {
    * @note Results respect visibility settings and location privacy. Private posts are excluded.
    */
   async searchPosts(query: string, limit: number = 10, signal?: AbortSignal): Promise<Post[]> {
-    return this.get(`/search/posts?q=${encodeURIComponent(query)}&limit=${limit}`, {
+    const response = await this.get<{ results: Post[] }>(`/search/posts?q=${encodeURIComponent(query)}&limit=${limit}`, {
       signal,
       skipAutoRetry: true, // Don't retry searches
     });
+    return response.results || [];
   }
 }
 
