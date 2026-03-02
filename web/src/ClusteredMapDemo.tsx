@@ -33,37 +33,38 @@ function ClusteredMapDemo() {
   };
 
   return (
-    <div className="h-screen flex flex-col">
+    <div className="flex flex-col h-screen">
       <div className="p-4 bg-brand-underground text-foreground">
         <h1 className="text-2xl font-bold">Subcults - Clustered Scene &amp; Event Map</h1>
         <p className="mt-2 text-sm text-foreground-muted">
           Interactive map with privacy-first clustering of underground music scenes and events
         </p>
-        <div className="mt-2 flex gap-2">
+        <div className="flex gap-2 mt-2">
           <button
             onClick={handleFlyToSF}
-            className="px-3 py-1 bg-background border border-border text-foreground text-sm rounded-none hover:bg-background-hover transition-none"
+            className="px-3 py-1 text-sm transition-none border rounded-none bg-background border-border text-foreground hover:bg-background-hover"
           >
             San Francisco
           </button>
           <button
             onClick={handleFlyToNYC}
-            className="px-3 py-1 bg-background border border-border text-foreground text-sm rounded-none hover:bg-background-hover transition-none"
+            className="px-3 py-1 text-sm transition-none border rounded-none bg-background border-border text-foreground hover:bg-background-hover"
           >
             New York
           </button>
           <button
             onClick={handleFlyToLA}
-            className="px-3 py-1 bg-background border border-border text-foreground text-sm rounded-none hover:bg-background-hover transition-none"
+            className="px-3 py-1 text-sm transition-none border rounded-none bg-background border-border text-foreground hover:bg-background-hover"
           >
             Los Angeles
           </button>
         </div>
         <div className="mt-2 text-xs text-foreground-muted">
-          Tip: Click clusters to expand &bull; Click markers for details &bull; Blue = Scenes &bull; Pink = Events
+          Tip: Click clusters to expand &bull; Click markers for details &bull; Blue = Scenes &bull;
+          Pink = Events
         </div>
       </div>
-      <div className="flex-1 relative">
+      <div className="relative flex-1">
         <ClusteredMapView
           ref={mapRef}
           enableGeolocation={false}
