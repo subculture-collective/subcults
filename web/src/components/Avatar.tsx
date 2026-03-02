@@ -174,7 +174,10 @@ export const Avatar: React.FC<AvatarProps> = ({
 
       {/* Loading skeleton */}
       {src && !imageError && !imageLoaded && (
-        <div className="absolute inset-0 bg-background-hover animate-pulse" aria-hidden="true" />
+        <div
+          className="absolute inset-0 bg-background-hover animate-pulse"
+          aria-hidden="true"
+        />
       )}
 
       {/* Online indicator */}
