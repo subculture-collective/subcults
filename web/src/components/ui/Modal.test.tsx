@@ -15,7 +15,7 @@ describe('Modal', () => {
           <p>Modal content</p>
         </Modal>
       );
-      
+
       expect(screen.getByRole('dialog')).toBeInTheDocument();
       expect(screen.getByText('Test Modal')).toBeInTheDocument();
       expect(screen.getByText('Modal content')).toBeInTheDocument();
@@ -27,22 +27,17 @@ describe('Modal', () => {
           <p>Modal content</p>
         </Modal>
       );
-      
+
       expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
     });
 
     it('renders footer when provided', () => {
       render(
-        <Modal
-          isOpen={true}
-          onClose={() => {}}
-          title="Test Modal"
-          footer={<button>Action</button>}
-        >
+        <Modal isOpen={true} onClose={() => {}} title="Test Modal" footer={<button>Action</button>}>
           <p>Content</p>
         </Modal>
       );
-      
+
       expect(screen.getByRole('button', { name: 'Action' })).toBeInTheDocument();
     });
 
@@ -52,16 +47,16 @@ describe('Modal', () => {
           Content
         </Modal>
       );
-      
+
       let dialog = container.querySelector('[role="dialog"]');
       expect(dialog).toHaveClass('max-w-sm');
-      
+
       rerender(
         <Modal isOpen={true} onClose={() => {}} title="Large" size="lg">
           Content
         </Modal>
       );
-      
+
       dialog = container.querySelector('[role="dialog"]');
       expect(dialog).toHaveClass('max-w-lg');
     });
@@ -71,13 +66,13 @@ describe('Modal', () => {
     it('calls onClose when close button clicked', async () => {
       const handleClose = vi.fn();
       const user = userEvent.setup();
-      
+
       render(
         <Modal isOpen={true} onClose={handleClose} title="Test">
           Content
         </Modal>
       );
-      
+
       await user.click(screen.getByRole('button', { name: 'Close modal' }));
       expect(handleClose).toHaveBeenCalledTimes(1);
     });
@@ -85,13 +80,13 @@ describe('Modal', () => {
     it('calls onClose when ESC pressed (default)', async () => {
       const handleClose = vi.fn();
       const user = userEvent.setup();
-      
+
       render(
         <Modal isOpen={true} onClose={handleClose} title="Test">
           Content
         </Modal>
       );
-      
+
       await user.keyboard('{Escape}');
       expect(handleClose).toHaveBeenCalledTimes(1);
     });
@@ -99,13 +94,13 @@ describe('Modal', () => {
     it('does not close on ESC when closeOnEsc is false', async () => {
       const handleClose = vi.fn();
       const user = userEvent.setup();
-      
+
       render(
         <Modal isOpen={true} onClose={handleClose} title="Test" closeOnEsc={false}>
           Content
         </Modal>
       );
-      
+
       await user.keyboard('{Escape}');
       expect(handleClose).not.toHaveBeenCalled();
     });
@@ -113,13 +108,13 @@ describe('Modal', () => {
     it('calls onClose when backdrop clicked (default)', async () => {
       const handleClose = vi.fn();
       const user = userEvent.setup();
-      
+
       render(
         <Modal isOpen={true} onClose={handleClose} title="Test">
           Content
         </Modal>
       );
-      
+
       const backdrop = document.querySelector('.bg-black\\/50');
       if (backdrop) {
         await user.click(backdrop as HTMLElement);
@@ -130,13 +125,13 @@ describe('Modal', () => {
     it('does not close on backdrop click when closeOnBackdrop is false', async () => {
       const handleClose = vi.fn();
       const user = userEvent.setup();
-      
+
       render(
         <Modal isOpen={true} onClose={handleClose} title="Test" closeOnBackdrop={false}>
           Content
         </Modal>
       );
-      
+
       const backdrop = document.querySelector('.bg-black\\/50');
       if (backdrop) {
         await user.click(backdrop as HTMLElement);
@@ -152,7 +147,7 @@ describe('Modal', () => {
           Content
         </Modal>
       );
-      
+
       expect(screen.getByRole('dialog')).toBeInTheDocument();
     });
 
@@ -162,7 +157,7 @@ describe('Modal', () => {
           Content
         </Modal>
       );
-      
+
       expect(screen.getByRole('dialog')).toHaveAttribute('aria-modal', 'true');
     });
 
@@ -172,7 +167,7 @@ describe('Modal', () => {
           Content
         </Modal>
       );
-      
+
       const dialog = screen.getByRole('dialog');
       expect(dialog).toHaveAttribute('aria-labelledby', 'modal-title');
       expect(screen.getByText('Test Modal')).toHaveAttribute('id', 'modal-title');
@@ -186,7 +181,7 @@ describe('Modal', () => {
           Content
         </Modal>
       );
-      
+
       const dialog = container.querySelector('[role="dialog"]');
       expect(dialog).toHaveClass('custom-modal');
     });
@@ -197,7 +192,7 @@ describe('Modal', () => {
           Content
         </Modal>
       );
-      
+
       const dialog = container.querySelector('[role="dialog"]');
       expect(dialog?.getAttribute('style')).toBeNull();
     });
@@ -215,7 +210,7 @@ describe('ConfirmModal', () => {
         message="Are you sure?"
       />
     );
-    
+
     expect(screen.getByText('Confirm Action')).toBeInTheDocument();
     expect(screen.getByText('Are you sure?')).toBeInTheDocument();
   });
@@ -223,7 +218,7 @@ describe('ConfirmModal', () => {
   it('calls onConfirm when confirm button clicked', async () => {
     const handleConfirm = vi.fn();
     const user = userEvent.setup();
-    
+
     render(
       <ConfirmModal
         isOpen={true}
@@ -233,7 +228,7 @@ describe('ConfirmModal', () => {
         message="Are you sure?"
       />
     );
-    
+
     await user.click(screen.getByRole('button', { name: 'Confirm' }));
     expect(handleConfirm).toHaveBeenCalledTimes(1);
   });
@@ -241,7 +236,7 @@ describe('ConfirmModal', () => {
   it('calls onClose when cancel button clicked', async () => {
     const handleClose = vi.fn();
     const user = userEvent.setup();
-    
+
     render(
       <ConfirmModal
         isOpen={true}
@@ -251,7 +246,7 @@ describe('ConfirmModal', () => {
         message="Are you sure?"
       />
     );
-    
+
     await user.click(screen.getByRole('button', { name: 'Cancel' }));
     expect(handleClose).toHaveBeenCalledTimes(1);
   });
@@ -268,7 +263,7 @@ describe('ConfirmModal', () => {
         cancelText="Keep"
       />
     );
-    
+
     expect(screen.getByRole('button', { name: 'Delete' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Keep' })).toBeInTheDocument();
   });
@@ -284,7 +279,7 @@ describe('ConfirmModal', () => {
         variant="danger"
       />
     );
-    
+
     const confirmButton = screen.getByRole('button', { name: 'Confirm' });
     expect(confirmButton).toHaveClass('bg-status-error');
   });
@@ -300,10 +295,10 @@ describe('ConfirmModal', () => {
         isLoading={true}
       />
     );
-    
+
     // Button should contain "Confirm" text even if loading
     const buttons = screen.getAllByRole('button');
-    const confirmButton = buttons.find(btn => btn.textContent?.includes('Confirm'));
+    const confirmButton = buttons.find((btn) => btn.textContent?.includes('Confirm'));
     expect(confirmButton).toBeDefined();
     expect(confirmButton).toBeDisabled();
     expect(screen.getByRole('status', { name: 'Loading' })).toBeInTheDocument();

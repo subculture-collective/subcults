@@ -38,7 +38,7 @@ function getToastClasses(type: ToastType): string {
  */
 function ToastItem({ toast, onDismiss }: { toast: Toast; onDismiss: (id: string) => void }) {
   const toastClasses = getToastClasses(toast.type);
-  
+
   return (
     <div
       role="status"
@@ -54,9 +54,7 @@ function ToastItem({ toast, onDismiss }: { toast: Toast; onDismiss: (id: string)
       <div className="text-xl font-bold flex-shrink-0" aria-hidden="true">
         {getToastIcon(toast.type)}
       </div>
-      <div className="flex-1 text-sm leading-5">
-        {toast.message}
-      </div>
+      <div className="flex-1 text-sm leading-5">{toast.message}</div>
       {toast.dismissible && (
         <button
           onClick={() => onDismiss(toast.id)}

@@ -135,8 +135,11 @@ export const OptimizedImage: React.FC<OptimizedImageProps> = ({
   const aspectRatio = width && height ? `${width} / ${height}` : undefined;
 
   // Generate srcsets if not provided
-  const jpegSrcSet = customSrcSet || generateImageSrcSet(src, [320, 640, 768, 1024, 1280, 1536, 2048], 'jpeg', 80);
-  const webpSrcSetValue = customWebpSrcSet || generateImageSrcSet(src, [320, 640, 768, 1024, 1280, 1536, 2048], 'webp', 80);
+  const jpegSrcSet =
+    customSrcSet || generateImageSrcSet(src, [320, 640, 768, 1024, 1280, 1536, 2048], 'jpeg', 80);
+  const webpSrcSetValue =
+    customWebpSrcSet ||
+    generateImageSrcSet(src, [320, 640, 768, 1024, 1280, 1536, 2048], 'webp', 80);
 
   // Default sizes if not provided
   const sizesValue = sizes || '100vw';
@@ -145,11 +148,7 @@ export const OptimizedImage: React.FC<OptimizedImageProps> = ({
     <picture>
       {/* WebP source for modern browsers */}
       {isInView && !hasError && (
-        <source
-          type="image/webp"
-          srcSet={webpSrcSetValue}
-          sizes={sizesValue}
-        />
+        <source type="image/webp" srcSet={webpSrcSetValue} sizes={sizesValue} />
       )}
 
       {/* JPEG fallback for older browsers */}

@@ -37,13 +37,7 @@ describe('Input', () => {
     });
 
     it('shows error message instead of helper text when both provided', () => {
-      render(
-        <Input
-          label="Email"
-          helperText="Enter your email"
-          error="Invalid email"
-        />
-      );
+      render(<Input label="Email" helperText="Enter your email" error="Invalid email" />);
       expect(screen.getByRole('alert')).toHaveTextContent('Invalid email');
       expect(screen.queryByText('Enter your email')).not.toBeInTheDocument();
     });
@@ -79,20 +73,20 @@ describe('Input', () => {
     it('accepts user input', async () => {
       const user = userEvent.setup();
       render(<Input placeholder="Type here" />);
-      
+
       const input = screen.getByPlaceholderText('Type here');
       await user.type(input, 'Hello');
-      
+
       expect(input).toHaveValue('Hello');
     });
 
     it('calls onChange handler', async () => {
       const handleChange = vi.fn();
       const user = userEvent.setup();
-      
+
       render(<Input onChange={handleChange} />);
       const input = screen.getByRole('textbox');
-      
+
       await user.type(input, 'A');
       expect(handleChange).toHaveBeenCalled();
     });
@@ -100,12 +94,12 @@ describe('Input', () => {
     it('does not accept input when disabled', async () => {
       const user = userEvent.setup();
       render(<Input disabled value="" />);
-      
+
       const input = screen.getByRole('textbox');
       await user.type(input, 'Test').catch(() => {
         // Expected to fail for disabled input
       });
-      
+
       expect(input).toHaveValue('');
     });
   });
@@ -127,7 +121,7 @@ describe('Input', () => {
       render(<Input label="Email" error="Invalid email" />);
       const input = screen.getByLabelText('Email');
       const errorId = screen.getByRole('alert').getAttribute('id');
-      
+
       expect(input.getAttribute('aria-describedby')).toContain(errorId as string);
     });
 
@@ -136,7 +130,7 @@ describe('Input', () => {
       const input = screen.getByLabelText('Password');
       const helperText = screen.getByText('Helper text');
       const helperId = helperText.getAttribute('id');
-      
+
       expect(input.getAttribute('aria-describedby')).toContain(helperId as string);
     });
 

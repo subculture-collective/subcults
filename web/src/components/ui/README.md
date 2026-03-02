@@ -357,7 +357,7 @@ import { Button } from '@/components/ui';
 
 <Button variant={isPrimary ? 'primary' : 'secondary'} isLoading={isLoading}>
   Submit
-</Button>
+</Button>;
 ```
 
 ---
