@@ -39,22 +39,22 @@ function ClusteredMapDemo() {
         <p className="mt-2 text-sm text-foreground-muted">
           Interactive map with privacy-first clustering of underground music scenes and events
         </p>
-        <div className="flex gap-2 mt-2">
+        <div className="mt-2 flex gap-2">
           <button
             onClick={handleFlyToSF}
-            className="px-3 py-1 text-sm transition-none border rounded-none bg-background border-border text-foreground hover:bg-background-hover"
+            className="px-3 py-1 bg-background border border-border text-foreground text-sm rounded-none hover:bg-background-hover transition-none"
           >
             San Francisco
           </button>
           <button
             onClick={handleFlyToNYC}
-            className="px-3 py-1 text-sm transition-none border rounded-none bg-background border-border text-foreground hover:bg-background-hover"
+            className="px-3 py-1 bg-background border border-border text-foreground text-sm rounded-none hover:bg-background-hover transition-none"
           >
             New York
           </button>
           <button
             onClick={handleFlyToLA}
-            className="px-3 py-1 text-sm transition-none border rounded-none bg-background border-border text-foreground hover:bg-background-hover"
+            className="px-3 py-1 bg-background border border-border text-foreground text-sm rounded-none hover:bg-background-hover transition-none"
           >
             Los Angeles
           </button>
