@@ -1,50 +1,27 @@
-import { useEffect, useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
+import { useState } from 'react';
 import type { Map as MapLibreMap } from 'maplibre-gl';
 import { useParams } from 'react-router-dom';
 import { AppearanceCard } from '../components/discovery/AppearanceCard';
 import { TourMapLayer } from '../components/discovery/TourMapLayer';
 import { MapView } from '../components/MapView';
+import { publicRequest } from '../lib/release-api';
 import type { TouringDetailResponse } from '../types/touring';
 
-function readDetail(response: unknown): TouringDetailResponse {
-  const value = response as TouringDetailResponse & { data?: TouringDetailResponse };
-  return value.data ?? value;
-}
-
 export function TourDetailPage() {
-  const { id } = useParams<{ id: string }>();
-  const [detail, setDetail] = useState<TouringDetailResponse | null>(null);
+  const { id = '' } = useParams();
   const [map, setMap] = useState<MapLibreMap | null>(null);
   const [selectedEventID, setSelectedEventID] = useState<string | null>(null);
-  const [error, setError] = useState(false);
-  useEffect(() => {
-    if (!id) return;
-    let active = true;
-    fetch(`${import.meta.env.VITE_API_URL || '/api'}/tours/${id}`)
-      .then(async (response) => response.ok ? readDetail(await response.json()) : Promise.reject(response))
-      .then((result) => { if (active) setDetail(result); })
-      .catch(() => { if (active) setError(true); });
-    return () => { active = false; };
-  }, [id]);
-  if (error) return <main className="p-8"><h1>Tour unavailable</h1><p>Touring details could not be loaded.</p></main>;
-  if (!detail) return <main className="p-8" aria-busy="true"><h1>Loading tour…</h1></main>;
-  const selectedAppearances = selectedEventID
-    ? detail.appearances.filter((appearance) => appearance.event.id === selectedEventID)
-    : [];
-  return <main className="mx-auto max-w-5xl p-6 md:p-8">
-    <p className="font-mono text-xs uppercase tracking-wide text-neon-cyan">Tour</p>
-    <h1 className="mt-1">{detail.tour?.title ?? 'Tour'}</h1>
-    <section aria-label="Tour occurrence map" className="mt-6 h-72 border border-border">
-      <MapView className="h-full" onLoad={setMap} />
-      <TourMapLayer map={map} appearances={detail.appearances} onSelectEvent={setSelectedEventID} />
-    </section>
-    {selectedAppearances.length > 0 && <section className="mt-4 border border-border bg-background-secondary p-4" aria-live="polite" aria-labelledby="selected-event-appearances">
-      <h2 id="selected-event-appearances" className="m-0 text-lg">{selectedAppearances[0].event.title}</h2>
-      <p className="mt-1 text-sm text-foreground-secondary">{selectedAppearances.length} appearance{selectedAppearances.length === 1 ? '' : 's'} at this occurrence</p>
-      <div className="mt-4 grid gap-4">{selectedAppearances.map((appearance) => <AppearanceCard key={appearance.id} appearance={appearance} />)}</div>
-    </section>}
-    <section aria-labelledby="tour-appearances" className="mt-8"><h2 id="tour-appearances">Appearances</h2>
-      <div className="mt-4 grid gap-4">{detail.appearances.map((appearance) => <AppearanceCard key={appearance.id} appearance={appearance} />)}</div>
-    </section>
+  const { data, isPending, isError } = useQuery({ queryKey: ['tour', id], queryFn: () => publicRequest<TouringDetailResponse>(`/tours/${id}`), enabled: Boolean(id) });
+  if (isPending) return <main className="content-wrap py-16" aria-busy="true"><p className="eyebrow">Loading itinerary</p></main>;
+  if (isError || !data) return <main className="content-wrap py-16"><p className="eyebrow">Tour unavailable</p><h1 className="font-display mt-3 text-5xl uppercase">This itinerary is off-air.</h1></main>;
+  const selected = selectedEventID ? data.appearances.filter((appearance) => appearance.event.id === selectedEventID) : [];
+  return <main>
+    <header className="border-b border-border bg-surface/60"><div className="content-wrap py-12"><div className="flex flex-wrap items-center gap-3"><p className="eyebrow">Tour itinerary</p><span className="status-chip">{data.appearances.length} appearances</span></div><h1 className="font-display mt-3 text-6xl uppercase md:text-8xl">{data.tour?.title ?? 'Untitled tour'}</h1></div></header>
+    <div className="content-wrap grid gap-8 py-10 lg:grid-cols-[1.15fr_.85fr]">
+      <section className="panel relative min-h-[420px] overflow-hidden" aria-label="Tour occurrence map"><MapView className="absolute inset-0 h-full" onLoad={setMap} /><TourMapLayer map={map} appearances={data.appearances} onSelectEvent={setSelectedEventID} /></section>
+      <section aria-labelledby="tour-dates"><p className="eyebrow">Chronology</p><h2 id="tour-dates" className="font-display mt-2 text-4xl uppercase">Dates</h2><div className="mt-5 grid max-h-[620px] gap-4 overflow-y-auto pr-1">{data.appearances.map((appearance) => <AppearanceCard key={appearance.id} appearance={appearance} />)}</div></section>
+    </div>
+    {selected.length > 0 && <aside className="fixed inset-x-4 bottom-4 z-30 panel mx-auto max-w-2xl p-5 shadow-2xl" aria-live="polite"><div className="flex items-start justify-between gap-4"><div><p className="eyebrow">Selected occurrence</p><h2 className="font-display mt-1 text-3xl uppercase">{selected[0].event.title}</h2></div><button className="button-secondary" onClick={() => setSelectedEventID(null)}>Close</button></div><p className="mt-3 text-sm text-foreground-secondary">{selected.length} billed appearance{selected.length === 1 ? '' : 's'} at this event.</p></aside>}
   </main>;
 }
