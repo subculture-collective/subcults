@@ -13,6 +13,29 @@ expect.extend(axeMatchers);
 // Export axe for use in tests
 export { axe };
 
+// Node 25 exposes a process-level localStorage placeholder that is unavailable
+// unless --localstorage-file is supplied. Provide the browser contract directly
+// so component tests do not depend on a process-wide persistence file.
+const storage = new (class implements Storage {
+  private values = new Map<string, string>();
+
+  get length() { return this.values.size; }
+  clear() { this.values.clear(); }
+  getItem(key: string) { return this.values.get(key) ?? null; }
+  key(index: number) { return [...this.values.keys()][index] ?? null; }
+  removeItem(key: string) { this.values.delete(key); }
+  setItem(key: string, value: string) { this.values.set(key, String(value)); }
+})();
+
+Object.defineProperty(globalThis, 'localStorage', {
+  configurable: true,
+  value: storage,
+});
+Object.defineProperty(window, 'localStorage', {
+  configurable: true,
+  value: storage,
+});
+
 // Mock fetch globally for tests
 // This prevents test failures when using relative URLs in authStore.logout()
 // and supports i18next-http-backend which expects Response.text()
