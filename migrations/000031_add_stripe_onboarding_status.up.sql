@@ -17,14 +17,31 @@ WHERE deleted_at IS NULL;
 CREATE INDEX IF NOT EXISTS idx_scenes_onboarded_at ON scenes(account_onboarded_at) 
 WHERE deleted_at IS NULL AND connected_account_status = 'active';
 
--- Add constraint to ensure status is one of the valid values
-ALTER TABLE scenes ADD CONSTRAINT IF NOT EXISTS chk_connected_account_status 
-CHECK (connected_account_status IN ('pending', 'active', 'restricted'));
+-- PostgreSQL does not support ADD CONSTRAINT IF NOT EXISTS. Use a catalog
+-- guard so fresh installs and partially repaired development databases work.
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint WHERE conname = 'chk_connected_account_status'
+    ) THEN
+        ALTER TABLE scenes ADD CONSTRAINT chk_connected_account_status
+            CHECK (connected_account_status IN ('pending', 'active', 'restricted'));
+    END IF;
+END $$;
 
 -- Add constraint to ensure account_onboarded_at is only set when status is active
-ALTER TABLE scenes ADD CONSTRAINT IF NOT EXISTS chk_account_onboarded_consistency 
-CHECK ((connected_account_status = 'active' AND account_onboarded_at IS NOT NULL) 
-    OR (connected_account_status != 'active' AND account_onboarded_at IS NULL));
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint WHERE conname = 'chk_account_onboarded_consistency'
+    ) THEN
+        ALTER TABLE scenes ADD CONSTRAINT chk_account_onboarded_consistency
+            CHECK (
+                (connected_account_status = 'active' AND account_onboarded_at IS NOT NULL)
+                OR (connected_account_status != 'active' AND account_onboarded_at IS NULL)
+            );
+    END IF;
+END $$;
 
 COMMENT ON COLUMN scenes.connected_account_status IS 'Stripe Connect onboarding status: pending (not started), active (fully onboarded), restricted (limited access)';
 COMMENT ON COLUMN scenes.account_onboarded_at IS 'Timestamp when Stripe account was fully onboarded (non-null only when status is "active")';
