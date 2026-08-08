@@ -90,7 +90,7 @@ func (h *TouringHandlers) Profile(w http.ResponseWriter, r *http.Request) {
 		touringMethodNotAllowed(w, r)
 		return
 	}
-	id := strings.Trim(strings.TrimPrefix(r.URL.Path, "/profiles/"), "/")
+	id := touringPathID(r.URL.Path, "/profiles/")
 	if id == "" || strings.Contains(id, "/") {
 		touringNotFound(w, r)
 		return
@@ -120,7 +120,7 @@ func (h *TouringHandlers) Tour(w http.ResponseWriter, r *http.Request) {
 		touringMethodNotAllowed(w, r)
 		return
 	}
-	id := strings.Trim(strings.TrimPrefix(r.URL.Path, "/tours/"), "/")
+	id := touringPathID(r.URL.Path, "/tours/")
 	if id == "" || strings.Contains(id, "/") {
 		touringNotFound(w, r)
 		return
@@ -141,6 +141,11 @@ func (h *TouringHandlers) Tour(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	touringWriteJSON(w, http.StatusOK, touringDetailResponse{Tour: &touringTourResponse{ID: tour.ID, Title: tour.Title}, Appearances: summaries})
+}
+
+func touringPathID(path, prefix string) string {
+	path = strings.TrimPrefix(path, "/api")
+	return strings.Trim(strings.TrimPrefix(path, prefix), "/")
 }
 
 // SearchAppearances handles GET /search/appearances. All filters are applied

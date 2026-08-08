@@ -11,6 +11,7 @@ type Repository interface {
 	PutContact(context.Context, ContactPoint) error
 	GetContact(context.Context, string) (ContactPoint, error)
 	PutLink(context.Context, ContactPointLink) error
+	ActiveContactsForDID(context.Context, string) ([]ContactPoint, error)
 	RecordRelationship(context.Context, Relationship) error
 	PutScope(context.Context, DeliveryScope) (string, error)
 	ScopeIDFor(context.Context, DeliveryScope) (string, error)
@@ -73,6 +74,32 @@ func (r *InMemoryRepository) PutLink(ctx context.Context, link ContactPointLink)
 	defer r.mu.Unlock()
 	r.links = append(r.links, link)
 	return nil
+}
+
+func (r *InMemoryRepository) ActiveContactsForDID(ctx context.Context, did string) ([]ContactPoint, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	contacts := make([]ContactPoint, 0)
+	seen := make(map[string]struct{})
+	for _, link := range r.links {
+		if link.UserDID != did || link.RevokedAt != nil {
+			continue
+		}
+		contact, ok := r.contacts[link.ContactPointID]
+		if !ok {
+			continue
+		}
+		if _, ok := seen[contact.ID]; ok {
+			continue
+		}
+		seen[contact.ID] = struct{}{}
+		contacts = append(contacts, contact)
+	}
+	sort.Slice(contacts, func(i, j int) bool { return contacts[i].ID < contacts[j].ID })
+	return contacts, nil
 }
 
 func (r *InMemoryRepository) RecordRelationship(ctx context.Context, relationship Relationship) error {

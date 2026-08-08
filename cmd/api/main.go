@@ -22,6 +22,7 @@ import (
 	"github.com/onnwee/subcults/internal/alliance"
 	"github.com/onnwee/subcults/internal/api"
 	"github.com/onnwee/subcults/internal/attachment"
+	"github.com/onnwee/subcults/internal/audience"
 	"github.com/onnwee/subcults/internal/audit"
 	"github.com/onnwee/subcults/internal/config"
 	"github.com/onnwee/subcults/internal/db"
@@ -36,6 +37,7 @@ import (
 	"github.com/onnwee/subcults/internal/ranking"
 	"github.com/onnwee/subcults/internal/retention"
 	"github.com/onnwee/subcults/internal/scene"
+	domainsignal "github.com/onnwee/subcults/internal/signal"
 	"github.com/onnwee/subcults/internal/stream"
 	"github.com/onnwee/subcults/internal/telemetry"
 	"github.com/onnwee/subcults/internal/touring"
@@ -231,6 +233,10 @@ func main() {
 	membershipRepo := membership.NewInMemoryMembershipRepository()
 	allianceRepo := alliance.NewInMemoryAllianceRepository()
 	touringRepo := touring.NewInMemoryRepository()
+	audienceRepo := audience.NewInMemoryRepository()
+	audienceService := audience.NewService(audienceRepo)
+	signalRepo := domainsignal.NewInMemoryRepository()
+	signalService := domainsignal.NewService(signalRepo)
 
 	// Initialize event broadcaster for WebSocket participant updates
 	eventBroadcaster := stream.NewEventBroadcaster()
@@ -568,6 +574,7 @@ func main() {
 	allianceHandlers := api.NewAllianceHandlers(allianceRepo, sceneRepo, trustDataSource, trustDirtyTracker)
 	searchHandlers := api.NewSearchHandlers(sceneRepo, postRepo, trustStoreAdapter, eventRepo)
 	touringHandlers := api.NewTouringHandlers(touringRepo, eventRepo, sceneRepo)
+	signalHandlers := api.NewSignalHandlers(signalService, audienceService)
 
 	// Initialize retention and account handlers
 	retentionRepo := retention.NewInMemoryRepository(logger)
@@ -774,6 +781,36 @@ func main() {
 	mux.HandleFunc("/search/appearances", touringHandlers.SearchAppearances)
 	mux.HandleFunc("/profiles/", touringHandlers.Profile)
 	mux.HandleFunc("/tours/", touringHandlers.Tour)
+	mux.HandleFunc("/api/search/appearances", touringHandlers.SearchAppearances)
+	mux.HandleFunc("/api/profiles/", touringHandlers.Profile)
+	mux.HandleFunc("/api/tours/", touringHandlers.Tour)
+
+	registerSignalRoutes := func(prefix string) {
+		mux.HandleFunc(prefix, func(w http.ResponseWriter, r *http.Request) {
+			if r.Method == http.MethodPost {
+				signalHandlers.CreateDraft(w, r)
+				return
+			}
+			ctx := middleware.SetErrorCode(r.Context(), api.ErrCodeBadRequest)
+			api.WriteError(w, ctx, http.StatusMethodNotAllowed, api.ErrCodeBadRequest, "Method not allowed")
+		})
+		mux.HandleFunc(prefix+"/", func(w http.ResponseWriter, r *http.Request) {
+			if strings.HasSuffix(strings.TrimRight(r.URL.Path, "/"), "/publish") && r.Method == http.MethodPost {
+				signalHandlers.Publish(w, r)
+				return
+			}
+			if r.Method == http.MethodGet {
+				signalHandlers.Get(w, r)
+				return
+			}
+			ctx := middleware.SetErrorCode(r.Context(), api.ErrCodeBadRequest)
+			api.WriteError(w, ctx, http.StatusMethodNotAllowed, api.ErrCodeBadRequest, "Method not allowed")
+		})
+	}
+	registerSignalRoutes("/signals")
+	registerSignalRoutes("/api/signals")
+	mux.HandleFunc("/audience/consent", signalHandlers.MutateConsent)
+	mux.HandleFunc("/api/audience/consent", signalHandlers.MutateConsent)
 
 	searchScenesHandler := middleware.RateLimiter(rateLimitStore, searchLimit, middleware.UserKeyFunc(), rateLimitMetrics)(
 		http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

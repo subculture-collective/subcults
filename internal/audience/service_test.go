@@ -169,6 +169,19 @@ func TestDIDContactLinkIsSeparateFromConsent(t *testing.T) {
 	}
 }
 
+func TestActiveContactsForDIDRequiresCurrentProof(t *testing.T) {
+	ctx := context.Background()
+	now := time.Now().UTC()
+	service := newVerifiedService(t, now)
+	if err := service.LinkContact(ctx, ContactPointLink{ContactPointID: "contact-a", UserDID: "did:plc:a", VerifiedAt: now}); err != nil {
+		t.Fatal(err)
+	}
+	contacts, err := service.ActiveContactsForDID(ctx, "did:plc:a")
+	if err != nil || len(contacts) != 1 || contacts[0].ID != "contact-a" {
+		t.Fatalf("contacts=%#v err=%v", contacts, err)
+	}
+}
+
 func newVerifiedService(t *testing.T, verifiedAt time.Time) *Service {
 	t.Helper()
 	service := NewService(NewInMemoryRepository())

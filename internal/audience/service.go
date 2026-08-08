@@ -35,6 +35,36 @@ func (s *Service) LinkContact(ctx context.Context, link ContactPointLink) error 
 	return s.repository.PutLink(ctx, link)
 }
 
+// ActiveContactsForDID returns only contacts connected by current proof. It is
+// the safe bridge from authenticated identity to a private delivery endpoint.
+func (s *Service) ActiveContactsForDID(ctx context.Context, did string) ([]ContactPoint, error) {
+	return s.repository.ActiveContactsForDID(ctx, did)
+}
+
+// GetScope returns the immutable delivery boundary rendered to a participant.
+func (s *Service) GetScope(ctx context.Context, scopeID string) (DeliveryScope, error) {
+	return s.repository.GetScope(ctx, scopeID)
+}
+
+// ConsentStatus returns the effective state for one stored scope without
+// treating verification or participation as a grant.
+func (s *Service) ConsentStatus(ctx context.Context, contactID, scopeID string) (ConsentAction, bool, error) {
+	scope, err := s.repository.GetScope(ctx, scopeID)
+	if err != nil {
+		return "", false, err
+	}
+	events, err := s.repository.ApplicableConsent(ctx, contactID, scope)
+	if err != nil {
+		return "", false, err
+	}
+	for _, event := range events {
+		if event.ScopeID == scopeID {
+			return event.Action, true, nil
+		}
+	}
+	return "", false, nil
+}
+
 // RecordRelationship records participation evidence without changing delivery authorization.
 func (s *Service) RecordRelationship(ctx context.Context, relationship Relationship) error {
 	return s.repository.RecordRelationship(ctx, relationship)
