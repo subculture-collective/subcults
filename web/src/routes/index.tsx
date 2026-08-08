@@ -24,6 +24,12 @@ const SceneSettingsPage = lazy(() =>
 const EventDetailPage = lazy(() =>
   import('../pages/EventDetailPage').then((module) => ({ default: module.EventDetailPage }))
 );
+const ProfileDetailPage = lazy(() =>
+  import('../pages/ProfileDetailPage').then((module) => ({ default: module.ProfileDetailPage }))
+);
+const TourDetailPage = lazy(() =>
+  import('../pages/TourDetailPage').then((module) => ({ default: module.TourDetailPage }))
+);
 const AccountPage = lazy(() =>
   import('../pages/AccountPage').then((module) => ({ default: module.AccountPage }))
 );
@@ -123,6 +129,22 @@ const router = createBrowserRouter(
           element: (
             <Suspense fallback={<LoadingSkeleton />}>
               <EventDetailPage />
+            </Suspense>
+          ),
+        },
+        {
+          path: 'profiles/:id',
+          element: (
+            <Suspense fallback={<LoadingSkeleton />}>
+              <ProfileDetailPage />
+            </Suspense>
+          ),
+        },
+        {
+          path: 'tours/:id',
+          element: (
+            <Suspense fallback={<LoadingSkeleton />}>
+              <TourDetailPage />
             </Suspense>
           ),
         },
