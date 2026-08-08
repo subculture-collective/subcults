@@ -50,10 +50,13 @@ Rebuild the connective tissue of the underground: a trust‑based discovery and 
 
 The canonical extension to this roadmap is [Audience, Drops, and Touring](docs/product/AUDIENCE_DROPS_AND_TOURING.md). It defines how artist home territory, event occurrence location, tours, festival appearances, one-off shows, consent, and activation fit the original scene model.
 
-Repository status: the schema, local domain services, additive read APIs, and
-web surfaces for this extension are implemented and tested. They are not yet a
-production CRM: durable Postgres domain adapters, configured authentication,
-and live delivery-provider integrations remain release prerequisites.
+Repository status: passwordless identity, creator approval, protected event
+locations, encrypted web-push subscriptions, touring/Signal APIs, and the
+public/Studio frontend now exist in source. The production API still refuses to
+start because the core Scene/Event/Touring/Audience/Signal repositories do not
+yet have Postgres adapters. Provider credentials, browser E2E qualification,
+and the frontend legacy-test cleanup also remain release prerequisites. See
+[Public Beta Release Status](docs/product/PUBLIC_BETA_RELEASE_STATUS.md).
 
 ## Development Principles
 
