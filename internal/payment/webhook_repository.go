@@ -14,10 +14,19 @@ var ErrEventAlreadyProcessed = errors.New("webhook event already processed")
 
 // WebhookEvent represents a processed webhook event for idempotency tracking.
 type WebhookEvent struct {
-	ID          string
-	EventID     string // Stripe event ID
-	EventType   string // Stripe event type
-	ProcessedAt time.Time
+	ID               string
+	EventID          string // Stripe event ID
+	EventType        string // Stripe event type
+	RawPayloadSHA256 string // Digest only; raw customer payload is not retained here.
+	ReceivedAt       time.Time
+	ProcessedAt      time.Time
+}
+
+// WebhookProvenanceRecorder records a verified provider event together with
+// receipt evidence. Callers may fall back to WebhookRepository for older
+// durable adapters while they migrate.
+type WebhookProvenanceRecorder interface {
+	RecordEventWithProvenance(eventID, eventType, rawPayloadSHA256 string, receivedAt time.Time) error
 }
 
 // WebhookRepository defines methods for webhook event tracking.
@@ -46,6 +55,12 @@ func NewInMemoryWebhookRepository() *InMemoryWebhookRepository {
 
 // RecordEvent records a webhook event as processed.
 func (r *InMemoryWebhookRepository) RecordEvent(eventID, eventType string) error {
+	return r.RecordEventWithProvenance(eventID, eventType, "", time.Now().UTC())
+}
+
+// RecordEventWithProvenance records idempotency and non-sensitive receipt
+// evidence without retaining the webhook body.
+func (r *InMemoryWebhookRepository) RecordEventWithProvenance(eventID, eventType, rawPayloadSHA256 string, receivedAt time.Time) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
@@ -56,10 +71,12 @@ func (r *InMemoryWebhookRepository) RecordEvent(eventID, eventType string) error
 
 	// Record the event
 	event := &WebhookEvent{
-		ID:          uuid.New().String(),
-		EventID:     eventID,
-		EventType:   eventType,
-		ProcessedAt: time.Now(),
+		ID:               uuid.New().String(),
+		EventID:          eventID,
+		EventType:        eventType,
+		RawPayloadSHA256: rawPayloadSHA256,
+		ReceivedAt:       receivedAt,
+		ProcessedAt:      time.Now().UTC(),
 	}
 	r.events[eventID] = event
 

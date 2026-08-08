@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"sync"
 	"testing"
+	"time"
 )
 
 // TestRecordEvent_Success tests recording a new event.
@@ -242,5 +243,18 @@ func TestRecordEvent_EmptyEventID(t *testing.T) {
 	err = repo.RecordEvent("", "test.event")
 	if err != ErrEventAlreadyProcessed {
 		t.Errorf("expected ErrEventAlreadyProcessed for duplicate empty ID, got %v", err)
+	}
+}
+
+func TestRecordEventWithProvenanceRetainsDigestNotPayload(t *testing.T) {
+	repo := NewInMemoryWebhookRepository()
+	receivedAt := time.Date(2026, time.August, 8, 12, 0, 0, 0, time.UTC)
+	digest := "8d969eef6ecad3c29a3a629280e686cff8cae3c67a6a86f78a6a061b8e8c6ad0"
+	if err := repo.RecordEventWithProvenance("evt_provenance", "checkout.session.completed", digest, receivedAt); err != nil {
+		t.Fatal(err)
+	}
+	event := repo.events["evt_provenance"]
+	if event.RawPayloadSHA256 != digest || !event.ReceivedAt.Equal(receivedAt) {
+		t.Fatalf("event=%+v", event)
 	}
 }

@@ -2,6 +2,8 @@ package api
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"io"
 	"log/slog"
@@ -89,8 +91,17 @@ func (h *WebhookHandlers) HandleStripeWebhook(w http.ResponseWriter, r *http.Req
 	// Log minimal event info (type and ID only, not full payload)
 	slog.InfoContext(ctx, "webhook event received", "event_type", event.Type, "event_id", event.ID)
 
-	// Check idempotency - has this event already been processed?
-	if err := h.webhookRepo.RecordEvent(event.ID, string(event.Type)); err != nil {
+	// Check idempotency and retain only a digest plus receipt time for audit.
+	// The raw customer payload remains transient after signature verification.
+	payloadDigest := sha256.Sum256(body)
+	receivedAt := time.Now().UTC()
+	recordErr := error(nil)
+	if recorder, ok := h.webhookRepo.(payment.WebhookProvenanceRecorder); ok {
+		recordErr = recorder.RecordEventWithProvenance(event.ID, string(event.Type), hex.EncodeToString(payloadDigest[:]), receivedAt)
+	} else {
+		recordErr = h.webhookRepo.RecordEvent(event.ID, string(event.Type))
+	}
+	if err := recordErr; err != nil {
 		if err == payment.ErrEventAlreadyProcessed {
 			slog.InfoContext(ctx, "webhook event already processed, ignoring", "event_id", event.ID)
 			// Return 200 to acknowledge receipt even though we're ignoring it
