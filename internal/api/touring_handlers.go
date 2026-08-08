@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/onnwee/subcults/internal/middleware"
 	"github.com/onnwee/subcults/internal/scene"
 	"github.com/onnwee/subcults/internal/touring"
@@ -19,6 +20,125 @@ type TouringHandlers struct {
 	touringRepo touring.Repository
 	eventRepo   scene.EventRepository
 	sceneRepo   scene.SceneRepository
+}
+
+// CreateProfile handles creator-authorized Studio profile creation. Authorization
+// is applied by the route wrapper so the domain handler can stay testable.
+func (h *TouringHandlers) CreateProfile(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		touringMethodNotAllowed(w, r)
+		return
+	}
+	var request struct {
+		Kind          string `json:"kind"`
+		CanonicalName string `json:"canonical_name"`
+		Visibility    string `json:"visibility"`
+	}
+	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 16*1024)).Decode(&request); err != nil {
+		touringValidationError(w, r, "invalid profile")
+		return
+	}
+	if request.Visibility == "" {
+		request.Visibility = touring.VisibilityPublic
+	}
+	profile := touring.Profile{ID: uuid.NewString(), Kind: request.Kind, CanonicalName: strings.TrimSpace(request.CanonicalName), Visibility: request.Visibility}
+	if err := h.touringRepo.StoreProfile(profile); err != nil {
+		touringValidationError(w, r, "invalid profile")
+		return
+	}
+	response := map[string]any{"profile": profile}
+	if profile.Kind == "artist" {
+		act := touring.Act{ID: uuid.NewString(), ProfileID: profile.ID}
+		if err := h.touringRepo.StoreAct(act); err != nil {
+			touringInternalError(w, r)
+			return
+		}
+		response["act"] = act
+	}
+	touringWriteJSON(w, http.StatusCreated, response)
+}
+
+func (h *TouringHandlers) CreatePlace(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		touringMethodNotAllowed(w, r)
+		return
+	}
+	var place touring.Place
+	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 16*1024)).Decode(&place); err != nil {
+		touringValidationError(w, r, "invalid place")
+		return
+	}
+	if place.ID == "" {
+		place.ID = uuid.NewString()
+	}
+	if err := h.touringRepo.StorePlace(place); err != nil {
+		touringValidationError(w, r, "invalid place")
+		return
+	}
+	touringWriteJSON(w, http.StatusCreated, place)
+}
+
+func (h *TouringHandlers) CreateTour(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		touringMethodNotAllowed(w, r)
+		return
+	}
+	var tour touring.Tour
+	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 16*1024)).Decode(&tour); err != nil {
+		touringValidationError(w, r, "invalid tour")
+		return
+	}
+	if tour.ID == "" {
+		tour.ID = uuid.NewString()
+	}
+	if tour.Status == "" {
+		tour.Status = touring.TourStatusDraft
+	}
+	if _, err := h.touringRepo.GetAct(tour.PrimaryActID); err != nil {
+		touringValidationError(w, r, "primary act not found")
+		return
+	}
+	if err := h.touringRepo.CreateTour(tour, middleware.GetUserDID(r.Context())); err != nil {
+		touringValidationError(w, r, "invalid tour")
+		return
+	}
+	touringWriteJSON(w, http.StatusCreated, tour)
+}
+
+func (h *TouringHandlers) CreateAppearance(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		touringMethodNotAllowed(w, r)
+		return
+	}
+	var appearance touring.Appearance
+	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 16*1024)).Decode(&appearance); err != nil {
+		touringValidationError(w, r, "invalid appearance")
+		return
+	}
+	if appearance.ID == "" {
+		appearance.ID = uuid.NewString()
+	}
+	if appearance.Status == "" {
+		appearance.Status = touring.AppearanceStatusAnnounced
+	}
+	if _, err := h.eventRepo.GetByID(appearance.EventID); err != nil {
+		touringValidationError(w, r, "event not found")
+		return
+	}
+	if _, err := h.touringRepo.GetAct(appearance.ActID); err != nil {
+		touringValidationError(w, r, "act not found")
+		return
+	}
+	if err := h.touringRepo.CreateAppearance(appearance); err != nil {
+		touringValidationError(w, r, "invalid appearance")
+		return
+	}
+	touringWriteJSON(w, http.StatusCreated, appearance)
+}
+
+func touringValidationError(w http.ResponseWriter, r *http.Request, message string) {
+	ctx := middleware.SetErrorCode(r.Context(), ErrCodeValidation)
+	WriteError(w, ctx, http.StatusBadRequest, ErrCodeValidation, message)
 }
 
 func NewTouringHandlers(touringRepo touring.Repository, eventRepo scene.EventRepository, sceneRepo scene.SceneRepository) *TouringHandlers {

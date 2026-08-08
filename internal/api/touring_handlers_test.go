@@ -1,15 +1,46 @@
 package api
 
 import (
+	"bytes"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 	"time"
 
+	"github.com/onnwee/subcults/internal/middleware"
 	"github.com/onnwee/subcults/internal/scene"
 	"github.com/onnwee/subcults/internal/touring"
 )
+
+func TestStudioTouringMutationFlow(t *testing.T) {
+	repository := touring.NewInMemoryRepository()
+	events := scene.NewInMemoryEventRepository()
+	handler := NewTouringHandlers(repository, events, scene.NewInMemorySceneRepository())
+
+	profileBody := []byte(`{"kind":"artist","canonical_name":"Signal Unit","visibility":"public"}`)
+	profileResponse := httptest.NewRecorder()
+	handler.CreateProfile(profileResponse, httptest.NewRequest(http.MethodPost, "/api/v1/studio/profiles", bytes.NewReader(profileBody)))
+	if profileResponse.Code != http.StatusCreated {
+		t.Fatalf("profile: %d %s", profileResponse.Code, profileResponse.Body.String())
+	}
+	var created struct {
+		Profile touring.Profile `json:"profile"`
+		Act     touring.Act     `json:"act"`
+	}
+	if err := json.NewDecoder(profileResponse.Body).Decode(&created); err != nil || created.Act.ID == "" {
+		t.Fatalf("decode profile: %#v %v", created, err)
+	}
+
+	tourBody, _ := json.Marshal(touring.Tour{PrimaryActID: created.Act.ID, Title: "Two City Signal", Status: touring.TourStatusDraft})
+	tourRequest := httptest.NewRequest(http.MethodPost, "/api/v1/studio/tours", bytes.NewReader(tourBody))
+	tourRequest = tourRequest.WithContext(middleware.SetUserDID(tourRequest.Context(), "did:web:creator"))
+	tourResponse := httptest.NewRecorder()
+	handler.CreateTour(tourResponse, tourRequest)
+	if tourResponse.Code != http.StatusCreated {
+		t.Fatalf("tour: %d %s", tourResponse.Code, tourResponse.Body.String())
+	}
+}
 
 func TestTouringHandlersExposeVisitingTourAndProfile(t *testing.T) {
 	handler, tourID, profileID := newTouringHandlerFixture(t, touring.EventKindShow)

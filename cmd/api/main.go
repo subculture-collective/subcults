@@ -670,6 +670,21 @@ func main() {
 
 	// Create HTTP server with routes
 	mux := http.NewServeMux()
+	requireCreator := func(next http.HandlerFunc) http.HandlerFunc {
+		return func(w http.ResponseWriter, r *http.Request) {
+			userID := middleware.GetUserID(r.Context())
+			if userID == "" {
+				api.WriteError(w, r.Context(), http.StatusUnauthorized, api.ErrCodeUnauthorized, "Authentication required")
+				return
+			}
+			user, err := identityService.GetUser(r.Context(), userID)
+			if err != nil || (user.Role != "creator" && user.Role != "admin") {
+				api.WriteError(w, r.Context(), http.StatusForbidden, api.ErrCodeForbidden, "Approved creator access required")
+				return
+			}
+			next(w, r)
+		}
+	}
 
 	mux.HandleFunc("/api/v1/auth/magic-links", identityHandlers.RequestMagicLink)
 	mux.HandleFunc("/api/v1/auth/magic-links/verify", identityHandlers.VerifyMagicLink)
@@ -682,6 +697,13 @@ func main() {
 	mux.HandleFunc("/api/v1/admin/creator-access", identityHandlers.ListCreatorAccess)
 	mux.Handle("/api/v1/events/", protectedLocationHandlers)
 	mux.HandleFunc("/api/v1/notifications/subscribe", notificationHandlers.Subscribe)
+	mux.HandleFunc("/api/v1/studio/profiles", requireCreator(touringHandlers.CreateProfile))
+	mux.HandleFunc("/api/v1/studio/places", requireCreator(touringHandlers.CreatePlace))
+	mux.HandleFunc("/api/v1/studio/tours", requireCreator(touringHandlers.CreateTour))
+	mux.HandleFunc("/api/v1/studio/appearances", requireCreator(touringHandlers.CreateAppearance))
+	mux.HandleFunc("/api/v1/studio/scenes", requireCreator(sceneHandlers.CreateScene))
+	mux.HandleFunc("/api/v1/studio/events", requireCreator(eventHandlers.CreateEvent))
+	mux.HandleFunc("/api/v1/studio/signals", requireCreator(signalHandlers.CreateDraft))
 	// Compatibility endpoint used by the existing notification settings client.
 	mux.HandleFunc("/api/notifications/subscribe", notificationHandlers.Subscribe)
 	// Compatibility aliases are retained for the existing client during beta.
