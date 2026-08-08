@@ -22,28 +22,30 @@ import (
 
 // CreateEventRequest represents the request body for creating an event.
 type CreateEventRequest struct {
-	SceneID       string       `json:"scene_id"`
-	Title         string       `json:"title"`
-	Description   string       `json:"description,omitempty"`
-	AllowPrecise  bool         `json:"allow_precise"`
-	PrecisePoint  *scene.Point `json:"precise_point,omitempty"`
-	CoarseGeohash string       `json:"coarse_geohash"`
-	Tags          []string     `json:"tags,omitempty"`
-	StartsAt      time.Time    `json:"starts_at"`
-	EndsAt        *time.Time   `json:"ends_at,omitempty"`
+	SceneID        string       `json:"scene_id"`
+	Title          string       `json:"title"`
+	Description    string       `json:"description,omitempty"`
+	AllowPrecise   bool         `json:"allow_precise"`
+	PrecisePoint   *scene.Point `json:"precise_point,omitempty"`
+	CoarseGeohash  string       `json:"coarse_geohash"`
+	Tags           []string     `json:"tags,omitempty"`
+	StartsAt       time.Time    `json:"starts_at"`
+	EndsAt         *time.Time   `json:"ends_at,omitempty"`
+	LocationAccess string       `json:"location_access,omitempty"`
 }
 
 // UpdateEventRequest represents the request body for updating an event.
 // Only includes mutable fields (scene_id is immutable).
 type UpdateEventRequest struct {
-	Title         *string      `json:"title,omitempty"`
-	Description   *string      `json:"description,omitempty"`
-	Tags          []string     `json:"tags,omitempty"`
-	AllowPrecise  *bool        `json:"allow_precise,omitempty"`
-	PrecisePoint  *scene.Point `json:"precise_point,omitempty"`
-	CoarseGeohash *string      `json:"coarse_geohash,omitempty"`
-	StartsAt      *time.Time   `json:"starts_at,omitempty"`
-	EndsAt        *time.Time   `json:"ends_at,omitempty"`
+	Title          *string      `json:"title,omitempty"`
+	Description    *string      `json:"description,omitempty"`
+	Tags           []string     `json:"tags,omitempty"`
+	AllowPrecise   *bool        `json:"allow_precise,omitempty"`
+	PrecisePoint   *scene.Point `json:"precise_point,omitempty"`
+	CoarseGeohash  *string      `json:"coarse_geohash,omitempty"`
+	StartsAt       *time.Time   `json:"starts_at,omitempty"`
+	EndsAt         *time.Time   `json:"ends_at,omitempty"`
+	LocationAccess *string      `json:"location_access,omitempty"`
 }
 
 // CancelEventRequest represents the request body for cancelling an event.
@@ -113,7 +115,7 @@ func toPublicOccurrence(event *scene.Event) *PublicOccurrence {
 		CoarseGeohash: event.CoarseGeohash,
 		Precision:     "coarse",
 	}
-	if event.AllowPrecise && event.PrecisePoint != nil {
+	if event.AllowPrecise && event.LocationAccess != "protected" && event.PrecisePoint != nil {
 		pointCopy := *event.PrecisePoint
 		occurrence.DisplayPoint = &pointCopy
 		occurrence.Precision = "precise"
@@ -126,6 +128,17 @@ func toPublicOccurrence(event *scene.Event) *PublicOccurrence {
 	}
 	occurrence.DisplayPoint = applyJitter(point)
 	return occurrence
+}
+
+func publicEventCopy(event *scene.Event) *scene.Event {
+	if event == nil {
+		return nil
+	}
+	copy := *event
+	if copy.LocationAccess == "protected" {
+		copy.PrecisePoint = nil
+	}
+	return &copy
 }
 
 // sceneBatchFetcher is an optional repository capability for batch scene lookups.
@@ -246,6 +259,14 @@ func (h *EventHandlers) CreateEvent(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	req.Description = validatedDesc
+	if req.LocationAccess == "" {
+		req.LocationAccess = "public"
+	}
+	if req.LocationAccess != "public" && req.LocationAccess != "protected" {
+		ctx := middleware.SetErrorCode(r.Context(), ErrCodeValidation)
+		WriteError(w, ctx, http.StatusBadRequest, ErrCodeValidation, "location_access must be public or protected")
+		return
+	}
 
 	// Sanitize tags to prevent HTML injection
 	sanitizedTags := make([]string, len(req.Tags))
@@ -256,19 +277,20 @@ func (h *EventHandlers) CreateEvent(w http.ResponseWriter, r *http.Request) {
 	// Create event
 	now := time.Now()
 	newEvent := &scene.Event{
-		ID:            uuid.New().String(),
-		SceneID:       req.SceneID,
-		Title:         req.Title,
-		Description:   req.Description,
-		AllowPrecise:  req.AllowPrecise,
-		PrecisePoint:  req.PrecisePoint,
-		CoarseGeohash: req.CoarseGeohash,
-		Tags:          sanitizedTags,
-		Status:        "scheduled", // Default status
-		StartsAt:      req.StartsAt,
-		EndsAt:        req.EndsAt,
-		CreatedAt:     &now,
-		UpdatedAt:     &now,
+		ID:             uuid.New().String(),
+		SceneID:        req.SceneID,
+		Title:          req.Title,
+		Description:    req.Description,
+		AllowPrecise:   req.AllowPrecise,
+		PrecisePoint:   req.PrecisePoint,
+		CoarseGeohash:  req.CoarseGeohash,
+		Tags:           sanitizedTags,
+		Status:         "scheduled", // Default status
+		StartsAt:       req.StartsAt,
+		EndsAt:         req.EndsAt,
+		LocationAccess: req.LocationAccess,
+		CreatedAt:      &now,
+		UpdatedAt:      &now,
 	}
 
 	// Insert into repository (will automatically enforce location consent).
@@ -292,7 +314,7 @@ func (h *EventHandlers) CreateEvent(w http.ResponseWriter, r *http.Request) {
 	// Return created event
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)
-	if err := json.NewEncoder(w).Encode(stored); err != nil {
+	if err := json.NewEncoder(w).Encode(publicEventCopy(stored)); err != nil {
 		// Log error but response already started
 		slog.ErrorContext(r.Context(), "failed to encode event response", "error", err)
 	}
@@ -405,6 +427,14 @@ func (h *EventHandlers) UpdateEvent(w http.ResponseWriter, r *http.Request) {
 		}
 		updatedEvent.CoarseGeohash = *req.CoarseGeohash
 	}
+	if req.LocationAccess != nil {
+		if *req.LocationAccess != "public" && *req.LocationAccess != "protected" {
+			ctx := middleware.SetErrorCode(r.Context(), ErrCodeValidation)
+			WriteError(w, ctx, http.StatusBadRequest, ErrCodeValidation, "location_access must be public or protected")
+			return
+		}
+		updatedEvent.LocationAccess = *req.LocationAccess
+	}
 
 	// Handle time updates with validation
 	startsAt := updatedEvent.StartsAt
@@ -458,7 +488,7 @@ func (h *EventHandlers) UpdateEvent(w http.ResponseWriter, r *http.Request) {
 	// Return updated event
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
-	if err := json.NewEncoder(w).Encode(stored); err != nil {
+	if err := json.NewEncoder(w).Encode(publicEventCopy(stored)); err != nil {
 		// Log error but response already started
 		slog.ErrorContext(r.Context(), "failed to encode event response", "error", err)
 	}
@@ -512,7 +542,7 @@ func (h *EventHandlers) GetEvent(w http.ResponseWriter, r *http.Request) {
 
 	// Create response with event, RSVP counts, and active stream
 	response := EventWithRSVPCounts{
-		Event:        foundEvent,
+		Event:        publicEventCopy(foundEvent),
 		RSVPCounts:   rsvpCounts,
 		ActiveStream: activeStream,
 		Occurrence:   toPublicOccurrence(foundEvent),
@@ -626,7 +656,7 @@ func (h *EventHandlers) CancelEvent(w http.ResponseWriter, r *http.Request) {
 	// Return cancelled event
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
-	if err := json.NewEncoder(w).Encode(cancelledEvent); err != nil {
+	if err := json.NewEncoder(w).Encode(publicEventCopy(cancelledEvent)); err != nil {
 		// Log error but response already started
 		slog.ErrorContext(r.Context(), "failed to encode event response", "error", err)
 	}
@@ -963,7 +993,7 @@ func (h *EventHandlers) SearchEvents(w http.ResponseWriter, r *http.Request) {
 	eventsWithData := make([]*EventWithRSVPCounts, len(events))
 	for i, event := range events {
 		eventsWithData[i] = &EventWithRSVPCounts{
-			Event:        event,
+			Event:        publicEventCopy(event),
 			RSVPCounts:   rsvpCountsMap[event.ID],
 			Scene:        sceneMap[event.SceneID],
 			ActiveStream: activeStreamsMap[event.ID], // nil if no active stream

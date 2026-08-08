@@ -176,6 +176,17 @@ func (s *Service) ReviewCreatorAccess(ctx context.Context, requestID, reviewerID
 	return s.repository.ReviewCreatorAccessRequest(ctx, requestID, reviewerID, status, strings.TrimSpace(note), s.now())
 }
 
+func (s *Service) ListCreatorAccess(ctx context.Context, reviewerID, status string) ([]CreatorAccessRequest, error) {
+	reviewer, err := s.repository.GetUser(ctx, reviewerID)
+	if err != nil || reviewer.Role != "admin" {
+		return nil, errors.New("administrator role required")
+	}
+	if status != "" && status != "pending" && status != "approved" && status != "rejected" && status != "withdrawn" {
+		return nil, errors.New("invalid creator request status")
+	}
+	return s.repository.ListCreatorAccessRequests(ctx, status)
+}
+
 func safeReturnPath(value string) (string, error) {
 	if value == "" {
 		return "/", nil

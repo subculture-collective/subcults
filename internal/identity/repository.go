@@ -16,6 +16,7 @@ type Repository interface {
 	RevokeAllSessions(ctx context.Context, userID string, now time.Time) error
 	CreateCreatorAccessRequest(ctx context.Context, userID, statement string, now time.Time) (CreatorAccessRequest, error)
 	GetCreatorAccessRequest(ctx context.Context, userID string) (CreatorAccessRequest, error)
+	ListCreatorAccessRequests(ctx context.Context, status string) ([]CreatorAccessRequest, error)
 	ReviewCreatorAccessRequest(ctx context.Context, requestID, reviewerID, status, note string, now time.Time) (CreatorAccessRequest, error)
 }
 

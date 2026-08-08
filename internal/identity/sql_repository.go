@@ -237,6 +237,23 @@ func (r *SQLRepository) GetCreatorAccessRequest(ctx context.Context, userID stri
 	return scanCreatorRequest(r.db.QueryRowContext(ctx, creatorRequestSelect+` WHERE user_id = $1::uuid ORDER BY created_at DESC LIMIT 1`, userID))
 }
 
+func (r *SQLRepository) ListCreatorAccessRequests(ctx context.Context, status string) ([]CreatorAccessRequest, error) {
+	rows, err := r.db.QueryContext(ctx, creatorRequestSelect+` WHERE ($1 = '' OR status = $1) ORDER BY created_at ASC`, status)
+	if err != nil {
+		return nil, fmt.Errorf("list creator access requests: %w", err)
+	}
+	defer rows.Close()
+	requests := make([]CreatorAccessRequest, 0)
+	for rows.Next() {
+		request, err := scanCreatorRequest(rows)
+		if err != nil {
+			return nil, err
+		}
+		requests = append(requests, request)
+	}
+	return requests, rows.Err()
+}
+
 func (r *SQLRepository) ReviewCreatorAccessRequest(ctx context.Context, requestID, reviewerID, status, note string, now time.Time) (CreatorAccessRequest, error) {
 	tx, err := r.db.BeginTx(ctx, nil)
 	if err != nil {

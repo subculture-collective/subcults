@@ -3,6 +3,7 @@ package identity
 import (
 	"context"
 	"database/sql"
+	"sort"
 	"sync"
 	"time"
 
@@ -192,6 +193,19 @@ func (r *InMemoryRepository) GetCreatorAccessRequest(_ context.Context, userID s
 		return CreatorAccessRequest{}, sql.ErrNoRows
 	}
 	return latest, nil
+}
+
+func (r *InMemoryRepository) ListCreatorAccessRequests(_ context.Context, status string) ([]CreatorAccessRequest, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	requests := make([]CreatorAccessRequest, 0, len(r.creatorRequests))
+	for _, request := range r.creatorRequests {
+		if status == "" || request.Status == status {
+			requests = append(requests, request)
+		}
+	}
+	sort.Slice(requests, func(i, j int) bool { return requests[i].CreatedAt.Before(requests[j].CreatedAt) })
+	return requests, nil
 }
 
 func (r *InMemoryRepository) ReviewCreatorAccessRequest(_ context.Context, requestID, reviewerID, status, note string, now time.Time) (CreatorAccessRequest, error) {

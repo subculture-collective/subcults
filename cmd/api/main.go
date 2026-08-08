@@ -31,6 +31,7 @@ import (
 	"github.com/onnwee/subcults/internal/identity"
 	"github.com/onnwee/subcults/internal/jobs"
 	"github.com/onnwee/subcults/internal/livekit"
+	"github.com/onnwee/subcults/internal/locationaccess"
 	"github.com/onnwee/subcults/internal/membership"
 	"github.com/onnwee/subcults/internal/middleware"
 	"github.com/onnwee/subcults/internal/payment"
@@ -238,6 +239,11 @@ func main() {
 	audienceService := audience.NewService(audienceRepo)
 	signalRepo := domainsignal.NewInMemoryRepository()
 	signalService := domainsignal.NewService(signalRepo)
+	locationRepository := locationaccess.Repository(locationaccess.NewInMemoryRepository())
+	if runtimeRepositories != nil {
+		locationRepository = locationaccess.NewSQLRepository(runtimeRepositories.DB)
+	}
+	protectedLocationHandlers := api.NewProtectedLocationHandlers(locationRepository, eventRepo, sceneRepo)
 
 	jwtSecret := strings.TrimSpace(os.Getenv("JWT_SECRET_CURRENT"))
 	if jwtSecret == "" {
@@ -666,6 +672,8 @@ func main() {
 	mux.HandleFunc("/api/v1/me", identityHandlers.Me)
 	mux.HandleFunc("/api/v1/creator-access", identityHandlers.CreatorAccess)
 	mux.HandleFunc("/api/v1/admin/creator-access/", identityHandlers.ReviewCreatorAccess)
+	mux.HandleFunc("/api/v1/admin/creator-access", identityHandlers.ListCreatorAccess)
+	mux.Handle("/api/v1/events/", protectedLocationHandlers)
 	// Compatibility aliases are retained for the existing client during beta.
 	mux.HandleFunc("/api/auth/login", identityHandlers.RequestMagicLink)
 	mux.HandleFunc("/api/auth/refresh", identityHandlers.Refresh)

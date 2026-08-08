@@ -83,6 +83,24 @@ func (h *IdentityAuthHandlers) ReviewCreatorAccess(w http.ResponseWriter, r *htt
 	writeData(w, http.StatusOK, request)
 }
 
+func (h *IdentityAuthHandlers) ListCreatorAccess(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		methodNotAllowed(w, http.MethodGet)
+		return
+	}
+	userID := middleware.GetUserID(r.Context())
+	if userID == "" {
+		WriteError(w, r.Context(), http.StatusUnauthorized, ErrCodeUnauthorized, "Authentication required")
+		return
+	}
+	requests, err := h.service.ListCreatorAccess(r.Context(), userID, r.URL.Query().Get("status"))
+	if err != nil {
+		WriteError(w, r.Context(), http.StatusForbidden, ErrCodeForbidden, "Administrator role required")
+		return
+	}
+	writeData(w, http.StatusOK, map[string]any{"requests": requests})
+}
+
 func NewIdentityAuthHandlers(service *identity.Service, secureCookie bool) *IdentityAuthHandlers {
 	return &IdentityAuthHandlers{service: service, secureCookie: secureCookie}
 }
