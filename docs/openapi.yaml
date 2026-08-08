@@ -48,6 +48,10 @@ tags:
     description: Event RSVP management
   - name: Touring
     description: Touring profiles, itineraries, and public appearance discovery
+  - name: Signals
+    description: Versioned, time-bounded activation notices
+  - name: Audience
+    description: Explicit delivery-consent preferences
   - name: Membership
     description: Scene membership management
   - name: Payments
@@ -973,6 +977,63 @@ paths:
         '200': {description: Tour itinerary, content: {application/json: {schema: {$ref: '#/components/schemas/TouringDetailResponse'}}}}
         '404': {$ref: '#/components/responses/NotFound'}
 
+  /signals:
+    post:
+      operationId: createSignalDraft
+      tags: [Signals]
+      summary: Create a Signal draft
+      security: [{bearerAuth: []}]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/CreateSignalRequest'}
+      responses:
+        '201': {description: Immutable first revision, content: {application/json: {schema: {type: object}}}}
+        '400': {$ref: '#/components/responses/ValidationError'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+
+  /signals/{id}:
+    get:
+      operationId: getPublishedSignal
+      tags: [Signals]
+      summary: Get the display-safe representation of a published Signal
+      security: [{}, {bearerAuth: []}]
+      parameters: [{$ref: '#/components/parameters/ResourceID'}]
+      responses:
+        '200': {description: Published Signal, content: {application/json: {schema: {$ref: '#/components/schemas/SignalDetailResponse'}}}}
+        '404': {$ref: '#/components/responses/NotFound'}
+
+  /signals/{id}/publish:
+    post:
+      operationId: publishSignal
+      tags: [Signals]
+      summary: Publish the latest immutable Signal revision
+      security: [{bearerAuth: []}]
+      parameters: [{$ref: '#/components/parameters/ResourceID'}]
+      responses:
+        '200': {description: Published revision, content: {application/json: {schema: {type: object}}}}
+        '400': {$ref: '#/components/responses/ValidationError'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+
+  /audience/consent:
+    post:
+      operationId: mutateAudienceConsent
+      tags: [Audience]
+      summary: Grant or revoke one disclosure-scoped delivery permission
+      description: The server resolves the authenticated DID through a verified, revocable Contact Point link; callers cannot select a Contact Point ID.
+      security: [{bearerAuth: []}]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/ConsentMutationRequest'}
+      responses:
+        '200': {description: Current consent state, content: {application/json: {schema: {$ref: '#/components/schemas/ConsentMutationResponse'}}}}
+        '400': {$ref: '#/components/responses/ValidationError'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+
   /search/posts:
     get:
       operationId: searchPosts
@@ -1313,6 +1374,7 @@ paths:
       operationId: refreshToken
       tags: [Auth]
       summary: Refresh access token (stub)
+      security: [{}]
       responses:
         '401':
           $ref: '#/components/responses/Unauthorized'
@@ -1322,6 +1384,7 @@ paths:
       operationId: login
       tags: [Auth]
       summary: Login (not implemented)
+      security: [{}]
       responses:
         '501':
           description: Not implemented
@@ -1331,6 +1394,7 @@ paths:
       operationId: logout
       tags: [Auth]
       summary: Logout and clear cookies
+      security: [{}, {bearerAuth: []}]
       responses:
         '204':
           description: Logged out
@@ -1340,6 +1404,7 @@ paths:
       operationId: getMe
       tags: [Auth]
       summary: Get current user (stub)
+      security: [{bearerAuth: []}]
       responses:
         '401':
           $ref: '#/components/responses/Unauthorized'
@@ -1389,6 +1454,7 @@ paths:
       operationId: postTelemetryEvents
       tags: [Telemetry]
       summary: Submit client telemetry events
+      security: [{}]
       x-rate-limit: 100/min (by IP)
       requestBody:
         required: true
@@ -1414,6 +1480,7 @@ paths:
       operationId: postTelemetryMetrics
       tags: [Telemetry]
       summary: Submit client performance metrics
+      security: [{}]
       x-rate-limit: 100/min (by IP)
       requestBody:
         required: true
@@ -1439,6 +1506,7 @@ paths:
       operationId: handleClientError
       tags: [Telemetry]
       summary: Report a client-side error
+      security: [{}]
       x-rate-limit: 10/min (by IP)
       requestBody:
         required: true
@@ -1456,6 +1524,7 @@ paths:
       operationId: healthLive
       tags: [Health]
       summary: Liveness probe
+      security: [{}]
       responses:
         '200':
           description: Service is alive
@@ -1469,6 +1538,7 @@ paths:
       operationId: healthReady
       tags: [Health]
       summary: Readiness probe
+      security: [{}]
       description: Checks database, Redis, LiveKit, and Stripe connectivity.
       responses:
         '200':
@@ -1490,6 +1560,7 @@ paths:
       operationId: handleStripeWebhook
       tags: [Payments]
       summary: Stripe webhook handler
+      security: [{}]
       description: Receives Stripe events (checkout.session.completed, payment_intent.succeeded, etc.). Verified via Stripe-Signature header.
       parameters:
         - name: Stripe-Signature
@@ -1515,6 +1586,7 @@ paths:
       operationId: root
       tags: [Health]
       summary: Service info
+      security: [{}]
       responses:
         '200':
           description: Service metadata
@@ -1535,6 +1607,7 @@ paths:
       operationId: cspReport
       tags: [Health]
       summary: CSP violation report endpoint
+      security: [{}]
       requestBody:
         required: true
         content:
@@ -1550,6 +1623,7 @@ paths:
       operationId: metrics
       tags: [Health]
       summary: Prometheus metrics endpoint
+      security: [{}]
       responses:
         '200':
           description: Prometheus metrics
@@ -2411,6 +2485,83 @@ components:
         profile: {type: object, properties: {id: {type: string}, name: {type: string}, home_territory: {type: string}}}
         tour: {type: object, properties: {id: {type: string}, title: {type: string}}}
         appearances: {type: array, items: {$ref: '#/components/schemas/AppearanceSummary'}}
+
+    # ── Signals and audience consent ───────────────────────────────
+    SignalReference:
+      type: object
+      required: [id, name, type]
+      properties:
+        id: {type: string}
+        name: {type: string}
+        type: {type: string}
+    SignalTarget:
+      type: object
+      required: [id, type]
+      properties:
+        id: {type: string}
+        title: {type: string}
+        type: {type: string}
+    ConsentScope:
+      type: object
+      required: [id, sender, channel, purpose, disclosure_version]
+      properties:
+        id: {type: string}
+        sender: {$ref: '#/components/schemas/SignalReference'}
+        channel: {type: string}
+        purpose: {type: string}
+        disclosure_version: {type: string}
+        region: {type: string}
+        tour: {$ref: '#/components/schemas/SignalReference'}
+        place: {$ref: '#/components/schemas/SignalReference'}
+    ConsentState:
+      type: object
+      required: [scope, status, verification_state]
+      properties:
+        scope: {$ref: '#/components/schemas/ConsentScope'}
+        status: {type: string, enum: [granted, revoked, not_granted]}
+        verification_state: {type: string, enum: [verified, pending, unverified]}
+    SignalDetailResponse:
+      type: object
+      required: [signal]
+      properties:
+        signal:
+          type: object
+          required: [id, title, state, sender]
+          properties:
+            id: {type: string}
+            title: {type: string}
+            body: {type: string}
+            state: {type: string, enum: [published]}
+            sender: {$ref: '#/components/schemas/SignalReference'}
+            target: {$ref: '#/components/schemas/SignalTarget'}
+        consent_scopes:
+          type: array
+          items: {$ref: '#/components/schemas/ConsentState'}
+    CreateSignalRequest:
+      type: object
+      required: [id, owner_type, owner_id, target_type, target_id, body, audience_definition]
+      properties:
+        id: {type: string}
+        owner_type: {type: string, enum: [scene, profile]}
+        owner_id: {type: string}
+        target_type: {type: string, enum: [scene, profile, event, appearance, tour, post, stream, offer]}
+        target_id: {type: string}
+        subject: {type: string}
+        body: {type: string}
+        deep_link: {type: string}
+        audience_definition: {type: object, additionalProperties: true}
+        consent_scope_ids: {type: array, items: {type: string}}
+    ConsentMutationRequest:
+      type: object
+      required: [scope_id, action]
+      properties:
+        scope_id: {type: string}
+        action: {type: string, enum: [grant, revoke]}
+    ConsentMutationResponse:
+      type: object
+      required: [consent]
+      properties:
+        consent: {$ref: '#/components/schemas/ConsentState'}
 
     # ── Payment ─────────────────────────────────────────────────────
     OnboardSceneRequest:

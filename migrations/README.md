@@ -98,6 +98,12 @@ make migrate-down
 | 000009 | enhance_scenes_table | Enhances scenes table with tags array, visibility CHECK constraint (public/private/unlisted), palette JSONB (replaces primary_color/secondary_color), owner_user_id FK, and FTS generated column. Makes coarse_geohash NOT NULL for privacy-conscious discovery. |
 | 000010-000025 | Various | Additional migrations for scene names, event RSVPs, stream analytics, payment records, webhook events, idempotency keys, stream participants, and quality metrics. |
 | 000026 | add_fts_immutable_wrapper | Creates IMMUTABLE wrapper function for to_tsvector to enable GIN indexes on full-text search expressions. Adds FTS GIN indexes on scenes (name+description+tags), events (title+tags), and posts (text). Resolves PostgreSQL immutability constraints that prevented direct FTS indexing. |
+| 000027-000032 | Runtime hardening | Audit, schema-version, telemetry/search, Stripe onboarding, and scene-moderation additions. |
+| 000033 | places_profiles_acts | Places, venues, Profiles/Acts, scene affiliations, and coarse temporal Home Territories. |
+| 000034 | tours_appearances_provenance | Event occurrence references, multi-host context, Tours, Appearances, sources, and assertion history. |
+| 000035 | audience_consent | Private Contact Points and DID links, relationship evidence, scoped consent events, and suppression enforcement. |
+| 000036 | signals_delivery | Versioned Signals, linked consent scopes, provider-neutral deliveries, and engagement provenance. |
+| 000037 | commerce_attribution | Explicit Signal/Delivery/Event/Appearance/Tour attribution references and webhook receipt digests. |
 
 ## Writing New Migrations
 
@@ -129,9 +135,9 @@ make migrate-down
 - **indexer_state**: Cursor tracking for Jetstream ingestion
 - **audit_logs**: Privacy-compliant access logging with retention policies
 
-### Planned Audience and Touring Tables
+### Audience and Touring Tables
 
-The proposed sequence in `../docs/product/AUDIENCE_DROPS_AND_TOURING.md` adds
+The sequence in `../docs/product/AUDIENCE_DROPS_AND_TOURING.md` adds
 focused migrations rather than overloading `events.tags` or `memberships`:
 
 - `profiles`, `acts`, `profile_controllers`, and `act_scene_affiliations`
@@ -139,15 +145,14 @@ focused migrations rather than overloading `events.tags` or `memberships`:
 - `event_hosts`, `appearances`, `tours`, and source/assertion provenance tables
 - `audience_relationships`, verified `contact_points`, append-only
   `consent_events`, and `suppressions`
-- `signals`, revisions, audience snapshots, deliveries, engagement events, and
-  conversion events
-- provider connections, import cursors, external identities, reconciliation
-  candidates, and correction/supersession links
+- `signals`, revisions, consent-scope links, deliveries, and engagement events
+- commerce attribution references and provider webhook receipt digests
 
-The implementation plan proposes versions `000033` through `000036`; execution
-must verify that they are still the next available numbers before authoring the
-up/down pairs. Existing `events.scene_id` remains the compatibility primary host
-during the host-relation migration.
+Migrations `000033` through `000037` are implemented and were validated on a
+fresh PostGIS 16 database. Provider connections, import cursors, durable
+repository adapters, and an operator reconciliation queue remain future work.
+Existing `events.scene_id` remains the compatibility primary host during the
+host-relation migration.
 
 ### Location Privacy
 

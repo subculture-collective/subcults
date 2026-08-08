@@ -22,7 +22,7 @@ Subcults classifies data into four tiers. Each tier prescribes storage, access, 
 | Consent grant and revocation evidence | Sensitive | Append-only auditability; user export/revocation access |
 | Suppression and delivery-enforcement state | Restricted | Service-only pre-delivery enforcement; expose safe status, not internals |
 | Segment membership and inferred affinity | Sensitive | Explainable, disableable, purpose-limited |
-| Raw delivery, click, purchase, and attribution events | Sensitive | Minimize identifiers; disclose attribution model/window |
+| Delivery, click, purchase, and attribution events | Sensitive | Minimize identifiers; disclose attribution model/window; retain provider payload digests rather than raw webhook bodies in the provenance fields |
 | Aggregated Signal metrics | Internal | Enforce minimum cohort sizes where needed |
 
 See `docs/product/AUDIENCE_DROPS_AND_TOURING.md` for the governing domain and

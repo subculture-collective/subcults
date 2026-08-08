@@ -569,6 +569,12 @@ Offline behavior:
 - Signal interest, consent, and preference controls.
 - Source/verification/change states.
 
+Repository status: the public Profile, Tour, appearance-search, and published
+Signal read shapes plus scoped consent mutation are implemented for the local
+web/API fixture runtime. iOS must not treat those routes as production-ready
+until Postgres repository adapters and the real authentication/session contract
+replace the guarded in-memory development path.
+
 ### Milestone 4: Streaming
 
 - LiveKit token fetch.

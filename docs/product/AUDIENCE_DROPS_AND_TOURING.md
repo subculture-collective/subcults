@@ -1,9 +1,27 @@
 # Audience, Drops, and Touring Product Plan
 
-**Status:** Proposed canonical product model
+**Status:** Accepted model; local schema/domain/API/UI slices implemented, production runtime blocked
 **Last updated:** 2026-08-08
 **Decision record:** [ADR-007](../adr/0007-scene-signals-touring-relationship-model.md)
 **Implementation plan:** [Audience, Drops, and Touring Implementation Plan](../superpowers/plans/2026-08-08-audience-drops-touring.md)
+
+## Implementation Evidence and Boundary
+
+As of 2026-08-08, migrations `000033` through `000037`, the touring,
+audience, Signal, import, and attribution domain packages, additive public read
+routes, and the Profile/Tour/Signal web surfaces exist in the repository. A
+fresh PostGIS database applied all migrations through `000037`; migrations
+`000036` and `000037` also passed individual down/re-up checks. Focused Go API
+and race tests, focused Vitest suites, and the production web build pass in the
+documented development environments.
+
+This is not production-delivery evidence. The API still has no Postgres domain
+repository adapters or configured login implementation. Production startup now
+refuses to substitute in-memory repositories, while the explicit development
+switch uses in-memory touring, audience, and Signal state. Email and web-push
+are provider-neutral interfaces only; no external provider smoke was run. The
+CSV importer produces provenance assertions but is not yet attached to a
+scheduled provider connection or operator reconciliation workspace.
 
 ## Purpose
 
@@ -420,6 +438,11 @@ verified correction never destroys the original claim or provenance.
 | 4. Commerce and imports | Stripe attribution plus selected ticketing/commerce import adapters | Signed webhook, idempotency, reconciliation, provenance tests |
 | 5. Advanced channels | SMS/social adapters where operating capacity exists | Registration, compliance, deliverability, opt-out propagation |
 | 6. Assisted automation | Drafting and recommendations with human approval and auditability | Evaluation set, safety limits, approval and rollback evidence |
+
+Current evidence reaches local implementation of major Phase 1 and Phase 2
+read/consent primitives plus bounded Phase 4 schema/domain work. Phase 0 remains
+the release blocker: durable domain adapters and real authentication must exist
+before these surfaces can be considered configured runtime capability.
 
 ## Success Measures
 

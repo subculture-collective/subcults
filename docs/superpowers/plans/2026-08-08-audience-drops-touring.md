@@ -17,6 +17,60 @@ environment, use the repository's available `multi-agent-workflows` and
 
 **Tech Stack:** Go 1.24 `net/http`, PostgreSQL 16/PostGIS, `golang-migrate`, React 19/TypeScript/Vite, Zustand, MapLibre, Vitest, Go `testing`, OpenAPI 3.
 
+## Execution Status (2026-08-08)
+
+| Task | Repository result | Evidence boundary |
+| --- | --- | --- |
+| 1 | Guard and prerequisite implemented | Production refuses in-memory fallback; durable domain adapters and configured auth remain blocked |
+| 2-6 | Implemented and committed | Focused Go/API/UI tests and web build pass; local fixture/read model only |
+| 7-9 | Implemented and committed | Consent/Signal race and API tests plus 42 focused UI tests pass; no live delivery provider |
+| 10 | Implemented and committed | Attribution/import/replay tests and migration 37 up/down pass; importer is not an operator workflow |
+| 11 | Reconciled against current evidence | Repository-wide gate records pre-existing failures separately from completed slices |
+
+The unchecked procedural boxes below preserve the original TDD instructions;
+they are not used as evidence that every command produced its originally
+predicted pre-implementation result. The status table and final verification
+record are authoritative.
+
+### Final verification record
+
+- The complete migration chain through `000037` applies to a fresh PostGIS
+  database; migration 37 also passed one-step down/up verification.
+- `go test -race ./...` and `go vet ./...` pass in the repository's API builder
+  image. The host cannot compile the existing `bimg` dependency because its
+  `pkg-config` environment does not provide `vips`; this is an environment
+  limitation, not an omitted test run.
+- Web lint and production build pass. The 11-file focused regression set passes
+  187 tests, and the Signal/consent UI set passes 42 tests.
+- The repository-wide web suite retains 48 failures across 14 files, with 1,259
+  tests passing and one skipped. These failures are in older session replay,
+  stream listener, i18n, settings, layout, and accessibility-mock expectations;
+  they are a baseline release gate and are not represented as passing.
+- OpenAPI validation reports zero errors and 13 existing policy/style warnings.
+  Canonical product/privacy/API documentation has no broken local links;
+  whole-corpus external checks still report stale third-party URLs and
+  `mailto:` checker failures separately.
+
+### Product validation matrix result
+
+| Scenario | Result |
+| --- | --- |
+| Two-city tour | Pass: repository test verifies ordered stops and the primary act |
+| Three-act festival with set times | Partial: festival and multiple appearance semantics pass, but the full three-act timed fixture is not present |
+| Guest one-off without Tour | Pass: one-off projection and repository behavior are covered |
+| Changed, postponed, and cancelled date | Partial: correction history and changed/cancelled states exist; postponed is not modeled |
+| Same-name venues in different Places | Schema supports it through place-scoped uniqueness; no dedicated end-to-end fixture |
+| Protected location revealed only after authorization | Not implemented; public/coarse projection is safe, but staged authorized reveal remains future work |
+| Coarse-only public occurrence | Pass: public occurrence/API projection tests cover it |
+| Private home Scene with public away Appearance | Pass at read-model/API level; no deployed runtime smoke |
+| Conflicting assertions and non-destructive correction | Pass: source deduplication and correction lineage are covered |
+| Consent revoked after scheduling and before delivery | Pass: dispatch rechecks consent and suppresses delivery |
+
+Production completion is blocked on durable Postgres domain adapters, a real
+authentication/session implementation, and configured delivery providers.
+Those require a separate persistence implementation and external credentials;
+the API deliberately refuses to present in-memory repositories as production.
+
 ---
 
 ## File Structure

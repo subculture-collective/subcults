@@ -1,6 +1,6 @@
 # ADR-007: Separate Profiles, Event Occurrences, Appearances, and Signals
 
-**Status:** Proposed
+**Status:** Accepted
 **Date:** 2026-08-08
 
 ## Context

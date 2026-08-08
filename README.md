@@ -50,6 +50,11 @@ Rebuild the connective tissue of the underground: a trust‑based discovery and 
 
 The canonical extension to this roadmap is [Audience, Drops, and Touring](docs/product/AUDIENCE_DROPS_AND_TOURING.md). It defines how artist home territory, event occurrence location, tours, festival appearances, one-off shows, consent, and activation fit the original scene model.
 
+Repository status: the schema, local domain services, additive read APIs, and
+web surfaces for this extension are implemented and tested. They are not yet a
+production CRM: durable Postgres domain adapters, configured authentication,
+and live delivery-provider integrations remain release prerequisites.
+
 ## Development Principles
 
 - Small, self‑contained issues (actionable, testable, reversible)

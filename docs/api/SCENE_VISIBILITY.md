@@ -321,6 +321,6 @@ CREATE TABLE scene_visibility_history (
 
 ## Related Documentation
 
-- [Privacy Principles](/docs/PRIVACY.md)
-- [Scene Palette Endpoint](/docs/api/PALETTE_ENDPOINT.md)
-- [Membership API](/internal/api/MEMBERSHIP_API.md)
+- [Privacy Principles](../PRIVACY.md)
+- [Scene Palette Endpoint](./PALETTE_ENDPOINT.md)
+- [Membership API](../MEMBERSHIP_API.md)

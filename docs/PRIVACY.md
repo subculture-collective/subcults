@@ -33,9 +33,35 @@ When precise location consent is not granted, only coarse location is stored:
 
 The `RoundGeohash()` function truncates geohashes to the configured precision, preventing accidental leakage of higher-precision data.
 
-### Location Jitter (Planned)
+### Public Event Occurrence Projection
 
-Future enhancement: random offset applied to map display coordinates to prevent deanonymization through coordinate triangulation.
+Event search now emits one server-approved `occurrence` projection. Precise
+display is returned only when Event disclosure permits it; coarse Events are
+represented by a jittered geohash-derived display point. The current web map
+consumes that projection and does not choose a raw `precise_point` itself.
+
+Scene search also exposes jittered public centroids. Older repository-level
+location-jitter tests and legacy payload fallbacks remain, so contributors must
+not infer that every historical endpoint has adopted the new occurrence DTO.
+
+## Audience and Delivery Consent
+
+Contact Points, DID-to-contact links, relationship evidence, consent events,
+and suppressions are separate records. A verified email/push endpoint, Scene
+membership, RSVP, purchase, Stream participation, or selected city does not by
+itself authorize delivery.
+
+Authorization requires a grant matching sender, channel, purpose, disclosure
+version, and any Tour/Event/Appearance/Place restriction. An applicable revoke
+or suppression prevents delivery, including when it occurs after scheduling;
+the delivery dispatcher rechecks immediately before provider send. Public
+Signal pages expose only safe consent status and scope metadata, never the
+private Contact Point value.
+
+Migrations define encrypted Contact Point storage plus HMAC lookup. The current
+API runtime has only an in-memory development implementation and no live
+provider adapter, so this repository evidence is not proof of production PII
+storage or message delivery.
 
 ## Media Sanitization
 
@@ -219,7 +245,7 @@ Users can disable general analytics collection:
 setTelemetryOptOut(true);
 ```
 
-See [Telemetry Documentation](../web/src/lib/TELEMETRY.md) for complete details on what data is collected.
+See [Telemetry Documentation](./TELEMETRY.md) for complete details on what data is collected.
 
 ### Authentication
 

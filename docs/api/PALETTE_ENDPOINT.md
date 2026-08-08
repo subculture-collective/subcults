@@ -256,6 +256,6 @@ Where R, G, and B are gamma-corrected values derived from sRGB color components.
 
 ## Related Documentation
 
-- [Scene Management API](./SCENE_API.md)
+- [Scene Visibility API](./SCENE_VISIBILITY.md)
 - [Color Validation Package](../../internal/color/validator.go)
 - [WCAG 2.1 Contrast Guidelines](https://www.w3.org/WAI/WCAG21/Understanding/contrast-minimum.html)

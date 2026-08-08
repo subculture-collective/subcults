@@ -274,6 +274,6 @@ Planned improvements:
 
 ## Related Documentation
 
-- [Privacy Architecture](/docs/PRIVACY.md)
-- [Trust Graph System](/docs/api/TRUST_HANDLERS.md)
-- [Scene Visibility](/docs/api/SCENE_VISIBILITY.md)
+- [Privacy Architecture](../PRIVACY.md)
+- [Trust Graph System](../TRUST_HANDLERS.md)
+- [Scene Visibility](./SCENE_VISIBILITY.md)

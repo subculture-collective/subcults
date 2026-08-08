@@ -24,7 +24,7 @@ A DID-controlled public identity for an artist, venue, festival, promoter,
 collective, label, or curator. A Profile can be affiliated with Scenes without
 being identical to a Scene.
 
-- **Planned in:** `docs/product/AUDIENCE_DROPS_AND_TOURING.md`
+- **Defined in:** `internal/touring/model.go` and migration `000033`
 - **Related:** Act, Scene, Home Territory
 
 ### Act
@@ -33,7 +33,7 @@ A public creative project that can be billed in an Event Appearance. An Act is
 not necessarily one user and does not become part of a destination Scene merely
 by performing there.
 
-- **Planned in:** `docs/product/AUDIENCE_DROPS_AND_TOURING.md`
+- **Defined in:** `internal/touring/model.go` and migration `000033`
 - **Related:** Profile, Appearance, Tour
 
 ### Place
@@ -41,7 +41,7 @@ by performing there.
 A canonical city, market, or region and timezone used for geographic discovery.
 A Place is not a user's current location.
 
-- **Planned in:** `docs/product/AUDIENCE_DROPS_AND_TOURING.md`
+- **Defined in:** `internal/touring/model.go` and migration `000033`
 - **Related:** Venue, Event, Home Territory
 
 ### Venue
@@ -49,7 +49,7 @@ A Place is not a user's current location.
 A named hosting location within a Place. Venue retention and disclosure rules
 are independent of Scene and Act home-location privacy.
 
-- **Planned in:** `docs/product/AUDIENCE_DROPS_AND_TOURING.md`
+- **Defined in:** `internal/touring/model.go` and migration `000033`
 - **Related:** Place, Event, Allow Precise
 
 ### Home Territory
@@ -57,7 +57,7 @@ are independent of Scene and Act home-location privacy.
 A coarse, declared, temporal affinity between an Act and a Place. It is cultural
 context, not a residence or live-location inference.
 
-- **Planned in:** `docs/product/AUDIENCE_DROPS_AND_TOURING.md`
+- **Defined in:** `internal/touring/model.go` and migration `000033`
 - **Related:** Act, Place, Appearance
 
 ### Event
@@ -78,7 +78,7 @@ An Act's billed participation in an Event. A tour stop is a tour-linked
 Appearance; a festival appearance points to a festival Event; a one-off has no
 Tour.
 
-- **Planned in:** `docs/product/AUDIENCE_DROPS_AND_TOURING.md`
+- **Defined in:** `internal/touring/model.go`, `internal/touring/repository.go`, and migration `000034`
 - **Related:** Act, Event, Tour
 
 ### Tour
@@ -86,7 +86,7 @@ Tour.
 A named grouping of Appearances for a primary Act. A Tour does not own or
 override the occurrence location of its Events.
 
-- **Planned in:** `docs/product/AUDIENCE_DROPS_AND_TOURING.md`
+- **Defined in:** `internal/touring/model.go`, `internal/touring/repository.go`, and migration `000034`
 - **Related:** Act, Appearance, Event
 
 ### Signal
@@ -95,7 +95,7 @@ A versioned, time-bound invitation to take an action related to a Scene, Profile
 Event, Appearance, Tour, Post, Stream, or commerce offer. Signal is the
 provisional participant-facing term for the campaign bounded context.
 
-- **Planned in:** `docs/product/AUDIENCE_DROPS_AND_TOURING.md`
+- **Defined in:** `internal/signal/model.go`, `internal/signal/service.go`, and migration `000036`
 - **Related:** Audience Relationship, Consent Scope, Suppression
 
 ### Audience Relationship
@@ -104,7 +104,7 @@ A source-attributed connection between a participant/contact and a Scene or
 Profile. Membership, RSVP, purchase, attendance, Stream participation, interest,
 and delivery consent remain distinct evidence types.
 
-- **Planned in:** `docs/product/AUDIENCE_DROPS_AND_TOURING.md`
+- **Defined in:** `internal/audience/model.go`, `internal/audience/service.go`, and migration `000035`
 - **Related:** Signal, Consent Scope, Membership
 
 ### Consent Scope
@@ -114,7 +114,7 @@ place boundary against which append-only grant and revocation events are
 recorded. Contact verification is evidence on the Contact Point or DID link,
 not consent. Suppression is evaluated from its own enforcement ledger.
 
-- **Planned in:** `docs/product/AUDIENCE_DROPS_AND_TOURING.md`
+- **Defined in:** `internal/audience/model.go`, `internal/audience/service.go`, and migration `000035`
 - **Related:** Signal, Audience Relationship, Suppression
 
 ### Suppression
@@ -122,7 +122,7 @@ not consent. Suppression is evaluated from its own enforcement ledger.
 An enforcement record that blocks delivery globally or for a channel, sender,
 or Consent Scope. Applicable suppression always overrides a consent grant.
 
-- **Planned in:** `docs/product/AUDIENCE_DROPS_AND_TOURING.md`
+- **Defined in:** `internal/audience/model.go`, `internal/audience/service.go`, and migration `000035`
 - **Related:** Consent Scope, Signal
 
 ### Post

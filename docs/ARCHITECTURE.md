@@ -609,10 +609,10 @@ deployed production capability.
 | --- | --- | --- |
 | Scene/Event/RSVP/Stream domains | Models, handlers, schemas, tests; API repositories in memory | Durable Postgres repositories |
 | Authentication | JWT components and frontend state; environment login route not configured | End-to-end session/auth contract |
-| Location discovery | Search/ranking/map components with coarse/precise controls | Occurrence-based Place/Venue and touring facets |
-| Payments | Stripe handlers and payment schema, conditionally configured | Signal/Event attribution and reconciliation |
-| Notifications | Web client permission/subscription plumbing | Persistent consent, scheduling, delivery, and preferences |
-| Audience/Signals/Touring | Product plan and proposed ADR | Phased implementation defined in the canonical plan |
+| Location discovery | Public occurrence projection, coarse-cell bbox eligibility, touring facets, Profile/Tour pages | Durable occurrence queries and production data |
+| Payments | Conditional Stripe handlers, modeled attribution fields, webhook receipt digests | Durable adapters and live signed-provider verification |
+| Notifications | Web client permission plumbing, consent UI, provider-neutral delivery interface | Persistent adapters, scheduling operation, and provider smoke |
+| Audience/Signals/Touring | Migrations 000033-000037, domain services, additive read APIs and local UI | Postgres adapters, configured auth, authoring and operational workflows |
 
 ## Future Enhancements
 
