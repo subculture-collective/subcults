@@ -33,6 +33,7 @@ Files are numbered sequentially: `NNNN-short-description.md`
 | [004](0004-stdlib-router-over-chi.md)       | Standard Library Router Over Chi                            | Accepted | 2026-01 |
 | [005](0005-privacy-first-location.md)       | Privacy-First Location Consent Model                        | Accepted | 2025-12 |
 | [006](0006-distroless-container-images.md)  | Distroless Container Images                                 | Accepted | 2026-01 |
+| [007](0007-scene-signals-touring-relationship-model.md) | Separate Profiles, Event Occurrences, Appearances, and Signals | Proposed | 2026-08 |
 
 ## Creating a New ADR
 
@@ -45,4 +46,4 @@ Or manually: copy `adr-template.md`, fill in fields, add to index above.
 ## References
 
 - [ARCHITECTURE.md](../ARCHITECTURE.md)
-- [GLOSSARY.md](../../GLOSSARY.md)
+- [GLOSSARY.md](../GLOSSARY.md)

@@ -20,6 +20,11 @@ The Web Push notification system consists of four main components:
 - **Transparent Purpose**: Clear communication about what notifications will be sent (new events, stream starts, membership approvals).
 - **Local Storage**: Subscription endpoints and keys are treated as sensitive data and are not persisted to localStorage. The active subscription is derived from the browser's PushManager on each page load.
 - **No Tracking**: Subscription endpoints are only used for sending notifications, not for analytics or tracking user behavior across the app or web.
+- **Scoped Consent**: Browser permission and an active push subscription do not
+  by themselves authorize every Scene/Profile, purpose, or Signal. Delivery
+  requires a current scoped consent record.
+- **No Implicit Marketing**: Membership, RSVP, attendance, purchase, and Stream
+  participation never create marketing consent automatically.
 
 ## User Flow
 
@@ -165,6 +170,9 @@ npx web-push send-notification \
 - [ ] Analytics for notification engagement
 - [ ] A/B testing for notification content
 - [ ] Notification scheduling and batching
+- [ ] Scene/Profile/Act/Tour/city consent scopes and disclosure-version evidence
+- [ ] Revocation and suppression checks immediately before delivery
+- [ ] Tour-date, festival-program, venue-change, cancellation, and on-sale Signal categories
 
 ## Troubleshooting
 

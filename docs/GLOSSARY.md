@@ -2,7 +2,7 @@
 
 Shared vocabulary for the Subcults codebase. Each entry includes the canonical definition, where it's defined, and related terms. Reference this glossary on first use of a domain term in any document.
 
-See [ARCHITECTURE.md](docs/ARCHITECTURE.md) for system-level context.
+See [ARCHITECTURE.md](ARCHITECTURE.md) for system-level context.
 
 ---
 
@@ -12,20 +12,118 @@ See [ARCHITECTURE.md](docs/ARCHITECTURE.md) for system-level context.
 
 An underground music community or venue with privacy-conscious location. The primary unit of discovery on the platform.
 
-- **Defined in:** `internal/scene/scene.go` — `Scene` struct
+- **Defined in:** `internal/scene/model.go` — `Scene` struct
 - **Key fields:** `ID`, `DID`, `Name`, `Description`, `PrecisePoint`, `CoarseGeohash`, `AllowPrecise`
 - **Storage:** `scenes` table with PostGIS `GEOGRAPHY(Point, 4326)` column
 - **Privacy:** Location consent enforced via `EnforceLocationConsent()` — clears `PrecisePoint` if `AllowPrecise` is false
 - **Related:** Event, Post, Membership, Alliance
 
+### Profile
+
+A DID-controlled public identity for an artist, venue, festival, promoter,
+collective, label, or curator. A Profile can be affiliated with Scenes without
+being identical to a Scene.
+
+- **Planned in:** `docs/product/AUDIENCE_DROPS_AND_TOURING.md`
+- **Related:** Act, Scene, Home Territory
+
+### Act
+
+A public creative project that can be billed in an Event Appearance. An Act is
+not necessarily one user and does not become part of a destination Scene merely
+by performing there.
+
+- **Planned in:** `docs/product/AUDIENCE_DROPS_AND_TOURING.md`
+- **Related:** Profile, Appearance, Tour
+
+### Place
+
+A canonical city, market, or region and timezone used for geographic discovery.
+A Place is not a user's current location.
+
+- **Planned in:** `docs/product/AUDIENCE_DROPS_AND_TOURING.md`
+- **Related:** Venue, Event, Home Territory
+
+### Venue
+
+A named hosting location within a Place. Venue retention and disclosure rules
+are independent of Scene and Act home-location privacy.
+
+- **Planned in:** `docs/product/AUDIENCE_DROPS_AND_TOURING.md`
+- **Related:** Place, Event, Allow Precise
+
+### Home Territory
+
+A coarse, declared, temporal affinity between an Act and a Place. It is cultural
+context, not a residence or live-location inference.
+
+- **Planned in:** `docs/product/AUDIENCE_DROPS_AND_TOURING.md`
+- **Related:** Act, Place, Appearance
+
 ### Event
 
-A time-specific gathering at a Scene with optional precise location and ticket/capacity support.
+A time-specific occurrence with its own Place/location, host context, and
+optional ticket/capacity support. During compatibility migration every Event
+retains a primary host `SceneID`; that field does not represent an Act's home
+base.
 
-- **Defined in:** `internal/scene/event.go` — `Event` struct
+- **Defined in:** `internal/scene/model.go` — `Event` struct
 - **Key fields:** `ID`, `SceneID`, `Title`, `StartsAt`, `EndsAt`, `PrecisePoint`, `AllowPrecise`
 - **Storage:** `events` table with same PostGIS/geohash pattern as Scene
-- **Related:** Scene, Stream
+- **Related:** Scene, Place, Venue, Appearance, Stream
+
+### Appearance
+
+An Act's billed participation in an Event. A tour stop is a tour-linked
+Appearance; a festival appearance points to a festival Event; a one-off has no
+Tour.
+
+- **Planned in:** `docs/product/AUDIENCE_DROPS_AND_TOURING.md`
+- **Related:** Act, Event, Tour
+
+### Tour
+
+A named grouping of Appearances for a primary Act. A Tour does not own or
+override the occurrence location of its Events.
+
+- **Planned in:** `docs/product/AUDIENCE_DROPS_AND_TOURING.md`
+- **Related:** Act, Appearance, Event
+
+### Signal
+
+A versioned, time-bound invitation to take an action related to a Scene, Profile,
+Event, Appearance, Tour, Post, Stream, or commerce offer. Signal is the
+provisional participant-facing term for the campaign bounded context.
+
+- **Planned in:** `docs/product/AUDIENCE_DROPS_AND_TOURING.md`
+- **Related:** Audience Relationship, Consent Scope, Suppression
+
+### Audience Relationship
+
+A source-attributed connection between a participant/contact and a Scene or
+Profile. Membership, RSVP, purchase, attendance, Stream participation, interest,
+and delivery consent remain distinct evidence types.
+
+- **Planned in:** `docs/product/AUDIENCE_DROPS_AND_TOURING.md`
+- **Related:** Signal, Consent Scope, Membership
+
+### Consent Scope
+
+A sender/program, channel, purpose, disclosure version, and optional touring or
+place boundary against which append-only grant and revocation events are
+recorded. Contact verification is evidence on the Contact Point or DID link,
+not consent. Suppression is evaluated from its own enforcement ledger.
+
+- **Planned in:** `docs/product/AUDIENCE_DROPS_AND_TOURING.md`
+- **Related:** Signal, Audience Relationship, Suppression
+
+### Suppression
+
+An enforcement record that blocks delivery globally or for a channel, sender,
+or Consent Scope. Applicable suppression always overrides a consent grant.
+
+- **Planned in:** `docs/product/AUDIENCE_DROPS_AND_TOURING.md`
+- **Related:** Consent Scope, Signal
 
 ### Post
 
@@ -217,10 +315,16 @@ Binary serialization format (RFC 7049) used by Jetstream for message encoding. R
 ## Entity Relationships
 
 ```
-Scene ──┬── Event ── Stream ── Participant
-        ├── Post
-        ├── Membership ── User (DID)
+Scene ──┬── hosts/contextualizes ── Event ── Stream ── Participant
+        ├── Post                         └── Appearance ── Act ── Profile
+        ├── Membership ── User (DID)                      └── Tour
         └── Alliance ──→ Scene (directional)
+
+Place ── Venue ── Event
+  └── Home Territory ── Act
+
+Scene/Profile ── Audience Relationship ── Participant/Contact
+Signal ── Delivery/Engagement/Conversion
 
 Trust Score = f(Alliances, Memberships)
 Discovery  = f(Text Relevance, Proximity, Recency, Trust Score)

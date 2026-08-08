@@ -2,7 +2,11 @@
 
 ## Overview
 
-Subcults is a privacy-first platform for mapping underground music communities. The system consists of three main services: a Go backend API, a Jetstream indexer for AT Protocol data ingestion, and a React frontend with MapLibre for map-based discovery.
+Subcults is a privacy-first platform for mapping underground music communities and the artists, events, tours, festival appearances, and one-off shows that move between them. The system consists of three main services: a Go backend API, a Jetstream indexer for AT Protocol data ingestion, and a React frontend with MapLibre for map-based discovery.
+
+The canonical product extension for touring and consented audience activation is
+[Audience, Drops, and Touring](product/AUDIENCE_DROPS_AND_TOURING.md). Its domain
+separation is recorded in [ADR-007](adr/0007-scene-signals-touring-relationship-model.md).
 
 ## System Components
 
@@ -313,6 +317,40 @@ web/src/
 
 ## Data Flow
 
+### Touring and Audience Bounded Contexts
+
+The architecture separates durable identity/context from occurrences and
+activation:
+
+```text
+Scene ---- host/context ---- Event ---- occurrence Place/Venue
+                                |
+Act/Profile ---- Appearance ----+
+     |
+     +---- Tour (groups Appearances)
+
+Participant/DID ---- Audience Relationship ---- Scene/Profile
+Verified Contact ---- Consent Scope/Events ------+
+                  \---- Suppression Ledger ------+
+Signal ---- Audience Resolution ---- Provider Adapter ---- Delivery
+       \---- Engagement/Conversion Ledger
+```
+
+Rules:
+
+- Event Place/Venue drives geographic candidate selection. Home Territory is
+  contextual metadata and never relocates an Event.
+- `events.scene_id` remains the compatibility primary host until explicit host
+  relations are migrated.
+- Tour stop, festival appearance, and one-off show are projections of Event +
+  Appearance (+ optional Tour), not competing Event types.
+- consent and suppression are checked at audience resolution and again before
+  delivery;
+- provider adapters do not own canonical contact, consent, campaign, or
+  attribution state;
+- imports preserve stable source identity, raw-source digest, assertions,
+  corrections, and conflicts.
+
 ### AT Protocol Integration
 
 ```
@@ -334,7 +372,22 @@ All location data respects consent flags:
 3. **API Level**: Geohash-based jitter applied for non-consenting users
 4. **Frontend Level**: Map displays jittered coordinates for privacy
 
+Occurrence location and Home Territory have independent disclosure scopes. A
+public venue can disclose an Event precisely while an artist's Home Territory
+remains coarse. A protected DIY Event can remain coarse or reveal details only
+to authorized participants. Device location, IP address, RSVP, purchase, and
+tour itinerary must never be used to infer an artist's Home Territory.
+
 ## Search & Ranking System
+
+Search first applies hard eligibility filters: visibility/disclosure, Event
+status, time window, and occurrence Place/bounds. It then ranks eligible Events.
+Tour, Appearance, festival, and explicit city/Act interest are explainable
+features; they do not bypass geographic or privacy eligibility.
+
+The runtime calibration file is the source of truth for weights. Documentation
+examples are illustrative and must not be treated as an independent production
+configuration.
 
 ### Ranking Formula
 
@@ -543,24 +596,34 @@ cd web && npm run build  # Build for production
 - Minimal data collection
 - Explicit consent for precise location sharing
 
-## Implemented Features
+## Capability Status
 
-- **Full Authentication**: JWT access + refresh tokens with dual-key rotation
-- **Real-time Updates**: LiveKit WebRTC for live audio streaming
-- **Internationalization**: i18next integration
-- **State Management**: Zustand 5 stores (auth, entity, streaming, participants, toasts, notifications)
-- **Advanced Search**: Full-text search with PostGIS geo queries
-- **User Profiles**: DID-based identity via AT Protocol
-- **Direct Payments**: Stripe Connect integration with scene payouts
-- **Rate Limiting**: Tiered rate limiting with Redis + in-memory fallback
+Documentation distinguishes target architecture from runtime evidence. The
+current API wires core Scene/Event/RSVP/Stream repositories in memory and exposes
+compatibility auth routes; Postgres-backed API persistence and configured login
+are Phase 0 prerequisites. Schema, handlers, frontend surfaces, tests, and
+provider-conditional integrations are implementation evidence, not proof of a
+deployed production capability.
+
+| Capability | Current repository evidence | Target |
+| --- | --- | --- |
+| Scene/Event/RSVP/Stream domains | Models, handlers, schemas, tests; API repositories in memory | Durable Postgres repositories |
+| Authentication | JWT components and frontend state; environment login route not configured | End-to-end session/auth contract |
+| Location discovery | Search/ranking/map components with coarse/precise controls | Occurrence-based Place/Venue and touring facets |
+| Payments | Stripe handlers and payment schema, conditionally configured | Signal/Event attribution and reconciliation |
+| Notifications | Web client permission/subscription plumbing | Persistent consent, scheduling, delivery, and preferences |
+| Audience/Signals/Touring | Product plan and proposed ADR | Phased implementation defined in the canonical plan |
 
 ## Future Enhancements
 
 ### Planned Features
 
-1. **Progressive Web App**: Offline support, install prompt
-2. **Lazy-load heavy dependencies**: livekit-client, maplibre-gl
-3. **Go 1.22+ path params**: Migrate from manual path parsing
+1. **Durable foundation**: Postgres-backed API repositories and configured authentication
+2. **Touring discovery**: Profiles/Acts, Places/Venues, Appearances, Tours, and festival programs
+3. **Audience and Signals**: scoped consent, verified contacts, segmentation, push/email delivery, and attribution
+4. **Progressive Web App**: Offline support, install prompt
+5. **Lazy-load heavy dependencies**: livekit-client, maplibre-gl
+6. **Go path params**: Migrate from manual path parsing
 
 ### Technical Debt
 
@@ -574,5 +637,5 @@ cd web && npm run build  # Build for production
 
 - [Privacy Guidelines](./PRIVACY.md)
 - [API Documentation](./api/)
-- [Performance Baselines](../PERFORMANCE.md)
+- [Performance Baselines](PERFORMANCE.md)
 - [Docker Setup](./docker.md)

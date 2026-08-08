@@ -72,6 +72,13 @@ The clustering system respects location privacy settings from the backend:
 
 This ensures that users who opt out of precise location sharing have their coordinates approximated via geohash decoding. Events should include a `coarse_geohash` field (inherited from parent scene or independently set) to enable privacy-compliant display when precise location is not allowed.
 
+For touring discovery, map coordinates always come from the Event occurrence
+Place/Venue projection. An Act's Home Territory, a Tour's itinerary metadata,
+and the primary host Scene's location must never replace the Event coordinate.
+Tour stop, festival appearance, visiting Act, and one-off labels are marker/card
+properties derived from Appearance relations; they do not create duplicate map
+points for the same Event.
+
 ## Usage
 
 ### Basic Usage

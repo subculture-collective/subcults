@@ -1,10 +1,10 @@
 # Subcult
 
-Subcult connects underground and local music communities by mapping scenes, events, and live audio sessions while preserving autonomy, privacy, and creative identity.
+Subcult connects underground and local music communities by mapping scenes, artists, events, touring appearances, and live audio sessions while preserving autonomy, privacy, and creative identity.
 
 ## Vision
 
-Rebuild the connective tissue of the underground: a trust‑based discovery layer (not a follower feed) where artists, venues, collectives, and curators surface what is happening around them without algorithmic flattening.
+Rebuild the connective tissue of the underground: a trust‑based discovery and participation layer (not a follower feed) where artists, venues, collectives, and curators surface what is happening locally and across touring routes without algorithmic flattening.
 
 ## Core Pillars
 
@@ -13,6 +13,8 @@ Rebuild the connective tissue of the underground: a trust‑based discovery laye
 3. Human discovery (proximity + trust > opaque ranking)
 4. Decentralized data (AT Protocol records + Jetstream ingestion)
 5. Privacy first (coarse location, consent‑based precision)
+6. Participation before extraction (community activity is not automatic marketing consent)
+7. Occurrence-based discovery (shows surface where they happen, regardless of artist home base)
 
 ## Initial Stack
 
@@ -23,25 +25,30 @@ Rebuild the connective tissue of the underground: a trust‑based discovery laye
 - Storage: Cloudflare R2 (media assets, recordings)
 - Payments: Stripe Connect (direct scene payouts, platform fee)
 
-## Early Features (MVP)
+## Planned Product Scope
 
 - Create & manage scenes (visual identity, membership)
-- Publish events & posts (flyers, mixes, releases)
-- Map-based discovery (nearby scenes/events, clustering)
+- Publish events, appearances & posts (shows, festivals, tours, flyers, mixes, releases)
+- Map-based discovery (nearby scenes, visiting artists, tour dates, festivals, and one-off shows)
 - Live audio sessions (room join, host/guest roles)
 - Basic trust graph (memberships + alliances scoring)
 - Coarse location privacy & EXIF stripping
 - Direct revenue (ticket/merch checkout)
 - Web Push notifications (opt-in, privacy-first engagement)
+- Consented Signals for tour announcements, on-sales, releases, streams, and other time-bound actions
 
 ## Roadmap Phases
 
-| Phase | Focus               | Key Outcomes                                       |
-| ----- | ------------------- | -------------------------------------------------- |
-| 0     | Foundations         | Containerized stack, core schema, auth, config     |
-| 1     | MVP Core            | Scenes, events, map discovery, streaming, payments |
-| 2     | Growth & Trust      | Alliances, ranking, moderation, observability      |
-| 3     | Scale & Performance | OpenSearch option, mobile app alignment, backfills |
+| Phase | Focus | Key Outcomes |
+| ----- | ----- | ------------ |
+| 0 | Durable foundations | Postgres-backed API, working auth, migrations, privacy and provenance invariants |
+| 1 | Scene and touring discovery | Scenes, Profiles/Acts, Places/Venues, Events, Appearances, Tours, festival programs, map/list discovery |
+| 2 | Participation and trust | Memberships, RSVPs, feeds, streams, alliances, moderation, explainable ranking |
+| 3 | Audience and Signals | Contact verification, scoped consent ledger, public Signal pages, web push and email delivery |
+| 4 | Commerce and integrations | Stripe attribution, ticketing/commerce imports, reconciliation, source-preserving corrections |
+| 5 | Scale and assisted operations | Performance/backfills, native app alignment, advanced channels, human-approved automation |
+
+The canonical extension to this roadmap is [Audience, Drops, and Touring](docs/product/AUDIENCE_DROPS_AND_TOURING.md). It defines how artist home territory, event occurrence location, tours, festival appearances, one-off shows, consent, and activation fit the original scene model.
 
 ## Development Principles
 

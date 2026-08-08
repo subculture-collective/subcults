@@ -129,6 +129,26 @@ make migrate-down
 - **indexer_state**: Cursor tracking for Jetstream ingestion
 - **audit_logs**: Privacy-compliant access logging with retention policies
 
+### Planned Audience and Touring Tables
+
+The proposed sequence in `../docs/product/AUDIENCE_DROPS_AND_TOURING.md` adds
+focused migrations rather than overloading `events.tags` or `memberships`:
+
+- `profiles`, `acts`, `profile_controllers`, and `act_scene_affiliations`
+- `places`, `venues`, and temporal `act_home_territories`
+- `event_hosts`, `appearances`, `tours`, and source/assertion provenance tables
+- `audience_relationships`, verified `contact_points`, append-only
+  `consent_events`, and `suppressions`
+- `signals`, revisions, audience snapshots, deliveries, engagement events, and
+  conversion events
+- provider connections, import cursors, external identities, reconciliation
+  candidates, and correction/supersession links
+
+The implementation plan proposes versions `000033` through `000036`; execution
+must verify that they are still the next available numbers before authoring the
+up/down pairs. Existing `events.scene_id` remains the compatibility primary host
+during the host-relation migration.
+
 ### Location Privacy
 
 All location-aware tables enforce a consent model:

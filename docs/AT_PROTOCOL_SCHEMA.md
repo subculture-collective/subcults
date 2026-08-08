@@ -27,6 +27,11 @@ The indexer filters incoming AT Protocol records and only processes those matchi
 
 ## Supported Collections
 
+The collections in this section are the currently supported ingestion surface.
+The touring and audience model below is planned and must not be presented as
+implemented until validators, lexicons, persistence, and interoperability tests
+exist.
+
 ### 1. `app.subcult.scene`
 
 Represents a music scene or venue where events take place.
@@ -149,6 +154,24 @@ Represents a trust relationship between scenes in the alliance network.
 - Type documentation: `AllianceRecord` struct
 
 ---
+
+## Planned Touring Collections
+
+The canonical product model is defined in
+`docs/product/AUDIENCE_DROPS_AND_TOURING.md`. If public portability requirements
+are satisfied, future versioned lexicons may include:
+
+- `app.subcult.profile` / `app.subcult.act`: public creative identity and control references;
+- `app.subcult.place` / `app.subcult.venue`: public discovery projection only, never protected address data;
+- `app.subcult.event`: expanded occurrence Place/Venue, host context, lifecycle, and provenance references;
+- `app.subcult.appearance`: Act-to-Event billing/set relationship and optional Tour reference;
+- `app.subcult.tour`: named grouping and public itinerary metadata;
+- `app.subcult.assertion`: source-attributed correction/cancellation claims where a portable public assertion is appropriate.
+
+Contact Points, consent/revocation evidence, suppressions, audience segments,
+provider connections, delivery logs, and private conversion details remain
+platform-local/private records. They must not be published to public AT Protocol
+repositories merely for implementation convenience.
 
 ## Record Operations
 

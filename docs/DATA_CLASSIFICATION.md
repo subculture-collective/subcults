@@ -11,6 +11,23 @@ Subcults classifies data into four tiers. Each tier prescribes storage, access, 
 | **Sensitive**  | User-consented personal data            | Precise lat/lng (when `allow_precise = true`), DID, email (if collected), IP addresses | Postgres (encrypted at rest), audit log | Authenticated owner + consented viewers | Audit trail, hash-chained |
 | **Restricted** | Secrets and financial data              | JWT signing keys, Stripe API keys, database credentials, payment amounts per user      | Env vars / Vault, never in code or logs | Service accounts only                   | Never logged in plaintext |
 
+### Audience and Touring Extension
+
+| Data | Minimum classification | Handling notes |
+| --- | --- | --- |
+| Public Event, Tour, Appearance, public Place/Venue projection | Public after verification | Retain source/provenance and correction state |
+| Act Home Territory | Public or Internal according to declaration | Coarse and temporal; never infer residence/current location |
+| Email, phone, push endpoint, provider social identifier | Sensitive | Encrypt/restrict; never publish through AT Protocol |
+| Contact verification evidence | Sensitive | Shortest practical retention; redact from logs/exports |
+| Consent grant and revocation evidence | Sensitive | Append-only auditability; user export/revocation access |
+| Suppression and delivery-enforcement state | Restricted | Service-only pre-delivery enforcement; expose safe status, not internals |
+| Segment membership and inferred affinity | Sensitive | Explainable, disableable, purpose-limited |
+| Raw delivery, click, purchase, and attribution events | Sensitive | Minimize identifiers; disclose attribution model/window |
+| Aggregated Signal metrics | Internal | Enforce minimum cohort sizes where needed |
+
+See `docs/product/AUDIENCE_DROPS_AND_TOURING.md` for the governing domain and
+privacy boundaries.
+
 ## Rules
 
 1. **Sensitive data must never appear in logs.** Use structured logging fields like `user_did` (truncated or hashed if logged for debugging).

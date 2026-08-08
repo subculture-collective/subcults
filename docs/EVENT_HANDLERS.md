@@ -4,7 +4,15 @@ This document describes the HTTP handlers for event CRUD operations in the Subcu
 
 ## Overview
 
-Event handlers provide endpoints for creating, updating, and retrieving events within scenes. Events drive temporal discovery on the platform, enabling users to schedule and discover time-based activities in music scenes.
+Event handlers provide endpoints for creating, updating, and retrieving event
+occurrences in a primary host Scene context. Events drive temporal and
+geographic discovery. `scene_id` currently identifies the primary host/publisher;
+it does not identify an artist's home base or require every appearing artist to
+belong to the destination Scene.
+
+The planned touring model adds separate Profile/Act, Place/Venue, Appearance,
+and Tour relations without breaking the current Event API. See
+`docs/product/AUDIENCE_DROPS_AND_TOURING.md`.
 
 ## Handlers
 
@@ -30,7 +38,10 @@ func NewEventHandlers(eventRepo scene.EventRepository, sceneRepo scene.SceneRepo
 
 ### POST /events - Create Event
 
-Creates a new event within a scene.
+Creates a new event occurrence under a primary host Scene. Its location is the
+location where the Event happens and may differ from every appearing Act's Home
+Territory. Planned Appearance and Tour writes use separate endpoints/commands;
+they must not be encoded into `tags`.
 
 **Request Body:**
 
