@@ -71,6 +71,39 @@ func main() {
 	logger := middleware.NewLogger(env)
 	slog.SetDefault(logger)
 
+	// In-memory repositories are deliberately opt-in. They are useful for
+	// local fixtures, but must never be mistaken for durable production state.
+	inMemoryRepositories := strings.EqualFold(strings.TrimSpace(os.Getenv("SUBCULT_IN_MEMORY_REPOSITORIES")), "true")
+	var runtimeRepositories *db.RuntimeRepositories
+	if inMemoryRepositories {
+		logger.Warn("using explicitly enabled in-memory repositories; API state will be lost on restart",
+			"environment", env,
+			"switch", "SUBCULT_IN_MEMORY_REPOSITORIES",
+		)
+	} else {
+		startupContext, cancelStartup := context.WithTimeout(context.Background(), 10*time.Second)
+		runtimeRepositories, err := db.NewRuntimeRepositories(startupContext, os.Getenv("DATABASE_URL"))
+		cancelStartup()
+		if err != nil {
+			logger.Error("durable repository startup prerequisite failed", "error", err)
+			os.Exit(1)
+		}
+		defer func() {
+			if err := runtimeRepositories.Close(); err != nil {
+				logger.Warn("failed to close runtime database", "error", err)
+			}
+		}()
+
+		// The connection is checked and later wired into readiness, but no API
+		// domain adapter currently persists its state through it. Refuse to run
+		// rather than silently serving the existing in-memory repositories.
+		logger.Error("durable repository startup prerequisite failed",
+			"error", db.ErrDurableRepositoriesUnavailable,
+			"help", "set SUBCULT_IN_MEMORY_REPOSITORIES=true only for local development until Postgres domain adapters are implemented",
+		)
+		os.Exit(1)
+	}
+
 	// Initialize OpenTelemetry tracing
 	tracingEnabled := false
 	if val := os.Getenv("TRACING_ENABLED"); val != "" {
@@ -184,7 +217,8 @@ func main() {
 			"help", "Set RANKING_CALIBRATION_PATH environment variable to load custom weights")
 	}
 
-	// Initialize repositories
+	// Initialize repositories. This path is reachable only when the explicit
+	// development switch above is enabled; production startup exits before it.
 	eventRepo := scene.NewInMemoryEventRepository()
 	sceneRepo := scene.NewInMemorySceneRepository()
 	auditRepo := audit.NewInMemoryRepository()
@@ -1040,8 +1074,13 @@ func main() {
 		livekitHealthChecker = health.NewLiveKitChecker(livekitURL)
 	}
 
+	var dbHealthChecker *health.DBChecker
+	if runtimeRepositories != nil {
+		dbHealthChecker = health.NewDBChecker(runtimeRepositories.DB)
+	}
+
 	healthHandlers := api.NewHealthHandlers(api.HealthHandlersConfig{
-		DBChecker:      nil, // Currently using in-memory repos; DB checker will be added when Postgres is integrated
+		DBChecker:      dbHealthChecker,
 		RedisChecker:   redisHealthChecker,
 		LiveKitChecker: livekitHealthChecker,
 		StripeChecker:  nil, // Will be configured when Stripe health check is implemented
