@@ -66,8 +66,8 @@ export default {
         '2xs': ['0.625rem', { lineHeight: '0.875rem' }],
       },
       fontFamily: {
-        display: ['"Space Mono"', 'monospace'],
-        sans: ['"Space Mono"', 'monospace'],
+        display: ['"Barlow Condensed"', 'sans-serif'],
+        sans: ['"Instrument Sans"', 'sans-serif'],
         mono: ['"Space Mono"', 'monospace'],
       },
       borderRadius: {
