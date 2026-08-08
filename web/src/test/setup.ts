@@ -78,11 +78,11 @@ global.IntersectionObserver = class IntersectionObserver {
     queueMicrotask(() => {
       callback(
         [{ isIntersecting: true } as IntersectionObserverEntry],
-        this as any
+        this
       );
     });
   }
-} as any;
+} as unknown as typeof IntersectionObserver;
 
 // Cleanup after each test
 afterEach(() => {

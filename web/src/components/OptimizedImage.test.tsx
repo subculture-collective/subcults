@@ -27,7 +27,7 @@ describe('OptimizedImage', () => {
       root = null;
       rootMargin = '';
       thresholds = [];
-    } as any;
+    } as unknown as typeof IntersectionObserver;
   });
 
   afterEach(() => {

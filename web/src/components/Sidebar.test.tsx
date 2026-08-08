@@ -128,7 +128,7 @@ describe('Sidebar', () => {
   });
 
   it('highlights active route', () => {
-    const { container } = renderSidebar();
+    renderSidebar();
     
     // Map should be active by default (home route)
     const mapLink = screen.getByRole('link', { name: /map/i });
@@ -283,7 +283,7 @@ describe('Sidebar', () => {
   });
 
   it('close button SVG is hidden from screen readers', () => {
-    const { container } = renderSidebar({ isOpen: true });
+    renderSidebar({ isOpen: true });
     
     // With i18n mock, aria-label uses translation key
     const closeButton = screen.getByRole('button', { name: 'actions.close' });

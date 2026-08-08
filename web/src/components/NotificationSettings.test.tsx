@@ -62,7 +62,7 @@ describe('NotificationSettings', () => {
     // Mock Notification API
     global.Notification = {
       permission: 'default',
-    } as any;
+    } as unknown as typeof Notification;
 
     // Mock getCurrentSubscription
     vi.mocked(notificationService.getCurrentSubscription).mockResolvedValue(null);

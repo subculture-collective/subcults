@@ -13,6 +13,16 @@
 import { useEffect } from 'react';
 import { useTelemetry } from './useTelemetry';
 
+interface EventTimingEntry extends PerformanceEntry {
+  processingDuration?: number;
+  presentationDelay?: number;
+}
+
+interface LayoutShiftEntry extends PerformanceEntry {
+  hadRecentInput?: boolean;
+  value?: number;
+}
+
 /**
  * Web Vitals metric thresholds (in milliseconds or dimensionless)
  */
@@ -106,8 +116,9 @@ export function useWebVitals(): void {
       const entries = entryList.getEntries();
       if (entries.length > 0) {
         const lastEntry = entries[entries.length - 1];
-        const processingDuration = (lastEntry as any).processingDuration || 0;
-        const presentationDelay = (lastEntry as any).presentationDelay || 0;
+        const eventEntry = lastEntry as EventTimingEntry;
+        const processingDuration = eventEntry.processingDuration || 0;
+        const presentationDelay = eventEntry.presentationDelay || 0;
         const inp = processingDuration + presentationDelay;
         emitMetric('INP', inp, METRIC_THRESHOLDS.INP);
       }
@@ -123,8 +134,9 @@ export function useWebVitals(): void {
     let clsValue = 0;
     const clsObserver = new PerformanceObserver((entryList) => {
       for (const entry of entryList.getEntries()) {
-        if (!(entry as any).hadRecentInput) {
-          clsValue += (entry as any).value;
+        const layoutShift = entry as LayoutShiftEntry;
+        if (!layoutShift.hadRecentInput) {
+          clsValue += layoutShift.value || 0;
           emitMetric('CLS', clsValue, METRIC_THRESHOLDS.CLS);
         }
       }

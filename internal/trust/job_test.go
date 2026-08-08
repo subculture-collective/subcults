@@ -7,6 +7,7 @@ import (
 	"math"
 	"os"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -712,9 +713,10 @@ func BenchmarkRecompute(b *testing.B) {
 	}
 }
 
-// mockJobMetrics is a mock implementation of JobMetrics for testing.
-// Note: This implementation is NOT thread-safe. Use only in single-threaded tests.
+// mockJobMetrics is a concurrent-safe mock because the recompute job reports
+// per-scene failures from worker goroutines.
 type mockJobMetrics struct {
+	mu           sync.Mutex
 	jobsTotal    map[string]map[string]int
 	jobsDuration map[string][]float64
 	jobErrors    map[string]map[string]int
@@ -729,6 +731,8 @@ func newMockJobMetrics() *mockJobMetrics {
 }
 
 func (m *mockJobMetrics) IncJobsTotal(jobType, status string) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	if m.jobsTotal[jobType] == nil {
 		m.jobsTotal[jobType] = make(map[string]int)
 	}
@@ -736,10 +740,14 @@ func (m *mockJobMetrics) IncJobsTotal(jobType, status string) {
 }
 
 func (m *mockJobMetrics) ObserveJobDuration(jobType string, seconds float64) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	m.jobsDuration[jobType] = append(m.jobsDuration[jobType], seconds)
 }
 
 func (m *mockJobMetrics) IncJobErrors(jobType, errorType string) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	if m.jobErrors[jobType] == nil {
 		m.jobErrors[jobType] = make(map[string]int)
 	}

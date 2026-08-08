@@ -150,7 +150,8 @@ export const UserSearchBar: React.FC<UserSearchBarProps> = ({
             <select
               value={filters.role ?? ''}
               onChange={(e) => {
-                const newFilters = { ...filters, role: (e.target.value || undefined) as any };
+                const role = e.target.value as UserSearchFilters['role'];
+                const newFilters = { ...filters, role: role || undefined };
                 setFilters(newFilters);
                 search(query, newFilters);
               }}

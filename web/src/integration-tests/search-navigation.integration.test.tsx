@@ -10,7 +10,6 @@
 
 import { describe, it, expect, beforeEach } from 'vitest';
 import { render, screen } from '@testing-library/react';
-import userEvent from '@testing-library/user-event';
 import { createMemoryRouter, RouterProvider } from 'react-router-dom';
 import { HomePage } from '../pages/HomePage';
 import { SceneDetailPage } from '../pages/SceneDetailPage';

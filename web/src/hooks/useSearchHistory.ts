@@ -3,7 +3,7 @@
  * Hook for managing search history with localStorage persistence
  */
 
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback } from 'react';
 
 const SEARCH_HISTORY_KEY = 'subcults-search-history';
 const MAX_HISTORY_ITEMS = 5;
@@ -54,13 +54,7 @@ function saveHistory(history: SearchHistoryItem[]): void {
  * Automatically loads history on mount and persists changes
  */
 export function useSearchHistory(): UseSearchHistoryResult {
-  const [history, setHistory] = useState<SearchHistoryItem[]>([]);
-
-  // Load history on mount
-  useEffect(() => {
-    const loaded = loadHistory();
-    setHistory(loaded);
-  }, []);
+  const [history, setHistory] = useState<SearchHistoryItem[]>(loadHistory);
 
   /**
    * Add a search query to history

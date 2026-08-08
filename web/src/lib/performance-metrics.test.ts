@@ -3,7 +3,6 @@ import {
   initPerformanceMonitoring,
   reportCustomMetric,
   getConfig,
-  type PerformanceMetric,
 } from './performance-metrics';
 
 describe('Performance Metrics Service', () => {

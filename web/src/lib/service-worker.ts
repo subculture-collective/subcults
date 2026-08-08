@@ -100,7 +100,7 @@ export async function isServiceWorkerRegistered(): Promise<boolean> {
   try {
     const registration = await navigator.serviceWorker.getRegistration();
     return !!registration;
-  } catch (error) {
+  } catch {
     return false;
   }
 }

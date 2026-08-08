@@ -9,7 +9,7 @@
  * - Filename sanitization
  */
 
-import { useCallback } from 'react';
+import { useCallback, useMemo } from 'react';
 
 /**
  * File validation options
@@ -67,7 +67,7 @@ const DEFAULT_OPTIONS: FileValidationOptions = {
 export function sanitizeFilename(filename: string): string {
   // Remove path separators and null bytes
   let sanitized = filename
-    .replace(/[\/\\:*?"<>|]/g, '_')
+    .replace(/[/\\:*?"<>|]/g, '_')
     .replace(/\0/g, '')
     .trim();
 
@@ -75,7 +75,7 @@ export function sanitizeFilename(filename: string): string {
   sanitized = sanitized.replace(/^\.+/, '');
 
   // Keep only safe characters: alphanumeric, dash, underscore, dot
-  sanitized = sanitized.replace(/[^a-zA-Z0-9._\- ]/g, '_');
+  sanitized = sanitized.replace(/[^a-zA-Z0-9._ -]/g, '_');
 
   // Collapse multiple spaces and underscores
   sanitized = sanitized.replace(/[\s_]+/g, '_');
@@ -118,7 +118,7 @@ function getFileExtension(filename: string): string {
  * ```
  */
 export function useFileValidation(options: FileValidationOptions = {}): (file: File) => FileValidationResult {
-  const mergedOptions = { ...DEFAULT_OPTIONS, ...options };
+  const mergedOptions = useMemo(() => ({ ...DEFAULT_OPTIONS, ...options }), [options]);
 
   const validate = useCallback(
     (file: File): FileValidationResult => {

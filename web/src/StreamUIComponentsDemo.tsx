@@ -17,6 +17,8 @@ import {
 import type { ChatMessage } from './components/streaming';
 import type { Participant, ConnectionQuality } from './types/streaming';
 
+const demoTimestamp = Date.UTC(2026, 0, 1, 12, 0, 0);
+
 export function StreamUIComponentsDemo() {
   // Stream header state
   const [listenerCount, setListenerCount] = useState(42);
@@ -37,21 +39,21 @@ export function StreamUIComponentsDemo() {
       id: '1',
       sender: 'Alice',
       message: 'Hey everyone! Great stream!',
-      timestamp: Date.now() - 120000,
+      timestamp: demoTimestamp - 120000,
       isLocal: false,
     },
     {
       id: '2',
       sender: 'Bob',
       message: 'Loving the vibes 🎵',
-      timestamp: Date.now() - 90000,
+      timestamp: demoTimestamp - 90000,
       isLocal: false,
     },
     {
       id: '3',
       sender: 'You',
       message: 'Thanks for joining!',
-      timestamp: Date.now() - 60000,
+      timestamp: demoTimestamp - 60000,
       isLocal: true,
     },
   ]);

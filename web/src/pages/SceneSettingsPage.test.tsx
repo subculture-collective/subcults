@@ -231,7 +231,7 @@ describe('SceneSettingsPage', () => {
   it('adds a tag when Enter is pressed', async () => {
     mockUpdateScene.mockResolvedValue(mockScene);
 
-    const { getByPlaceholderText, getByText } = render(
+    const { getByPlaceholderText } = render(
       <BrowserRouter>
         <SceneSettingsPage />
       </BrowserRouter>

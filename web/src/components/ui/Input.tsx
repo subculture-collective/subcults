@@ -72,7 +72,8 @@ export const Input = React.forwardRef<HTMLInputElement, InputProps>(
     ref
   ) => {
     // Generate unique ID if not provided (for label association)
-    const inputId = id || `input-${React.useId()}`;
+    const generatedId = React.useId();
+    const inputId = id || `input-${generatedId}`;
     const helperTextId = helperText ? `${inputId}-helper` : undefined;
     const errorId = error ? `${inputId}-error` : undefined;
 

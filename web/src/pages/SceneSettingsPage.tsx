@@ -171,7 +171,7 @@ export const SceneSettingsPage: React.FC = () => {
         type: 'success',
         message: t('scene.settings.saved', 'Scene settings saved successfully'),
       });
-    } catch (error) {
+    } catch {
       addToast({
         type: 'error',
         message: t('errors.failedToSaveScene', 'Failed to save scene settings'),

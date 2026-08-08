@@ -1,6 +1,7 @@
 import { useEffect, useMemo } from 'react';
 import type { GeoJSONSource, Map as MapLibreMap } from 'maplibre-gl';
 import type { AppearanceSummary } from '../../types/touring';
+import { groupAppearancesByEvent } from './tour-map-utils';
 
 export interface TourMapLayerProps {
   map: MapLibreMap | null;
@@ -10,16 +11,6 @@ export interface TourMapLayerProps {
 
 const SOURCE_ID = 'tour-appearances';
 const LAYER_ID = 'tour-appearance-points';
-
-/** Groups appearances by event, because an Event is the map's atomic occurrence. */
-export function groupAppearancesByEvent(appearances: AppearanceSummary[]): Map<string, AppearanceSummary[]> {
-  return appearances.reduce((groups, appearance) => {
-    const group = groups.get(appearance.event.id) ?? [];
-    group.push(appearance);
-    groups.set(appearance.event.id, group);
-    return groups;
-  }, new Map<string, AppearanceSummary[]>());
-}
 
 export function TourMapLayer({ map, appearances, onSelectEvent }: TourMapLayerProps) {
   const groups = useMemo(() => groupAppearancesByEvent(appearances), [appearances]);

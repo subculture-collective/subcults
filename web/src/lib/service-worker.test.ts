@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any -- service-worker globals require partial browser mocks */
 /**
  * Service Worker Registration Tests
  */
