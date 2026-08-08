@@ -104,18 +104,10 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // API requests
+  // API responses may contain identity, protected-location, consent, or Studio
+  // data. Never persist them in the shared service-worker cache.
   if (url.pathname.startsWith('/api/')) {
-    if (url.pathname.includes('/search')) {
-      // Network-first for search
-      event.respondWith(networkFirst(request, API_CACHE));
-    } else if (url.pathname.startsWith('/api/scenes')) {
-      // Stale-while-revalidate for GET /scenes
-      event.respondWith(staleWhileRevalidate(request, API_CACHE));
-    } else {
-      // Network-first for other API requests
-      event.respondWith(networkFirst(request, API_CACHE));
-    }
+    event.respondWith(fetch(request));
   }
   // Image requests
   else if (request.destination === 'image') {
@@ -219,29 +211,6 @@ async function networkFirst(request, cacheName) {
 }
 
 /**
- * Stale-While-Revalidate Strategy
- * Serve from cache immediately, update cache in background
- */
-async function staleWhileRevalidate(request, cacheName) {
-  const cachedResponse = await caches.match(request);
-  
-  const fetchPromise = fetch(request).then(async (response) => {
-    if (response.ok && isValidResponse(response)) {
-      const cache = await caches.open(cacheName);
-      await cache.put(request, response.clone());
-      await limitCacheSize(cacheName, getMaxCacheSize(cacheName));
-    }
-    return response;
-  }).catch((error) => {
-    console.log('[ServiceWorker] Background fetch failed:', error);
-    return null;
-  });
-
-  // Return cached response immediately, or wait for network
-  return cachedResponse || fetchPromise;
-}
-
-/**
  * Limit cache size by removing excess entries
  * Note: Cache key iteration order is not guaranteed across browsers
  */
@@ -306,7 +275,6 @@ function isValidResponse(response) {
  * Receives push notifications from the server
  */
 self.addEventListener('push', (event) => {
-  console.log('[ServiceWorker] Push notification received:', event);
 
   // Default notification data
   let title = 'Subcults';
@@ -323,8 +291,6 @@ self.addEventListener('push', (event) => {
   if (event.data) {
     try {
       const data = event.data.json();
-      console.log('[ServiceWorker] Push data:', data);
-      
       if (data.title) {
         title = data.title;
       }
@@ -360,7 +326,6 @@ self.addEventListener('push', (event) => {
  * Handles user interaction with notifications
  */
 self.addEventListener('notificationclick', (event) => {
-  console.log('[ServiceWorker] Notification clicked:', event);
 
   // Close the notification
   event.notification.close();

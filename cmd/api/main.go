@@ -34,6 +34,7 @@ import (
 	"github.com/onnwee/subcults/internal/locationaccess"
 	"github.com/onnwee/subcults/internal/membership"
 	"github.com/onnwee/subcults/internal/middleware"
+	"github.com/onnwee/subcults/internal/notification"
 	"github.com/onnwee/subcults/internal/payment"
 	"github.com/onnwee/subcults/internal/post"
 	"github.com/onnwee/subcults/internal/ranking"
@@ -288,6 +289,12 @@ func main() {
 		os.Exit(1)
 	}
 	identityHandlers := api.NewIdentityAuthHandlers(identityService, env != "development")
+	notificationRepository := notification.Repository(notification.NewInMemoryRepository())
+	if runtimeRepositories != nil {
+		notificationRepository = notification.NewSQLRepository(runtimeRepositories.DB)
+	}
+	notificationService := notification.NewService(notificationRepository, contactProtector, os.Getenv("VAPID_PUBLIC_KEY"), os.Getenv("VAPID_PRIVATE_KEY"), os.Getenv("VAPID_SUBJECT"))
+	notificationHandlers := api.NewNotificationHandlers(notificationService)
 
 	// Initialize event broadcaster for WebSocket participant updates
 	eventBroadcaster := stream.NewEventBroadcaster()
@@ -674,6 +681,9 @@ func main() {
 	mux.HandleFunc("/api/v1/admin/creator-access/", identityHandlers.ReviewCreatorAccess)
 	mux.HandleFunc("/api/v1/admin/creator-access", identityHandlers.ListCreatorAccess)
 	mux.Handle("/api/v1/events/", protectedLocationHandlers)
+	mux.HandleFunc("/api/v1/notifications/subscribe", notificationHandlers.Subscribe)
+	// Compatibility endpoint used by the existing notification settings client.
+	mux.HandleFunc("/api/notifications/subscribe", notificationHandlers.Subscribe)
 	// Compatibility aliases are retained for the existing client during beta.
 	mux.HandleFunc("/api/auth/login", identityHandlers.RequestMagicLink)
 	mux.HandleFunc("/api/auth/refresh", identityHandlers.Refresh)

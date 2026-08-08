@@ -40,7 +40,7 @@ if (import.meta.env.PROD) {
 
 // Initialize notification service with configuration
 const VAPID_PUBLIC_KEY = import.meta.env.VITE_VAPID_PUBLIC_KEY;
-const NOTIFICATION_API_ENDPOINT = '/api/notifications/subscribe';
+const NOTIFICATION_API_ENDPOINT = '/notifications/subscribe';
 
 // Fail fast in development if VAPID key is missing
 if (import.meta.env.DEV && !VAPID_PUBLIC_KEY) {
