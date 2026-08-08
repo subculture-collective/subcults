@@ -38,6 +38,7 @@ import (
 	"github.com/onnwee/subcults/internal/scene"
 	"github.com/onnwee/subcults/internal/stream"
 	"github.com/onnwee/subcults/internal/telemetry"
+	"github.com/onnwee/subcults/internal/touring"
 	"github.com/onnwee/subcults/internal/tracing"
 	"github.com/onnwee/subcults/internal/trust"
 	"github.com/onnwee/subcults/internal/upload"
@@ -229,6 +230,7 @@ func main() {
 	postRepo := post.NewInMemoryPostRepository()
 	membershipRepo := membership.NewInMemoryMembershipRepository()
 	allianceRepo := alliance.NewInMemoryAllianceRepository()
+	touringRepo := touring.NewInMemoryRepository()
 
 	// Initialize event broadcaster for WebSocket participant updates
 	eventBroadcaster := stream.NewEventBroadcaster()
@@ -340,13 +342,13 @@ func main() {
 	}
 
 	canaryConfig := middleware.CanaryConfig{
-		Enabled:            cfg.CanaryEnabled,
-		TrafficPercent:     cfg.CanaryTrafficPercent,
-		ErrorThreshold:     cfg.CanaryErrorThreshold,
-		LatencyThreshold:   cfg.CanaryLatencyThreshold,
-		AutoRollback:       cfg.CanaryAutoRollback,
-		MonitoringWindow:   cfg.CanaryMonitoringWindow,
-		Version:            cfg.CanaryVersion,
+		Enabled:          cfg.CanaryEnabled,
+		TrafficPercent:   cfg.CanaryTrafficPercent,
+		ErrorThreshold:   cfg.CanaryErrorThreshold,
+		LatencyThreshold: cfg.CanaryLatencyThreshold,
+		AutoRollback:     cfg.CanaryAutoRollback,
+		MonitoringWindow: cfg.CanaryMonitoringWindow,
+		Version:          cfg.CanaryVersion,
 	}
 
 	canaryRouter := middleware.NewCanaryRouter(canaryConfig, logger)
@@ -565,6 +567,7 @@ func main() {
 	trustHandlers := api.NewTrustHandlers(sceneRepo, trustDataSource, trustScoreStore, trustDirtyTracker)
 	allianceHandlers := api.NewAllianceHandlers(allianceRepo, sceneRepo, trustDataSource, trustDirtyTracker)
 	searchHandlers := api.NewSearchHandlers(sceneRepo, postRepo, trustStoreAdapter, eventRepo)
+	touringHandlers := api.NewTouringHandlers(touringRepo, eventRepo, sceneRepo)
 
 	// Initialize retention and account handlers
 	retentionRepo := retention.NewInMemoryRepository(logger)
@@ -768,6 +771,9 @@ func main() {
 		}),
 	)
 	mux.Handle("/search/events", searchEventsHandler)
+	mux.HandleFunc("/search/appearances", touringHandlers.SearchAppearances)
+	mux.HandleFunc("/profiles/", touringHandlers.Profile)
+	mux.HandleFunc("/tours/", touringHandlers.Tour)
 
 	searchScenesHandler := middleware.RateLimiter(rateLimitStore, searchLimit, middleware.UserKeyFunc(), rateLimitMetrics)(
 		http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

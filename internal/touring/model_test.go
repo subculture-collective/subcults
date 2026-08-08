@@ -53,6 +53,39 @@ func TestVenueClearsUnconsentedPrecisePoint(t *testing.T) {
 	}
 }
 
+func TestAppearanceProjectionKinds(t *testing.T) {
+	tourID := "tour"
+	cases := []struct {
+		name      string
+		tourID    *string
+		eventKind string
+		want      string
+	}{
+		{name: "tour stop", tourID: &tourID, eventKind: EventKindShow, want: AppearanceProjectionTourStop},
+		{name: "festival", eventKind: EventKindFestival, want: AppearanceProjectionFestivalAppearance},
+		{name: "one off", eventKind: EventKindShow, want: AppearanceProjectionOneOff},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := ProjectAppearanceKind(tc.tourID, tc.eventKind); got != tc.want {
+				t.Errorf("ProjectAppearanceKind() = %q, want %q", got, tc.want)
+			}
+		})
+	}
+}
+
+func TestAppearanceRejectsInvalidTimeWindow(t *testing.T) {
+	startsAt := time.Date(2026, time.September, 1, 20, 0, 0, 0, time.UTC)
+	endsAt := startsAt
+	appearance := Appearance{
+		ID: "appearance", EventID: "event", ActID: "act", Role: "performer",
+		StartsAt: &startsAt, EndsAt: &endsAt, Status: AppearanceStatusConfirmed,
+	}
+	if err := appearance.Validate(); !errors.Is(err, ErrInvalidAppearance) {
+		t.Fatalf("error=%v, want ErrInvalidAppearance", err)
+	}
+}
+
 func validHomeTerritory() HomeTerritory {
 	return HomeTerritory{
 		ActID: "act", PlaceID: "chicago", Visibility: VisibilityPublic,

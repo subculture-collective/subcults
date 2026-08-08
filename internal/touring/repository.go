@@ -36,31 +36,186 @@ type Repository interface {
 	UpsertSource(source Source) (Source, error)
 	CreateAssertion(assertion EntityAssertion) error
 	GetAssertion(id string) (EntityAssertion, error)
+	StorePlace(place Place) error
+	StoreProfile(profile Profile) error
+	StoreAct(act Act) error
+	AddHomeTerritory(territory HomeTerritory) error
+	GetPlace(id string) (Place, error)
+	GetProfile(id string) (Profile, error)
+	GetAct(id string) (Act, error)
+	FindActByProfile(profileID string) (Act, error)
+	ListHomeTerritories(actID string) ([]HomeTerritory, error)
+	ListAppearances() ([]Appearance, error)
+	ListAppearancesForAct(actID string) ([]Appearance, error)
+	VerificationForEntity(entityType, entityID string) string
 }
 
 // InMemoryRepository implements Repository with the same business invariants
 // expected of the future durable adapter.
 type InMemoryRepository struct {
-	mu          sync.RWMutex
-	tours       map[string]Tour
-	tourActs    map[string][]TourAct
-	appearances map[string]Appearance
-	eventHosts  map[string][]EventHost
-	sources     map[string]Source
-	sourceKeys  map[string]string
-	assertions  map[string]EntityAssertion
+	mu              sync.RWMutex
+	tours           map[string]Tour
+	tourActs        map[string][]TourAct
+	appearances     map[string]Appearance
+	eventHosts      map[string][]EventHost
+	sources         map[string]Source
+	sourceKeys      map[string]string
+	assertions      map[string]EntityAssertion
+	places          map[string]Place
+	profiles        map[string]Profile
+	acts            map[string]Act
+	homeTerritories map[string][]HomeTerritory
 }
 
 func NewInMemoryRepository() *InMemoryRepository {
 	return &InMemoryRepository{
-		tours:       make(map[string]Tour),
-		tourActs:    make(map[string][]TourAct),
-		appearances: make(map[string]Appearance),
-		eventHosts:  make(map[string][]EventHost),
-		sources:     make(map[string]Source),
-		sourceKeys:  make(map[string]string),
-		assertions:  make(map[string]EntityAssertion),
+		tours:           make(map[string]Tour),
+		tourActs:        make(map[string][]TourAct),
+		appearances:     make(map[string]Appearance),
+		eventHosts:      make(map[string][]EventHost),
+		sources:         make(map[string]Source),
+		sourceKeys:      make(map[string]string),
+		assertions:      make(map[string]EntityAssertion),
+		places:          make(map[string]Place),
+		profiles:        make(map[string]Profile),
+		acts:            make(map[string]Act),
+		homeTerritories: make(map[string][]HomeTerritory),
 	}
+}
+
+func (r *InMemoryRepository) StorePlace(place Place) error {
+	if err := place.Validate(); err != nil || strings.TrimSpace(place.ID) == "" {
+		return ErrInvalidPlace
+	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.places[place.ID] = place
+	return nil
+}
+
+func (r *InMemoryRepository) StoreProfile(profile Profile) error {
+	if err := profile.Validate(); err != nil || strings.TrimSpace(profile.ID) == "" {
+		return ErrInvalidProfile
+	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.profiles[profile.ID] = profile
+	return nil
+}
+
+func (r *InMemoryRepository) StoreAct(act Act) error {
+	if strings.TrimSpace(act.ID) == "" || strings.TrimSpace(act.ProfileID) == "" {
+		return ErrInvalidProfile
+	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if _, ok := r.profiles[act.ProfileID]; !ok {
+		return ErrInvalidProfile
+	}
+	r.acts[act.ID] = act
+	return nil
+}
+
+func (r *InMemoryRepository) AddHomeTerritory(territory HomeTerritory) error {
+	if err := territory.Validate(); err != nil {
+		return err
+	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if _, ok := r.acts[territory.ActID]; !ok {
+		return ErrInvalidHomeTerritory
+	}
+	if _, ok := r.places[territory.PlaceID]; !ok {
+		return ErrInvalidHomeTerritory
+	}
+	r.homeTerritories[territory.ActID] = append(r.homeTerritories[territory.ActID], territory)
+	return nil
+}
+
+func (r *InMemoryRepository) GetPlace(id string) (Place, error) {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	place, ok := r.places[id]
+	if !ok {
+		return Place{}, ErrInvalidPlace
+	}
+	return place, nil
+}
+
+func (r *InMemoryRepository) GetProfile(id string) (Profile, error) {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	profile, ok := r.profiles[id]
+	if !ok {
+		return Profile{}, ErrInvalidProfile
+	}
+	return profile, nil
+}
+
+func (r *InMemoryRepository) GetAct(id string) (Act, error) {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	act, ok := r.acts[id]
+	if !ok {
+		return Act{}, ErrInvalidProfile
+	}
+	return act, nil
+}
+
+func (r *InMemoryRepository) FindActByProfile(profileID string) (Act, error) {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	for _, act := range r.acts {
+		if act.ProfileID == profileID {
+			return act, nil
+		}
+	}
+	return Act{}, ErrInvalidProfile
+}
+
+func (r *InMemoryRepository) ListHomeTerritories(actID string) ([]HomeTerritory, error) {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	territories := append([]HomeTerritory(nil), r.homeTerritories[actID]...)
+	return territories, nil
+}
+
+func (r *InMemoryRepository) ListAppearances() ([]Appearance, error) {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	appearances := make([]Appearance, 0, len(r.appearances))
+	for _, appearance := range r.appearances {
+		appearances = append(appearances, copyAppearance(appearance))
+	}
+	sort.Slice(appearances, func(i, j int) bool { return appearanceBefore(appearances[i], appearances[j]) })
+	return appearances, nil
+}
+
+func (r *InMemoryRepository) ListAppearancesForAct(actID string) ([]Appearance, error) {
+	appearances, err := r.ListAppearances()
+	if err != nil {
+		return nil, err
+	}
+	filtered := appearances[:0]
+	for _, appearance := range appearances {
+		if appearance.ActID == actID {
+			filtered = append(filtered, appearance)
+		}
+	}
+	return filtered, nil
+}
+
+func (r *InMemoryRepository) VerificationForEntity(entityType, entityID string) string {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	state := "unverified"
+	var latest time.Time
+	for _, assertion := range r.assertions {
+		if assertion.EntityType == entityType && assertion.EntityID == entityID && assertion.AssertedAt.After(latest) {
+			state, latest = assertion.State, assertion.AssertedAt
+		}
+	}
+	return state
 }
 
 func (r *InMemoryRepository) CreateTour(tour Tour, primaryAddedByDID string) error {
@@ -269,6 +424,19 @@ func sameTime(left, right *time.Time) bool {
 		return left == nil && right == nil
 	}
 	return left.Equal(*right)
+}
+
+func appearanceBefore(left, right Appearance) bool {
+	if left.StartsAt == nil {
+		return false
+	}
+	if right.StartsAt == nil {
+		return true
+	}
+	if left.StartsAt.Equal(*right.StartsAt) {
+		return left.ID < right.ID
+	}
+	return left.StartsAt.Before(*right.StartsAt)
 }
 
 func sameHost(left, right EventHost) bool {

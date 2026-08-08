@@ -91,6 +91,12 @@ func coarseGeohashIntersectsBBox(geohash string, minLng, minLat, maxLng, maxLat 
 		bounds.minLat <= maxLat && bounds.maxLat >= minLat
 }
 
+// CoarseGeohashIntersectsBBox reports coarse occurrence eligibility without
+// claiming that a private location is at the cell centre.
+func CoarseGeohashIntersectsBBox(geohash string, minLng, minLat, maxLng, maxLat float64) bool {
+	return coarseGeohashIntersectsBBox(geohash, minLng, minLat, maxLng, maxLat)
+}
+
 // UpsertResult tracks statistics for upsert operations.
 type UpsertResult struct {
 	Inserted bool   // True if new record was inserted

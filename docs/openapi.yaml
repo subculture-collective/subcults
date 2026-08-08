@@ -46,6 +46,8 @@ tags:
     description: Trust score computation
   - name: RSVP
     description: Event RSVP management
+  - name: Touring
+    description: Touring profiles, itineraries, and public appearance discovery
   - name: Membership
     description: Scene membership management
   - name: Payments
@@ -924,6 +926,52 @@ paths:
           $ref: '#/components/responses/ValidationError'
         '429':
           $ref: '#/components/responses/RateLimited'
+
+  /search/appearances:
+    get:
+      operationId: searchAppearances
+      tags: [Touring, Search]
+      summary: Search public appearances
+      security: [{}, {bearerAuth: []}]
+      parameters:
+        - {name: place, in: query, schema: {type: string}}
+        - {name: bbox, in: query, schema: {type: string}}
+        - {name: from, in: query, schema: {type: string, format: date-time}}
+        - {name: to, in: query, schema: {type: string, format: date-time}}
+        - {name: act, in: query, schema: {type: string}}
+        - {name: tour, in: query, schema: {type: string}}
+        - {name: festival, in: query, schema: {type: boolean}}
+        - {name: scene, in: query, schema: {type: string}}
+        - {name: kind, in: query, schema: {type: string, enum: [show, festival, party, meetup, broadcast, other]}}
+        - {name: locality, in: query, schema: {type: string, enum: [any, local, visiting]}}
+        - {name: access, in: query, schema: {type: string, enum: [public, all]}}
+      responses:
+        '200':
+          description: Public appearance results
+          content: {application/json: {schema: {$ref: '#/components/schemas/TouringDetailResponse'}}}
+        '400': {$ref: '#/components/responses/ValidationError'}
+
+  /profiles/{id}:
+    get:
+      operationId: getTouringProfile
+      tags: [Touring]
+      summary: Get a touring profile
+      security: [{}, {bearerAuth: []}]
+      parameters: [{$ref: '#/components/parameters/ResourceID'}]
+      responses:
+        '200': {description: Touring profile, content: {application/json: {schema: {$ref: '#/components/schemas/TouringDetailResponse'}}}}
+        '404': {$ref: '#/components/responses/NotFound'}
+
+  /tours/{id}:
+    get:
+      operationId: getTour
+      tags: [Touring]
+      summary: Get a tour itinerary
+      security: [{}, {bearerAuth: []}]
+      parameters: [{$ref: '#/components/parameters/ResourceID'}]
+      responses:
+        '200': {description: Tour itinerary, content: {application/json: {schema: {$ref: '#/components/schemas/TouringDetailResponse'}}}}
+        '404': {$ref: '#/components/responses/NotFound'}
 
   /search/posts:
     get:
@@ -2334,6 +2382,35 @@ components:
         updated_at:
           type: string
           format: date-time
+
+    # ── Touring ─────────────────────────────────────────────────────
+    PublicOccurrence:
+      type: object
+      required: [coarse_geohash, precision]
+      properties:
+        coarse_geohash: {type: string}
+        display_point: {$ref: '#/components/schemas/Point'}
+        precision: {type: string, enum: [coarse, precise]}
+    AppearanceSummary:
+      type: object
+      required: [id, event, act, host_names, context, locality, status, verification]
+      properties:
+        id: {type: string}
+        event: {type: object, required: [id, title, starts_at, kind, occurrence], properties: {id: {type: string}, title: {type: string}, starts_at: {type: string, format: date-time}, kind: {type: string}, occurrence: {$ref: '#/components/schemas/PublicOccurrence'}}}
+        act: {type: object, required: [id, name], properties: {id: {type: string}, name: {type: string}, home_territory: {type: string}}}
+        tour: {type: object, properties: {id: {type: string}, title: {type: string}}}
+        host_names: {type: array, items: {type: string}}
+        context: {type: string, enum: [tour_stop, festival_appearance, one_off]}
+        locality: {type: string, enum: [local, visiting, unknown]}
+        status: {type: string, enum: [announced, confirmed, cancelled, completed]}
+        verification: {type: string, enum: [unverified, claimed, verified, disputed, rejected]}
+    TouringDetailResponse:
+      type: object
+      required: [appearances]
+      properties:
+        profile: {type: object, properties: {id: {type: string}, name: {type: string}, home_territory: {type: string}}}
+        tour: {type: object, properties: {id: {type: string}, title: {type: string}}}
+        appearances: {type: array, items: {$ref: '#/components/schemas/AppearanceSummary'}}
 
     # ── Payment ─────────────────────────────────────────────────────
     OnboardSceneRequest:

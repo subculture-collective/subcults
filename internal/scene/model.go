@@ -48,14 +48,14 @@ type Scene struct {
 	OwnerUserID *string  `json:"owner_user_id,omitempty"` // FK to users table
 
 	// Payments
-	ConnectedAccountID     *string `json:"connected_account_id,omitempty"`      // Stripe Connect Express account ID
-	ConnectedAccountStatus string  `json:"connected_account_status,omitempty"`   // pending, active, or restricted
-	AccountOnboardedAt     *time.Time `json:"account_onboarded_at,omitempty"`    // When Stripe account was fully onboarded
+	ConnectedAccountID     *string    `json:"connected_account_id,omitempty"`     // Stripe Connect Express account ID
+	ConnectedAccountStatus string     `json:"connected_account_status,omitempty"` // pending, active, or restricted
+	AccountOnboardedAt     *time.Time `json:"account_onboarded_at,omitempty"`     // When Stripe account was fully onboarded
 
 	// Moderation (admin visibility controls)
-	ModerationStatus  string     `json:"moderation_status,omitempty"`  // visible, hidden, flagged, or suspended
-	ModerationReason  *string    `json:"moderation_reason,omitempty"`  // Reason for moderation action
-	ModeratedBy       *string    `json:"moderated_by,omitempty"`       // User DID of moderator
+	ModerationStatus    string     `json:"moderation_status,omitempty"`    // visible, hidden, flagged, or suspended
+	ModerationReason    *string    `json:"moderation_reason,omitempty"`    // Reason for moderation action
+	ModeratedBy         *string    `json:"moderated_by,omitempty"`         // User DID of moderator
 	ModerationTimestamp *time.Time `json:"moderation_timestamp,omitempty"` // When moderation action was taken
 
 	// Timestamps
@@ -78,6 +78,9 @@ type Event struct {
 	AllowPrecise  bool       `json:"allow_precise"`
 	PrecisePoint  *Point     `json:"precise_point,omitempty"`
 	CoarseGeohash string     `json:"coarse_geohash"` // Required for location-based discovery
+	PlaceID       *string    `json:"place_id,omitempty"`
+	VenueID       *string    `json:"venue_id,omitempty"`
+	Kind          string     `json:"kind,omitempty"` // show, festival, party, meetup, broadcast, other
 	Tags          []string   `json:"tags,omitempty"`
 	Status        string     `json:"status,omitempty"` // scheduled, live, ended, cancelled
 	StartsAt      time.Time  `json:"starts_at"`
