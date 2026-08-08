@@ -92,6 +92,40 @@ type EventWithRSVPCounts struct {
 	RSVPCounts   *scene.RSVPCounts        `json:"rsvp_counts"`
 	Scene        *SceneSearchResult       `json:"scene,omitempty"`
 	ActiveStream *stream.ActiveStreamInfo `json:"active_stream,omitempty"`
+	Occurrence   *PublicOccurrence        `json:"occurrence,omitempty"`
+}
+
+// PublicOccurrence is the only location projection map clients should use for
+// Events. It exposes an approved display point rather than asking clients to
+// select from raw stored coordinates.
+type PublicOccurrence struct {
+	CoarseGeohash string       `json:"coarse_geohash"`
+	DisplayPoint  *scene.Point `json:"display_point,omitempty"`
+	Precision     string       `json:"precision"`
+}
+
+func toPublicOccurrence(event *scene.Event) *PublicOccurrence {
+	if event == nil {
+		return nil
+	}
+
+	occurrence := &PublicOccurrence{
+		CoarseGeohash: event.CoarseGeohash,
+		Precision:     "coarse",
+	}
+	if event.AllowPrecise && event.PrecisePoint != nil {
+		pointCopy := *event.PrecisePoint
+		occurrence.DisplayPoint = &pointCopy
+		occurrence.Precision = "precise"
+		return occurrence
+	}
+
+	point, err := scene.DecodeCoarseGeohash(event.CoarseGeohash)
+	if err != nil {
+		return occurrence
+	}
+	occurrence.DisplayPoint = applyJitter(point)
+	return occurrence
 }
 
 // sceneBatchFetcher is an optional repository capability for batch scene lookups.
@@ -481,6 +515,7 @@ func (h *EventHandlers) GetEvent(w http.ResponseWriter, r *http.Request) {
 		Event:        foundEvent,
 		RSVPCounts:   rsvpCounts,
 		ActiveStream: activeStream,
+		Occurrence:   toPublicOccurrence(foundEvent),
 	}
 
 	// Return event with RSVP counts
@@ -932,6 +967,7 @@ func (h *EventHandlers) SearchEvents(w http.ResponseWriter, r *http.Request) {
 			RSVPCounts:   rsvpCountsMap[event.ID],
 			Scene:        sceneMap[event.SceneID],
 			ActiveStream: activeStreamsMap[event.ID], // nil if no active stream
+			Occurrence:   toPublicOccurrence(event),
 		}
 	}
 

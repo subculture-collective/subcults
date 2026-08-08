@@ -47,8 +47,20 @@ export interface Event {
   allow_precise: boolean;
   precise_point?: Point;
   coarse_geohash?: string;  // Optional coarse location for privacy when precise is not allowed
+  occurrence?: PublicOccurrence;
   record_did?: string;
   record_rkey?: string;
+}
+
+/**
+ * Server-approved location projection for an event occurrence. Clients must
+ * render `display_point` when present instead of inspecting raw event storage
+ * fields to decide which coordinates may be shown.
+ */
+export interface PublicOccurrence {
+  coarse_geohash: string;
+  display_point?: Point;
+  precision: 'coarse' | 'precise';
 }
 
 /**

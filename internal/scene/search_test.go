@@ -92,6 +92,41 @@ func TestSearchByBboxAndTime_Pagination(t *testing.T) {
 	}
 }
 
+func TestSearchEventsIncludesCoarseOccurrenceInsideBBox(t *testing.T) {
+	repo := NewInMemoryEventRepository()
+	now := time.Now()
+	event := &Event{
+		ID:            "coarse-occurrence",
+		SceneID:       "host-scene",
+		Title:         "Away Show",
+		CoarseGeohash: "dp3wj", // Chicago
+		Status:        "scheduled",
+		StartsAt:      now.Add(time.Hour),
+	}
+	if err := repo.Insert(event); err != nil {
+		t.Fatalf("insert coarse event: %v", err)
+	}
+
+	results, _, err := repo.SearchEvents(EventSearchOptions{
+		MinLng: -88,
+		MinLat: 41,
+		MaxLng: -87,
+		MaxLat: 42,
+		From:   now,
+		To:     now.Add(24 * time.Hour),
+		Limit:  20,
+	})
+	if err != nil {
+		t.Fatalf("search coarse event: %v", err)
+	}
+	if len(results) != 1 || results[0].ID != event.ID {
+		t.Fatalf("results = %#v, want coarse occurrence %q", results, event.ID)
+	}
+	if results[0].PrecisePoint != nil {
+		t.Fatal("coarse-only event unexpectedly has a precise point")
+	}
+}
+
 // TestSearchEvents_TextSearch tests text search filtering.
 func TestSearchEvents_TextSearch(t *testing.T) {
 	repo := NewInMemoryEventRepository()

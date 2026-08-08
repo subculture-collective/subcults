@@ -69,17 +69,40 @@ describe('getDisplayCoordinates', () => {
     expect(result.lng).toBeCloseTo(-122.42, 1);
   });
 
-  it('returns precise point when allow_precise is true for event', () => {
+  it('uses the server-approved precise occurrence projection for an event', () => {
     const event: Event = {
       id: '1',
       scene_id: 'scene1',
       name: 'Test Event',
       allow_precise: true,
-      precise_point: { lat: 37.7749, lng: -122.4194 },
+      precise_point: { lat: 1, lng: 2 },
+      occurrence: {
+        coarse_geohash: '9q8yy',
+        display_point: { lat: 37.7749, lng: -122.4194 },
+        precision: 'precise',
+      },
     };
 
     const result = getDisplayCoordinates(event);
     expect(result).toEqual({ lat: 37.7749, lng: -122.4194 });
+  });
+
+  it('uses the server-approved coarse occurrence projection instead of raw event coordinates', () => {
+    const event: Event = {
+      id: '1',
+      scene_id: 'scene1',
+      name: 'Test Event',
+      allow_precise: false,
+      precise_point: { lat: 1, lng: 2 },
+      coarse_geohash: '9q8yy',
+      occurrence: {
+        coarse_geohash: '9q8yy',
+        display_point: { lat: 37.775, lng: -122.42 },
+        precision: 'coarse',
+      },
+    };
+
+    expect(getDisplayCoordinates(event)).toEqual({ lat: 37.775, lng: -122.42 });
   });
 
   it('returns coarse geohash coordinates when event has no precise point but has coarse_geohash', () => {
@@ -189,7 +212,11 @@ describe('buildGeoJSON', () => {
         name: 'Weekend Show',
         description: 'Live performance',
         allow_precise: true,
-        precise_point: { lat: 37.7849, lng: -122.4094 },
+        occurrence: {
+          coarse_geohash: '9q8yy',
+          display_point: { lat: 37.7849, lng: -122.4094 },
+          precision: 'precise',
+        },
       },
     ];
 
@@ -227,7 +254,11 @@ describe('buildGeoJSON', () => {
         scene_id: 'scene1',
         name: 'Show 1',
         allow_precise: true,
-        precise_point: { lat: 37.7849, lng: -122.4094 },
+        occurrence: {
+          coarse_geohash: '9q8yy',
+          display_point: { lat: 37.7849, lng: -122.4094 },
+          precision: 'precise',
+        },
       },
     ];
 
@@ -366,5 +397,23 @@ describe('buildGeoJSON', () => {
     
     expect(feature.properties.is_jittered).toBe(true);
     expect(feature.properties.type).toBe('event');
+  });
+
+  it('does not double-jitter a coarse event occurrence projection', () => {
+    const event: Event = {
+      id: 'event-server-jittered',
+      scene_id: 'scene1',
+      name: 'Event with Server Projection',
+      allow_precise: false,
+      occurrence: {
+        coarse_geohash: '9q8yy',
+        display_point: { lat: 37.775, lng: -122.42 },
+        precision: 'coarse',
+      },
+    };
+
+    const feature = buildGeoJSON([], [event]).features[0];
+    expect(feature.geometry.coordinates).toEqual([-122.42, 37.775]);
+    expect(feature.properties.is_jittered).toBe(true);
   });
 });

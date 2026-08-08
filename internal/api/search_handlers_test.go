@@ -15,6 +15,58 @@ import (
 	"github.com/onnwee/subcults/internal/stream"
 )
 
+func TestSearchEventsReturnsPublicOccurrenceForCoarseOnlyEvent(t *testing.T) {
+	eventRepo := scene.NewInMemoryEventRepository()
+	sceneRepo := scene.NewInMemorySceneRepository()
+	handlers := NewEventHandlers(
+		eventRepo,
+		sceneRepo,
+		audit.NewInMemoryRepository(),
+		scene.NewInMemoryRSVPRepository(),
+		stream.NewInMemorySessionRepository(),
+		nil,
+	)
+
+	now := time.Now().UTC().Truncate(time.Second)
+	event := &scene.Event{
+		ID:            uuid.NewString(),
+		SceneID:       uuid.NewString(),
+		Title:         "Coarse Away Show",
+		CoarseGeohash: "dp3wj", // Chicago
+		Status:        "scheduled",
+		StartsAt:      now.Add(time.Hour),
+	}
+	if err := eventRepo.Insert(event); err != nil {
+		t.Fatalf("insert coarse event: %v", err)
+	}
+
+	req := httptest.NewRequest(
+		http.MethodGet,
+		fmt.Sprintf("/search/events?bbox=-88,41,-87,42&from=%s&to=%s", now.Format(time.RFC3339), now.Add(24*time.Hour).Format(time.RFC3339)),
+		nil,
+	)
+	w := httptest.NewRecorder()
+	handlers.SearchEvents(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("status = %d, body = %s", w.Code, w.Body.String())
+	}
+
+	var response SearchEventsResponse
+	if err := json.NewDecoder(w.Body).Decode(&response); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+	if len(response.Events) != 1 {
+		t.Fatalf("events = %d, want 1", len(response.Events))
+	}
+	occurrence := response.Events[0].Occurrence
+	if occurrence == nil || occurrence.Precision != "coarse" || occurrence.DisplayPoint == nil {
+		t.Fatalf("occurrence = %#v, want coarse public display point", occurrence)
+	}
+	if response.Events[0].PrecisePoint != nil {
+		t.Fatal("coarse event response exposed a raw precise point")
+	}
+}
+
 // TestSearchEvents_Success tests successful event search with bbox and time range.
 func TestSearchEvents_Success(t *testing.T) {
 	eventRepo := scene.NewInMemoryEventRepository()

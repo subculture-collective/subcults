@@ -87,11 +87,17 @@ export function decodeGeohash(geohash: string): Point {
 export function getDisplayCoordinates(entity: Scene | Event): Point {
   // For events, check for precise point or coarse geohash
   if ('scene_id' in entity) {
-    // Event: use precise point if available and allowed
-    if (entity.allow_precise && entity.precise_point) {
-      return entity.precise_point;
+    // Event location is server-projected. Do not select an Event's raw stored
+    // precise_point in the client: the API decides whether the occurrence is
+    // precise or coarse and provides the approved display coordinate.
+    if (entity.occurrence?.display_point) {
+      return entity.occurrence.display_point;
     }
-    // Use event's coarse geohash if available
+    if (entity.occurrence?.coarse_geohash) {
+      return decodeGeohash(entity.occurrence.coarse_geohash);
+    }
+    // Compatibility fallback for legacy event payloads. It intentionally uses
+    // only coarse location data and never consumes raw precise_point.
     if (entity.coarse_geohash) {
       return decodeGeohash(entity.coarse_geohash);
     }
@@ -161,7 +167,11 @@ export function buildGeoJSON(
   // Add event features
   for (const event of events) {
     let coords = getDisplayCoordinates(event);
-    const applyJitterToCoords = enableJitter && shouldApplyJitter(event.allow_precise);
+    // Public occurrence display points have already been approved and, when
+    // coarse, jittered by the API. Apply client jitter only for legacy payloads.
+    const hasPublicOccurrence = event.occurrence?.display_point !== undefined;
+    const applyJitterToCoords = !hasPublicOccurrence && enableJitter && shouldApplyJitter(event.allow_precise);
+    const isCoarseOccurrence = event.occurrence?.precision === 'coarse';
     
     // Apply jitter to coarse coordinates for privacy visualization
     if (applyJitterToCoords) {
@@ -180,7 +190,7 @@ export function buildGeoJSON(
         name: event.name,
         description: event.description,
         scene_id: event.scene_id,
-        is_jittered: applyJitterToCoords,
+        is_jittered: applyJitterToCoords || isCoarseOccurrence,
       },
     });
   }

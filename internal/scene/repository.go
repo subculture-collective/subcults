@@ -23,6 +23,74 @@ var (
 	ErrRSVPNotFound       = errors.New("rsvp not found")
 )
 
+const geohashAlphabet = "0123456789bcdefghjkmnpqrstuvwxyz"
+
+type geohashBounds struct {
+	minLat float64
+	maxLat float64
+	minLng float64
+	maxLng float64
+}
+
+// DecodeCoarseGeohash returns the centre of a geohash cell. It is intentionally
+// limited to coarse discovery data; callers must not treat the result as an
+// exact venue coordinate.
+func DecodeCoarseGeohash(geohash string) (*Point, error) {
+	bounds, err := decodeGeohashBounds(geohash)
+	if err != nil {
+		return nil, err
+	}
+	return &Point{
+		Lat: (bounds.minLat + bounds.maxLat) / 2,
+		Lng: (bounds.minLng + bounds.maxLng) / 2,
+	}, nil
+}
+
+func decodeGeohashBounds(geohash string) (geohashBounds, error) {
+	geohash = strings.ToLower(strings.TrimSpace(geohash))
+	if geohash == "" {
+		return geohashBounds{}, errors.New("geohash is empty")
+	}
+
+	bounds := geohashBounds{minLat: -90, maxLat: 90, minLng: -180, maxLng: 180}
+	evenBit := true
+	for _, char := range geohash {
+		idx := strings.IndexRune(geohashAlphabet, char)
+		if idx == -1 {
+			return geohashBounds{}, fmt.Errorf("invalid geohash character %q", char)
+		}
+		for bit := 4; bit >= 0; bit-- {
+			one := (idx>>bit)&1 == 1
+			if evenBit {
+				mid := (bounds.minLng + bounds.maxLng) / 2
+				if one {
+					bounds.minLng = mid
+				} else {
+					bounds.maxLng = mid
+				}
+			} else {
+				mid := (bounds.minLat + bounds.maxLat) / 2
+				if one {
+					bounds.minLat = mid
+				} else {
+					bounds.maxLat = mid
+				}
+			}
+			evenBit = !evenBit
+		}
+	}
+	return bounds, nil
+}
+
+func coarseGeohashIntersectsBBox(geohash string, minLng, minLat, maxLng, maxLat float64) bool {
+	bounds, err := decodeGeohashBounds(geohash)
+	if err != nil {
+		return false
+	}
+	return bounds.minLng <= maxLng && bounds.maxLng >= minLng &&
+		bounds.minLat <= maxLat && bounds.maxLat >= minLat
+}
+
 // UpsertResult tracks statistics for upsert operations.
 type UpsertResult struct {
 	Inserted bool   // True if new record was inserted
@@ -840,18 +908,19 @@ func (r *InMemoryEventRepository) SearchByBboxAndTime(minLng, minLat, maxLng, ma
 			continue
 		}
 
-		// Check bounding box
-		// For in-memory implementation, check if precise_point is within bbox
-		// In a real PostGIS implementation, this would use ST_MakeEnvelope and geohash intersection
+		// Check bounding box. Coarse-only events remain eligible when their
+		// geohash cell intersects the viewport; this is intentionally a
+		// candidate test, not a claim that the undisclosed occurrence is at the
+		// cell centre.
 		if event.PrecisePoint != nil {
 			lat := event.PrecisePoint.Lat
 			lng := event.PrecisePoint.Lng
 			if lng >= minLng && lng <= maxLng && lat >= minLat && lat <= maxLat {
 				results = append(results, copyEvent(event))
 			}
+		} else if coarseGeohashIntersectsBBox(event.CoarseGeohash, minLng, minLat, maxLng, maxLat) {
+			results = append(results, copyEvent(event))
 		}
-		// Events without precise_point are currently excluded from search results.
-		// Coarse geohash intersection support will be added in a future update.
 	}
 
 	// Sort by starts_at ascending, then by ID for stable ordering
@@ -979,15 +1048,15 @@ func (r *InMemoryEventRepository) SearchEvents(opts EventSearchOptions) ([]*Even
 			continue
 		}
 
-		// Check bounding box
+		// Check bounding box. An Event without a precise point is an eligible
+		// candidate when its coarse geohash cell intersects the requested area.
 		if event.PrecisePoint != nil {
 			lat := event.PrecisePoint.Lat
 			lng := event.PrecisePoint.Lng
 			if lng < opts.MinLng || lng > opts.MaxLng || lat < opts.MinLat || lat > opts.MaxLat {
 				continue
 			}
-		} else {
-			// Events without precise_point are excluded from search results
+		} else if !coarseGeohashIntersectsBBox(event.CoarseGeohash, opts.MinLng, opts.MinLat, opts.MaxLng, opts.MaxLat) {
 			continue
 		}
 
