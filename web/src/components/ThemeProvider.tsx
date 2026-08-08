@@ -20,4 +20,6 @@ export function ThemeProvider({ children }: ThemeProviderProps) {
     // Initialize component permanently in dark mode
     initializeTheme();
   }, [initializeTheme]);
+
+  return <>{children}</>;
 }
