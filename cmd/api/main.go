@@ -3,7 +3,6 @@ package main
 
 import (
 	"context"
-	"encoding/json"
 	"flag"
 	"fmt"
 	"log/slog"
@@ -24,10 +23,12 @@ import (
 	"github.com/onnwee/subcults/internal/attachment"
 	"github.com/onnwee/subcults/internal/audience"
 	"github.com/onnwee/subcults/internal/audit"
+	"github.com/onnwee/subcults/internal/auth"
 	"github.com/onnwee/subcults/internal/config"
 	"github.com/onnwee/subcults/internal/db"
 	"github.com/onnwee/subcults/internal/health"
 	"github.com/onnwee/subcults/internal/idempotency"
+	"github.com/onnwee/subcults/internal/identity"
 	"github.com/onnwee/subcults/internal/jobs"
 	"github.com/onnwee/subcults/internal/livekit"
 	"github.com/onnwee/subcults/internal/membership"
@@ -237,6 +238,50 @@ func main() {
 	audienceService := audience.NewService(audienceRepo)
 	signalRepo := domainsignal.NewInMemoryRepository()
 	signalService := domainsignal.NewService(signalRepo)
+
+	jwtSecret := strings.TrimSpace(os.Getenv("JWT_SECRET_CURRENT"))
+	if jwtSecret == "" {
+		jwtSecret = strings.TrimSpace(os.Getenv("JWT_SECRET"))
+	}
+	if jwtSecret == "" && inMemoryRepositories {
+		jwtSecret = "development-only-jwt-secret-change-me"
+	}
+	if len(jwtSecret) < 32 {
+		logger.Error("JWT secret must contain at least 32 characters")
+		os.Exit(1)
+	}
+	jwtService := auth.NewJWTServiceWithRotation(jwtSecret, strings.TrimSpace(os.Getenv("JWT_SECRET_PREVIOUS")))
+
+	var contactProtector *identity.ContactProtector
+	var identityMailer identity.Mailer
+	var err error
+	if inMemoryRepositories {
+		contactProtector, err = identity.NewEphemeralContactProtector()
+		identityMailer = identity.DevelopmentMailer{Logger: logger}
+	} else {
+		contactProtector, err = identity.NewContactProtectorFromBase64(os.Getenv("CONTACT_ENCRYPTION_KEY"), os.Getenv("CONTACT_HMAC_KEY"))
+		if err == nil {
+			identityMailer, err = identity.NewPostmarkMailer(os.Getenv("POSTMARK_TRANSACTIONAL_TOKEN"), os.Getenv("POSTMARK_FROM"), os.Getenv("POSTMARK_TRANSACTIONAL_STREAM"))
+		}
+	}
+	if err != nil {
+		logger.Error("identity security configuration failed", "error", err)
+		os.Exit(1)
+	}
+	identityRepo := identity.Repository(identity.NewInMemoryRepository())
+	if runtimeRepositories != nil {
+		identityRepo = identity.NewSQLRepository(runtimeRepositories.DB)
+	}
+	publicWebURL := strings.TrimSpace(os.Getenv("PUBLIC_WEB_URL"))
+	if publicWebURL == "" && inMemoryRepositories {
+		publicWebURL = "http://localhost:5173"
+	}
+	identityService, err := identity.NewService(identityRepo, identityMailer, contactProtector, jwtService, publicWebURL)
+	if err != nil {
+		logger.Error("identity service initialization failed", "error", err)
+		os.Exit(1)
+	}
+	identityHandlers := api.NewIdentityAuthHandlers(identityService, env != "development")
 
 	// Initialize event broadcaster for WebSocket participant updates
 	eventBroadcaster := stream.NewEventBroadcaster()
@@ -612,6 +657,20 @@ func main() {
 
 	// Create HTTP server with routes
 	mux := http.NewServeMux()
+
+	mux.HandleFunc("/api/v1/auth/magic-links", identityHandlers.RequestMagicLink)
+	mux.HandleFunc("/api/v1/auth/magic-links/verify", identityHandlers.VerifyMagicLink)
+	mux.HandleFunc("/api/v1/auth/refresh", identityHandlers.Refresh)
+	mux.HandleFunc("/api/v1/auth/logout", identityHandlers.Logout)
+	mux.HandleFunc("/api/v1/auth/profile", identityHandlers.CompleteProfile)
+	mux.HandleFunc("/api/v1/me", identityHandlers.Me)
+	mux.HandleFunc("/api/v1/creator-access", identityHandlers.CreatorAccess)
+	mux.HandleFunc("/api/v1/admin/creator-access/", identityHandlers.ReviewCreatorAccess)
+	// Compatibility aliases are retained for the existing client during beta.
+	mux.HandleFunc("/api/auth/login", identityHandlers.RequestMagicLink)
+	mux.HandleFunc("/api/auth/refresh", identityHandlers.Refresh)
+	mux.HandleFunc("/api/auth/logout", identityHandlers.Logout)
+	mux.HandleFunc("/api/auth/me", identityHandlers.Me)
 
 	// Event routes (event creation has rate limiting: 5 req/hour per user)
 	eventCreationHandler := middleware.RateLimiter(rateLimitStore, eventCreationLimit, middleware.UserKeyFunc(), rateLimitMetrics)(
@@ -1158,81 +1217,6 @@ func main() {
 	)
 	mux.Handle("/api/telemetry", telemetryEventsHandler)
 
-	// Auth compatibility endpoints
-	// Frontend expects /api/auth/*; return explicit auth semantics instead of 404.
-	mux.HandleFunc("/api/auth/refresh", func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodPost {
-			w.Header().Set("Allow", http.MethodPost)
-			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
-			return
-		}
-
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusUnauthorized)
-		_ = json.NewEncoder(w).Encode(map[string]string{
-			"error":   "unauthorized",
-			"message": "refresh token missing or invalid",
-		})
-	})
-
-	mux.HandleFunc("/api/auth/logout", func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodPost {
-			w.Header().Set("Allow", http.MethodPost)
-			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
-			return
-		}
-
-		http.SetCookie(w, &http.Cookie{
-			Name:     "refresh_token",
-			Value:    "",
-			Path:     "/",
-			MaxAge:   -1,
-			HttpOnly: true,
-			Secure:   true,
-			SameSite: http.SameSiteLaxMode,
-		})
-		http.SetCookie(w, &http.Cookie{
-			Name:     "access_token",
-			Value:    "",
-			Path:     "/",
-			MaxAge:   -1,
-			HttpOnly: true,
-			Secure:   true,
-			SameSite: http.SameSiteLaxMode,
-		})
-		w.WriteHeader(http.StatusNoContent)
-	})
-
-	mux.HandleFunc("/api/auth/me", func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodGet {
-			w.Header().Set("Allow", http.MethodGet)
-			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
-			return
-		}
-
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusUnauthorized)
-		_ = json.NewEncoder(w).Encode(map[string]string{
-			"error":   "unauthorized",
-			"message": "authentication required",
-		})
-	})
-
-	mux.HandleFunc("/api/auth/login", func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodPost {
-			w.Header().Set("Allow", http.MethodPost)
-			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
-			return
-		}
-
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusNotImplemented)
-		_ = json.NewEncoder(w).Encode(map[string]string{
-			"error":   "not_implemented",
-			"message": "login endpoint is not configured in this environment",
-		})
-	})
-
 	// Client-side error logging endpoint (10 errors/min per IP)
 	clientErrorLimit := middleware.RateLimitConfig{
 		RequestsPerWindow: 10,
@@ -1298,6 +1282,11 @@ func main() {
 	// Apply middleware in reverse order of execution
 	// Logging is applied first (innermost, executes last)
 	handler = middleware.Logging(logger)(handler)
+
+	// Verify optional bearer credentials before logging and route authorization.
+	// Public routes remain accessible without a token; malformed tokens never
+	// silently degrade to anonymous access.
+	handler = middleware.JWTAuth(jwtService)(handler)
 
 	// Then RequestID
 	handler = middleware.RequestID(handler)
