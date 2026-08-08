@@ -30,6 +30,9 @@ const ProfileDetailPage = lazy(() =>
 const TourDetailPage = lazy(() =>
   import('../pages/TourDetailPage').then((module) => ({ default: module.TourDetailPage }))
 );
+const SignalDetailPage = lazy(() =>
+  import('../pages/SignalDetailPage').then((module) => ({ default: module.SignalDetailPage }))
+);
 const AccountPage = lazy(() =>
   import('../pages/AccountPage').then((module) => ({ default: module.AccountPage }))
 );
@@ -145,6 +148,14 @@ const router = createBrowserRouter(
           element: (
             <Suspense fallback={<LoadingSkeleton />}>
               <TourDetailPage />
+            </Suspense>
+          ),
+        },
+        {
+          path: 'signals/:id',
+          element: (
+            <Suspense fallback={<LoadingSkeleton />}>
+              <SignalDetailPage />
             </Suspense>
           ),
         },

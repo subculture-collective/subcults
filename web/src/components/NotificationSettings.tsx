@@ -168,7 +168,7 @@ export const NotificationSettings: React.FC = () => {
             <h3 className="text-lg font-medium text-foreground mb-1">Push Notifications</h3>
             <p className="text-sm text-foreground-secondary">
               {isSubscribed
-                ? 'You will receive notifications about new events, streams, and updates'
+                ? 'Browser push is enabled for delivery choices you explicitly grant'
                 : 'Enable notifications to stay updated on events and streams'}
             </p>
           </div>
@@ -238,6 +238,11 @@ export const NotificationSettings: React.FC = () => {
             <p>
               <strong>Explicit Opt-In:</strong> Notifications are completely optional and will only
               be enabled if you explicitly grant permission.
+            </p>
+            <p>
+              <strong>Separate choices:</strong> Enabling browser push does not grant consent for a
+              profile or scene to deliver every Signal. Manage each Signal's sender, channel, and
+              purpose-specific consent from that Signal.
             </p>
             <p>
               <strong>What We'll Notify You About:</strong> New events near you, live stream starts,

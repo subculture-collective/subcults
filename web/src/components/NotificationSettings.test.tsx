@@ -144,7 +144,7 @@ describe('NotificationSettings', () => {
 
       render(<NotificationSettings />);
 
-      expect(screen.getByText(/You will receive notifications/i)).toBeInTheDocument();
+      expect(screen.getByText(/Browser push is enabled for delivery choices you explicitly grant/i)).toBeInTheDocument();
     });
   });
 
