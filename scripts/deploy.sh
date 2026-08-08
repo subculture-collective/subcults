@@ -115,8 +115,8 @@ run_migrations() {
     load_env
 
     if [[ -z "${DATABASE_URL:-}" ]]; then
-        warn "DATABASE_URL is empty in deploy/.env; skipping migrations"
-        return 0
+        err "DATABASE_URL is empty in deploy/.env; refusing to deploy without migrations"
+        return 1
     fi
 
     log "Running database migrations..."
@@ -129,7 +129,8 @@ run_migrations() {
     ); then
         log "Migrations completed"
     else
-        warn "Migration command failed — continuing deploy (run migrations manually if required)"
+        err "Migration command failed — deployment stopped before service replacement"
+        return 1
     fi
 }
 

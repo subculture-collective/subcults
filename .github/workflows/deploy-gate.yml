@@ -40,10 +40,11 @@ jobs:
           echo "deployer=${{ github.actor }}" >> "$GITHUB_OUTPUT"
 
       - name: Verify CI passed
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
-          echo "Checking CI status for ${{ steps.info.outputs.sha }}..."
-          # In a real setup, use gh api to check required status checks
-          echo "✓ CI verification placeholder (enforce via branch protection rules)"
+          conclusion=$(gh run list --workflow CI --commit "${{ steps.info.outputs.sha }}" --json conclusion --jq 'map(select(.conclusion != ""))[0].conclusion // "missing"')
+          test "$conclusion" = success || { echo "::error::CI for this commit is $conclusion"; exit 1; }
 
   tests:
     name: Run Full Test Suite
@@ -66,6 +67,14 @@ jobs:
 
       - name: Run unit tests
         run: go test -race -coverprofile=coverage.out -covermode=atomic ./...
+
+      - name: Run frontend tests and build
+        run: |
+          cd web
+          npm ci
+          npm run lint
+          npm test -- --run
+          npm run build
 
       - name: Check coverage threshold
         run: |
@@ -95,19 +104,33 @@ jobs:
       - name: Run govulncheck
         run: |
           go install golang.org/x/vuln/cmd/govulncheck@latest
-          govulncheck ./... || echo "::warning::Vulnerability findings above"
+          govulncheck ./...
 
       - name: Build and scan Docker images
         run: |
           docker build -f Dockerfile.api -t subcults-api:scan .
-          docker run --rm aquasec/trivy:latest image --severity CRITICAL --exit-code 1 subcults-api:scan || \
-            echo "::warning::Trivy found issues (may require base image update)"
+          docker run --rm aquasec/trivy:latest image --severity CRITICAL --exit-code 1 subcults-api:scan
 
   migration-check:
     name: Migration Validation
     needs: pre-checks
     runs-on: ubuntu-latest
     timeout-minutes: 10
+
+    services:
+      postgres:
+        image: postgis/postgis:16-3.4
+        env:
+          POSTGRES_USER: subcults
+          POSTGRES_PASSWORD: subcults_test
+          POSTGRES_DB: subcults
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U subcults -d subcults"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
 
     steps:
       - name: Checkout code
@@ -123,10 +146,19 @@ jobs:
           for up in migrations/*.up.sql; do
             down="${up%.up.sql}.down.sql"
             if [[ ! -f "$down" ]]; then
-              echo "::warning::Missing down migration for $up"
+              echo "::error::Missing down migration for $up"
+              exit 1
             fi
           done
-          echo "✓ Migration validation complete"
+      - name: Apply, rollback, and re-apply migrations
+        env:
+          DATABASE_URL: postgres://subcults:subcults_test@localhost:5432/subcults?sslmode=disable
+          MIGRATE_USE_DOCKER: '1'
+        run: |
+          ./scripts/migrate.sh up
+          ./scripts/migrate.sh down 1
+          ./scripts/migrate.sh up 1
+          ./scripts/migrate.sh version
 
   approval:
     name: Manual Approval
