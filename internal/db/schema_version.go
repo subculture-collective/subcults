@@ -10,7 +10,7 @@ import (
 
 // MinSchemaVersion is the minimum schema version required for the application to start.
 // This should be updated when migrations add features that running code depends on.
-const MinSchemaVersion = 44
+const MinSchemaVersion = 45
 
 // SchemaVersionChecker queries and validates the application schema version.
 type SchemaVersionChecker struct {
