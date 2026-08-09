@@ -3,10 +3,10 @@
 services:
   subcults-tap:
     build:
-      context: ..
+      context: .
       dockerfile: Dockerfile.tap
     container_name: subcults-tap
-    env_file: ../.env
+    env_file: .env
     environment:
       TAP_DATABASE_URL: sqlite:///data/tap.db
       TAP_BIND: :2480
