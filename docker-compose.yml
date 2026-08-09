@@ -17,6 +17,19 @@ services:
       retries: 5
     restart: unless-stopped
 
+  redis:
+    image: redis:7-alpine
+    container_name: subcults-redis
+    command: ['redis-server', '--appendonly', 'yes']
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    restart: unless-stopped
+
   # Local development API uses the same durable repository path as production.
   api:
     build:
@@ -29,12 +42,16 @@ services:
       - deploy/.env
     environment:
       DATABASE_URL: postgres://subcults:${POSTGRES_PASSWORD:-subcults-dev-password}@postgres:5432/subcults?sslmode=disable
+      REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
       PORT: '8080'
       SUBCULT_ENV: development
     depends_on:
       postgres:
         condition: service_healthy
+      redis:
+        condition: service_healthy
     restart: unless-stopped
 
 volumes:
   postgres_data:
+  redis_data:
