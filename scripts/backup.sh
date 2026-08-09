@@ -83,7 +83,7 @@ BACKUP_FILE="${1:-$BACKUP_DIR/subcults_${TIMESTAMP}.sql.gz}"
 mkdir -p "$(dirname "$BACKUP_FILE")"
 
 log "Starting backup..."
-log "  Database: ${DATABASE_URL%%@*}@***"
+log "  Database: configured (value redacted)"
 log "  Output:   $BACKUP_FILE"
 
 # Run pg_dump with compression
