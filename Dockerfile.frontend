@@ -20,6 +20,7 @@ ARG VITE_MAPTILER_API_KEY=
 ARG VITE_R2_CDN_URL=
 ARG VITE_VAPID_PUBLIC_KEY=
 ARG VITE_LIVEKIT_WS_URL=
+ARG VITE_TURNSTILE_SITE_KEY=
 ARG VITE_APP_VERSION=dev
 
 # Dependency layer (cached separately from source)
@@ -40,6 +41,7 @@ RUN printf '%s\n' \
             "VITE_R2_CDN_URL=${VITE_R2_CDN_URL}" \
             "VITE_VAPID_PUBLIC_KEY=${VITE_VAPID_PUBLIC_KEY}" \
             "VITE_LIVEKIT_WS_URL=${VITE_LIVEKIT_WS_URL}" \
+            "VITE_TURNSTILE_SITE_KEY=${VITE_TURNSTILE_SITE_KEY}" \
             "VITE_APP_VERSION=${VITE_APP_VERSION}" \
             > .env.production && \
         npm run build
