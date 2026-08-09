@@ -29,7 +29,7 @@ services:
     healthcheck:
       test:
         - CMD-SHELL
-        - wget --quiet --spider --user=admin --password="$${TAP_ADMIN_PASSWORD}" http://localhost:2480/health
+        - wget --quiet -O /dev/null --user=admin --password="$${TAP_ADMIN_PASSWORD}" http://localhost:2480/health
       interval: 30s
       timeout: 5s
       retries: 3
