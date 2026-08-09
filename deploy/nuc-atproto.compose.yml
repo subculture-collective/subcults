@@ -1,0 +1,42 @@
+# NUC immutable-release overlay. The NUC base Compose file uses the historical
+# `subcults-*` service names and the shared `projects` network.
+services:
+  subcults-tap:
+    build:
+      context: ..
+      dockerfile: Dockerfile.tap
+    container_name: subcults-tap
+    env_file: ../.env
+    environment:
+      TAP_DATABASE_URL: sqlite:///data/tap.db
+      TAP_BIND: :2480
+      TAP_COLLECTION_FILTERS: tv.subcult.*,app.subcult.*
+      TAP_WEBHOOK_URL: http://subcults-api:8080/internal/atproto/tap
+      TAP_DISABLE_ACKS: "false"
+      TAP_NO_REPLAY: "false"
+      TAP_METRICS_LISTEN: :2481
+      TAP_ADMIN_PASSWORD: ${ATPROTO_TAP_ADMIN_PASSWORD}
+    expose:
+      - "2480"
+      - "2481"
+    volumes:
+      - atproto_tap_data:/data
+    networks:
+      - projects
+    depends_on:
+      subcults-api:
+        condition: service_healthy
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - wget --quiet --spider --user=admin --password="$${TAP_ADMIN_PASSWORD}" http://localhost:2480/health
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+    labels:
+      - com.centurylinklabs.watchtower.enable=false
+    restart: unless-stopped
+
+volumes:
+  atproto_tap_data:
