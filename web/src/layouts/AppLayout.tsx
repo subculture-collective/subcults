@@ -27,12 +27,12 @@ export function AppLayout() {
           {publicNav.map(([href, label]) => <NavLink key={href} to={href} className={navClass}>{label}</NavLink>)}
         </nav>
         <div className="flex items-center gap-2">
-          <Link to="/search" className="button-quiet hidden sm:inline-flex" aria-label="Search SUBCULT">Search <span aria-hidden="true">⌕</span></Link>
+          <Link to="/search" className="button-quiet hidden sm:inline-flex" aria-label="Search Subcult">Search <span aria-hidden="true">⌕</span></Link>
           {isAuthenticated ? <>
             {isCreator && <Link to="/studio" className="button-secondary hidden sm:inline-flex">Studio</Link>}
             <Link to="/me" className="button-quiet max-w-32 truncate">@{user?.handle || 'member'}</Link>
-            <button className="button-quiet hidden md:inline-flex" onClick={() => void logout()}>Exit</button>
-          </> : <Link to="/login" className="button-primary">Enter</Link>}
+            <button className="button-quiet hidden md:inline-flex" onClick={() => void logout()}>Sign out</button>
+          </> : <Link to="/login" className="button-primary">Sign in</Link>}
           <button className="button-quiet lg:hidden" onClick={() => setMenuOpen((open) => !open)} aria-expanded={menuOpen} aria-controls="mobile-menu">Menu</button>
         </div>
       </div>
@@ -43,15 +43,15 @@ export function AppLayout() {
     <main id="main-content"><Outlet /></main>
     <footer className="border-t border-border py-10">
       <div className="content-wrap flex flex-col justify-between gap-5 text-sm text-foreground-muted md:flex-row">
-        <p className="font-mono text-xs uppercase tracking-wider">Independent scenes. Portable identity. Consented signal.</p>
+        <p className="font-mono text-xs uppercase tracking-wider">Independent scenes. Portable identity. Messages by consent.</p>
         <div className="flex gap-5"><a href="/privacy">Privacy</a><a href="/terms">Terms</a><a href="mailto:info@subcult.tv">Contact</a></div>
       </div>
     </footer>
     <nav className="fixed inset-x-0 bottom-0 z-40 grid grid-cols-4 border-t border-border bg-background/95 px-2 py-2 backdrop-blur lg:hidden" aria-label="Mobile shortcuts">
-      <NavLink to="/" className={navClass}>Map</NavLink>
+      <NavLink to="/" className={navClass}>Discover</NavLink>
       <NavLink to="/events" className={navClass}>Dates</NavLink>
       <NavLink to="/search" className={navClass}>Search</NavLink>
-      <NavLink to={isAuthenticated ? '/me' : '/login'} className={navClass}>{isAuthenticated ? 'You' : 'Enter'}</NavLink>
+      <NavLink to={isAuthenticated ? '/me' : '/login'} className={navClass}>{isAuthenticated ? 'You' : 'Sign in'}</NavLink>
     </nav>
     <div className="h-16 lg:hidden" aria-hidden="true" />
   </div>;

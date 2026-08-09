@@ -1,7 +1,7 @@
 {
-  "name": "Subcults - Underground Music Scenes",
-  "short_name": "Subcults",
-  "description": "Privacy-first platform for mapping underground music communities with real-time location awareness, live audio streaming, and trust-based discovery",
+  "name": "Subcult - Underground Shows and Scenes",
+  "short_name": "Subcult",
+  "description": "Find underground shows, tour stops, festivals, artists, and local scenes without sharing your exact location.",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#000000",
@@ -40,9 +40,9 @@
   "screenshots": [],
   "shortcuts": [
     {
-      "name": "Explore Scenes",
-      "short_name": "Scenes",
-      "description": "Discover underground music scenes near you",
+      "name": "Discover Shows",
+      "short_name": "Discover",
+      "description": "Find underground shows and scenes near you",
       "url": "/?utm_source=homescreen",
       "icons": [
         {

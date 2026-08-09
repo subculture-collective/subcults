@@ -1,42 +1,6 @@
-/**
- * NotFoundPage Component
- * 404 page for invalid routes
- */
-
-import React from 'react';
 import { Link } from 'react-router-dom';
+import { PageMeta } from '../components/PageMeta';
 
-export const NotFoundPage: React.FC = () => {
-  return (
-    <div
-      style={{
-        display: 'flex',
-        flexDirection: 'column',
-        alignItems: 'center',
-        justifyContent: 'center',
-        minHeight: '100vh',
-        padding: '2rem',
-        textAlign: 'center',
-      }}
-    >
-      <h1 style={{ fontSize: '4rem', marginBottom: '1rem' }}>404</h1>
-      <h2 style={{ marginBottom: '1rem' }}>Page Not Found</h2>
-      <p style={{ marginBottom: '2rem', maxWidth: '600px' }}>
-        The page you're looking for doesn't exist or has been moved.
-      </p>
-      <Link
-        to="/"
-        style={{
-          padding: '0.75rem 1.5rem',
-          fontSize: '1rem',
-          textDecoration: 'none',
-          backgroundColor: 'white',
-          color: '#1a1a1a',
-          borderRadius: '4px',
-        }}
-      >
-        Go Home
-      </Link>
-    </div>
-  );
-};
+export function NotFoundPage() {
+  return <main className="signal-grid grid min-h-[70vh] place-items-center px-6 py-16 text-center"><PageMeta title="Page not found"/><div><p className="eyebrow">404 // Page not found</p><h1 className="font-display mt-4 text-6xl font-bold uppercase sm:text-8xl">Nothing is listed here.</h1><p className="mx-auto mt-6 max-w-xl text-lg leading-8 text-foreground-secondary">The page may have moved, been removed, or never been public.</p><div className="mt-8 flex flex-wrap justify-center gap-3"><Link className="button-primary" to="/">Discover shows</Link><Link className="button-secondary" to="/search">Search Subcult</Link></div></div></main>;
+}

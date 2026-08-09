@@ -293,13 +293,8 @@ export const MapView = forwardRef<MapViewHandle, MapViewProps>(
           }}
           data-testid="map-error"
         >
-          <h2 style={{ fontSize: '1.25rem', fontWeight: 600, marginBottom: '0.5rem' }}>
-            Map Unavailable
-          </h2>
-          <p style={{ textAlign: 'center' }}>
-            MapTiler API key not provided.<br />
-            Set <code style={{ backgroundColor: '#f5f5f5', padding: '0.25rem', borderRadius: '0.25rem' }}>VITE_MAPTILER_API_KEY</code> environment variable or pass <code style={{ backgroundColor: '#f5f5f5', padding: '0.25rem', borderRadius: '0.25rem' }}>apiKey</code> prop.
-          </p>
+          <h2 style={{ fontSize: '1.25rem', fontWeight: 600, marginBottom: '0.5rem' }}>Map temporarily unavailable</h2>
+          <p style={{ textAlign: 'center' }}>Use list view to browse the same public dates.</p>
         </div>
       );
     }

@@ -1,14 +1,9 @@
 import { Link } from 'react-router-dom';
 import { useAuth } from '../stores/authStore';
 import { ATProtoAccountPanel } from '../components/ATProtoAccountPanel';
+import { PageMeta } from '../components/PageMeta';
 
 export function MyActivityPage() {
   const { user, isCreator } = useAuth();
-  return <main className="content-wrap py-12 lg:py-16">
-    <div className="flex flex-col justify-between gap-6 border-b border-border pb-8 md:flex-row md:items-end"><div><p className="eyebrow">Participant dossier</p><h1 className="font-display mt-3 text-6xl uppercase">@{user?.handle || 'member'}</h1><p className="mt-3 text-foreground-secondary">{user?.display_name || 'Complete your identity to make this callsign yours.'}</p></div>{isCreator ? <Link to="/studio" className="button-primary">Open Studio</Link> : <Link to="/creator-access" className="button-secondary">Request Studio access</Link>}</div>
-    <div className="mt-10 grid gap-6 lg:grid-cols-3">
-      {[['Saved dates', 'Events, tour stops, and festival appearances you marked for later.'], ['Memberships', 'Your requested and active scene relationships.'], ['Signal consent', 'Every sender, purpose, channel, and revocation in one ledger.']].map(([title, copy]) => <section className="panel p-6" key={title}><p className="eyebrow">{title}</p><p className="mt-4 leading-7 text-foreground-secondary">{copy}</p><button className="button-quiet mt-6 border border-border">Review</button></section>)}
-    </div>
-    <div className="mt-8"><ATProtoAccountPanel /></div>
-  </main>;
+  return <main className="content-wrap py-12 lg:py-16"><PageMeta title="Your account"/><div className="flex flex-col justify-between gap-6 border-b border-border pb-8 md:flex-row md:items-end"><div><p className="eyebrow">Your account</p><h1 className="font-display mt-3 text-6xl uppercase">@{user?.handle || 'member'}</h1><p className="mt-3 text-foreground-secondary">{user?.display_name || 'Add a display name to finish your profile.'}</p></div>{isCreator ? <Link to="/studio" className="button-primary">Open Studio</Link> : <Link to="/creator-access" className="button-secondary">Request creator access</Link>}</div><div className="mt-10 grid gap-6 lg:grid-cols-3"><section className="panel p-6"><p className="eyebrow">Saved dates</p><p className="mt-4 leading-7 text-foreground-secondary">Shows, tour stops, and festivals you mark going or maybe.</p><Link className="button-quiet mt-6 border border-border" to="/events">Browse dates</Link></section><section className="panel p-6"><p className="eyebrow">Scenes</p><p className="mt-4 leading-7 text-foreground-secondary">Browse public scene pages. Durable membership requests will arrive after beta.</p><Link className="button-quiet mt-6 border border-border" to="/scenes">Browse scenes</Link></section><section className="panel p-6"><p className="eyebrow">Message permissions</p><p className="mt-4 leading-7 text-foreground-secondary">Each Signal shows its sender, purpose, channel, and reversible permission controls.</p><p className="mt-6 text-sm text-foreground-muted">Manage permission on the Signal that requested it.</p></section></div><div className="mt-8"><ATProtoAccountPanel /></div></main>;
 }

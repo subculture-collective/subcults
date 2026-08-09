@@ -1,176 +1,64 @@
-/**
- * SearchResultsPage Tests
- * Validates search results display, filtering, sorting, and pagination
- */
-
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { createMemoryRouter, RouterProvider } from 'react-router-dom';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { SearchResultsPage } from './SearchResultsPage';
 import { apiClient } from '../lib/api-client';
+import { getAppearances } from '../lib/release-api';
 
-// Mock the API client
-vi.mock('../lib/api-client', () => ({
-  apiClient: {
-    searchScenes: vi.fn(),
-    searchEvents: vi.fn(),
-    searchPosts: vi.fn(),
-  },
-}));
+vi.mock('../lib/api-client', () => ({ apiClient: { searchScenes: vi.fn(), searchEvents: vi.fn(), searchPosts: vi.fn() } }));
+vi.mock('../lib/release-api', () => ({ getAppearances: vi.fn() }));
 
-const mockScenes = [
-  { id: 's1', name: 'Techno Underground', description: 'Berlin-style techno', allow_precise: false, coarse_geohash: 'u33d' },
-  { id: 's2', name: 'Jazz Cellar', description: 'Intimate jazz sessions', allow_precise: false, coarse_geohash: 'u33d' },
-];
-const mockEvents = [
-  { id: 'e1', scene_id: 's1', name: 'Friday Night Rave', description: 'All night dancing', allow_precise: false },
-];
-const mockPosts = [
-  { id: 'p1', content: 'Looking for techno events near Kreuzberg', created_at: '2024-01-15T20:00:00Z' },
-];
+const scenes = [{ id: 's1', name: 'Techno Underground', description: 'Chicago collective', allow_precise: false, coarse_geohash: 'dp3w' }];
+const events = [{ id: 'e1', scene_id: 's1', name: 'Friday Night Rave', description: 'All night dancing', allow_precise: false }];
+const appearances = [{ id: 'a1', event: { id: 'e1', title: 'Friday Night Rave', starts_at: '2026-08-10T20:00:00Z', kind: 'show', occurrence: { coarse_geohash: 'dp3w', precision: 'coarse' } }, act: { id: 'a', profile_id: 'p1', name: 'Night System' }, tour: { id: 't1', title: 'Signal Path Tour' }, host_names: [], context: 'tour_stop', locality: 'visiting', status: 'announced', verification: 'verified' }];
 
-const renderSearchResultsPage = (search = '?q=techno') => {
-  const router = createMemoryRouter(
-    [
-      {
-        path: '/search',
-        element: <SearchResultsPage />,
-      },
-    ],
-    {
-      initialEntries: [`/search${search}`],
-      future: {
-        v7_startTransition: true,
-        v7_relativeSplatPath: true,
-      },
-    }
-  );
-
-  return render(<RouterProvider router={router} />);
-};
+function renderPage(search = '') {
+  const router = createMemoryRouter([{ path: '/search', element: <SearchResultsPage /> }], { initialEntries: [`/search${search}`], future: { v7_startTransition: true, v7_relativeSplatPath: true } });
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  return render(<QueryClientProvider client={client}><RouterProvider router={router}/></QueryClientProvider>);
+}
 
 describe('SearchResultsPage', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    vi.mocked(apiClient.searchScenes).mockResolvedValue(mockScenes);
-    vi.mocked(apiClient.searchEvents).mockResolvedValue(mockEvents);
-    vi.mocked(apiClient.searchPosts).mockResolvedValue(mockPosts);
+    vi.mocked(apiClient.searchScenes).mockResolvedValue(scenes);
+    vi.mocked(apiClient.searchEvents).mockResolvedValue(events);
+    vi.mocked(apiClient.searchPosts).mockResolvedValue([]);
+    vi.mocked(getAppearances).mockResolvedValue(appearances as never);
   });
 
-  describe('Empty State', () => {
-    it('shows prompt when no query is provided', () => {
-      renderSearchResultsPage('');
-      // i18n mocked to return keys; check the h1 heading
-      expect(screen.getByRole('heading', { level: 1, name: 'search.results.emptyQueryHeading' })).toBeInTheDocument();
-    });
-
-    it('shows no-results message when query returns nothing', async () => {
-      vi.mocked(apiClient.searchScenes).mockResolvedValue([]);
-      vi.mocked(apiClient.searchEvents).mockResolvedValue([]);
-      vi.mocked(apiClient.searchPosts).mockResolvedValue([]);
-
-      renderSearchResultsPage('?q=xyznotfound');
-
-      await waitFor(() => {
-        // The h1 heading shows the noResultsHeading key
-        expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent('search.results.noResultsHeading');
-      }, { timeout: 500 });
-    });
+  it('browses artists and tours without a query', async () => {
+    renderPage('?type=artists');
+    expect(await screen.findByRole('link', { name: /Night System/i })).toHaveAttribute('href', '/profiles/p1');
+    expect(screen.queryByText('Signal Path Tour')).not.toBeInTheDocument();
   });
 
-  describe('Results Display', () => {
-    it('shows scene results grouped under Scenes heading', async () => {
-      renderSearchResultsPage('?q=techno');
-
-      await waitFor(() => {
-        expect(screen.getByText('Techno Underground')).toBeInTheDocument();
-        expect(screen.getByText('Jazz Cellar')).toBeInTheDocument();
-      }, { timeout: 500 });
-    });
-
-    it('shows event results', async () => {
-      renderSearchResultsPage('?q=techno');
-
-      await waitFor(() => {
-        expect(screen.getByText('Friday Night Rave')).toBeInTheDocument();
-      }, { timeout: 500 });
-    });
-
-    it('shows post results', async () => {
-      renderSearchResultsPage('?q=techno');
-
-      await waitFor(() => {
-        expect(screen.getByText(/Looking for techno events near Kreuzberg/i)).toBeInTheDocument();
-      }, { timeout: 500 });
-    });
-
-    it('renders result links with correct hrefs', async () => {
-      renderSearchResultsPage('?q=techno');
-
-      await waitFor(() => {
-        expect(screen.getByRole('link', { name: /Techno Underground/i })).toHaveAttribute('href', '/scenes/s1');
-      }, { timeout: 500 });
-    });
+  it('shows scene and event results for a query and never renders posts', async () => {
+    renderPage('?q=techno');
+    expect(await screen.findByRole('link', { name: /Techno Underground/i })).toHaveAttribute('href', '/scenes/s1');
+    expect(screen.getByRole('link', { name: /Friday Night Rave/i })).toHaveAttribute('href', '/events/e1');
+    expect(screen.queryByText(/post/i)).not.toBeInTheDocument();
   });
 
-  describe('Type Filter', () => {
-    it('shows all type filter buttons', () => {
-      renderSearchResultsPage('?q=techno');
-      // i18n mock returns keys directly
-      const allButtons = screen.getAllByRole('button', { name: 'search.results.types.all' });
-      expect(allButtons.length).toBeGreaterThan(0);
-    });
-
-    it('clicking Scenes filter updates aria-pressed', async () => {
-      renderSearchResultsPage('?q=techno');
-
-      const scenesButtons = screen.getAllByRole('button', { name: 'search.results.types.scenes' });
-      const sidebarScenesBtn = scenesButtons[0];
-
-      await userEvent.click(sidebarScenesBtn);
-
-      await waitFor(() => {
-        expect(sidebarScenesBtn).toHaveAttribute('aria-pressed', 'true');
-      });
-    });
+  it('changes the URL-backed type filter', async () => {
+    renderPage('?q=techno');
+    const artists = screen.getByRole('button', { name: 'artists' });
+    await userEvent.click(artists);
+    expect(artists).toHaveAttribute('aria-pressed', 'true');
   });
 
-  describe('Sort Selector', () => {
-    it('renders sort options in desktop sidebar using i18n keys', () => {
-      renderSearchResultsPage('?q=techno');
-      // i18n mock returns keys directly
-      expect(screen.getAllByRole('button', { name: 'search.results.sort.relevance' }).length).toBeGreaterThan(0);
-      expect(screen.getAllByRole('button', { name: 'search.results.sort.recent' }).length).toBeGreaterThan(0);
-      expect(screen.getAllByRole('button', { name: 'search.results.sort.trending' }).length).toBeGreaterThan(0);
-    });
+  it('shows a clear empty state', async () => {
+    vi.mocked(apiClient.searchScenes).mockResolvedValue([]); vi.mocked(apiClient.searchEvents).mockResolvedValue([]); vi.mocked(getAppearances).mockResolvedValue([]);
+    renderPage('?q=missing');
+    expect(await screen.findByText(/No public records match/i)).toBeInTheDocument();
   });
 
-  describe('Loading State', () => {
-    it('shows loading spinner while searching', async () => {
-      // Keep the promise unresolved
-      vi.mocked(apiClient.searchScenes).mockReturnValue(new Promise(() => {}));
-      vi.mocked(apiClient.searchEvents).mockReturnValue(new Promise(() => {}));
-      vi.mocked(apiClient.searchPosts).mockReturnValue(new Promise(() => {}));
-
-      renderSearchResultsPage('?q=techno');
-
-      // Loading shows after debounce fires - wait for it
-      await waitFor(() => {
-        expect(screen.getByRole('status')).toBeInTheDocument();
-      }, { timeout: 500 });
-    });
-  });
-
-  describe('Accessibility', () => {
-    it('has a main landmark', () => {
-      renderSearchResultsPage('?q=techno');
-      expect(screen.getByRole('main')).toBeInTheDocument();
-    });
-
-    it('has filter aside with accessible label', () => {
-      renderSearchResultsPage('?q=techno');
-      expect(screen.getByRole('complementary')).toBeInTheDocument();
-    });
+  it('keeps semantic landmarks', async () => {
+    renderPage();
+    expect(screen.getByRole('main')).toBeInTheDocument();
+    expect(screen.getByRole('complementary', { name: 'Search filters' })).toBeInTheDocument();
+    await waitFor(() => expect(screen.queryByRole('status')).not.toBeInTheDocument());
   });
 });

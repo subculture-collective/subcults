@@ -284,6 +284,7 @@ type appearanceEventResponse struct {
 
 type appearanceActResponse struct {
 	ID            string `json:"id"`
+	ProfileID     string `json:"profile_id"`
 	Name          string `json:"name"`
 	HomeTerritory string `json:"home_territory,omitempty"`
 }
@@ -475,7 +476,7 @@ func (h *TouringHandlers) summaries(appearances []touring.Appearance, opts appea
 		results = append(results, appearanceSummaryResponse{
 			ID:    appearance.ID,
 			Event: appearanceEventResponse{ID: event.ID, Title: event.Title, StartsAt: event.StartsAt, Kind: kind, Occurrence: toPublicOccurrence(event)},
-			Act:   appearanceActResponse{ID: act.ID, Name: profile.CanonicalName, HomeTerritory: homeTerritory},
+			Act:   appearanceActResponse{ID: act.ID, ProfileID: profile.ID, Name: profile.CanonicalName, HomeTerritory: homeTerritory},
 			Tour:  tourResponse, HostNames: hostNames, Context: touring.ProjectAppearanceKind(appearance.TourID, kind),
 			Locality: locality, Status: appearance.Status, Verification: h.touringRepo.VerificationForEntity("appearance", appearance.ID),
 			ATURI: appearance.ATURI, CID: appearance.CID, PublisherDID: appearance.PublisherDID, PublisherHandle: appearance.PublisherHandle, ProjectionStatus: appearance.ProjectionStatus,

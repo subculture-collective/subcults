@@ -25,7 +25,7 @@ export interface AppearanceSummary extends PortableRecord {
     kind: string;
     occurrence: PublicOccurrence;
   };
-  act: { id: string; name: string; home_territory?: string };
+  act: { id: string; profile_id: string; name: string; home_territory?: string };
   tour?: { id: string; title: string };
   host_names: string[];
   context: 'tour_stop' | 'festival_appearance' | 'one_off';

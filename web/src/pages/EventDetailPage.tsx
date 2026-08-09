@@ -1,20 +1,17 @@
+import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { useParams } from 'react-router-dom';
-import { getEvent } from '../lib/release-api';
+import { Link, useLocation, useParams } from 'react-router-dom';
+import { PageMeta } from '../components/PageMeta';
+import { getEvent, setRSVP } from '../lib/release-api';
+import { useAuth } from '../stores/authStore';
 
 export function EventDetailPage() {
-  const { id = '' } = useParams();
+  const { id = '' } = useParams(); const location = useLocation(); const { isAuthenticated } = useAuth();
+  const [rsvp, setRsvpState] = useState<'going' | 'maybe' | null>(null); const [saving, setSaving] = useState(false); const [error, setError] = useState('');
   const query = useQuery({ queryKey: ['event', id], queryFn: ({ signal }) => getEvent(id, signal), enabled: Boolean(id) });
-  if (query.isLoading) return <main className="content-wrap min-h-[70vh] py-16" aria-busy="true"><p className="eyebrow">Resolving occurrence…</p></main>;
-  if (!query.data) return <main className="content-wrap min-h-[70vh] py-16"><p className="eyebrow">Occurrence unavailable</p><h1 className="font-display mt-3 text-6xl uppercase">Date not found.</h1></main>;
-  const event = query.data;
-  const title = event.title || event.name;
-  return <main>
-    <header className="signal-grid border-b border-border py-16"><div className="content-wrap">
-      <div className="flex flex-wrap items-center gap-3"><span className="status-chip">{event.status || 'announced'}</span><span className="eyebrow">{event.kind || 'show'}</span></div>
-      <h1 className="font-display mt-6 max-w-5xl text-6xl font-bold uppercase leading-[.9] sm:text-8xl">{title}</h1>
-      {event.starts_at && <p className="font-mono mt-7 text-sm uppercase tracking-wider text-neon-cyan">{new Date(event.starts_at).toLocaleString(undefined, { dateStyle: 'full', timeStyle: 'short' })}</p>}
-    </div></header>
-    <section className="content-wrap grid gap-8 py-12 lg:grid-cols-[1fr_360px]"><div><p className="eyebrow">Occurrence dossier</p><p className="mt-5 max-w-3xl text-lg leading-8 text-foreground-secondary">{event.description || 'Details are maintained by the event hosts and preserved with source provenance.'}</p><div className="dossier-rule mt-10 pt-6"><p className="eyebrow">Location disclosure</p><p className="mt-3 text-foreground-secondary">{event.occurrence?.precision === 'precise' ? 'Exact public venue' : 'Approximate area. Protected details require authorization.'}</p></div></div><aside className="panel p-6"><button className="button-primary w-full">RSVP // Going</button><button className="button-secondary mt-3 w-full">Maybe</button><p className="font-mono mt-5 text-[.62rem] leading-5 text-foreground-muted">RSVP records participation only. It does not grant email or push consent.</p></aside></section>
-  </main>;
+  if (query.isLoading) return <main className="content-wrap min-h-[70vh] py-16" aria-busy="true"><p className="eyebrow">Loading event…</p></main>;
+  if (!query.data) return <main className="content-wrap min-h-[70vh] py-16"><PageMeta title="Event unavailable"/><p className="eyebrow">Event unavailable</p><h1 className="font-display mt-3 text-6xl uppercase">We couldn’t find this date.</h1><Link className="button-primary mt-7" to="/events">Browse upcoming dates</Link></main>;
+  const event = query.data; const title = event.title || event.name;
+  const choose = async (status: 'going' | 'maybe') => { setSaving(true); setError(''); try { await setRSVP(id, status); setRsvpState(status); } catch (reason) { setError(reason instanceof Error ? reason.message : 'Your RSVP could not be saved.'); } finally { setSaving(false); } };
+  return <main><PageMeta title={title}/><header className="signal-grid border-b border-border py-16"><div className="content-wrap"><div className="flex flex-wrap items-center gap-3"><span className="status-chip">{event.status || 'announced'}</span><span className="eyebrow">{event.kind || 'show'}</span></div><h1 className="font-display mt-6 max-w-5xl text-6xl font-bold uppercase leading-[.9] sm:text-8xl">{title}</h1>{event.starts_at && <p className="font-mono mt-7 text-sm uppercase tracking-wider text-neon-cyan">{new Date(event.starts_at).toLocaleString(undefined, { dateStyle: 'full', timeStyle: 'short' })}</p>}</div></header><section className="content-wrap grid gap-8 py-12 lg:grid-cols-[1fr_360px]"><div><p className="eyebrow">About this event</p><p className="mt-5 max-w-3xl text-lg leading-8 text-foreground-secondary">{event.description || 'The host has not added a description yet.'}</p><div className="dossier-rule mt-10 pt-6"><p className="eyebrow">Venue details</p><p className="mt-3 text-foreground-secondary">{event.occurrence?.precision === 'precise' ? 'The exact venue is public.' : 'Only an approximate area is public. Exact details may require an RSVP, ticket, or organizer approval.'}</p></div></div><aside className="panel p-6">{isAuthenticated ? <><p className="eyebrow">Save your response</p><div className="mt-4 grid gap-3"><button aria-pressed={rsvp === 'going'} disabled={saving} className={rsvp === 'going' ? 'button-primary' : 'button-secondary'} onClick={() => void choose('going')}>{rsvp === 'going' ? 'Saved: Going' : 'I’m going'}</button><button aria-pressed={rsvp === 'maybe'} disabled={saving} className={rsvp === 'maybe' ? 'button-primary' : 'button-secondary'} onClick={() => void choose('maybe')}>{rsvp === 'maybe' ? 'Saved: Maybe' : 'Maybe'}</button></div>{error && <p className="mt-4 text-sm text-danger" role="alert">{error}</p>}</> : <><p className="eyebrow">Save this date</p><p className="mt-3 text-sm leading-6 text-foreground-secondary">Sign in with a one-time email link to RSVP.</p><Link className="button-primary mt-5 w-full" to="/login" state={{ from: { pathname: location.pathname } }}>Sign in to RSVP</Link></>}<p className="font-mono mt-5 text-[.62rem] leading-5 text-foreground-muted">An RSVP records participation only. It does not grant email, push, or marketing permission.</p></aside></section></main>;
 }
