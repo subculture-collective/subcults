@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom';
 import type { AppearanceSummary } from '../../types/touring';
 import { formatDateTime } from '../../utils/dateTime';
+import { PortableRecordBadge } from './PortableRecordBadge';
 
 export interface AppearanceCardProps {
   appearance: AppearanceSummary;
@@ -42,6 +43,7 @@ export function AppearanceCard({ appearance }: AppearanceCardProps) {
           </Link>
         </p>
       )}
+      <PortableRecordBadge record={appearance} />
     </article>
   );
 }

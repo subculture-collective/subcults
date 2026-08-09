@@ -8,7 +8,15 @@ export interface PublicOccurrence {
   precision: 'coarse' | 'precise';
 }
 
-export interface AppearanceSummary {
+export interface PortableRecord {
+  at_uri?: string;
+  cid?: string;
+  publisher_did?: string;
+  publisher_handle?: string;
+  projection_status?: 'reserved' | 'awaiting_projection' | 'projected' | 'failed' | 'conflict' | 'deleted' | 'quarantined';
+}
+
+export interface AppearanceSummary extends PortableRecord {
   id: string;
   event: {
     id: string;
@@ -26,7 +34,7 @@ export interface AppearanceSummary {
   verification: 'unverified' | 'claimed' | 'verified' | 'disputed' | 'rejected';
 }
 
-export interface TouringProfile {
+export interface TouringProfile extends PortableRecord {
   id: string;
   name: string;
   home_territory?: string;
@@ -34,6 +42,6 @@ export interface TouringProfile {
 
 export interface TouringDetailResponse {
   profile?: TouringProfile;
-  tour?: { id: string; title: string };
+  tour?: { id: string; title: string } & PortableRecord;
   appearances: AppearanceSummary[];
 }

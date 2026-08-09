@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom';
 import { useAuth } from '../stores/authStore';
+import { ATProtoAccountPanel } from '../components/ATProtoAccountPanel';
 
 export function MyActivityPage() {
   const { user, isCreator } = useAuth();
@@ -8,5 +9,6 @@ export function MyActivityPage() {
     <div className="mt-10 grid gap-6 lg:grid-cols-3">
       {[['Saved dates', 'Events, tour stops, and festival appearances you marked for later.'], ['Memberships', 'Your requested and active scene relationships.'], ['Signal consent', 'Every sender, purpose, channel, and revocation in one ledger.']].map(([title, copy]) => <section className="panel p-6" key={title}><p className="eyebrow">{title}</p><p className="mt-4 leading-7 text-foreground-secondary">{copy}</p><button className="button-quiet mt-6 border border-border">Review</button></section>)}
     </div>
+    <div className="mt-8"><ATProtoAccountPanel /></div>
   </main>;
 }
