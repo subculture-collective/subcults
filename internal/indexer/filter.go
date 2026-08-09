@@ -7,22 +7,26 @@ import (
 	"errors"
 	"strings"
 	"sync/atomic"
+
+	"github.com/onnwee/subcults/internal/atprotocol"
 )
 
 // LexiconPrefix is the namespace prefix for Subcults domain records.
-const LexiconPrefix = "app.subcult."
+const LexiconPrefix = atprotocol.CanonicalPrefix
 
 // Supported lexicon collection types within the app.subcult namespace.
 const (
-	CollectionScene    = "app.subcult.scene"
-	CollectionEvent    = "app.subcult.event"
-	CollectionPost     = "app.subcult.post"
-	CollectionAlliance = "app.subcult.alliance"
+	CollectionScene          = "app.subcult.scene"
+	CollectionEvent          = "app.subcult.event"
+	CollectionPost           = "app.subcult.post"
+	CollectionAlliance       = "app.subcult.alliance"
+	CollectionCanonicalScene = atprotocol.CollectionScene
+	CollectionCanonicalEvent = atprotocol.CollectionEvent
 )
 
 // Errors for record filtering and validation.
 var (
-	ErrNonMatchingLexicon = errors.New("lexicon does not match app.subcult.* namespace")
+	ErrNonMatchingLexicon = errors.New("lexicon does not match a supported Subcults namespace")
 	ErrMalformedJSON      = errors.New("malformed JSON payload")
 	ErrMissingField       = errors.New("required field missing")
 	ErrInvalidFieldType   = errors.New("field has invalid type")
@@ -85,7 +89,7 @@ func NewRecordFilter(metrics *FilterMetrics) *RecordFilter {
 
 // MatchesLexicon checks if the given collection path matches the app.subcult.* namespace.
 func MatchesLexicon(collection string) bool {
-	return strings.HasPrefix(collection, LexiconPrefix)
+	return atprotocol.IsCanonicalCollection(collection) || atprotocol.IsLegacyCollection(collection)
 }
 
 // FilterResult represents the result of filtering and validating a record.
@@ -194,14 +198,39 @@ func (f *RecordFilter) validateRecord(collection string, payload []byte) error {
 		return validateSceneRecord(payload)
 	case CollectionEvent:
 		return validateEventRecord(payload)
+	case CollectionCanonicalScene:
+		if err := atprotocol.ValidatePublicRecord(collection, payload); err != nil {
+			return err
+		}
+		return validateRequiredStringFields(payload, "name", "coarseGeohash")
+	case CollectionCanonicalEvent:
+		if err := atprotocol.ValidatePublicRecord(collection, payload); err != nil {
+			return err
+		}
+		return validateRequiredStringFields(payload, "title", "startsAt", "place")
 	case CollectionPost:
 		return validatePostRecord(payload)
 	case CollectionAlliance:
 		return validateAllianceRecord(payload)
 	default:
-		// For unknown app.subcult.* collections, just validate JSON syntax
+		if strings.HasPrefix(collection, atprotocol.CanonicalPrefix) {
+			return atprotocol.ValidatePublicRecord(collection, payload)
+		}
 		return validateJSONSyntax(payload)
 	}
+}
+
+func validateRequiredStringFields(payload []byte, fields ...string) error {
+	var record map[string]interface{}
+	if err := json.Unmarshal(payload, &record); err != nil {
+		return ErrMalformedJSON
+	}
+	for _, field := range fields {
+		if err := validateStringField(record, field); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // validateJSONSyntax checks if the payload is valid JSON.
@@ -280,32 +309,32 @@ func validatePostRecord(payload []byte) error {
 	if err := json.Unmarshal(payload, &record); err != nil {
 		return ErrMalformedJSON
 	}
-	
+
 	// Validate required text field
 	if err := validateStringField(record, "text"); err != nil {
 		return err
 	}
-	
+
 	// At least one of sceneId or eventId must be present
 	hasSceneID := false
 	hasEventID := false
-	
+
 	if sceneID, exists := record["sceneId"]; exists {
 		if _, ok := sceneID.(string); ok {
 			hasSceneID = true
 		}
 	}
-	
+
 	if eventID, exists := record["eventId"]; exists {
 		if _, ok := eventID.(string); ok {
 			hasEventID = true
 		}
 	}
-	
+
 	if !hasSceneID && !hasEventID {
 		return ErrMissingField
 	}
-	
+
 	return nil
 }
 

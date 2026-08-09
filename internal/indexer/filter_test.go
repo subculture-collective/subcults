@@ -457,30 +457,34 @@ func TestRecordFilter_Filter_UnknownSubcultCollection(t *testing.T) {
 	metrics := NewFilterMetrics()
 	filter := NewRecordFilter(metrics)
 
-	// Unknown app.subcult.* collections should still match but only validate JSON syntax
+	// Unknown legacy collections do not widen the compatibility boundary.
 	tests := []struct {
-		name       string
-		collection string
-		payload    string
-		wantValid  bool
+		name        string
+		collection  string
+		payload     string
+		wantValid   bool
+		wantMatched bool
 	}{
 		{
-			name:       "unknown collection with valid JSON",
-			collection: "app.subcult.unknown",
-			payload:    `{"any":"field"}`,
-			wantValid:  true,
+			name:        "unknown collection with valid JSON",
+			collection:  "app.subcult.unknown",
+			payload:     `{"any":"field"}`,
+			wantValid:   false,
+			wantMatched: false,
 		},
 		{
-			name:       "app.subcult.alliance with valid JSON",
-			collection: "app.subcult.alliance",
-			payload:    `{"fromSceneId":"scene1","toSceneId":"scene2"}`,
-			wantValid:  true,
+			name:        "app.subcult.alliance with valid JSON",
+			collection:  "app.subcult.alliance",
+			payload:     `{"fromSceneId":"scene1","toSceneId":"scene2"}`,
+			wantValid:   true,
+			wantMatched: true,
 		},
 		{
-			name:       "unknown collection with invalid JSON",
-			collection: "app.subcult.future",
-			payload:    `not json`,
-			wantValid:  false,
+			name:        "unknown collection with invalid JSON",
+			collection:  "app.subcult.future",
+			payload:     `not json`,
+			wantValid:   false,
+			wantMatched: false,
 		},
 	}
 
@@ -488,13 +492,22 @@ func TestRecordFilter_Filter_UnknownSubcultCollection(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			result := filter.Filter(tt.collection, []byte(tt.payload))
 
-			if !result.Matched {
-				t.Error("expected Matched = true for app.subcult.* collection")
+			if result.Matched != tt.wantMatched {
+				t.Errorf("Matched = %v, want %v", result.Matched, tt.wantMatched)
 			}
 			if result.Valid != tt.wantValid {
 				t.Errorf("Valid = %v, want %v; error: %v", result.Valid, tt.wantValid, result.Error)
 			}
 		})
+	}
+}
+
+func TestRecordFilter_Filter_CanonicalEvent(t *testing.T) {
+	filter := NewRecordFilter(NewFilterMetrics())
+	payload := []byte("{\"$type\":\"tv.subcult.event\",\"title\":\"Road signal\",\"startsAt\":\"2026-08-09T00:00:00Z\",\"place\":\"at://did:plc:test/tv.subcult.place/3kz\",\"disclosure\":\"coarse\",\"createdAt\":\"2026-08-01T00:00:00Z\"}")
+	result := filter.Filter("tv.subcult.event", payload)
+	if !result.Matched || !result.Valid {
+		t.Fatalf("canonical event rejected: %+v", result)
 	}
 }
 
