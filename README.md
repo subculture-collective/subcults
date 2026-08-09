@@ -11,7 +11,7 @@ Rebuild the connective tissue of the underground: a trust‑based discovery and 
 1. Presence over popularity
 2. Scene sovereignty (custom identity & membership rules)
 3. Human discovery (proximity + trust > opaque ranking)
-4. Decentralized data (AT Protocol records + Jetstream ingestion)
+4. Creator-owned public data (canonical AT Protocol records + validated projections)
 5. Privacy first (coarse location, consent‑based precision)
 6. Participation before extraction (community activity is not automatic marketing consent)
 7. Occurrence-based discovery (shows surface where they happen, regardless of artist home base)
@@ -19,7 +19,7 @@ Rebuild the connective tissue of the underground: a trust‑based discovery and 
 ## Initial Stack
 
 - Frontend: Vite + React + TypeScript + MapLibre (MapTiler tiles)
-- Backend: Go (net/http) API + Jetstream indexer
+- Backend: Go API + AT Protocol OAuth/publishing + Tap/Jetstream synchronization
 - RTC Audio: LiveKit Cloud (WebRTC SFU, TURN, token issuance)
 - Database: Neon Postgres 16 + PostGIS (geo + FTS)
 - Storage: Cloudflare R2 (media assets, recordings)
@@ -50,13 +50,16 @@ Rebuild the connective tissue of the underground: a trust‑based discovery and 
 
 The canonical extension to this roadmap is [Audience, Drops, and Touring](docs/product/AUDIENCE_DROPS_AND_TOURING.md). It defines how artist home territory, event occurrence location, tours, festival appearances, one-off shows, consent, and activation fit the original scene model.
 
-Repository status: passwordless identity, creator approval, protected event
-locations, encrypted web-push subscriptions, touring/Signal APIs, and the
-public/Studio frontend now exist in source. The production API still refuses to
-start because the core Scene/Event/Touring/Audience/Signal repositories do not
-yet have Postgres adapters. Provider credentials, browser E2E qualification,
-and the frontend legacy-test cleanup also remain release prerequisites. See
-[Public Beta Release Status](docs/product/PUBLIC_BETA_RELEASE_STATUS.md).
+Repository status: the durable beta repositories, passwordless identity,
+protected locations, touring/Signal APIs, and public/Studio frontend exist in
+source. Canonical `tv.subcult.*` lexicons, confidential AT Protocol linking,
+guarded PDS invitation issuance, creator-PDS publication, Tap intake, delayed
+reconciliation, and portable discovery DTOs are implemented behind independent
+feature switches. Public PDS provisioning remains blocked on enforceable invite
+expiry, dedicated capacity/restore qualification, the seven-day sync parity
+soak, and deployed browser evidence. See [Public Beta Release
+Status](docs/product/PUBLIC_BETA_RELEASE_STATUS.md) and [AT Protocol and PDS
+Operations](docs/operations/ATPROTO_PDS.md).
 
 ## Development Principles
 

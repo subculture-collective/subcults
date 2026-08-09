@@ -1,6 +1,6 @@
 # Public Beta Release Status
 
-Status date: 2026-08-08
+Status date: 2026-08-09
 
 This is the executable release contract for the web public beta. It replaces
 older claims that the placeholder frontend or in-memory API was production
@@ -42,6 +42,8 @@ deferred.
 | Database operations | Live readiness, bounded pool/timeouts, graceful shutdown, version-matched backup path | Outage returns 503 and recovers; 58-table restore reports schema 40 |
 | Backend regression gate | Whole repository | `go test ./... -count=1` passes in the libvips-enabled build image |
 | Release automation | Required CI, security scans, reversible migration check, fail-closed deploy migrations | Compose renders, workflow YAML parses, deploy script passes `bash -n` |
+| Canonical AT Protocol layer | `tv.subcult.*` lexicons, confidential OAuth, PDS publication, Tap intake, reconciliation and quarantine | Focused AT Protocol tests, official lexicon lint, API container compile/tests, and clean/upgraded migration 44 checks pass |
+| Portable Studio records | Profile/Act dependency publishing plus Place/Venue/Scene/Event/Tour/Appearance publication state | Focused frontend tests and production build pass |
 
 Dependency remediation removed all high and critical npm audit findings. Two
 moderate React Router advisories remain because the available fix is a breaking
@@ -52,7 +54,7 @@ major-version upgrade and must be handled as an explicit compatibility slice.
 ### 1. Frontend suite reconciliation
 
 The new app lints and builds, but the full legacy Vitest run currently reports
-24 failing files / 121 failing assertions. Most assertions target retired
+22 failing files / 119 failing assertions. Most assertions target retired
 password login, placeholder navigation, streaming release routes, or render
 query-based pages without their provider. Several unrelated older failures also
 remain in theme, i18n, session-replay, stream accessibility, settings, and map
@@ -64,7 +66,25 @@ Required evidence:
 2. Preserve focused privacy, consent, auth, protected-location, and Studio tests.
 3. Reach a green full Vitest run; do not lower coverage to conceal deletions.
 
-### 2. Configured staging and provider evidence
+### 2. AT Protocol operational qualification
+
+Linking, publication, synchronization, and provisioning controls exist behind
+independent switches. Public provisioning remains disabled because the current
+PDS invite API cannot enforce the required ten-minute expiry, the NUC PDS is an
+internal-beta workload, and the required capacity/restore qualification and
+seven-day Tap/Jetstream parity soak have not occurred.
+
+Required evidence:
+
+1. Link both the Subcults PDS and an external standards-compliant PDS in a real
+   deployed browser.
+2. Publish and project each canonical collection without protected-data leakage.
+3. Add enforceable invite expiry or upstream invite revocation before public
+   provisioning.
+4. Prove the dedicated PDS capacity, backup/export/restore and Tap rebuild gates.
+5. Complete seven consecutive days with no unexplained Tap/Jetstream gap.
+
+### 3. Configured staging and provider evidence
 
 No provider credential or deployment was used during this implementation.
 Staging needs a real database, `PUBLIC_WEB_URL`, contact encryption/HMAC keys,
@@ -83,9 +103,10 @@ Required evidence:
 
 ## Release decision
 
-Current verdict: **not releasable**. The durable PostgreSQL blocker is closed
-and the local API is restart-safe, but the failing full frontend suite and
-unconfigured staging/provider checks still fail the release contract.
+Current verdict: **not releasable**. The durable PostgreSQL and canonical public
+data implementation blockers are closed locally, but the failing full frontend
+suite, unqualified PDS provisioning/synchronization operation, and unconfigured
+staging/provider checks still fail the release contract.
 
 The next implementation slice is frontend-suite reconciliation, followed by
 configured staging qualification and browser evidence. The durable beta route

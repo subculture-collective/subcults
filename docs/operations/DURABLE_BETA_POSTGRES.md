@@ -6,8 +6,9 @@ local fixture mode and must not be set in a release environment.
 
 ## Durable beta surface
 
-The production runtime persists Scenes, Events, RSVPs, Places, Profiles, Acts,
-Tours, Appearances, sources/assertions, audience contacts/links/relationships,
+The production runtime persists Scenes, Events, RSVPs, Places, Venues, Profiles,
+Acts, Tours, Appearances, sources/assertions, AT Protocol OAuth/publication and
+projection history, audience contacts/links/relationships,
 consent/suppressions, Signals/revisions/deliveries, identity, protected-location
 grants, and browser push subscriptions.
 
@@ -45,7 +46,7 @@ build variable in the same file.
   triggers that reject `UPDATE` and `DELETE`.
 - Source observations are deduplicated without deleting assertion history;
   corrections link to one retained superseded assertion.
-- Scene, Event, Place, Profile, Tour, and Appearance updates compare the supplied
+- Scene, Event, Place, Venue, Profile, Tour, and Appearance updates compare the supplied
   version and return `409 Conflict` for stale Studio writes.
 
 ## Pooling and timeouts
@@ -63,14 +64,14 @@ then closes the SQL pool.
 
 ## Migrations and failure behavior
 
-The API requires schema version 40 and exits before binding its port when the
+The API requires schema version 44 and exits before binding its port when the
 schema is older or inaccessible. Deployment must run migrations before
 recreating the API. Validate both paths before release:
 
-1. apply migrations 0 through 40 to an empty PostGIS database;
-2. apply through 39, then upgrade that populated schema to 40;
-3. start the API against version 39 and confirm a non-zero exit;
-4. run the tagged database integration tests against version 40.
+1. apply migrations 0 through 44 to an empty PostGIS database;
+2. apply through 43, then upgrade that populated schema to 44;
+3. start the API against version 43 and confirm a non-zero exit;
+4. run the tagged database integration tests against version 44.
 
 ```bash
 DATABASE_URL="$TEST_DATABASE_URL" TEST_DATABASE_URL="$TEST_DATABASE_URL" \
@@ -91,6 +92,6 @@ BACKUP_DATABASE_URL='postgres://subcults:subcults-dev-password@127.0.0.1:5432/su
 ```
 
 A backup is not qualified until it restores into a separate empty database and
-the restored schema reports version 40. Managed production also needs its
+the restored schema reports version 44. Managed production also needs its
 provider snapshot/PITR policy, retention, access controls, and a scheduled
 restore drill; a successful local dump is not evidence for those controls.

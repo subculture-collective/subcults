@@ -34,6 +34,7 @@ Files are numbered sequentially: `NNNN-short-description.md`
 | [005](0005-privacy-first-location.md)       | Privacy-First Location Consent Model                        | Accepted | 2025-12 |
 | [006](0006-distroless-container-images.md)  | Distroless Container Images                                 | Accepted | 2026-01 |
 | [007](0007-scene-signals-touring-relationship-model.md) | Separate Profiles, Event Occurrences, Appearances, and Signals | Proposed | 2026-08 |
+| [008](0008-atproto-canonical-public-data.md) | Creator PDS Records Are Canonical Public Data | Accepted | 2026-08 |
 
 ## Creating a New ADR
 
