@@ -14,6 +14,7 @@ import (
 	"time"
 
 	_ "github.com/lib/pq" // Postgres driver
+	appconfig "github.com/onnwee/subcults/internal/config"
 	"github.com/onnwee/subcults/internal/db"
 	"github.com/onnwee/subcults/internal/indexer"
 	"github.com/onnwee/subcults/internal/middleware"
@@ -135,7 +136,8 @@ func main() {
 			os.Exit(1)
 		}
 
-		logger.Info("using Postgres repository", "database_url", databaseURL)
+		maskedDatabaseURL := (&appconfig.Config{DatabaseURL: databaseURL}).LogSummary()["database_url"]
+		logger.Info("using Postgres repository", "database_url", maskedDatabaseURL)
 		repo = indexer.NewPostgresRecordRepository(db, logger)
 		sequenceTracker = indexer.NewPostgresSequenceTracker(db, logger)
 
