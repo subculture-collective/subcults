@@ -19,6 +19,7 @@ var (
 	ErrDuplicateAppearance = errors.New("duplicate appearance")
 	ErrDuplicateSource     = errors.New("duplicate source")
 	ErrDuplicateAssertion  = errors.New("duplicate entity assertion")
+	ErrVersionConflict     = errors.New("stale touring aggregate version")
 )
 
 // Repository is the touring persistence boundary. This in-memory implementation
@@ -39,6 +40,10 @@ type Repository interface {
 	StorePlace(place Place) error
 	StoreProfile(profile Profile) error
 	StoreAct(act Act) error
+	UpdatePlace(place *Place) error
+	UpdateProfile(profile *Profile) error
+	UpdateTour(tour *Tour) error
+	UpdateAppearance(appearance *Appearance) error
 	AddHomeTerritory(territory HomeTerritory) error
 	GetPlace(id string) (Place, error)
 	GetProfile(id string) (Profile, error)
@@ -113,6 +118,75 @@ func (r *InMemoryRepository) StoreAct(act Act) error {
 		return ErrInvalidProfile
 	}
 	r.acts[act.ID] = act
+	return nil
+}
+
+func (r *InMemoryRepository) UpdatePlace(value *Place) error {
+	if err := value.Validate(); err != nil {
+		return err
+	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	current, ok := r.places[value.ID]
+	if !ok {
+		return ErrInvalidPlace
+	}
+	if current.Version != value.Version {
+		return ErrVersionConflict
+	}
+	value.Version++
+	r.places[value.ID] = *value
+	return nil
+}
+func (r *InMemoryRepository) UpdateProfile(value *Profile) error {
+	if err := value.Validate(); err != nil {
+		return err
+	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	current, ok := r.profiles[value.ID]
+	if !ok {
+		return ErrInvalidProfile
+	}
+	if current.Version != value.Version {
+		return ErrVersionConflict
+	}
+	value.Version++
+	r.profiles[value.ID] = *value
+	return nil
+}
+func (r *InMemoryRepository) UpdateTour(value *Tour) error {
+	if err := value.Validate(); err != nil {
+		return err
+	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	current, ok := r.tours[value.ID]
+	if !ok {
+		return ErrTourNotFound
+	}
+	if current.Version != value.Version {
+		return ErrVersionConflict
+	}
+	value.Version++
+	r.tours[value.ID] = *value
+	return nil
+}
+func (r *InMemoryRepository) UpdateAppearance(value *Appearance) error {
+	if err := value.Validate(); err != nil {
+		return err
+	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	current, ok := r.appearances[value.ID]
+	if !ok {
+		return ErrAppearanceNotFound
+	}
+	if current.Version != value.Version {
+		return ErrVersionConflict
+	}
+	value.Version++
+	r.appearances[value.ID] = copyAppearance(*value)
 	return nil
 }
 

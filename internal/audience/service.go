@@ -109,6 +109,11 @@ func (s *Service) CanDeliver(ctx context.Context, contactID string, request Deli
 	if err := request.Validate(); err != nil {
 		return false, err
 	}
+	if repository, ok := s.repository.(interface {
+		CanDeliverTransactional(context.Context, string, DeliveryScope) (bool, error)
+	}); ok {
+		return repository.CanDeliverTransactional(ctx, contactID, request)
+	}
 	contact, err := s.repository.GetContact(ctx, contactID)
 	if err != nil {
 		return false, err

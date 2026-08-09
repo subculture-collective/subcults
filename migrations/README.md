@@ -229,6 +229,14 @@ The `to_tsvector_immutable()` wrapper ensures GIN indexes can be created on FTS 
 
 ## Troubleshooting
 
+### Durable beta schema (Migration 000040)
+
+Migration 40 aligns DID-backed RSVPs and compound Signal identifiers with the
+domain model, adds optimistic versions for Places and Appearances, enforces
+immutable Signal revisions, and adds the effective-consent and delivery queue
+indexes used by the PostgreSQL adapters. The API requires schema version 40 and
+will not start on an older or dirty schema.
+
 ### "extension postgis is not available"
 
 Your PostgreSQL instance does not have PostGIS installed. Either:

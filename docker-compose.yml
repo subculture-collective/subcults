@@ -17,8 +17,7 @@ services:
       retries: 5
     restart: unless-stopped
 
-  # Local development API. The explicit in-memory switch is intentional until
-  # durable domain repository adapters exist; production must leave it unset.
+  # Local development API uses the same durable repository path as production.
   api:
     build:
       context: .
@@ -26,11 +25,12 @@ services:
     container_name: subcults-api
     ports:
       - '127.0.0.1:8080:8080'
+    env_file:
+      - deploy/.env
     environment:
       DATABASE_URL: postgres://subcults:${POSTGRES_PASSWORD:-subcults-dev-password}@postgres:5432/subcults?sslmode=disable
       PORT: '8080'
       SUBCULT_ENV: development
-      SUBCULT_IN_MEMORY_REPOSITORIES: 'true'
     depends_on:
       postgres:
         condition: service_healthy

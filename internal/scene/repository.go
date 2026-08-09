@@ -103,6 +103,10 @@ type UpsertResult struct {
 	ID       string // The UUID of the upserted record
 }
 
+// ErrVersionConflict indicates that an optimistic Studio update used a stale
+// aggregate version and must be refreshed before retrying.
+var ErrVersionConflict = errors.New("stale aggregate version")
+
 // SceneRepository defines the interface for scene data operations.
 // All implementations must enforce location consent before persisting data.
 type SceneRepository interface {

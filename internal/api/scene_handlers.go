@@ -4,6 +4,7 @@ package api
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -37,6 +38,7 @@ type CreateSceneRequest struct {
 // UpdateSceneRequest represents the request body for updating a scene.
 // Only includes mutable fields (owner is immutable).
 type UpdateSceneRequest struct {
+	Version      int64          `json:"version"`
 	Name         *string        `json:"name,omitempty"`
 	Description  *string        `json:"description,omitempty"`
 	Tags         []string       `json:"tags,omitempty"`
@@ -377,6 +379,13 @@ func (h *SceneHandlers) UpdateScene(w http.ResponseWriter, r *http.Request) {
 		WriteError(w, ctx, http.StatusInternalServerError, ErrCodeInternal, "Failed to retrieve scene")
 		return
 	}
+	if existingScene.Version > 0 {
+		if req.Version == 0 {
+			WriteError(w, middleware.SetErrorCode(r.Context(), ErrCodeValidation), http.StatusBadRequest, ErrCodeValidation, "version is required")
+			return
+		}
+		existingScene.Version = req.Version
+	}
 
 	// Verify ownership
 	if !existingScene.IsOwner(userDID) {
@@ -460,6 +469,10 @@ func (h *SceneHandlers) UpdateScene(w http.ResponseWriter, r *http.Request) {
 
 	// Update in repository (will enforce location consent)
 	if err := h.repo.Update(existingScene); err != nil {
+		if errors.Is(err, scene.ErrVersionConflict) {
+			WriteError(w, middleware.SetErrorCode(r.Context(), ErrCodeConflict), http.StatusConflict, ErrCodeConflict, "The scene changed; refresh before saving again")
+			return
+		}
 		slog.ErrorContext(r.Context(), "failed to update scene", "error", err, "scene_id", sceneID)
 		ctx := middleware.SetErrorCode(r.Context(), ErrCodeInternal)
 		WriteError(w, ctx, http.StatusInternalServerError, ErrCodeInternal, "Failed to update scene")

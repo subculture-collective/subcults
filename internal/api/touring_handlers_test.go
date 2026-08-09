@@ -42,6 +42,17 @@ func TestStudioTouringMutationFlow(t *testing.T) {
 	}
 }
 
+func TestStudioTouringStaleUpdateReturnsConflict(t *testing.T) {
+	repository := touring.NewInMemoryRepository()
+	profile := touring.Profile{ID: "profile-versioned", Kind: "artist", CanonicalName: "Versioned", Visibility: "public", Version: 1}
+	if err := repository.StoreProfile(profile); err != nil { t.Fatal(err) }
+	handler := NewTouringHandlers(repository, scene.NewInMemoryEventRepository(), scene.NewInMemorySceneRepository())
+	body, _ := json.Marshal(touring.Profile{ID: profile.ID, Kind: profile.Kind, CanonicalName: "Stale", Visibility: profile.Visibility, Version: 0})
+	response := httptest.NewRecorder()
+	handler.CreateProfile(response, httptest.NewRequest(http.MethodPatch, "/api/v1/studio/profiles", bytes.NewReader(body)))
+	if response.Code != http.StatusConflict { t.Fatalf("status=%d body=%s", response.Code, response.Body.String()) }
+}
+
 func TestTouringHandlersExposeVisitingTourAndProfile(t *testing.T) {
 	handler, tourID, profileID := newTouringHandlerFixture(t, touring.EventKindShow)
 

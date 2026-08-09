@@ -3,6 +3,7 @@ package main
 
 import (
 	"context"
+	"database/sql"
 	"flag"
 	"fmt"
 	"log/slog"
@@ -88,9 +89,10 @@ func main() {
 		)
 	} else {
 		startupContext, cancelStartup := context.WithTimeout(context.Background(), 10*time.Second)
-		runtimeRepositories, err := db.NewRuntimeRepositories(startupContext, os.Getenv("DATABASE_URL"))
-		cancelStartup()
+		var err error
+		runtimeRepositories, err = db.NewRuntimeRepositories(startupContext, os.Getenv("DATABASE_URL"))
 		if err != nil {
+			cancelStartup()
 			logger.Error("durable repository startup prerequisite failed", "error", err)
 			os.Exit(1)
 		}
@@ -100,14 +102,13 @@ func main() {
 			}
 		}()
 
-		// The connection is checked and later wired into readiness, but no API
-		// domain adapter currently persists its state through it. Refuse to run
-		// rather than silently serving the existing in-memory repositories.
-		logger.Error("durable repository startup prerequisite failed",
-			"error", db.ErrDurableRepositoriesUnavailable,
-			"help", "set SUBCULT_IN_MEMORY_REPOSITORIES=true only for local development until Postgres domain adapters are implemented",
-		)
-		os.Exit(1)
+		checker := db.NewSchemaVersionChecker(runtimeRepositories.DB, logger)
+		if err := checker.EnsureCompatible(startupContext); err != nil {
+			cancelStartup()
+			logger.Error("database schema is not compatible", "error", err)
+			os.Exit(1)
+		}
+		cancelStartup()
 	}
 
 	// Initialize OpenTelemetry tracing
@@ -223,26 +224,40 @@ func main() {
 			"help", "Set RANKING_CALIBRATION_PATH environment variable to load custom weights")
 	}
 
-	// Initialize repositories. This path is reachable only when the explicit
-	// development switch above is enabled; production startup exits before it.
-	eventRepo := scene.NewInMemoryEventRepository()
-	sceneRepo := scene.NewInMemorySceneRepository()
+	// Initialize durable beta repositories, retaining memory only for explicit
+	// local fixture mode.
+	var eventRepo scene.EventRepository
+	var sceneRepo scene.SceneRepository
 	auditRepo := audit.NewInMemoryRepository()
-	rsvpRepo := scene.NewInMemoryRSVPRepository()
+	var rsvpRepo scene.RSVPRepository
 	streamRepo := stream.NewInMemorySessionRepository()
 	participantRepo := stream.NewInMemoryParticipantRepository(streamRepo)
 	analyticsRepo := stream.NewInMemoryAnalyticsRepository(streamRepo)
 	postRepo := post.NewInMemoryPostRepository()
 	membershipRepo := membership.NewInMemoryMembershipRepository()
 	allianceRepo := alliance.NewInMemoryAllianceRepository()
-	touringRepo := touring.NewInMemoryRepository()
-	audienceRepo := audience.NewInMemoryRepository()
+	var touringRepo touring.Repository
+	var audienceRepo audience.Repository
+	if runtimeRepositories != nil {
+		sceneRepositories := scene.NewSQLRepositories(runtimeRepositories.DB)
+		sceneRepo, eventRepo, rsvpRepo = sceneRepositories.Scenes, sceneRepositories.Events, sceneRepositories.RSVPs
+		touringRepo = touring.NewSQLRepository(runtimeRepositories.DB)
+		audienceRepo = audience.NewSQLRepository(runtimeRepositories.DB)
+	} else {
+		eventRepo = scene.NewInMemoryEventRepository()
+		sceneRepo = scene.NewInMemorySceneRepository()
+		rsvpRepo = scene.NewInMemoryRSVPRepository()
+		touringRepo = touring.NewInMemoryRepository()
+		audienceRepo = audience.NewInMemoryRepository()
+	}
 	audienceService := audience.NewService(audienceRepo)
-	signalRepo := domainsignal.NewInMemoryRepository()
-	signalService := domainsignal.NewService(signalRepo)
-	locationRepository := locationaccess.Repository(locationaccess.NewInMemoryRepository())
+	var signalRepo domainsignal.Repository
+	var locationRepository locationaccess.Repository
 	if runtimeRepositories != nil {
 		locationRepository = locationaccess.NewSQLRepository(runtimeRepositories.DB)
+	} else {
+		signalRepo = domainsignal.NewInMemoryRepository()
+		locationRepository = locationaccess.NewInMemoryRepository()
 	}
 	protectedLocationHandlers := api.NewProtectedLocationHandlers(locationRepository, eventRepo, sceneRepo)
 
@@ -267,7 +282,9 @@ func main() {
 		identityMailer = identity.DevelopmentMailer{Logger: logger}
 	} else {
 		contactProtector, err = identity.NewContactProtectorFromBase64(os.Getenv("CONTACT_ENCRYPTION_KEY"), os.Getenv("CONTACT_HMAC_KEY"))
-		if err == nil {
+		if err == nil && env == "development" {
+			identityMailer = identity.DevelopmentMailer{Logger: logger}
+		} else if err == nil {
 			identityMailer, err = identity.NewPostmarkMailer(os.Getenv("POSTMARK_TRANSACTIONAL_TOKEN"), os.Getenv("POSTMARK_FROM"), os.Getenv("POSTMARK_TRANSACTIONAL_STREAM"))
 		}
 	}
@@ -275,6 +292,10 @@ func main() {
 		logger.Error("identity security configuration failed", "error", err)
 		os.Exit(1)
 	}
+	if runtimeRepositories != nil {
+		signalRepo = domainsignal.NewSQLRepository(runtimeRepositories.DB, contactProtector)
+	}
+	signalService := domainsignal.NewService(signalRepo)
 	identityRepo := identity.Repository(identity.NewInMemoryRepository())
 	if runtimeRepositories != nil {
 		identityRepo = identity.NewSQLRepository(runtimeRepositories.DB)
@@ -1206,17 +1227,17 @@ func main() {
 
 	// Health check endpoints for Kubernetes probes
 	// Initialize health checkers for external dependencies
-	var redisHealthChecker *health.RedisChecker
+	var redisHealthChecker api.HealthChecker
 	if redisClient != nil {
 		redisHealthChecker = health.NewRedisChecker(redisClient)
 	}
 
-	var livekitHealthChecker *health.LiveKitChecker
+	var livekitHealthChecker api.HealthChecker
 	if livekitURL != "" {
 		livekitHealthChecker = health.NewLiveKitChecker(livekitURL)
 	}
 
-	var dbHealthChecker *health.DBChecker
+	var dbHealthChecker api.HealthChecker
 	if runtimeRepositories != nil {
 		dbHealthChecker = health.NewDBChecker(runtimeRepositories.DB)
 	}
@@ -1269,7 +1290,11 @@ func main() {
 	mux.Handle("/api/log/client-error", clientErrorHandler)
 
 	// Schema version endpoint for service compatibility checks
-	schemaVersionStore := db.NewSchemaVersionStore(nil, logger)
+	var schemaVersionDB *sql.DB
+	if runtimeRepositories != nil {
+		schemaVersionDB = runtimeRepositories.DB
+	}
+	schemaVersionStore := db.NewSchemaVersionStore(schemaVersionDB, logger)
 	mux.HandleFunc("/internal/db/schema-version", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodGet {
 			api.WriteError(w, r.Context(), http.StatusMethodNotAllowed, "method_not_allowed", "Only GET is allowed")
@@ -1318,6 +1343,9 @@ func main() {
 	// 5. RequestID - generates/extracts request IDs for tracing
 	// 6. Logging - logs requests with all context
 	var handler http.Handler = mux
+	if runtimeRepositories != nil {
+		handler = middleware.DurableBetaSurface(handler)
+	}
 
 	// Apply middleware in reverse order of execution
 	// Logging is applied first (innermost, executes last)

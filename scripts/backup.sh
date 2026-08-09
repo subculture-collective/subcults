@@ -50,10 +50,29 @@ if [[ -z "${DATABASE_URL:-}" ]]; then
     exit 1
 fi
 
-# Verify pg_dump is available
-if ! command -v pg_dump > /dev/null 2>&1; then
-    err "pg_dump not found. Install postgresql-client."
-    exit 1
+# Use a version-pinned client when requested. This avoids newer pg_dump
+# session settings producing warnings when restored into an older server.
+BACKUP_USE_DOCKER="${BACKUP_USE_DOCKER:-0}"
+BACKUP_POSTGRES_IMAGE="${BACKUP_POSTGRES_IMAGE:-postgres:16-alpine}"
+BACKUP_DOCKER_NETWORK="${BACKUP_DOCKER_NETWORK:-host}"
+BACKUP_DOCKER_CONTAINER="${BACKUP_DOCKER_CONTAINER:-}"
+BACKUP_DATABASE_URL="${BACKUP_DATABASE_URL:-$DATABASE_URL}"
+if [[ "$BACKUP_USE_DOCKER" == "1" ]]; then
+    if ! command -v docker > /dev/null 2>&1; then
+        err "docker not found but BACKUP_USE_DOCKER=1"
+        exit 1
+    fi
+    if [[ -n "$BACKUP_DOCKER_CONTAINER" ]]; then
+        PG_DUMP=(docker exec "$BACKUP_DOCKER_CONTAINER" pg_dump)
+    else
+        PG_DUMP=(docker run --rm --network "$BACKUP_DOCKER_NETWORK" "$BACKUP_POSTGRES_IMAGE" pg_dump)
+    fi
+else
+    if ! command -v pg_dump > /dev/null 2>&1; then
+        err "pg_dump not found. Install postgresql-client or set BACKUP_USE_DOCKER=1."
+        exit 1
+    fi
+    PG_DUMP=(pg_dump)
 fi
 
 # Determine backup path
@@ -68,7 +87,7 @@ log "  Database: ${DATABASE_URL%%@*}@***"
 log "  Output:   $BACKUP_FILE"
 
 # Run pg_dump with compression
-if pg_dump "$DATABASE_URL" \
+if "${PG_DUMP[@]}" "$BACKUP_DATABASE_URL" \
     --format=custom \
     --no-owner \
     --no-privileges \

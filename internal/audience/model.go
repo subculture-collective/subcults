@@ -19,9 +19,13 @@ var (
 
 // ContactPoint is a private delivery endpoint. Value is deliberately absent: production persistence stores an encrypted value and HMAC only.
 type ContactPoint struct {
-	ID         string
-	Kind       string
-	VerifiedAt *time.Time
+	ID   string
+	Kind string
+	// EncryptedValue and ValueHMAC are persistence-only material. Plain contact
+	// values never cross the repository boundary.
+	EncryptedValue []byte
+	ValueHMAC      string
+	VerifiedAt     *time.Time
 }
 
 // ContactPointLink proves a revocable relationship between a DID and a contact point.

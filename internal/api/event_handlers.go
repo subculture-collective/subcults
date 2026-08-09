@@ -4,6 +4,7 @@ package api
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
@@ -37,6 +38,7 @@ type CreateEventRequest struct {
 // UpdateEventRequest represents the request body for updating an event.
 // Only includes mutable fields (scene_id is immutable).
 type UpdateEventRequest struct {
+	Version        int64        `json:"version"`
 	Title          *string      `json:"title,omitempty"`
 	Description    *string      `json:"description,omitempty"`
 	Tags           []string     `json:"tags,omitempty"`
@@ -381,6 +383,13 @@ func (h *EventHandlers) UpdateEvent(w http.ResponseWriter, r *http.Request) {
 
 	// Apply updates to existing event
 	updatedEvent := *existingEvent
+	if existingEvent.Version > 0 {
+		if req.Version == 0 {
+			WriteError(w, middleware.SetErrorCode(r.Context(), ErrCodeValidation), http.StatusBadRequest, ErrCodeValidation, "version is required")
+			return
+		}
+		updatedEvent.Version = req.Version
+	}
 
 	if req.Title != nil {
 		// Validate and sanitize title
@@ -470,6 +479,10 @@ func (h *EventHandlers) UpdateEvent(w http.ResponseWriter, r *http.Request) {
 
 	// Update in repository (will automatically enforce location consent)
 	if err := h.eventRepo.Update(&updatedEvent); err != nil {
+		if errors.Is(err, scene.ErrVersionConflict) {
+			WriteError(w, middleware.SetErrorCode(r.Context(), ErrCodeConflict), http.StatusConflict, ErrCodeConflict, "The event changed; refresh before saving again")
+			return
+		}
 		slog.ErrorContext(r.Context(), "failed to update event", "error", err, "event_id", eventID)
 		ctx := middleware.SetErrorCode(r.Context(), ErrCodeInternal)
 		WriteError(w, ctx, http.StatusInternalServerError, ErrCodeInternal, "Failed to update event")

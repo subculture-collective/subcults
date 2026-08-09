@@ -2,6 +2,7 @@ package api
 
 import (
 	"encoding/json"
+	"errors"
 	"net/http"
 	"strconv"
 	"strings"
@@ -25,6 +26,10 @@ type TouringHandlers struct {
 // CreateProfile handles creator-authorized Studio profile creation. Authorization
 // is applied by the route wrapper so the domain handler can stay testable.
 func (h *TouringHandlers) CreateProfile(w http.ResponseWriter, r *http.Request) {
+	if r.Method == http.MethodPatch {
+		h.UpdateProfile(w, r)
+		return
+	}
 	if r.Method != http.MethodPost {
 		touringMethodNotAllowed(w, r)
 		return
@@ -42,6 +47,7 @@ func (h *TouringHandlers) CreateProfile(w http.ResponseWriter, r *http.Request) 
 		request.Visibility = touring.VisibilityPublic
 	}
 	profile := touring.Profile{ID: uuid.NewString(), Kind: request.Kind, CanonicalName: strings.TrimSpace(request.CanonicalName), Visibility: request.Visibility}
+	profile.Version = 1
 	if err := h.touringRepo.StoreProfile(profile); err != nil {
 		touringValidationError(w, r, "invalid profile")
 		return
@@ -59,6 +65,10 @@ func (h *TouringHandlers) CreateProfile(w http.ResponseWriter, r *http.Request) 
 }
 
 func (h *TouringHandlers) CreatePlace(w http.ResponseWriter, r *http.Request) {
+	if r.Method == http.MethodPatch {
+		h.UpdatePlace(w, r)
+		return
+	}
 	if r.Method != http.MethodPost {
 		touringMethodNotAllowed(w, r)
 		return
@@ -71,6 +81,9 @@ func (h *TouringHandlers) CreatePlace(w http.ResponseWriter, r *http.Request) {
 	if place.ID == "" {
 		place.ID = uuid.NewString()
 	}
+	if place.Version == 0 {
+		place.Version = 1
+	}
 	if err := h.touringRepo.StorePlace(place); err != nil {
 		touringValidationError(w, r, "invalid place")
 		return
@@ -79,6 +92,10 @@ func (h *TouringHandlers) CreatePlace(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *TouringHandlers) CreateTour(w http.ResponseWriter, r *http.Request) {
+	if r.Method == http.MethodPatch {
+		h.UpdateTour(w, r)
+		return
+	}
 	if r.Method != http.MethodPost {
 		touringMethodNotAllowed(w, r)
 		return
@@ -94,6 +111,9 @@ func (h *TouringHandlers) CreateTour(w http.ResponseWriter, r *http.Request) {
 	if tour.Status == "" {
 		tour.Status = touring.TourStatusDraft
 	}
+	if tour.Version == 0 {
+		tour.Version = 1
+	}
 	if _, err := h.touringRepo.GetAct(tour.PrimaryActID); err != nil {
 		touringValidationError(w, r, "primary act not found")
 		return
@@ -106,6 +126,10 @@ func (h *TouringHandlers) CreateTour(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *TouringHandlers) CreateAppearance(w http.ResponseWriter, r *http.Request) {
+	if r.Method == http.MethodPatch {
+		h.UpdateAppearance(w, r)
+		return
+	}
 	if r.Method != http.MethodPost {
 		touringMethodNotAllowed(w, r)
 		return
@@ -121,6 +145,9 @@ func (h *TouringHandlers) CreateAppearance(w http.ResponseWriter, r *http.Reques
 	if appearance.Status == "" {
 		appearance.Status = touring.AppearanceStatusAnnounced
 	}
+	if appearance.Version == 0 {
+		appearance.Version = 1
+	}
 	if _, err := h.eventRepo.GetByID(appearance.EventID); err != nil {
 		touringValidationError(w, r, "event not found")
 		return
@@ -134,6 +161,50 @@ func (h *TouringHandlers) CreateAppearance(w http.ResponseWriter, r *http.Reques
 		return
 	}
 	touringWriteJSON(w, http.StatusCreated, appearance)
+}
+
+func (h *TouringHandlers) UpdateProfile(w http.ResponseWriter, r *http.Request) {
+	var value touring.Profile
+	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 16*1024)).Decode(&value); err != nil {
+		touringValidationError(w, r, "invalid profile")
+		return
+	}
+	h.updateTouring(w, r, func() error { return h.touringRepo.UpdateProfile(&value) }, func() any { return map[string]any{"profile": value} })
+}
+func (h *TouringHandlers) UpdatePlace(w http.ResponseWriter, r *http.Request) {
+	var value touring.Place
+	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 16*1024)).Decode(&value); err != nil {
+		touringValidationError(w, r, "invalid place")
+		return
+	}
+	h.updateTouring(w, r, func() error { return h.touringRepo.UpdatePlace(&value) }, func() any { return value })
+}
+func (h *TouringHandlers) UpdateTour(w http.ResponseWriter, r *http.Request) {
+	var value touring.Tour
+	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 16*1024)).Decode(&value); err != nil {
+		touringValidationError(w, r, "invalid tour")
+		return
+	}
+	h.updateTouring(w, r, func() error { return h.touringRepo.UpdateTour(&value) }, func() any { return value })
+}
+func (h *TouringHandlers) UpdateAppearance(w http.ResponseWriter, r *http.Request) {
+	var value touring.Appearance
+	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 16*1024)).Decode(&value); err != nil {
+		touringValidationError(w, r, "invalid appearance")
+		return
+	}
+	h.updateTouring(w, r, func() error { return h.touringRepo.UpdateAppearance(&value) }, func() any { return value })
+}
+func (h *TouringHandlers) updateTouring(w http.ResponseWriter, r *http.Request, update func() error, response func() any) {
+	if err := update(); err != nil {
+		if errors.Is(err, touring.ErrVersionConflict) {
+			WriteError(w, middleware.SetErrorCode(r.Context(), ErrCodeConflict), http.StatusConflict, ErrCodeConflict, "The record changed; refresh before saving again")
+			return
+		}
+		touringValidationError(w, r, "invalid or missing record")
+		return
+	}
+	touringWriteJSON(w, http.StatusOK, response())
 }
 
 func touringValidationError(w http.ResponseWriter, r *http.Request, message string) {

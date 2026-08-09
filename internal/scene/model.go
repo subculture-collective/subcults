@@ -66,6 +66,7 @@ type Scene struct {
 	// AT Protocol record tracking
 	RecordDID  *string `json:"record_did,omitempty"`
 	RecordRKey *string `json:"record_rkey,omitempty"`
+	Version    int64   `json:"version"`
 }
 
 // Event represents an event within a scene with optional precise location data.
@@ -102,6 +103,7 @@ type Event struct {
 
 	// LiveKit streaming
 	StreamSessionID *string `json:"stream_session_id,omitempty"`
+	Version         int64   `json:"version"`
 }
 
 // EnforceLocationConsent clears PrecisePoint if AllowPrecise is false.

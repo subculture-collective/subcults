@@ -118,6 +118,7 @@ type Place struct {
 	CountryCode   string `json:"country_code"`
 	Timezone      string `json:"timezone"`
 	CoarseGeohash string `json:"coarse_geohash"`
+	Version       int64  `json:"version"`
 }
 
 func (p Place) Validate() error {
@@ -157,6 +158,7 @@ type Profile struct {
 	Kind          string `json:"kind"`
 	CanonicalName string `json:"canonical_name"`
 	Visibility    string `json:"visibility"`
+	Version       int64  `json:"version"`
 }
 
 func (p Profile) Validate() error {
@@ -217,6 +219,7 @@ type Tour struct {
 	Status       string     `json:"status"`
 	StartsOn     *time.Time `json:"starts_on,omitempty"`
 	EndsOn       *time.Time `json:"ends_on,omitempty"`
+	Version      int64      `json:"version"`
 }
 
 func (t Tour) Validate() error {
@@ -263,6 +266,7 @@ type Appearance struct {
 	StartsAt  *time.Time `json:"starts_at,omitempty"`
 	EndsAt    *time.Time `json:"ends_at,omitempty"`
 	Status    string     `json:"status"`
+	Version   int64      `json:"version"`
 }
 
 func (a Appearance) Validate() error {

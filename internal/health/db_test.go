@@ -1,21 +1,23 @@
 package health
 
 import (
-"testing"
+	"context"
+	"testing"
 )
 
-// TestDBChecker_Creation tests that the DB checker is created correctly.
+// TestDBChecker_Creation verifies the constructor without requiring a live DB.
 func TestDBChecker_Creation(t *testing.T) {
-// Note: We cannot create a valid *sql.DB without a real connection.
-// This test only verifies the constructor doesn't panic with nil.
-// Integration tests should verify actual health checking behavior.
-
-checker := NewDBChecker(nil)
-if checker == nil {
-t.Fatal("expected checker to be non-nil")
+	checker := NewDBChecker(nil)
+	if checker == nil {
+		t.Fatal("expected checker to be non-nil")
+	}
+	if checker.db != nil {
+		t.Error("expected checker db to be nil when nil is passed")
+	}
 }
 
-if checker.db != nil {
-t.Error("expected checker db to be nil when nil is passed")
-}
+func TestDBCheckerNilDatabaseFailsWithoutPanic(t *testing.T) {
+	if err := NewDBChecker(nil).HealthCheck(context.Background()); err == nil {
+		t.Fatal("expected unconfigured database error")
+	}
 }
