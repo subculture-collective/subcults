@@ -813,7 +813,7 @@ func main() {
 	mux.HandleFunc("/api/v1/creator-access", identityHandlers.CreatorAccess)
 	mux.HandleFunc("/api/v1/admin/creator-access/", identityHandlers.ReviewCreatorAccess)
 	mux.HandleFunc("/api/v1/admin/creator-access", identityHandlers.ListCreatorAccess)
-	mux.Handle("/api/v1/events/", protectedLocationHandlers)
+	mux.Handle("/api/v1/events/", v1EventSubrouter(protectedLocationHandlers, rsvpHandlers.CreateOrUpdateRSVP))
 	mux.HandleFunc("/api/v1/notifications/subscribe", notificationHandlers.Subscribe)
 	mux.HandleFunc("/api/v1/studio/profiles", requireCreator(touringHandlers.CreateProfile))
 	mux.HandleFunc("/api/v1/studio/places", requireCreator(touringHandlers.CreatePlace))
@@ -823,18 +823,6 @@ func main() {
 	mux.HandleFunc("/api/v1/studio/scenes", requireCreator(sceneHandlers.CreateScene))
 	mux.HandleFunc("/api/v1/studio/events", requireCreator(eventHandlers.CreateEvent))
 	mux.HandleFunc("/api/v1/studio/signals", requireCreator(signalHandlers.CreateDraft))
-	mux.HandleFunc("/api/v1/events/", func(w http.ResponseWriter, r *http.Request) {
-		pathParts := strings.Split(strings.TrimPrefix(r.URL.Path, "/api/v1/events/"), "/")
-		if len(pathParts) == 2 && pathParts[0] != "" && pathParts[1] == "rsvp" && r.Method == http.MethodPost {
-			originalPath := r.URL.Path
-			r.URL.Path = "/events/" + pathParts[0] + "/rsvp"
-			rsvpHandlers.CreateOrUpdateRSVP(w, r)
-			r.URL.Path = originalPath
-			return
-		}
-		ctx := middleware.SetErrorCode(r.Context(), api.ErrCodeNotFound)
-		api.WriteError(w, ctx, http.StatusNotFound, api.ErrCodeNotFound, "Not found")
-	})
 	// Compatibility endpoint used by the existing notification settings client.
 	mux.HandleFunc("/api/notifications/subscribe", notificationHandlers.Subscribe)
 	// Compatibility aliases are retained for the existing client during beta.
@@ -1609,4 +1597,23 @@ func main() {
 	}
 
 	logger.Info("server stopped")
+}
+
+func v1EventSubrouter(protectedLocations http.Handler, createRSVP http.HandlerFunc) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		pathParts := strings.Split(strings.TrimPrefix(r.URL.Path, "/api/v1/events/"), "/")
+		if len(pathParts) == 2 && pathParts[0] != "" && pathParts[1] == "location" {
+			protectedLocations.ServeHTTP(w, r)
+			return
+		}
+		if len(pathParts) == 2 && pathParts[0] != "" && pathParts[1] == "rsvp" && r.Method == http.MethodPost {
+			originalPath := r.URL.Path
+			r.URL.Path = "/events/" + pathParts[0] + "/rsvp"
+			createRSVP(w, r)
+			r.URL.Path = originalPath
+			return
+		}
+		ctx := middleware.SetErrorCode(r.Context(), api.ErrCodeNotFound)
+		api.WriteError(w, ctx, http.StatusNotFound, api.ErrCodeNotFound, "Not found")
+	})
 }

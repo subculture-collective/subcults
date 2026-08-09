@@ -10,11 +10,48 @@ import (
 	"log/slog"
 	"net"
 	"net/http"
+	"net/http/httptest"
 	"strings"
 	"sync"
 	"testing"
 	"time"
 )
+
+func TestV1EventSubrouter(t *testing.T) {
+	protected := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusNoContent)
+	})
+	rsvp := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/events/event-1/rsvp" {
+			t.Fatalf("RSVP path = %q", r.URL.Path)
+		}
+		w.WriteHeader(http.StatusCreated)
+	})
+	handler := v1EventSubrouter(protected, rsvp)
+
+	tests := []struct {
+		name   string
+		method string
+		path   string
+		want   int
+	}{
+		{name: "protected location", method: http.MethodGet, path: "/api/v1/events/event-1/location", want: http.StatusNoContent},
+		{name: "RSVP", method: http.MethodPost, path: "/api/v1/events/event-1/rsvp", want: http.StatusCreated},
+		{name: "unknown subroute", method: http.MethodGet, path: "/api/v1/events/event-1/unknown", want: http.StatusNotFound},
+		{name: "RSVP wrong method", method: http.MethodGet, path: "/api/v1/events/event-1/rsvp", want: http.StatusNotFound},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			request := httptest.NewRequest(test.method, test.path, nil)
+			response := httptest.NewRecorder()
+			handler.ServeHTTP(response, request)
+			if response.Code != test.want {
+				t.Fatalf("status = %d, want %d", response.Code, test.want)
+			}
+		})
+	}
+}
 
 // TestGracefulShutdown_SignalHandling tests that the server handles signals correctly.
 func TestGracefulShutdown_SignalHandling(t *testing.T) {
