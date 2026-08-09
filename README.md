@@ -528,7 +528,7 @@ We will acknowledge reports within 48 hours.
 
 ## License
 
-To be defined. (Planned: permissive OSS; Apache-2.0 or MIT.)
+Licensed under `GPL-3.0-or-later`. See [LICENSE](LICENSE).
 
 ## Contributing
 
