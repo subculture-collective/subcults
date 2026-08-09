@@ -130,14 +130,14 @@ func (r *SQLSceneRepository) Insert(value *Scene) error {
 	row := r.db.QueryRow(`INSERT INTO scenes
 		(id,name,description,owner_did,allow_precise,precise_point,coarse_geohash,tags,visibility,palette,owner_user_id,
 		 connected_account_id,connected_account_status,account_onboarded_at,moderation_status,moderation_reason,moderated_by,
-		 moderation_timestamp,record_did,record_rkey,version)
+		 moderation_timestamp,record_did,record_rkey,version,publication_status)
 		VALUES($1,$2,$3,$4,$5,CASE WHEN $6::float8 IS NULL THEN NULL ELSE ST_SetSRID(ST_MakePoint($6,$7),4326)::geography END,
-		$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22)
+		$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23)
 		RETURNING created_at,updated_at`, copy.ID, copy.Name, copy.Description, copy.OwnerDID, copy.AllowPrecise, lng, lat,
 		copy.CoarseGeohash, pq.Array(copy.Tags), defaultString(copy.Visibility, VisibilityPublic), palette, nullString(copy.OwnerUserID),
 		nullString(copy.ConnectedAccountID), defaultString(copy.ConnectedAccountStatus, "pending"), nullTime(copy.AccountOnboardedAt),
 		defaultString(copy.ModerationStatus, "visible"), nullString(copy.ModerationReason), nullString(copy.ModeratedBy),
-		nullTime(copy.ModerationTimestamp), nullString(copy.RecordDID), nullString(copy.RecordRKey), copy.Version)
+		nullTime(copy.ModerationTimestamp), nullString(copy.RecordDID), nullString(copy.RecordRKey), copy.Version, defaultString(copy.PublicationStatus, "published"))
 	if err := row.Scan(&copy.CreatedAt, &copy.UpdatedAt); err != nil {
 		return mapSceneError(err)
 	}
@@ -307,8 +307,8 @@ func (r *SQLEventRepository) Insert(value *Event) error {
 	if copy.Version == 0 {
 		copy.Version = 1
 	}
-	row := r.db.QueryRow(`INSERT INTO events(id,scene_id,title,description,allow_precise,precise_point,coarse_geohash,place_id,venue_id,kind,location_access,tags,status,starts_at,ends_at,record_did,record_rkey,stream_session_id,version)
-	VALUES($1,$2,$3,$4,$5,CASE WHEN $6::float8 IS NULL THEN NULL ELSE ST_SetSRID(ST_MakePoint($6,$7),4326)::geography END,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20) RETURNING created_at,updated_at`, copy.ID, copy.SceneID, copy.Title, copy.Description, copy.AllowPrecise, lng, lat, copy.CoarseGeohash, nullString(copy.PlaceID), nullString(copy.VenueID), defaultString(copy.Kind, "show"), defaultString(copy.LocationAccess, "public"), pq.Array(copy.Tags), defaultString(copy.Status, "scheduled"), copy.StartsAt, nullTime(copy.EndsAt), nullString(copy.RecordDID), nullString(copy.RecordRKey), nullString(copy.StreamSessionID), copy.Version)
+	row := r.db.QueryRow(`INSERT INTO events(id,scene_id,title,description,allow_precise,precise_point,coarse_geohash,place_id,venue_id,kind,location_access,tags,status,starts_at,ends_at,record_did,record_rkey,stream_session_id,version,publication_status)
+	VALUES($1,$2,$3,$4,$5,CASE WHEN $6::float8 IS NULL THEN NULL ELSE ST_SetSRID(ST_MakePoint($6,$7),4326)::geography END,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21) RETURNING created_at,updated_at`, copy.ID, copy.SceneID, copy.Title, copy.Description, copy.AllowPrecise, lng, lat, copy.CoarseGeohash, nullString(copy.PlaceID), nullString(copy.VenueID), defaultString(copy.Kind, "show"), defaultString(copy.LocationAccess, "public"), pq.Array(copy.Tags), defaultString(copy.Status, "scheduled"), copy.StartsAt, nullTime(copy.EndsAt), nullString(copy.RecordDID), nullString(copy.RecordRKey), nullString(copy.StreamSessionID), copy.Version, defaultString(copy.PublicationStatus, "published"))
 	if err := row.Scan(&copy.CreatedAt, &copy.UpdatedAt); err != nil {
 		return mapEventError(err)
 	}

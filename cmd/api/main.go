@@ -21,6 +21,7 @@ import (
 
 	"github.com/onnwee/subcults/internal/alliance"
 	"github.com/onnwee/subcults/internal/api"
+	"github.com/onnwee/subcults/internal/atprotocol"
 	"github.com/onnwee/subcults/internal/attachment"
 	"github.com/onnwee/subcults/internal/audience"
 	"github.com/onnwee/subcults/internal/audit"
@@ -654,6 +655,81 @@ func main() {
 	searchHandlers := api.NewSearchHandlers(sceneRepo, postRepo, trustStoreAdapter, eventRepo)
 	touringHandlers := api.NewTouringHandlers(touringRepo, eventRepo, sceneRepo)
 	signalHandlers := api.NewSignalHandlers(signalService, audienceService)
+	var atprotoOAuthHandlers *api.ATProtoOAuthHandlers
+	var stopATProtoReconciler context.CancelFunc
+	atprotoOAuthEnabled := strings.EqualFold(strings.TrimSpace(os.Getenv("ATPROTO_OAUTH_ENABLED")), "true")
+	if atprotoOAuthEnabled {
+		if runtimeRepositories == nil {
+			logger.Error("AT Protocol OAuth requires durable PostgreSQL repositories")
+			os.Exit(1)
+		}
+		if redisClient == nil {
+			logger.Error("AT Protocol OAuth requires Redis for refresh and publication locking")
+			os.Exit(1)
+		}
+		sessionCipher, err := atprotocol.NewSessionCipherFromBase64(os.Getenv("ATPROTO_SESSION_ENCRYPTION_KEY"))
+		if err != nil {
+			logger.Error("AT Protocol OAuth session encryption configuration failed", "error", err)
+			os.Exit(1)
+		}
+		atprotoStore := atprotocol.NewSQLStore(runtimeRepositories.DB, sessionCipher)
+		atprotoOAuthService, err := atprotocol.NewOAuthService(atprotocol.OAuthConfig{
+			ClientID:      strings.TrimSpace(os.Getenv("ATPROTO_OAUTH_CLIENT_ID")),
+			CallbackURL:   strings.TrimSpace(os.Getenv("ATPROTO_OAUTH_CALLBACK_URL")),
+			JWKSURL:       strings.TrimSpace(os.Getenv("ATPROTO_OAUTH_JWKS_URL")),
+			PrivateKey:    strings.TrimSpace(os.Getenv("ATPROTO_OAUTH_CLIENT_PRIVATE_KEY")),
+			KeyID:         strings.TrimSpace(os.Getenv("ATPROTO_OAUTH_CLIENT_KEY_ID")),
+			PublicWebURL:  publicWebURL,
+			DefaultPDSURL: strings.TrimSpace(os.Getenv("ATPROTO_DEFAULT_PDS_URL")),
+			ClientName:    "Subcults",
+			PrivacyURL:    strings.TrimRight(publicWebURL, "/") + "/privacy",
+			TermsURL:      strings.TrimRight(publicWebURL, "/") + "/terms",
+		}, atprotoStore)
+		if err != nil {
+			logger.Error("AT Protocol OAuth initialization failed", "error", err)
+			os.Exit(1)
+		}
+		atprotoOAuthService.SetPublicationLocker(atprotocol.NewRedisPublicationLocker(redisClient))
+		atprotoOAuthService.ConfigureTap(strings.TrimSpace(os.Getenv("ATPROTO_TAP_URL")), strings.TrimSpace(os.Getenv("ATPROTO_TAP_ADMIN_PASSWORD")))
+		identityHandlers.SetATProtoStatusResolver(func(ctx context.Context, userID string) (map[string]any, error) {
+			link, linkErr := atprotoOAuthService.Status(ctx, userID)
+			if linkErr != nil {
+				return nil, linkErr
+			}
+			return map[string]any{
+				"atproto_did": link.AccountDID, "atproto_handle": link.Handle,
+				"atproto_link_status": link.Status, "atproto_granted_scopes": link.GrantedScopes,
+			}, nil
+		})
+		reconcileContext, cancelReconciler := context.WithCancel(context.Background())
+		stopATProtoReconciler = cancelReconciler
+		go atprotocol.NewReconciler(atprotoStore).Run(reconcileContext)
+		dailyCap := 25
+		if configured, parseErr := strconv.Atoi(strings.TrimSpace(os.Getenv("PDS_SIGNUP_DAILY_CAP"))); parseErr == nil && configured > 0 {
+			dailyCap = configured
+		}
+		termsVersion := strings.TrimSpace(os.Getenv("ATPROTO_TERMS_VERSION"))
+		if termsVersion == "" {
+			termsVersion = "2026-08-09"
+		}
+		provisioningService, err := atprotocol.NewProvisioningService(atprotoStore, atprotocol.ProvisioningConfig{
+			Enabled:          strings.EqualFold(strings.TrimSpace(os.Getenv("PDS_SIGNUP_ENABLED")), "true"),
+			DefaultPDSURL:    strings.TrimSpace(os.Getenv("ATPROTO_DEFAULT_PDS_URL")),
+			ProvisionerURL:   strings.TrimSpace(os.Getenv("PDS_PROVISIONER_URL")),
+			ProvisionerToken: strings.TrimSpace(os.Getenv("PDS_PROVISIONER_TOKEN")),
+			TurnstileSecret:  strings.TrimSpace(os.Getenv("ATPROTO_TURNSTILE_SECRET")),
+			TermsVersion:     termsVersion,
+			HandleDomain:     strings.TrimSpace(os.Getenv("ATPROTO_HANDLE_DOMAIN")),
+			DailyCap:         dailyCap,
+		})
+		if err != nil {
+			logger.Error("AT Protocol provisioning initialization failed", "error", err)
+			os.Exit(1)
+		}
+		atprotoOAuthHandlers = api.NewATProtoOAuthHandlers(atprotoOAuthService, provisioningService)
+		atprotoOAuthHandlers.SetSyncPassword(strings.TrimSpace(os.Getenv("ATPROTO_TAP_ADMIN_PASSWORD")))
+		logger.Info("AT Protocol OAuth initialized", "default_pds", os.Getenv("ATPROTO_DEFAULT_PDS_URL"))
+	}
 
 	// Initialize retention and account handlers
 	retentionRepo := retention.NewInMemoryRepository(logger)
@@ -712,6 +788,27 @@ func main() {
 	mux.HandleFunc("/api/v1/auth/refresh", identityHandlers.Refresh)
 	mux.HandleFunc("/api/v1/auth/logout", identityHandlers.Logout)
 	mux.HandleFunc("/api/v1/auth/profile", identityHandlers.CompleteProfile)
+	if atprotoOAuthHandlers != nil {
+		mux.HandleFunc("/api/v1/auth/atproto/client-metadata", atprotoOAuthHandlers.ClientMetadata)
+		mux.HandleFunc("/api/v1/auth/atproto/jwks", atprotoOAuthHandlers.JWKS)
+		mux.HandleFunc("/api/v1/auth/atproto/start", atprotoOAuthHandlers.Start)
+		mux.HandleFunc("/api/v1/auth/atproto/callback", atprotoOAuthHandlers.Callback)
+		mux.HandleFunc("/api/v1/auth/atproto/status", atprotoOAuthHandlers.Status)
+		mux.HandleFunc("/api/v1/auth/atproto/upgrade", atprotoOAuthHandlers.Upgrade)
+		mux.HandleFunc("/api/v1/auth/atproto/link", atprotoOAuthHandlers.Unlink)
+		mux.HandleFunc("/api/v1/auth/atproto/provision", atprotoOAuthHandlers.Provision)
+		mux.HandleFunc("/api/v1/auth/atproto/provision/status", func(w http.ResponseWriter, r *http.Request) {
+			if r.Method != http.MethodGet {
+				w.Header().Set("Allow", http.MethodGet)
+				api.WriteError(w, r.Context(), http.StatusMethodNotAllowed, api.ErrCodeBadRequest, "Method not allowed")
+				return
+			}
+			atprotoOAuthHandlers.Provision(w, r)
+		})
+		mux.HandleFunc("/api/v1/atproto/projections", atprotoOAuthHandlers.Projection)
+		mux.HandleFunc("/api/v1/studio/atproto/publish", requireCreator(atprotoOAuthHandlers.Publish))
+		mux.HandleFunc("/internal/atproto/tap", atprotoOAuthHandlers.Sync)
+	}
 	mux.HandleFunc("/api/v1/me", identityHandlers.Me)
 	mux.HandleFunc("/api/v1/creator-access", identityHandlers.CreatorAccess)
 	mux.HandleFunc("/api/v1/admin/creator-access/", identityHandlers.ReviewCreatorAccess)
@@ -720,6 +817,7 @@ func main() {
 	mux.HandleFunc("/api/v1/notifications/subscribe", notificationHandlers.Subscribe)
 	mux.HandleFunc("/api/v1/studio/profiles", requireCreator(touringHandlers.CreateProfile))
 	mux.HandleFunc("/api/v1/studio/places", requireCreator(touringHandlers.CreatePlace))
+	mux.HandleFunc("/api/v1/studio/venues", requireCreator(touringHandlers.CreateVenue))
 	mux.HandleFunc("/api/v1/studio/tours", requireCreator(touringHandlers.CreateTour))
 	mux.HandleFunc("/api/v1/studio/appearances", requireCreator(touringHandlers.CreateAppearance))
 	mux.HandleFunc("/api/v1/studio/scenes", requireCreator(sceneHandlers.CreateScene))
@@ -1465,6 +1563,9 @@ func main() {
 	<-quit
 
 	logger.Info("shutting down server...")
+	if stopATProtoReconciler != nil {
+		stopATProtoReconciler()
+	}
 
 	// Stop trust recompute job
 	trustRecomputeJob.Stop()

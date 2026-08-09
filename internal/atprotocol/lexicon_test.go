@@ -30,9 +30,16 @@ func TestCanonicalPublicationContract(t *testing.T) {
 	})
 
 	t.Run("accepts disclosure safe event", func(t *testing.T) {
-		payload := []byte("{\"$type\":\"tv.subcult.event\",\"createdAt\":\"2026-08-09T00:00:00Z\",\"title\":\"Night Signal\",\"occurrence\":{\"coarseGeohash\":\"dp3wj\"}}")
+		payload := []byte("{\"$type\":\"tv.subcult.event\",\"createdAt\":\"2026-08-09T00:00:00Z\",\"title\":\"Night Signal\",\"startsAt\":\"2026-08-10T00:00:00Z\",\"place\":\"at://did:plc:abc/tv.subcult.place/3kxyz\",\"disclosure\":\"coarse\",\"coarseGeohash\":\"dp3wj\"}")
 		if err := atprotocol.ValidatePublicRecord(atprotocol.CollectionEvent, payload); err != nil {
 			t.Fatalf("valid record rejected: %v", err)
+		}
+	})
+
+	t.Run("rejects local UUID relationship", func(t *testing.T) {
+		payload := []byte("{\"$type\":\"tv.subcult.event\",\"createdAt\":\"2026-08-09T00:00:00Z\",\"title\":\"Night Signal\",\"startsAt\":\"2026-08-10T00:00:00Z\",\"place\":\"48b3fc42-b532-40a5-a6ee-373fe6e36f7b\",\"disclosure\":\"coarse\"}")
+		if err := atprotocol.ValidatePublicRecord(atprotocol.CollectionEvent, payload); !errors.Is(err, atprotocol.ErrInvalidRecord) {
+			t.Fatalf("expected portable reference rejection, got %v", err)
 		}
 	})
 

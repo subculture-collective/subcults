@@ -64,9 +64,10 @@ type Scene struct {
 	DeletedAt *time.Time `json:"deleted_at,omitempty"`
 
 	// AT Protocol record tracking
-	RecordDID  *string `json:"record_did,omitempty"`
-	RecordRKey *string `json:"record_rkey,omitempty"`
-	Version    int64   `json:"version"`
+	RecordDID         *string `json:"record_did,omitempty"`
+	RecordRKey        *string `json:"record_rkey,omitempty"`
+	Version           int64   `json:"version"`
+	PublicationStatus string  `json:"publication_status,omitempty"`
 }
 
 // Event represents an event within a scene with optional precise location data.
@@ -102,8 +103,9 @@ type Event struct {
 	RecordRKey *string `json:"record_rkey,omitempty"`
 
 	// LiveKit streaming
-	StreamSessionID *string `json:"stream_session_id,omitempty"`
-	Version         int64   `json:"version"`
+	StreamSessionID   *string `json:"stream_session_id,omitempty"`
+	Version           int64   `json:"version"`
+	PublicationStatus string  `json:"publication_status,omitempty"`
 }
 
 // EnforceLocationConsent clears PrecisePoint if AllowPrecise is false.

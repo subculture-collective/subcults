@@ -31,6 +31,9 @@ jobs:
       - name: Install system dependencies
         run: sudo apt-get update -qq && sudo apt-get install -y -qq pkg-config libvips-dev
 
+      - name: Validate AT Protocol lexicons with pinned Indigo tooling
+        run: ./scripts/lint-lexicons.sh
+
       - name: Run go vet
         run: go vet ./...
 

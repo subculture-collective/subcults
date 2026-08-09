@@ -112,13 +112,20 @@ type Point struct {
 
 // Place is a canonical city, market, or regional discovery context.
 type Place struct {
-	ID            string `json:"id"`
-	CanonicalName string `json:"canonical_name"`
-	AdminRegion   string `json:"admin_region,omitempty"`
-	CountryCode   string `json:"country_code"`
-	Timezone      string `json:"timezone"`
-	CoarseGeohash string `json:"coarse_geohash"`
-	Version       int64  `json:"version"`
+	ID                string `json:"id"`
+	CanonicalName     string `json:"canonical_name"`
+	AdminRegion       string `json:"admin_region,omitempty"`
+	CountryCode       string `json:"country_code"`
+	Timezone          string `json:"timezone"`
+	CoarseGeohash     string `json:"coarse_geohash"`
+	Version           int64  `json:"version"`
+	CreatedByUserID   string `json:"-"`
+	PublicationStatus string `json:"publication_status,omitempty"`
+	ATURI             string `json:"at_uri,omitempty"`
+	CID               string `json:"cid,omitempty"`
+	PublisherDID      string `json:"publisher_did,omitempty"`
+	PublisherHandle   string `json:"publisher_handle,omitempty"`
+	ProjectionStatus  string `json:"projection_status,omitempty"`
 }
 
 func (p Place) Validate() error {
@@ -137,12 +144,19 @@ func (p Place) Validate() error {
 // Venue is a named location inside a Place. Precise coordinates require an
 // explicit retention decision and are not inherited by its Place.
 type Venue struct {
-	ID            string `json:"id"`
-	PlaceID       string `json:"place_id"`
-	CanonicalName string `json:"canonical_name"`
-	AllowPrecise  bool   `json:"allow_precise"`
-	PrecisePoint  *Point `json:"precise_point,omitempty"`
-	CoarseGeohash string `json:"coarse_geohash"`
+	ID                string `json:"id"`
+	PlaceID           string `json:"place_id"`
+	CanonicalName     string `json:"canonical_name"`
+	AllowPrecise      bool   `json:"allow_precise"`
+	PrecisePoint      *Point `json:"precise_point,omitempty"`
+	CoarseGeohash     string `json:"coarse_geohash"`
+	Version           int64  `json:"version"`
+	PublicationStatus string `json:"publication_status,omitempty"`
+	ATURI             string `json:"at_uri,omitempty"`
+	CID               string `json:"cid,omitempty"`
+	PublisherDID      string `json:"publisher_did,omitempty"`
+	PublisherHandle   string `json:"publisher_handle,omitempty"`
+	ProjectionStatus  string `json:"projection_status,omitempty"`
 }
 
 func (v *Venue) EnforceLocationConsent() {
@@ -151,14 +165,33 @@ func (v *Venue) EnforceLocationConsent() {
 	}
 }
 
+func (v Venue) Validate() error {
+	if strings.TrimSpace(v.ID) == "" || strings.TrimSpace(v.PlaceID) == "" ||
+		strings.TrimSpace(v.CanonicalName) == "" || strings.TrimSpace(v.CoarseGeohash) == "" {
+		return ErrInvalidPlace
+	}
+	if v.PrecisePoint != nil && (v.PrecisePoint.Lat < -90 || v.PrecisePoint.Lat > 90 ||
+		v.PrecisePoint.Lng < -180 || v.PrecisePoint.Lng > 180) {
+		return ErrInvalidPlace
+	}
+	return nil
+}
+
 // Profile is the public presentation and control surface for an artist,
 // venue, festival, promoter, or other participating organization.
 type Profile struct {
-	ID            string `json:"id"`
-	Kind          string `json:"kind"`
-	CanonicalName string `json:"canonical_name"`
-	Visibility    string `json:"visibility"`
-	Version       int64  `json:"version"`
+	ID                string `json:"id"`
+	Kind              string `json:"kind"`
+	CanonicalName     string `json:"canonical_name"`
+	Visibility        string `json:"visibility"`
+	Version           int64  `json:"version"`
+	CreatedByUserID   string `json:"-"`
+	PublicationStatus string `json:"publication_status,omitempty"`
+	ATURI             string `json:"at_uri,omitempty"`
+	CID               string `json:"cid,omitempty"`
+	PublisherDID      string `json:"publisher_did,omitempty"`
+	PublisherHandle   string `json:"publisher_handle,omitempty"`
+	ProjectionStatus  string `json:"projection_status,omitempty"`
 }
 
 func (p Profile) Validate() error {
@@ -176,8 +209,9 @@ func (p Profile) Validate() error {
 
 // Act is a creative project represented by a Profile.
 type Act struct {
-	ID        string `json:"id"`
-	ProfileID string `json:"profile_id"`
+	ID                string `json:"id"`
+	ProfileID         string `json:"profile_id"`
+	PublicationStatus string `json:"publication_status,omitempty"`
 }
 
 // HomeTerritory is a declared, temporal Act-to-Place affinity. PrecisePoint is
@@ -213,13 +247,20 @@ func (h HomeTerritory) Validate() error {
 // Tour is an Act-led itinerary. It groups appearances without changing their
 // independent Event, venue, scene-host, or provenance relationships.
 type Tour struct {
-	ID           string     `json:"id"`
-	PrimaryActID string     `json:"primary_act_id"`
-	Title        string     `json:"title"`
-	Status       string     `json:"status"`
-	StartsOn     *time.Time `json:"starts_on,omitempty"`
-	EndsOn       *time.Time `json:"ends_on,omitempty"`
-	Version      int64      `json:"version"`
+	ID                string     `json:"id"`
+	PrimaryActID      string     `json:"primary_act_id"`
+	Title             string     `json:"title"`
+	Status            string     `json:"status"`
+	StartsOn          *time.Time `json:"starts_on,omitempty"`
+	EndsOn            *time.Time `json:"ends_on,omitempty"`
+	Version           int64      `json:"version"`
+	CreatedByUserID   string     `json:"-"`
+	PublicationStatus string     `json:"publication_status,omitempty"`
+	ATURI             string     `json:"at_uri,omitempty"`
+	CID               string     `json:"cid,omitempty"`
+	PublisherDID      string     `json:"publisher_did,omitempty"`
+	PublisherHandle   string     `json:"publisher_handle,omitempty"`
+	ProjectionStatus  string     `json:"projection_status,omitempty"`
 }
 
 func (t Tour) Validate() error {
@@ -257,16 +298,23 @@ func (t TourAct) Validate() error {
 // Appearance is an Act's participation in one Event. A tour stop, festival
 // appearance, and one-off are display projections of this one relationship.
 type Appearance struct {
-	ID        string     `json:"id"`
-	EventID   string     `json:"event_id"`
-	ActID     string     `json:"act_id"`
-	TourID    *string    `json:"tour_id,omitempty"`
-	Role      string     `json:"role"`
-	StageName string     `json:"stage_name,omitempty"`
-	StartsAt  *time.Time `json:"starts_at,omitempty"`
-	EndsAt    *time.Time `json:"ends_at,omitempty"`
-	Status    string     `json:"status"`
-	Version   int64      `json:"version"`
+	ID                string     `json:"id"`
+	EventID           string     `json:"event_id"`
+	ActID             string     `json:"act_id"`
+	TourID            *string    `json:"tour_id,omitempty"`
+	Role              string     `json:"role"`
+	StageName         string     `json:"stage_name,omitempty"`
+	StartsAt          *time.Time `json:"starts_at,omitempty"`
+	EndsAt            *time.Time `json:"ends_at,omitempty"`
+	Status            string     `json:"status"`
+	Version           int64      `json:"version"`
+	CreatedByUserID   string     `json:"-"`
+	PublicationStatus string     `json:"publication_status,omitempty"`
+	ATURI             string     `json:"at_uri,omitempty"`
+	CID               string     `json:"cid,omitempty"`
+	PublisherDID      string     `json:"publisher_did,omitempty"`
+	PublisherHandle   string     `json:"publisher_handle,omitempty"`
+	ProjectionStatus  string     `json:"projection_status,omitempty"`
 }
 
 func (a Appearance) Validate() error {

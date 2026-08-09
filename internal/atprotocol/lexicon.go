@@ -6,6 +6,9 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"time"
+
+	"github.com/bluesky-social/indigo/atproto/syntax"
 )
 
 const (
@@ -95,8 +98,55 @@ func ValidatePublicRecord(collection string, payload []byte) error {
 	if err := rejectProtectedFields(record); err != nil {
 		return err
 	}
+	if err := validateCanonicalShape(collection, record); err != nil {
+		return err
+	}
 	return nil
 }
+
+func validateCanonicalShape(collection string, record map[string]any) error {
+	required := map[string][]string{
+		CollectionProfile: {"name", "kind"}, CollectionAct: {"name", "profile"},
+		CollectionPlace: {"name", "country", "timezone", "coarseGeohash"},
+		CollectionVenue: {"name", "place", "disclosure"}, CollectionScene: {"name", "coarseGeohash"},
+		CollectionEvent:      {"title", "startsAt", "place", "disclosure"},
+		CollectionTour:       {"title", "primaryAct", "status"},
+		CollectionAppearance: {"event", "act", "role", "status"},
+		CollectionAssertion:  {"target", "sourceUrl", "assertedAt", "observedAt", "status"},
+	}
+	for _, field := range append(required[collection], "createdAt") {
+		value, ok := record[field]
+		if !ok || value == nil || (isStringField(field) && strings.TrimSpace(fmt.Sprint(value)) == "") {
+			return fmt.Errorf("%w: %s is required", ErrInvalidRecord, field)
+		}
+	}
+	for _, field := range []string{"profile", "homeTerritory", "place", "venue", "primaryAct", "event", "act", "tour", "target", "supersedes"} {
+		if value, ok := record[field]; ok {
+			raw, stringOK := value.(string)
+			if !stringOK {
+				return fmt.Errorf("%w: %s must be an AT URI", ErrInvalidRecord, field)
+			}
+			uri, parseErr := syntax.ParseATURI(raw)
+			if parseErr != nil || uri.RecordKey().String() == "" {
+				return fmt.Errorf("%w: %s must be a record AT URI", ErrInvalidRecord, field)
+			}
+		}
+	}
+	for _, field := range []string{"createdAt", "updatedAt", "startsAt", "endsAt", "setStartsAt", "assertedAt", "observedAt", "effectiveAt"} {
+		if value, ok := record[field]; ok {
+			raw, stringOK := value.(string)
+			if !stringOK {
+				return fmt.Errorf("%w: %s must be a datetime", ErrInvalidRecord, field)
+			}
+			if _, parseErr := time.Parse(time.RFC3339Nano, raw); parseErr != nil {
+				return fmt.Errorf("%w: %s must be RFC3339", ErrInvalidRecord, field)
+			}
+		}
+	}
+	return nil
+}
+
+func isStringField(field string) bool { return field != "confidence" }
 
 func rejectProtectedFields(value any) error {
 	switch typed := value.(type) {

@@ -33,6 +33,9 @@ type CreateEventRequest struct {
 	StartsAt       time.Time    `json:"starts_at"`
 	EndsAt         *time.Time   `json:"ends_at,omitempty"`
 	LocationAccess string       `json:"location_access,omitempty"`
+	PlaceID        *string      `json:"place_id,omitempty"`
+	VenueID        *string      `json:"venue_id,omitempty"`
+	Kind           string       `json:"kind,omitempty"`
 }
 
 // UpdateEventRequest represents the request body for updating an event.
@@ -291,8 +294,17 @@ func (h *EventHandlers) CreateEvent(w http.ResponseWriter, r *http.Request) {
 		StartsAt:       req.StartsAt,
 		EndsAt:         req.EndsAt,
 		LocationAccess: req.LocationAccess,
+		PlaceID:        req.PlaceID,
+		VenueID:        req.VenueID,
+		Kind:           req.Kind,
 		CreatedAt:      &now,
 		UpdatedAt:      &now,
+		PublicationStatus: func() string {
+			if strings.Contains(r.URL.Path, "/studio/") {
+				return "draft"
+			}
+			return "published"
+		}(),
 	}
 
 	// Insert into repository (will automatically enforce location consent).

@@ -21,8 +21,26 @@ func (r *SQLRepository) StorePlace(v Place) error {
 	if v.Version == 0 {
 		v.Version = 1
 	}
-	_, err := r.db.Exec(`INSERT INTO places(id,canonical_name,admin_region,country_code,timezone,coarse_geohash,version)
-		VALUES($1,$2,NULLIF($3,''),upper($4),$5,$6,$7)`, v.ID, v.CanonicalName, v.AdminRegion, v.CountryCode, v.Timezone, v.CoarseGeohash, v.Version)
+	_, err := r.db.Exec(`INSERT INTO places(id,canonical_name,admin_region,country_code,timezone,coarse_geohash,version,created_by_user_id,publication_status)
+		VALUES($1,$2,NULLIF($3,''),upper($4),$5,$6,$7,NULLIF($8,'')::uuid,$9)`, v.ID, v.CanonicalName, v.AdminRegion, v.CountryCode, v.Timezone, v.CoarseGeohash, v.Version, v.CreatedByUserID, defaultPublicationStatus(v.PublicationStatus))
+	return mapTouringError(err, ErrInvalidPlace)
+}
+
+func (r *SQLRepository) StoreVenue(v Venue) error {
+	v.EnforceLocationConsent()
+	if err := v.Validate(); err != nil {
+		return err
+	}
+	if v.Version == 0 {
+		v.Version = 1
+	}
+	var lat, lng any
+	if v.PrecisePoint != nil {
+		lat, lng = v.PrecisePoint.Lat, v.PrecisePoint.Lng
+	}
+	_, err := r.db.Exec(`INSERT INTO venues(id,place_id,canonical_name,allow_precise,precise_point,coarse_geohash,version,publication_status)
+		VALUES($1,$2,$3,$4,CASE WHEN $5::double precision IS NULL THEN NULL ELSE ST_SetSRID(ST_MakePoint($6,$5),4326)::geography END,$7,$8,$9)`,
+		v.ID, v.PlaceID, v.CanonicalName, v.AllowPrecise, lat, lng, v.CoarseGeohash, v.Version, defaultPublicationStatus(v.PublicationStatus))
 	return mapTouringError(err, ErrInvalidPlace)
 }
 
@@ -33,14 +51,14 @@ func (r *SQLRepository) StoreProfile(v Profile) error {
 	if v.Version == 0 {
 		v.Version = 1
 	}
-	_, err := r.db.Exec(`INSERT INTO profiles(id,kind,canonical_name,visibility,version) VALUES($1,$2,$3,$4,$5)`, v.ID, v.Kind, v.CanonicalName, v.Visibility, v.Version)
+	_, err := r.db.Exec(`INSERT INTO profiles(id,kind,canonical_name,visibility,version,created_by_user_id,publication_status) VALUES($1,$2,$3,$4,$5,NULLIF($6,'')::uuid,$7)`, v.ID, v.Kind, v.CanonicalName, v.Visibility, v.Version, v.CreatedByUserID, defaultPublicationStatus(v.PublicationStatus))
 	return mapTouringError(err, ErrInvalidProfile)
 }
 func (r *SQLRepository) StoreAct(v Act) error {
 	if strings.TrimSpace(v.ID) == "" || strings.TrimSpace(v.ProfileID) == "" {
 		return ErrInvalidProfile
 	}
-	_, err := r.db.Exec(`INSERT INTO acts(id,profile_id) VALUES($1,$2)`, v.ID, v.ProfileID)
+	_, err := r.db.Exec(`INSERT INTO acts(id,profile_id,publication_status) VALUES($1,$2,$3)`, v.ID, v.ProfileID, defaultPublicationStatus(v.PublicationStatus))
 	return mapTouringError(err, ErrInvalidProfile)
 }
 func (r *SQLRepository) UpdatePlace(v *Place) error {
@@ -48,6 +66,20 @@ func (r *SQLRepository) UpdatePlace(v *Place) error {
 		return err
 	}
 	return scanVersion(r.db.QueryRow(`UPDATE places SET canonical_name=$2,admin_region=NULLIF($3,''),country_code=upper($4),timezone=$5,coarse_geohash=$6,updated_at=NOW(),version=version+1 WHERE id=$1 AND version=$7 RETURNING version`, v.ID, v.CanonicalName, v.AdminRegion, v.CountryCode, v.Timezone, v.CoarseGeohash, v.Version), &v.Version)
+}
+func (r *SQLRepository) UpdateVenue(v *Venue) error {
+	v.EnforceLocationConsent()
+	if err := v.Validate(); err != nil {
+		return err
+	}
+	var lat, lng any
+	if v.PrecisePoint != nil {
+		lat, lng = v.PrecisePoint.Lat, v.PrecisePoint.Lng
+	}
+	return scanVersion(r.db.QueryRow(`UPDATE venues SET place_id=$2,canonical_name=$3,allow_precise=$4,
+		precise_point=CASE WHEN $5::double precision IS NULL THEN NULL ELSE ST_SetSRID(ST_MakePoint($6,$5),4326)::geography END,
+		coarse_geohash=$7,updated_at=NOW(),version=version+1 WHERE id=$1 AND version=$8 RETURNING version`,
+		v.ID, v.PlaceID, v.CanonicalName, v.AllowPrecise, lat, lng, v.CoarseGeohash, v.Version), &v.Version)
 }
 func (r *SQLRepository) UpdateProfile(v *Profile) error {
 	if err := v.Validate(); err != nil {
@@ -83,15 +115,39 @@ func (r *SQLRepository) AddHomeTerritory(v HomeTerritory) error {
 }
 func (r *SQLRepository) GetPlace(id string) (Place, error) {
 	var v Place
-	err := r.db.QueryRow(`SELECT id::text,canonical_name,COALESCE(admin_region,''),country_code,timezone,coarse_geohash,version FROM places WHERE id=$1`, id).Scan(&v.ID, &v.CanonicalName, &v.AdminRegion, &v.CountryCode, &v.Timezone, &v.CoarseGeohash, &v.Version)
+	err := r.db.QueryRow(`SELECT p.id::text,p.canonical_name,COALESCE(p.admin_region,''),p.country_code,p.timezone,p.coarse_geohash,p.version,p.publication_status,
+		COALESCE(m.at_uri,''),COALESCE(m.cid,''),COALESCE(m.publisher_did,''),COALESCE(l.handle,''),COALESCE(m.projection_status,'')
+		FROM places p LEFT JOIN atproto_record_mappings m ON m.entity_type='place' AND m.entity_id=p.id
+		LEFT JOIN atproto_oauth_links l ON l.account_did=m.publisher_did WHERE p.id=$1`, id).Scan(&v.ID, &v.CanonicalName, &v.AdminRegion, &v.CountryCode, &v.Timezone, &v.CoarseGeohash, &v.Version, &v.PublicationStatus, &v.ATURI, &v.CID, &v.PublisherDID, &v.PublisherHandle, &v.ProjectionStatus)
 	if errors.Is(err, sql.ErrNoRows) {
 		return Place{}, ErrInvalidPlace
 	}
 	return v, err
 }
+func (r *SQLRepository) GetVenue(id string) (Venue, error) {
+	var v Venue
+	var lat, lng sql.NullFloat64
+	err := r.db.QueryRow(`SELECT v.id::text,v.place_id::text,v.canonical_name,v.allow_precise,
+		ST_Y(v.precise_point::geometry),ST_X(v.precise_point::geometry),v.coarse_geohash,v.version,v.publication_status,
+		COALESCE(m.at_uri,''),COALESCE(m.cid,''),COALESCE(m.publisher_did,''),COALESCE(l.handle,''),COALESCE(m.projection_status,'')
+		FROM venues v LEFT JOIN atproto_record_mappings m ON m.entity_type='venue' AND m.entity_id=v.id
+		LEFT JOIN atproto_oauth_links l ON l.account_did=m.publisher_did WHERE v.id=$1`, id).
+		Scan(&v.ID, &v.PlaceID, &v.CanonicalName, &v.AllowPrecise, &lat, &lng, &v.CoarseGeohash, &v.Version,
+			&v.PublicationStatus, &v.ATURI, &v.CID, &v.PublisherDID, &v.PublisherHandle, &v.ProjectionStatus)
+	if errors.Is(err, sql.ErrNoRows) {
+		return Venue{}, ErrInvalidPlace
+	}
+	if err == nil && lat.Valid && lng.Valid {
+		v.PrecisePoint = &Point{Lat: lat.Float64, Lng: lng.Float64}
+	}
+	return v, err
+}
 func (r *SQLRepository) GetProfile(id string) (Profile, error) {
 	var v Profile
-	err := r.db.QueryRow(`SELECT id::text,kind,canonical_name,visibility,version FROM profiles WHERE id=$1`, id).Scan(&v.ID, &v.Kind, &v.CanonicalName, &v.Visibility, &v.Version)
+	err := r.db.QueryRow(`SELECT p.id::text,p.kind,p.canonical_name,p.visibility,p.version,p.publication_status,
+		COALESCE(m.at_uri,''),COALESCE(m.cid,''),COALESCE(m.publisher_did,''),COALESCE(l.handle,''),COALESCE(m.projection_status,'')
+		FROM profiles p LEFT JOIN atproto_record_mappings m ON m.entity_type='profile' AND m.entity_id=p.id
+		LEFT JOIN atproto_oauth_links l ON l.account_did=m.publisher_did WHERE p.id=$1`, id).Scan(&v.ID, &v.Kind, &v.CanonicalName, &v.Visibility, &v.Version, &v.PublicationStatus, &v.ATURI, &v.CID, &v.PublisherDID, &v.PublisherHandle, &v.ProjectionStatus)
 	if errors.Is(err, sql.ErrNoRows) {
 		return Profile{}, ErrInvalidProfile
 	}
@@ -142,7 +198,7 @@ func (r *SQLRepository) CreateTour(v Tour, addedBy string) error {
 		return err
 	}
 	defer tx.Rollback()
-	_, err = tx.Exec(`INSERT INTO tours(id,primary_act_id,title,status,starts_on,ends_on,version) VALUES($1,$2,$3,$4,$5,$6,$7)`, v.ID, v.PrimaryActID, v.Title, v.Status, v.StartsOn, v.EndsOn, v.Version)
+	_, err = tx.Exec(`INSERT INTO tours(id,primary_act_id,title,status,starts_on,ends_on,version,created_by_user_id,publication_status) VALUES($1,$2,$3,$4,$5,$6,$7,NULLIF($8,'')::uuid,$9)`, v.ID, v.PrimaryActID, v.Title, v.Status, v.StartsOn, v.EndsOn, v.Version, v.CreatedByUserID, defaultPublicationStatus(v.PublicationStatus))
 	if err != nil {
 		return mapTouringError(err, ErrDuplicateTour)
 	}
@@ -154,7 +210,10 @@ func (r *SQLRepository) CreateTour(v Tour, addedBy string) error {
 }
 func (r *SQLRepository) GetTour(id string) (Tour, error) {
 	var v Tour
-	err := r.db.QueryRow(`SELECT id::text,primary_act_id::text,title,status,starts_on,ends_on,version FROM tours WHERE id=$1`, id).Scan(&v.ID, &v.PrimaryActID, &v.Title, &v.Status, &v.StartsOn, &v.EndsOn, &v.Version)
+	err := r.db.QueryRow(`SELECT t.id::text,t.primary_act_id::text,t.title,t.status,t.starts_on,t.ends_on,t.version,t.publication_status,
+		COALESCE(m.at_uri,''),COALESCE(m.cid,''),COALESCE(m.publisher_did,''),COALESCE(l.handle,''),COALESCE(m.projection_status,'')
+		FROM tours t LEFT JOIN atproto_record_mappings m ON m.entity_type='tour' AND m.entity_id=t.id
+		LEFT JOIN atproto_oauth_links l ON l.account_did=m.publisher_did WHERE t.id=$1`, id).Scan(&v.ID, &v.PrimaryActID, &v.Title, &v.Status, &v.StartsOn, &v.EndsOn, &v.Version, &v.PublicationStatus, &v.ATURI, &v.CID, &v.PublisherDID, &v.PublisherHandle, &v.ProjectionStatus)
 	if errors.Is(err, sql.ErrNoRows) {
 		return Tour{}, ErrTourNotFound
 	}
@@ -195,16 +254,22 @@ func (r *SQLRepository) CreateAppearance(v Appearance) error {
 	if v.Version == 0 {
 		v.Version = 1
 	}
-	_, err := r.db.Exec(`INSERT INTO appearances(id,event_id,act_id,tour_id,role,stage_name,starts_at,ends_at,status,version) VALUES($1,$2,$3,$4,$5,NULLIF($6,''),$7,$8,$9,$10)`, v.ID, v.EventID, v.ActID, v.TourID, v.Role, v.StageName, v.StartsAt, v.EndsAt, v.Status, v.Version)
+	_, err := r.db.Exec(`INSERT INTO appearances(id,event_id,act_id,tour_id,role,stage_name,starts_at,ends_at,status,version,created_by_user_id,publication_status) VALUES($1,$2,$3,$4,$5,NULLIF($6,''),$7,$8,$9,$10,NULLIF($11,'')::uuid,$12)`, v.ID, v.EventID, v.ActID, v.TourID, v.Role, v.StageName, v.StartsAt, v.EndsAt, v.Status, v.Version, v.CreatedByUserID, defaultPublicationStatus(v.PublicationStatus))
 	return mapTouringError(err, ErrDuplicateAppearance)
 }
 func scanAppearance(row interface{ Scan(...any) error }) (Appearance, error) {
 	var v Appearance
-	err := row.Scan(&v.ID, &v.EventID, &v.ActID, &v.TourID, &v.Role, &v.StageName, &v.StartsAt, &v.EndsAt, &v.Status, &v.Version)
+	err := row.Scan(&v.ID, &v.EventID, &v.ActID, &v.TourID, &v.Role, &v.StageName, &v.StartsAt, &v.EndsAt, &v.Status, &v.Version, &v.PublicationStatus, &v.ATURI, &v.CID, &v.PublisherDID, &v.PublisherHandle, &v.ProjectionStatus)
 	return v, err
 }
 
-const appearanceSelect = `SELECT id::text,event_id::text,act_id::text,tour_id::text,role,COALESCE(stage_name,''),starts_at,ends_at,status,version FROM appearances`
+const appearanceSelect = `SELECT id,event_id,act_id,tour_id,role,stage_name,starts_at,ends_at,status,version,publication_status,at_uri,cid,publisher_did,publisher_handle,projection_status FROM (
+	SELECT a.id::text AS id,a.event_id::text AS event_id,a.act_id::text AS act_id,a.tour_id::text AS tour_id,a.role,
+	COALESCE(a.stage_name,'') AS stage_name,a.starts_at,a.ends_at,a.status,a.version,a.publication_status,COALESCE(m.at_uri,'') AS at_uri,
+	COALESCE(m.cid,'') AS cid,COALESCE(m.publisher_did,'') AS publisher_did,COALESCE(l.handle,'') AS publisher_handle,COALESCE(m.projection_status,'') AS projection_status
+	FROM appearances a LEFT JOIN atproto_record_mappings m ON m.entity_type='appearance' AND m.entity_id=a.id
+	LEFT JOIN atproto_oauth_links l ON l.account_did=m.publisher_did
+) projected_appearances`
 
 func (r *SQLRepository) GetAppearance(id string) (Appearance, error) {
 	v, err := scanAppearance(r.db.QueryRow(appearanceSelect+` WHERE id=$1`, id))
@@ -349,6 +414,13 @@ func mapTouringError(err, errorKind error) error {
 		}
 	}
 	return err
+}
+
+func defaultPublicationStatus(value string) string {
+	if value == "published" || value == "archived" {
+		return value
+	}
+	return "draft"
 }
 
 var _ Repository = (*SQLRepository)(nil)

@@ -1,0 +1,16 @@
+# syntax=docker/dockerfile:1
+FROM golang:1.24-alpine AS builder
+WORKDIR /build
+COPY go.mod go.sum ./
+RUN --mount=type=cache,target=/go/pkg/mod go mod download
+COPY . .
+RUN --mount=type=cache,target=/go/pkg/mod --mount=type=cache,target=/root/.cache/go-build \
+    CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -ldflags="-w -s" \
+    -o /out/pds-provisioner ./cmd/pds-provisioner
+
+FROM alpine:3.21
+RUN apk add --no-cache ca-certificates tzdata && addgroup -S app && adduser -S -G app app
+COPY --from=builder /out/pds-provisioner /usr/local/bin/pds-provisioner
+USER app
+EXPOSE 8090
+ENTRYPOINT ["/usr/local/bin/pds-provisioner"]

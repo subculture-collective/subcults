@@ -1,6 +1,7 @@
 package api
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"net/http"
@@ -14,8 +15,16 @@ import (
 const refreshCookieName = "subcult_refresh"
 
 type IdentityAuthHandlers struct {
-	service      *identity.Service
-	secureCookie bool
+	service               *identity.Service
+	secureCookie          bool
+	atprotoStatusResolver func(context.Context, string) (map[string]any, error)
+}
+
+// SetATProtoStatusResolver adds optional external identity fields to
+// authenticated user responses without coupling passwordless login to AT
+// Protocol availability.
+func (h *IdentityAuthHandlers) SetATProtoStatusResolver(resolver func(context.Context, string) (map[string]any, error)) {
+	h.atprotoStatusResolver = resolver
 }
 
 func (h *IdentityAuthHandlers) CreatorAccess(w http.ResponseWriter, r *http.Request) {
@@ -147,7 +156,7 @@ func (h *IdentityAuthHandlers) VerifyMagicLink(w http.ResponseWriter, r *http.Re
 		return
 	}
 	h.setRefreshCookie(w, result.RefreshToken)
-	writeData(w, http.StatusOK, authPayload(result))
+	writeData(w, http.StatusOK, h.authPayload(r.Context(), result))
 }
 
 func (h *IdentityAuthHandlers) Refresh(w http.ResponseWriter, r *http.Request) {
@@ -167,7 +176,7 @@ func (h *IdentityAuthHandlers) Refresh(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	h.setRefreshCookie(w, result.RefreshToken)
-	writeData(w, http.StatusOK, authPayload(result))
+	writeData(w, http.StatusOK, h.authPayload(r.Context(), result))
 }
 
 func (h *IdentityAuthHandlers) Logout(w http.ResponseWriter, r *http.Request) {
@@ -197,7 +206,7 @@ func (h *IdentityAuthHandlers) Me(w http.ResponseWriter, r *http.Request) {
 		WriteError(w, r.Context(), http.StatusUnauthorized, ErrCodeUnauthorized, "Account is unavailable")
 		return
 	}
-	writeData(w, http.StatusOK, publicUser(user))
+	writeData(w, http.StatusOK, h.publicUser(r.Context(), user))
 }
 
 func (h *IdentityAuthHandlers) CompleteProfile(w http.ResponseWriter, r *http.Request) {
@@ -223,7 +232,7 @@ func (h *IdentityAuthHandlers) CompleteProfile(w http.ResponseWriter, r *http.Re
 		WriteError(w, r.Context(), http.StatusConflict, "handle_unavailable", "Choose another handle")
 		return
 	}
-	writeData(w, http.StatusOK, publicUser(user))
+	writeData(w, http.StatusOK, h.publicUser(r.Context(), user))
 }
 
 func (h *IdentityAuthHandlers) setRefreshCookie(w http.ResponseWriter, token string) {
@@ -234,12 +243,20 @@ func (h *IdentityAuthHandlers) clearRefreshCookie(w http.ResponseWriter) {
 	http.SetCookie(w, &http.Cookie{Name: refreshCookieName, Value: "", Path: "/api/v1/auth", MaxAge: -1, HttpOnly: true, Secure: h.secureCookie, SameSite: http.SameSiteLaxMode})
 }
 
-func authPayload(result identity.AuthResult) map[string]any {
-	return map[string]any{"access_token": result.AccessToken, "user": publicUser(result.User), "return_path": result.ReturnPath}
+func (h *IdentityAuthHandlers) authPayload(ctx context.Context, result identity.AuthResult) map[string]any {
+	return map[string]any{"access_token": result.AccessToken, "user": h.publicUser(ctx, result.User), "return_path": result.ReturnPath}
 }
 
-func publicUser(user identity.User) map[string]any {
-	return map[string]any{"id": user.ID, "did": user.InternalDID, "handle": user.Handle, "display_name": user.DisplayName, "role": user.Role, "onboarding_complete": user.OnboardingComplete}
+func (h *IdentityAuthHandlers) publicUser(ctx context.Context, user identity.User) map[string]any {
+	result := map[string]any{"id": user.ID, "did": user.InternalDID, "handle": user.Handle, "display_name": user.DisplayName, "role": user.Role, "onboarding_complete": user.OnboardingComplete}
+	if h.atprotoStatusResolver != nil {
+		if status, err := h.atprotoStatusResolver(ctx, user.ID); err == nil {
+			for key, value := range status {
+				result[key] = value
+			}
+		}
+	}
+	return result
 }
 
 func decodeLimitedJSON(w http.ResponseWriter, r *http.Request, destination any) error {

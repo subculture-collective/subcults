@@ -46,7 +46,7 @@ func (h *TouringHandlers) CreateProfile(w http.ResponseWriter, r *http.Request) 
 	if request.Visibility == "" {
 		request.Visibility = touring.VisibilityPublic
 	}
-	profile := touring.Profile{ID: uuid.NewString(), Kind: request.Kind, CanonicalName: strings.TrimSpace(request.CanonicalName), Visibility: request.Visibility}
+	profile := touring.Profile{ID: uuid.NewString(), Kind: request.Kind, CanonicalName: strings.TrimSpace(request.CanonicalName), Visibility: request.Visibility, CreatedByUserID: middleware.GetUserID(r.Context()), PublicationStatus: "draft"}
 	profile.Version = 1
 	if err := h.touringRepo.StoreProfile(profile); err != nil {
 		touringValidationError(w, r, "invalid profile")
@@ -54,7 +54,7 @@ func (h *TouringHandlers) CreateProfile(w http.ResponseWriter, r *http.Request) 
 	}
 	response := map[string]any{"profile": profile}
 	if profile.Kind == "artist" {
-		act := touring.Act{ID: uuid.NewString(), ProfileID: profile.ID}
+		act := touring.Act{ID: uuid.NewString(), ProfileID: profile.ID, PublicationStatus: "draft"}
 		if err := h.touringRepo.StoreAct(act); err != nil {
 			touringInternalError(w, r)
 			return
@@ -84,11 +84,44 @@ func (h *TouringHandlers) CreatePlace(w http.ResponseWriter, r *http.Request) {
 	if place.Version == 0 {
 		place.Version = 1
 	}
+	place.CreatedByUserID = middleware.GetUserID(r.Context())
+	place.PublicationStatus = "draft"
 	if err := h.touringRepo.StorePlace(place); err != nil {
 		touringValidationError(w, r, "invalid place")
 		return
 	}
 	touringWriteJSON(w, http.StatusCreated, place)
+}
+
+func (h *TouringHandlers) CreateVenue(w http.ResponseWriter, r *http.Request) {
+	if r.Method == http.MethodPatch {
+		var venue touring.Venue
+		if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 16*1024)).Decode(&venue); err != nil {
+			touringValidationError(w, r, "invalid venue")
+			return
+		}
+		h.updateTouring(w, r, func() error { return h.touringRepo.UpdateVenue(&venue) }, func() any { return venue })
+		return
+	}
+	if r.Method != http.MethodPost {
+		touringMethodNotAllowed(w, r)
+		return
+	}
+	var venue touring.Venue
+	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 16*1024)).Decode(&venue); err != nil {
+		touringValidationError(w, r, "invalid venue")
+		return
+	}
+	venue.ID = uuid.NewString()
+	venue.Version = 1
+	venue.PublicationStatus = "draft"
+	venue.AllowPrecise = false
+	venue.PrecisePoint = nil
+	if err := h.touringRepo.StoreVenue(venue); err != nil {
+		touringValidationError(w, r, "invalid venue")
+		return
+	}
+	touringWriteJSON(w, http.StatusCreated, venue)
 }
 
 func (h *TouringHandlers) CreateTour(w http.ResponseWriter, r *http.Request) {
@@ -114,6 +147,8 @@ func (h *TouringHandlers) CreateTour(w http.ResponseWriter, r *http.Request) {
 	if tour.Version == 0 {
 		tour.Version = 1
 	}
+	tour.CreatedByUserID = middleware.GetUserID(r.Context())
+	tour.PublicationStatus = "draft"
 	if _, err := h.touringRepo.GetAct(tour.PrimaryActID); err != nil {
 		touringValidationError(w, r, "primary act not found")
 		return
@@ -148,6 +183,8 @@ func (h *TouringHandlers) CreateAppearance(w http.ResponseWriter, r *http.Reques
 	if appearance.Version == 0 {
 		appearance.Version = 1
 	}
+	appearance.CreatedByUserID = middleware.GetUserID(r.Context())
+	appearance.PublicationStatus = "draft"
 	if _, err := h.eventRepo.GetByID(appearance.EventID); err != nil {
 		touringValidationError(w, r, "event not found")
 		return
@@ -217,14 +254,24 @@ func NewTouringHandlers(touringRepo touring.Repository, eventRepo scene.EventRep
 }
 
 type touringProfileResponse struct {
-	ID            string `json:"id"`
-	Name          string `json:"name"`
-	HomeTerritory string `json:"home_territory,omitempty"`
+	ID               string `json:"id"`
+	Name             string `json:"name"`
+	HomeTerritory    string `json:"home_territory,omitempty"`
+	ATURI            string `json:"at_uri,omitempty"`
+	CID              string `json:"cid,omitempty"`
+	PublisherDID     string `json:"publisher_did,omitempty"`
+	PublisherHandle  string `json:"publisher_handle,omitempty"`
+	ProjectionStatus string `json:"projection_status,omitempty"`
 }
 
 type touringTourResponse struct {
-	ID    string `json:"id"`
-	Title string `json:"title"`
+	ID               string `json:"id"`
+	Title            string `json:"title"`
+	ATURI            string `json:"at_uri,omitempty"`
+	CID              string `json:"cid,omitempty"`
+	PublisherDID     string `json:"publisher_did,omitempty"`
+	PublisherHandle  string `json:"publisher_handle,omitempty"`
+	ProjectionStatus string `json:"projection_status,omitempty"`
 }
 
 type appearanceEventResponse struct {
@@ -242,15 +289,20 @@ type appearanceActResponse struct {
 }
 
 type appearanceSummaryResponse struct {
-	ID           string                  `json:"id"`
-	Event        appearanceEventResponse `json:"event"`
-	Act          appearanceActResponse   `json:"act"`
-	Tour         *touringTourResponse    `json:"tour,omitempty"`
-	HostNames    []string                `json:"host_names"`
-	Context      string                  `json:"context"`
-	Locality     string                  `json:"locality"`
-	Status       string                  `json:"status"`
-	Verification string                  `json:"verification"`
+	ID               string                  `json:"id"`
+	Event            appearanceEventResponse `json:"event"`
+	Act              appearanceActResponse   `json:"act"`
+	Tour             *touringTourResponse    `json:"tour,omitempty"`
+	HostNames        []string                `json:"host_names"`
+	Context          string                  `json:"context"`
+	Locality         string                  `json:"locality"`
+	Status           string                  `json:"status"`
+	Verification     string                  `json:"verification"`
+	ATURI            string                  `json:"at_uri,omitempty"`
+	CID              string                  `json:"cid,omitempty"`
+	PublisherDID     string                  `json:"publisher_did,omitempty"`
+	PublisherHandle  string                  `json:"publisher_handle,omitempty"`
+	ProjectionStatus string                  `json:"projection_status,omitempty"`
 }
 
 type touringDetailResponse struct {
@@ -287,7 +339,7 @@ func (h *TouringHandlers) Profile(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	profile, err := h.touringRepo.GetProfile(id)
-	if err != nil {
+	if err != nil || (profile.PublicationStatus != "" && profile.PublicationStatus != "published") {
 		touringNotFound(w, r)
 		return
 	}
@@ -317,7 +369,7 @@ func (h *TouringHandlers) Tour(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	tour, err := h.touringRepo.GetTour(id)
-	if err != nil {
+	if err != nil || (tour.PublicationStatus != "" && tour.PublicationStatus != "published") {
 		touringNotFound(w, r)
 		return
 	}
@@ -331,7 +383,7 @@ func (h *TouringHandlers) Tour(w http.ResponseWriter, r *http.Request) {
 		touringInternalError(w, r)
 		return
 	}
-	touringWriteJSON(w, http.StatusOK, touringDetailResponse{Tour: &touringTourResponse{ID: tour.ID, Title: tour.Title}, Appearances: summaries})
+	touringWriteJSON(w, http.StatusOK, touringDetailResponse{Tour: tourResponseFromModel(tour), Appearances: summaries})
 }
 
 func touringPathID(path, prefix string) string {
@@ -377,6 +429,9 @@ func (h *TouringHandlers) appearancesForAct(actID string) []touring.Appearance {
 func (h *TouringHandlers) summaries(appearances []touring.Appearance, opts appearanceSearchOptions) ([]appearanceSummaryResponse, error) {
 	results := make([]appearanceSummaryResponse, 0, len(appearances))
 	for _, appearance := range appearances {
+		if appearance.PublicationStatus != "" && appearance.PublicationStatus != "published" {
+			continue
+		}
 		event, err := h.eventRepo.GetByID(appearance.EventID)
 		if err != nil || !matchesAppearanceEvent(event, appearance, opts) {
 			continue
@@ -410,7 +465,7 @@ func (h *TouringHandlers) summaries(appearances []touring.Appearance, opts appea
 		var tourResponse *touringTourResponse
 		if appearance.TourID != nil {
 			if tour, err := h.touringRepo.GetTour(*appearance.TourID); err == nil {
-				tourResponse = &touringTourResponse{ID: tour.ID, Title: tour.Title}
+				tourResponse = tourResponseFromModel(tour)
 			}
 		}
 		kind := event.Kind
@@ -423,6 +478,7 @@ func (h *TouringHandlers) summaries(appearances []touring.Appearance, opts appea
 			Act:   appearanceActResponse{ID: act.ID, Name: profile.CanonicalName, HomeTerritory: homeTerritory},
 			Tour:  tourResponse, HostNames: hostNames, Context: touring.ProjectAppearanceKind(appearance.TourID, kind),
 			Locality: locality, Status: appearance.Status, Verification: h.touringRepo.VerificationForEntity("appearance", appearance.ID),
+			ATURI: appearance.ATURI, CID: appearance.CID, PublisherDID: appearance.PublisherDID, PublisherHandle: appearance.PublisherHandle, ProjectionStatus: appearance.ProjectionStatus,
 		})
 	}
 	return results, nil
@@ -471,6 +527,9 @@ func (h *TouringHandlers) homeTerritoryAndLocality(actID string, eventPlaceID *s
 		if err != nil {
 			continue
 		}
+		if place.PublicationStatus != "" && place.PublicationStatus != "published" {
+			continue
+		}
 		locality := "unknown"
 		if eventPlaceID != nil {
 			locality = "visiting"
@@ -485,7 +544,11 @@ func (h *TouringHandlers) homeTerritoryAndLocality(actID string, eventPlaceID *s
 
 func (h *TouringHandlers) profileResponse(profile touring.Profile, actID string) *touringProfileResponse {
 	home, _ := h.homeTerritoryAndLocality(actID, nil)
-	return &touringProfileResponse{ID: profile.ID, Name: profile.CanonicalName, HomeTerritory: home}
+	return &touringProfileResponse{ID: profile.ID, Name: profile.CanonicalName, HomeTerritory: home, ATURI: profile.ATURI, CID: profile.CID, PublisherDID: profile.PublisherDID, PublisherHandle: profile.PublisherHandle, ProjectionStatus: profile.ProjectionStatus}
+}
+
+func tourResponseFromModel(tour touring.Tour) *touringTourResponse {
+	return &touringTourResponse{ID: tour.ID, Title: tour.Title, ATURI: tour.ATURI, CID: tour.CID, PublisherDID: tour.PublisherDID, PublisherHandle: tour.PublisherHandle, ProjectionStatus: tour.ProjectionStatus}
 }
 
 func (h *TouringHandlers) hostNames(eventID string) []string {

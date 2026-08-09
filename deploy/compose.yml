@@ -46,6 +46,23 @@ services:
       - R2_MAX_UPLOAD_SIZE_MB=${R2_MAX_UPLOAD_SIZE_MB:-15}
       - REDIS_URL=${REDIS_URL:-}
       - INTERNAL_SERVICE_TOKEN=${INTERNAL_SERVICE_TOKEN:-}
+      - ATPROTO_OAUTH_ENABLED=${ATPROTO_OAUTH_ENABLED:-false}
+      - ATPROTO_OAUTH_CLIENT_ID=${ATPROTO_OAUTH_CLIENT_ID:-}
+      - ATPROTO_OAUTH_CALLBACK_URL=${ATPROTO_OAUTH_CALLBACK_URL:-}
+      - ATPROTO_OAUTH_JWKS_URL=${ATPROTO_OAUTH_JWKS_URL:-}
+      - ATPROTO_OAUTH_CLIENT_PRIVATE_KEY=${ATPROTO_OAUTH_CLIENT_PRIVATE_KEY:-}
+      - ATPROTO_OAUTH_CLIENT_KEY_ID=${ATPROTO_OAUTH_CLIENT_KEY_ID:-subcults-1}
+      - ATPROTO_SESSION_ENCRYPTION_KEY=${ATPROTO_SESSION_ENCRYPTION_KEY:-}
+      - ATPROTO_DEFAULT_PDS_URL=${ATPROTO_DEFAULT_PDS_URL:-https://pds.subcult.tv}
+      - ATPROTO_HANDLE_DOMAIN=${ATPROTO_HANDLE_DOMAIN:-subcult.tv}
+      - ATPROTO_TURNSTILE_SECRET=${ATPROTO_TURNSTILE_SECRET:-}
+      - ATPROTO_TERMS_VERSION=${ATPROTO_TERMS_VERSION:-2026-08-09}
+      - PDS_SIGNUP_ENABLED=${PDS_SIGNUP_ENABLED:-false}
+      - PDS_SIGNUP_DAILY_CAP=${PDS_SIGNUP_DAILY_CAP:-25}
+      - PDS_PROVISIONER_URL=${PDS_PROVISIONER_URL:-http://pds-provisioner:8090}
+      - PDS_PROVISIONER_TOKEN=${PDS_PROVISIONER_TOKEN:-}
+      - ATPROTO_TAP_URL=${ATPROTO_TAP_URL:-http://tap:2480}
+      - ATPROTO_TAP_ADMIN_PASSWORD=${ATPROTO_TAP_ADMIN_PASSWORD:-}
       - RANK_TRUST_ENABLED=${RANK_TRUST_ENABLED:-false}
       - TRACING_ENABLED=${TRACING_ENABLED:-false}
       - TRACING_EXPORTER_TYPE=${TRACING_EXPORTER_TYPE:-otlp-http}
@@ -81,6 +98,60 @@ services:
     networks:
       - web
       - internal
+    restart: unless-stopped
+
+  pds-provisioner:
+    profiles: ['atproto']
+    build:
+      context: ..
+      dockerfile: Dockerfile.pds-provisioner
+    container_name: subcults-pds-provisioner
+    environment:
+      - PDS_URL=${ATPROTO_DEFAULT_PDS_URL:-https://pds.subcult.tv}
+      - PDS_ADMIN_PASSWORD=${PDS_ADMIN_PASSWORD}
+      - PDS_PROVISIONER_TOKEN=${PDS_PROVISIONER_TOKEN}
+    expose:
+      - '8090'
+    healthcheck:
+      test: ['CMD', 'wget', '--no-verbose', '--tries=1', '--spider', 'http://localhost:8090/health/live']
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    networks:
+      - internal
+    restart: unless-stopped
+
+  tap:
+    profiles: ['atproto']
+    build:
+      context: ..
+      dockerfile: Dockerfile.tap
+    container_name: subcults-tap
+    environment:
+      - TAP_DATABASE_URL=sqlite:///data/tap.db
+      - TAP_BIND=:2480
+      - TAP_COLLECTION_FILTERS=tv.subcult.*,app.subcult.*
+      - TAP_WEBHOOK_URL=http://api:8080/internal/atproto/tap
+      - TAP_ADMIN_PASSWORD=${ATPROTO_TAP_ADMIN_PASSWORD}
+      - TAP_DISABLE_ACKS=false
+      - TAP_NO_REPLAY=false
+      - TAP_METRICS_LISTEN=:2481
+    expose:
+      - '2480'
+      - '2481'
+    volumes:
+      - tap_data:/data
+    healthcheck:
+      test: ['CMD-SHELL', 'wget --quiet --spider --user=admin --password="$${TAP_ADMIN_PASSWORD}" http://localhost:2480/health']
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+    networks:
+      - internal
+    depends_on:
+      api:
+        condition: service_healthy
     restart: unless-stopped
 
   # =============================================================================
@@ -122,6 +193,7 @@ services:
         - VITE_R2_CDN_URL=${VITE_R2_CDN_URL:-}
         - VITE_VAPID_PUBLIC_KEY=${VITE_VAPID_PUBLIC_KEY:-}
         - VITE_LIVEKIT_WS_URL=${VITE_LIVEKIT_WS_URL:-}
+        - VITE_TURNSTILE_SITE_KEY=${ATPROTO_TURNSTILE_SITE_KEY:-}
         - VITE_APP_VERSION=${VITE_APP_VERSION:-dev}
     container_name: subcults-frontend
     expose:
@@ -146,4 +218,5 @@ networks:
 # =============================================================================
 # Volumes
 # =============================================================================
-volumes: {}
+volumes:
+  tap_data:

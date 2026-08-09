@@ -1,0 +1,17 @@
+DELETE FROM schema_version WHERE version = 41;
+DROP TABLE IF EXISTS atproto_projection_failures;
+DROP TABLE IF EXISTS atproto_projection_checkpoints;
+DROP TABLE IF EXISTS atproto_record_mappings;
+DROP TABLE IF EXISTS atproto_provisioning_requests;
+DROP TABLE IF EXISTS atproto_oauth_requests;
+DROP TABLE IF EXISTS atproto_oauth_sessions;
+DROP TABLE IF EXISTS atproto_oauth_links;
+ALTER TABLE appearances DROP COLUMN IF EXISTS publication_status;
+ALTER TABLE tours DROP COLUMN IF EXISTS publication_status;
+ALTER TABLE acts DROP COLUMN IF EXISTS publication_status;
+ALTER TABLE venues DROP COLUMN IF EXISTS publication_status;
+ALTER TABLE places DROP COLUMN IF EXISTS publication_status;
+ALTER TABLE appearances DROP COLUMN IF EXISTS created_by_user_id;
+ALTER TABLE tours DROP COLUMN IF EXISTS created_by_user_id;
+ALTER TABLE places DROP COLUMN IF EXISTS created_by_user_id;
+ALTER TABLE profiles DROP COLUMN IF EXISTS created_by_user_id;

@@ -38,14 +38,17 @@ type Repository interface {
 	CreateAssertion(assertion EntityAssertion) error
 	GetAssertion(id string) (EntityAssertion, error)
 	StorePlace(place Place) error
+	StoreVenue(venue Venue) error
 	StoreProfile(profile Profile) error
 	StoreAct(act Act) error
 	UpdatePlace(place *Place) error
+	UpdateVenue(venue *Venue) error
 	UpdateProfile(profile *Profile) error
 	UpdateTour(tour *Tour) error
 	UpdateAppearance(appearance *Appearance) error
 	AddHomeTerritory(territory HomeTerritory) error
 	GetPlace(id string) (Place, error)
+	GetVenue(id string) (Venue, error)
 	GetProfile(id string) (Profile, error)
 	GetAct(id string) (Act, error)
 	FindActByProfile(profileID string) (Act, error)
@@ -67,6 +70,7 @@ type InMemoryRepository struct {
 	sourceKeys      map[string]string
 	assertions      map[string]EntityAssertion
 	places          map[string]Place
+	venues          map[string]Venue
 	profiles        map[string]Profile
 	acts            map[string]Act
 	homeTerritories map[string][]HomeTerritory
@@ -82,10 +86,25 @@ func NewInMemoryRepository() *InMemoryRepository {
 		sourceKeys:      make(map[string]string),
 		assertions:      make(map[string]EntityAssertion),
 		places:          make(map[string]Place),
+		venues:          make(map[string]Venue),
 		profiles:        make(map[string]Profile),
 		acts:            make(map[string]Act),
 		homeTerritories: make(map[string][]HomeTerritory),
 	}
+}
+
+func (r *InMemoryRepository) StoreVenue(venue Venue) error {
+	venue.EnforceLocationConsent()
+	if err := venue.Validate(); err != nil {
+		return err
+	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if _, ok := r.places[venue.PlaceID]; !ok {
+		return ErrInvalidPlace
+	}
+	r.venues[venue.ID] = venue
+	return nil
 }
 
 func (r *InMemoryRepository) StorePlace(place Place) error {
@@ -136,6 +155,24 @@ func (r *InMemoryRepository) UpdatePlace(value *Place) error {
 	}
 	value.Version++
 	r.places[value.ID] = *value
+	return nil
+}
+func (r *InMemoryRepository) UpdateVenue(value *Venue) error {
+	value.EnforceLocationConsent()
+	if err := value.Validate(); err != nil {
+		return err
+	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	current, ok := r.venues[value.ID]
+	if !ok {
+		return ErrInvalidPlace
+	}
+	if current.Version != value.Version {
+		return ErrVersionConflict
+	}
+	value.Version++
+	r.venues[value.ID] = *value
 	return nil
 }
 func (r *InMemoryRepository) UpdateProfile(value *Profile) error {
@@ -214,6 +251,16 @@ func (r *InMemoryRepository) GetPlace(id string) (Place, error) {
 		return Place{}, ErrInvalidPlace
 	}
 	return place, nil
+}
+
+func (r *InMemoryRepository) GetVenue(id string) (Venue, error) {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	venue, ok := r.venues[id]
+	if !ok {
+		return Venue{}, ErrInvalidPlace
+	}
+	return venue, nil
 }
 
 func (r *InMemoryRepository) GetProfile(id string) (Profile, error) {

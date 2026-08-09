@@ -26,9 +26,9 @@ func TestMatchesLexicon(t *testing.T) {
 			want:       true,
 		},
 		{
-			name:       "matches app.subcult.custom",
+			name:       "rejects unknown legacy collection",
 			collection: "app.subcult.custom",
-			want:       true,
+			want:       false,
 		},
 		{
 			name:       "does not match app.bsky.feed.post",

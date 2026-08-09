@@ -5,6 +5,8 @@ package db_test
 import (
 	"context"
 	"database/sql"
+	"encoding/base64"
+	"encoding/json"
 	"errors"
 	"os"
 	"strings"
@@ -13,6 +15,7 @@ import (
 
 	"github.com/google/uuid"
 	_ "github.com/lib/pq"
+	"github.com/onnwee/subcults/internal/atprotocol"
 	"github.com/onnwee/subcults/internal/audience"
 	runtimedb "github.com/onnwee/subcults/internal/db"
 	"github.com/onnwee/subcults/internal/identity"
@@ -37,6 +40,68 @@ func integrationDB(t *testing.T) *sql.DB {
 		t.Fatal(err)
 	}
 	return database
+}
+
+func TestATProtocolProjectionIsDurableAndDisclosureValidated(t *testing.T) {
+	database := integrationDB(t)
+	ctx := context.Background()
+	cipher, err := atprotocol.NewSessionCipherFromBase64(base64.StdEncoding.EncodeToString(make([]byte, 32)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	store := atprotocol.NewSQLStore(database, cipher)
+	eventBase := time.Now().UnixNano()
+	profileID := uuid.NewString()
+	if _, err = database.Exec(`INSERT INTO profiles(id,kind,canonical_name,visibility,publication_status)
+		VALUES($1,'artist',$2,'public','draft')`, profileID, "Portable "+profileID[:8]); err != nil {
+		t.Fatal(err)
+	}
+	publisherDID := "did:plc:" + strings.ReplaceAll(uuid.NewString(), "-", "")
+	rkey := "3ltest" + strings.ReplaceAll(uuid.NewString(), "-", "")[:12]
+	atURI := "at://" + publisherDID + "/" + atprotocol.CollectionProfile + "/" + rkey
+	if _, err = database.Exec(`INSERT INTO atproto_record_mappings
+		(entity_type,entity_id,publisher_did,collection,rkey,at_uri,cid,projection_status)
+		VALUES('profile',$1,$2,$3,$4,$5,'bafy-profile','awaiting_projection')`,
+		profileID, publisherDID, atprotocol.CollectionProfile, rkey, atURI); err != nil {
+		t.Fatal(err)
+	}
+	record, _ := json.Marshal(map[string]any{
+		"$type": atprotocol.CollectionProfile, "name": "Portable", "kind": "artist",
+		"createdAt": time.Now().UTC().Format(time.RFC3339Nano),
+	})
+	result, err := store.IngestObservation(ctx, "tap", eventBase, atprotocol.TapRecordEvent{
+		Live: true, Rev: "rev-1", DID: publisherDID, Collection: atprotocol.CollectionProfile,
+		RKey: rkey, Action: "create", CID: "bafy-profile", Record: record,
+	}, time.Now().UTC())
+	if err != nil || result.Outcome != "projected" {
+		t.Fatalf("projection result=%+v err=%v", result, err)
+	}
+	restarted := atprotocol.NewSQLStore(database, cipher)
+	mapping, err := restarted.RecordByURI(ctx, atURI)
+	if err != nil || mapping.ProjectionStatus != "projected" {
+		t.Fatalf("projection after restart=%+v err=%v", mapping, err)
+	}
+	var publicationStatus string
+	if err = database.QueryRow(`SELECT publication_status FROM profiles WHERE id=$1`, profileID).Scan(&publicationStatus); err != nil || publicationStatus != "published" {
+		t.Fatalf("profile publication status=%q err=%v", publicationStatus, err)
+	}
+	var digest string
+	if err = database.QueryRow(`SELECT payload_digest FROM atproto_sync_observations WHERE source='tap' AND source_event_id=$1`, eventBase).Scan(&digest); err != nil || len(digest) != 64 {
+		t.Fatalf("digest-only observation=%q err=%v", digest, err)
+	}
+
+	unsafe := append([]byte(nil), record...)
+	var unsafeRecord map[string]any
+	_ = json.Unmarshal(unsafe, &unsafeRecord)
+	unsafeRecord["precise_point"] = map[string]any{"lat": 41.88, "lng": -87.63}
+	unsafe, _ = json.Marshal(unsafeRecord)
+	quarantined, err := store.IngestObservation(ctx, "tap", eventBase+1, atprotocol.TapRecordEvent{
+		Live: true, Rev: "rev-2", DID: publisherDID, Collection: atprotocol.CollectionProfile,
+		RKey: rkey, Action: "update", CID: "bafy-profile", Record: unsafe,
+	}, time.Now().UTC())
+	if err != nil || quarantined.Outcome != "quarantined" {
+		t.Fatalf("protected-field result=%+v err=%v", quarantined, err)
+	}
 }
 
 func TestDurableRepositoriesSurviveRestartAndEnforceGuarantees(t *testing.T) {

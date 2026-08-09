@@ -107,7 +107,12 @@ func (h *SceneHandlers) CreateScene(w http.ResponseWriter, r *http.Request) {
 	}
 	req.Description = validatedDesc
 
-	// Validate owner_did
+	// Studio ownership comes from the verified bearer token, never request JSON.
+	// The legacy non-Studio handler retains its existing import/test contract
+	// during the beta compatibility window.
+	if strings.Contains(r.URL.Path, "/studio/") {
+		req.OwnerDID = middleware.GetUserDID(r.Context())
+	}
 	if strings.TrimSpace(req.OwnerDID) == "" {
 		ctx := middleware.SetErrorCode(r.Context(), ErrCodeValidation)
 		WriteError(w, ctx, http.StatusBadRequest, ErrCodeValidation, "owner_did is required")
@@ -176,6 +181,12 @@ func (h *SceneHandlers) CreateScene(w http.ResponseWriter, r *http.Request) {
 		Palette:       req.Palette,
 		CreatedAt:     &now,
 		UpdatedAt:     &now,
+		PublicationStatus: func() string {
+			if strings.Contains(r.URL.Path, "/studio/") {
+				return "draft"
+			}
+			return "published"
+		}(),
 	}
 
 	// Insert into repository (will automatically enforce location consent).

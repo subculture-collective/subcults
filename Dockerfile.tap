@@ -1,0 +1,22 @@
+# syntax=docker/dockerfile:1
+# Tap is built from an immutable reviewed Indigo commit, separately from the
+# Go 1.24-compatible Indigo library used by the API.
+FROM golang:1.26-alpine3.22 AS build
+ARG INDIGO_COMMIT=8b43a326dbbb394f63b6d68761553cdfe25532de
+RUN apk add --no-cache build-base git
+WORKDIR /src
+RUN git clone https://github.com/bluesky-social/indigo.git . \
+    && git checkout --detach "${INDIGO_COMMIT}" \
+    && test "$(git rev-parse HEAD)" = "${INDIGO_COMMIT}"
+RUN --mount=type=cache,target=/go/pkg/mod \
+    --mount=type=cache,target=/root/.cache/go-build \
+    go build -tags timetzdata -trimpath -o /tap ./cmd/tap
+
+FROM alpine:3.22
+RUN apk add --no-cache ca-certificates dumb-init wget
+RUN addgroup -S tap && adduser -S -G tap -h /data tap && mkdir -p /data && chown tap:tap /data
+COPY --from=build /tap /usr/local/bin/tap
+USER tap
+WORKDIR /data
+ENTRYPOINT ["dumb-init", "--"]
+CMD ["tap", "run"]
