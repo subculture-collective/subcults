@@ -27,7 +27,7 @@ export function AppLayout() {
           {publicNav.map(([href, label]) => <NavLink key={href} to={href} className={navClass}>{label}</NavLink>)}
         </nav>
         <div className="flex items-center gap-2">
-          <Link to="/search" className="button-quiet hidden sm:inline-flex" aria-label="Search Subcult">Search <span aria-hidden="true">⌕</span></Link>
+          <Link to="/search" className="button-quiet hidden sm:inline-flex" aria-label="Search Subcults">Search <span aria-hidden="true">⌕</span></Link>
           {isAuthenticated ? <>
             {isCreator && <Link to="/studio" className="button-secondary hidden sm:inline-flex">Studio</Link>}
             <Link to="/me" className="button-quiet max-w-32 truncate">@{user?.handle || 'member'}</Link>

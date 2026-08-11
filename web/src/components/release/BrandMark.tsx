@@ -10,10 +10,10 @@ export function SignalGlyph({ className = 'h-9 w-9' }: { className?: string }) {
 }
 
 export function BrandMark({ compact = false }: { compact?: boolean }) {
-  return <Link to="/" className="group flex items-center gap-3" aria-label="Subcult discovery home">
+  return <Link to="/" className="group flex items-center gap-3" aria-label="Subcults discovery home">
     <span className="text-neon-purple transition-colors group-hover:text-neon-cyan"><SignalGlyph /></span>
     {!compact && <span className="leading-none">
-      <span className="font-display block text-2xl font-bold tracking-[.12em] text-foreground">SUBCULT</span>
+      <span className="font-display block text-2xl font-bold tracking-[.12em] text-foreground">SUBCULTS</span>
       <span className="font-mono block text-[.52rem] uppercase tracking-[.23em] text-foreground-muted">Shows, tours, scenes</span>
     </span>}
   </Link>;

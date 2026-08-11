@@ -12,7 +12,7 @@ describe('LoginPage', () => {
   beforeEach(() => vi.clearAllMocks());
   it('presents a passwordless email form', () => {
     renderLogin();
-    expect(screen.getByRole('heading', { name: 'Sign in to Subcult' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Sign in to Subcults' })).toBeInTheDocument();
     expect(screen.getByLabelText('Email address')).toHaveAttribute('autocomplete', 'email');
     expect(screen.getByRole('button', { name: 'Email me a sign-in link' })).toBeInTheDocument();
     expect(screen.queryByLabelText(/password/i)).not.toBeInTheDocument();

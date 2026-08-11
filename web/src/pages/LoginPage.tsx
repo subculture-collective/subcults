@@ -25,14 +25,14 @@ export function LoginPage() {
   return <div className="signal-grid min-h-[calc(100vh-76px)] py-14"><PageMeta title="Sign in"/>
     <div className="content-wrap grid items-center gap-12 lg:grid-cols-[1fr_440px]">
       <div className="hidden lg:block">
-        <p className="eyebrow">Your Subcult account</p>
+        <p className="eyebrow">Your Subcults account</p>
         <h1 className="font-display mt-5 max-w-3xl text-7xl font-bold uppercase leading-[.88]">One link.<br/><span className="text-neon-purple">No password.</span><br/>Your scenes persist.</h1>
         <p className="mt-8 max-w-xl text-lg leading-8 text-foreground-secondary">Sign in to RSVP, follow artists across cities, manage message permissions, and request creator access.</p>
       </div>
       <section className="panel panel-cut p-7 sm:p-9" aria-labelledby="login-heading">
         <BrandMark />
         <p className="eyebrow mt-10">Passwordless sign in</p>
-        <h2 id="login-heading" className="font-display mt-3 text-4xl uppercase">Sign in to Subcult</h2>
+        <h2 id="login-heading" className="font-display mt-3 text-4xl uppercase">Sign in to Subcults</h2>
         {state === 'sent' ? <div className="mt-8" role="status">
           <span className="status-chip" style={{ '--chip-color': 'var(--color-neon-green)' } as React.CSSProperties}>Email sent</span>
           <p className="mt-5 leading-7 text-foreground-secondary">If that address can receive mail, a one-time link is on its way. It expires in 15 minutes.</p>
