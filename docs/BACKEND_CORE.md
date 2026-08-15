@@ -74,7 +74,7 @@ Configuration follows a precedence order: **Environment > YAML File > Defaults**
 - `STRIPE_ONBOARDING_RETURN_URL` - Stripe onboarding return URL
 - `STRIPE_ONBOARDING_REFRESH_URL` - Stripe onboarding refresh URL
 - `MAPTILER_API_KEY` - MapTiler API key
-- `JETSTREAM_URL` - Jetstream WebSocket URL
+- `JETSTREAM_HOST` - Jetstream v2 archive/live host
 
 #### Optional Variables
 - `REDIS_URL` - Redis connection for distributed rate limiting

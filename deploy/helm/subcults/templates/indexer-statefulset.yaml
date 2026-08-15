@@ -34,13 +34,13 @@ spec:
                 name: {{ .Values.secrets.existingSecret }}
           livenessProbe:
             httpGet:
-              path: /internal/indexer/metrics
+              path: /health
               port: metrics
             initialDelaySeconds: 15
             periodSeconds: 20
           readinessProbe:
             httpGet:
-              path: /internal/indexer/metrics
+              path: /health
               port: metrics
             initialDelaySeconds: 5
             periodSeconds: 10

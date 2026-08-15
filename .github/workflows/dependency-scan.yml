@@ -41,6 +41,11 @@ jobs:
           go-version-file: 'go.mod'
           cache: true
 
+      - name: Install native dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends libvips-dev
+
       - name: Run govulncheck
         id: govulncheck
         continue-on-error: true
@@ -69,11 +74,19 @@ jobs:
       - name: Parse govulncheck results
         id: parse
         if: steps.govulncheck.outputs.scan_completed == 'true'
+        env:
+          SCAN_EXIT_CODE: ${{ steps.govulncheck.outputs.exit_code }}
         run: |
           # Parse JSON output to determine severity
           if [ -f govulncheck-results.json ]; then
-            # Check if any vulnerabilities were found using jq for reliable JSON parsing
-            VULN_COUNT=$(jq -s '[.. | objects | .osv? | select(. != null)] | length' govulncheck-results.json 2>/dev/null || echo "0")
+            # OSV records describe the vulnerability database, including
+            # dependencies whose vulnerable symbols are not called. Count only
+            # findings with a function-level trace, which are reachable from the
+            # application. Exit code 3 is govulncheck's affected-code signal.
+            VULN_COUNT=$(jq -s '[.[] | .finding? | select(. != null) | select(any(.trace[]?; .function? != null))] | length' govulncheck-results.json 2>/dev/null || echo "0")
+            if [ "$SCAN_EXIT_CODE" -eq 3 ] && [ "$VULN_COUNT" -eq 0 ]; then
+              VULN_COUNT=1
+            fi
             echo "vuln_count=$VULN_COUNT" >> $GITHUB_OUTPUT
 
             # Generate human-readable summary

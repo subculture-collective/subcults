@@ -46,14 +46,14 @@ func TestLoad_MissingMandatory(t *testing.T) {
 		{
 			name:         "no environment variables set",
 			envVars:      map[string]string{},
-			wantErrCount: 11, // All mandatory fields missing (R2 is optional)
+			wantErrCount: 10, // All API mandatory fields missing (R2 and indexer config are optional)
 		},
 		{
 			name: "only DATABASE_URL set",
 			envVars: map[string]string{
 				"DATABASE_URL": "postgres://localhost/test",
 			},
-			wantErrCount:     10,
+			wantErrCount:     9,
 			checkSpecificErr: ErrMissingJWTSecret,
 		},
 		{
@@ -393,7 +393,7 @@ func TestConfig_Validate(t *testing.T) {
 		{
 			name:     "empty config has all errors",
 			config:   Config{},
-			wantErrs: 11, // 11 required fields (R2 is optional)
+			wantErrs: 10, // 10 API-required fields (R2 and indexer config are optional)
 		},
 		{
 			name: "fully valid config",

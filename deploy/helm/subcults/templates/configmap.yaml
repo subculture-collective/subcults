@@ -14,4 +14,5 @@ data:
   TRACING_EXPORTER_TYPE: {{ .Values.config.tracingExporterType | quote }}
   TRACING_SAMPLE_RATE: {{ .Values.config.tracingSampleRate | quote }}
   CANARY_ENABLED: {{ .Values.config.canaryEnabled | quote }}
-  JETSTREAM_URL: {{ .Values.config.jetstreamUrl | quote }}
+  JETSTREAM_HOST: {{ .Values.config.jetstreamHost | quote }}
+  JETSTREAM_BATCH_SIZE: {{ .Values.config.jetstreamBatchSize | quote }}

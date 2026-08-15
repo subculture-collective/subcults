@@ -19,4 +19,5 @@ data:
   TRACING_EXPORTER_TYPE: 'otlp-http'
   TRACING_SAMPLE_RATE: '0.1'
   CANARY_ENABLED: 'false'
-  JETSTREAM_URL: 'wss://jetstream1.us-east.bsky.network/subscribe'
+  JETSTREAM_HOST: 'jetstream.us-west.bsky.network'
+  JETSTREAM_BATCH_SIZE: '256'

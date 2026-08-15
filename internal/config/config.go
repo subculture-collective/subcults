@@ -45,6 +45,8 @@ type Config struct {
 	MapTilerAPIKey string `koanf:"maptiler_api_key"`
 
 	// Jetstream (AT Protocol)
+	// JetstreamURL is a deprecated v1 API setting retained only for config-file
+	// compatibility. The v2 indexer reads JETSTREAM_HOST directly.
 	JetstreamURL string `koanf:"jetstream_url"`
 
 	// R2 (Cloudflare Object Storage)
@@ -105,7 +107,6 @@ var (
 	ErrMissingStripeOnboardingReturnURL  = errors.New("STRIPE_ONBOARDING_RETURN_URL is required")
 	ErrMissingStripeOnboardingRefreshURL = errors.New("STRIPE_ONBOARDING_REFRESH_URL is required")
 	ErrMissingMapTilerAPIKey             = errors.New("MAPTILER_API_KEY is required")
-	ErrMissingJetstreamURL               = errors.New("JETSTREAM_URL is required")
 	ErrMissingR2BucketName               = errors.New("R2_BUCKET_NAME is required")
 	ErrMissingR2AccessKeyID              = errors.New("R2_ACCESS_KEY_ID is required")
 	ErrMissingR2SecretAccessKey          = errors.New("R2_SECRET_ACCESS_KEY is required")
@@ -130,14 +131,14 @@ const (
 	DefaultCanaryVersion               = "canary"
 	DefaultTracingEnabled              = false
 	DefaultTracingExporterType         = "otlp-http"
-	DefaultTracingSampleRate           = 0.1   // 10% sampling in production
+	DefaultTracingSampleRate           = 0.1 // 10% sampling in production
 	DefaultTracingInsecure             = false
-	DefaultProfilingEnabled            = false // NEVER enable in production (security risk)
-	DefaultCORSAllowedOrigins          = ""    // Empty means CORS is disabled
-	DefaultCORSAllowedMethods          = "GET,POST,PUT,PATCH,DELETE,OPTIONS"                // Standard REST methods
-	DefaultCORSAllowedHeaders          = "Content-Type,Authorization,X-Request-ID"          // Essential headers
-	DefaultCORSAllowCredentials        = true                                                // Allow cookies/auth by default
-	DefaultCORSMaxAge                  = 3600                                                // 1 hour preflight cache
+	DefaultProfilingEnabled            = false                                     // NEVER enable in production (security risk)
+	DefaultCORSAllowedOrigins          = ""                                        // Empty means CORS is disabled
+	DefaultCORSAllowedMethods          = "GET,POST,PUT,PATCH,DELETE,OPTIONS"       // Standard REST methods
+	DefaultCORSAllowedHeaders          = "Content-Type,Authorization,X-Request-ID" // Essential headers
+	DefaultCORSAllowCredentials        = true                                      // Allow cookies/auth by default
+	DefaultCORSMaxAge                  = 3600                                      // 1 hour preflight cache
 )
 
 // Load reads configuration from environment variables and an optional config file.
@@ -532,9 +533,6 @@ func (c *Config) Validate() []error {
 	if c.MapTilerAPIKey == "" {
 		errs = append(errs, ErrMissingMapTilerAPIKey)
 	}
-	if c.JetstreamURL == "" {
-		errs = append(errs, ErrMissingJetstreamURL)
-	}
 
 	// R2 configuration is optional. Only validate fields if any R2 value is set.
 	if c.R2BucketName != "" || c.R2AccessKeyID != "" || c.R2SecretAccessKey != "" || c.R2Endpoint != "" {
@@ -573,7 +571,6 @@ func (c *Config) LogSummary() map[string]string {
 		"stripe_onboarding_return_url":  c.StripeOnboardingReturnURL,
 		"stripe_onboarding_refresh_url": c.StripeOnboardingRefreshURL,
 		"maptiler_api_key":              maskSecret(c.MapTilerAPIKey),
-		"jetstream_url":                 c.JetstreamURL,
 		"r2_bucket_name":                c.R2BucketName,
 		"r2_access_key_id":              maskSecret(c.R2AccessKeyID),
 		"r2_secret_access_key":          maskSecret(c.R2SecretAccessKey),
@@ -721,7 +718,6 @@ func (c *Config) LogValue() slog.Value {
 
 		// Internal services
 		slog.String("internal_service_token", maskSecret(c.InternalServiceToken)),
-		slog.String("jetstream_url", c.JetstreamURL),
 
 		// Feature flags / behavior toggles
 		slog.Bool("rank_trust_enabled", c.RankTrustEnabled),

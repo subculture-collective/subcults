@@ -14,6 +14,7 @@ import (
 	"sync"
 
 	"github.com/google/uuid"
+	"github.com/lib/pq"
 	"github.com/onnwee/subcults/internal/tracing"
 	"go.opentelemetry.io/otel/attribute"
 )
@@ -296,7 +297,7 @@ func (r *PostgresRecordRepository) DeleteRecord(ctx context.Context, did, collec
 // CheckIdempotencyKey verifies if an operation has already been processed.
 func (r *PostgresRecordRepository) CheckIdempotencyKey(ctx context.Context, key string) (bool, error) {
 	ctx, endSpan := tracing.StartDBSpan(ctx, "ingestion_idempotency", tracing.DBOperationQuery)
-	
+
 	var exists bool
 	query := `SELECT EXISTS(SELECT 1 FROM ingestion_idempotency WHERE idempotency_key = $1)`
 	err := r.db.QueryRowContext(ctx, query, key).Scan(&exists)
@@ -338,8 +339,8 @@ func (r *PostgresRecordRepository) upsertScene(ctx context.Context, tx *sql.Tx, 
 			) VALUES (
 				$1, $2, $3, $4, $5,
 				CASE
-					WHEN $6 IS NOT NULL AND $7 IS NOT NULL
-						THEN ST_SetSRID(ST_MakePoint($6, $7), 4326)
+					WHEN $6::double precision IS NOT NULL AND $7::double precision IS NOT NULL
+						THEN ST_SetSRID(ST_MakePoint($6::double precision, $7::double precision), 4326)
 					ELSE NULL
 				END,
 				$8, $9, $10, $11, $12, $13, NOW(), NOW()
@@ -374,7 +375,7 @@ func (r *PostgresRecordRepository) upsertScene(ctx context.Context, tx *sql.Tx, 
 			domainScene.AllowPrecise,
 			lng, lat, // ST_MakePoint(lng, lat) - longitude first, latitude second
 			domainScene.CoarseGeohash,
-			domainScene.Tags,
+			pq.Array(domainScene.Tags),
 			domainScene.Visibility,
 			paletteJSON,
 			record.DID,
@@ -395,8 +396,8 @@ func (r *PostgresRecordRepository) upsertScene(ctx context.Context, tx *sql.Tx, 
 			description = $3,
 			allow_precise = $4,
 			precise_point = CASE
-				WHEN $5 IS NOT NULL AND $6 IS NOT NULL
-					THEN ST_SetSRID(ST_MakePoint($5, $6), 4326)
+				WHEN $5::double precision IS NOT NULL AND $6::double precision IS NOT NULL
+					THEN ST_SetSRID(ST_MakePoint($5::double precision, $6::double precision), 4326)
 				ELSE NULL
 			END,
 			coarse_geohash = $7,
@@ -435,7 +436,7 @@ func (r *PostgresRecordRepository) upsertScene(ctx context.Context, tx *sql.Tx, 
 		domainScene.AllowPrecise,
 		lng, lat, // ST_MakePoint(lng, lat) - longitude first, latitude second
 		domainScene.CoarseGeohash,
-		domainScene.Tags,
+		pq.Array(domainScene.Tags),
 		domainScene.Visibility,
 		paletteJSON,
 	)
@@ -492,8 +493,8 @@ func (r *PostgresRecordRepository) upsertEvent(ctx context.Context, tx *sql.Tx, 
 			) VALUES (
 				$1, $2, $3, $4, $5,
 				CASE
-					WHEN $6 IS NOT NULL AND $7 IS NOT NULL
-						THEN ST_SetSRID(ST_MakePoint($6, $7), 4326)
+					WHEN $6::double precision IS NOT NULL AND $7::double precision IS NOT NULL
+						THEN ST_SetSRID(ST_MakePoint($6::double precision, $7::double precision), 4326)
 					ELSE NULL
 				END,
 				$8, $9, $10, $11, $12, $13, $14, NOW(), NOW()
@@ -516,7 +517,7 @@ func (r *PostgresRecordRepository) upsertEvent(ctx context.Context, tx *sql.Tx, 
 			domainEvent.AllowPrecise,
 			lng, lat, // ST_MakePoint(lng, lat) - longitude first, latitude second
 			domainEvent.CoarseGeohash,
-			domainEvent.Tags,
+			pq.Array(domainEvent.Tags),
 			domainEvent.Status,
 			domainEvent.StartsAt,
 			domainEvent.EndsAt,
@@ -539,8 +540,8 @@ func (r *PostgresRecordRepository) upsertEvent(ctx context.Context, tx *sql.Tx, 
 			description = $4,
 			allow_precise = $5,
 			precise_point = CASE
-				WHEN $6 IS NOT NULL AND $7 IS NOT NULL
-					THEN ST_SetSRID(ST_MakePoint($6, $7), 4326)
+				WHEN $6::double precision IS NOT NULL AND $7::double precision IS NOT NULL
+					THEN ST_SetSRID(ST_MakePoint($6::double precision, $7::double precision), 4326)
 				ELSE NULL
 			END,
 			coarse_geohash = $8,
@@ -569,7 +570,7 @@ func (r *PostgresRecordRepository) upsertEvent(ctx context.Context, tx *sql.Tx, 
 		domainEvent.AllowPrecise,
 		lng, lat, // ST_MakePoint(lng, lat) - longitude first, latitude second
 		domainEvent.CoarseGeohash,
-		domainEvent.Tags,
+		pq.Array(domainEvent.Tags),
 		domainEvent.Status,
 		domainEvent.StartsAt,
 		domainEvent.EndsAt,
@@ -662,7 +663,7 @@ func (r *PostgresRecordRepository) upsertPost(ctx context.Context, tx *sql.Tx, r
 			domainPost.AuthorDID,
 			domainPost.Text,
 			attachmentsJSON,
-			domainPost.Labels,
+			pq.Array(domainPost.Labels),
 			record.DID,
 			record.RKey,
 		)
@@ -704,7 +705,7 @@ func (r *PostgresRecordRepository) upsertPost(ctx context.Context, tx *sql.Tx, r
 		eventUUID,
 		domainPost.Text,
 		attachmentsJSON,
-		domainPost.Labels,
+		pq.Array(domainPost.Labels),
 	)
 	if err != nil {
 		return "", false, fmt.Errorf("failed to update post: %w", err)

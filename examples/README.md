@@ -36,7 +36,7 @@ export STRIPE_WEBHOOK_SECRET="whsec_123"
 export STRIPE_ONBOARDING_RETURN_URL="https://example.com/return"
 export STRIPE_ONBOARDING_REFRESH_URL="https://example.com/refresh"
 export MAPTILER_API_KEY="maptiler_key"
-export JETSTREAM_URL="wss://jetstream.example.com"
+export JETSTREAM_HOST="jetstream.example.com"
 ```
 
 3. Run the example:

@@ -1,7 +1,8 @@
 # syntax=docker/dockerfile:1
 # Tap is built from an immutable reviewed Indigo commit, separately from the
-# Go 1.24-compatible Indigo library used by the API.
+# Go 1.26-compatible Indigo library used by the API.
 FROM golang:1.26-alpine3.22 AS build
+ENV GOTOOLCHAIN=auto
 ARG INDIGO_COMMIT=8b43a326dbbb394f63b6d68761553cdfe25532de
 RUN apk add --no-cache build-base git
 WORKDIR /src

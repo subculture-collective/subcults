@@ -1,11 +1,10 @@
-// Package main is the entry point for the backfill command.
-// It provides historical AT Protocol data ingestion from Jetstream replay
-// and CAR file imports with checkpoint-based resume capability.
+// Package main runs sequence-bounded Jetstream v2 snapshots and CAR imports.
 package main
 
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"flag"
 	"fmt"
 	"log/slog"
@@ -20,141 +19,156 @@ import (
 	"github.com/onnwee/subcults/internal/middleware"
 )
 
+const defaultJetstreamHost = "jetstream.us-west.bsky.network"
+
 func main() {
-	// CLI flags
-	source := flag.String("source", "jetstream", "backfill source: 'jetstream' or 'car'")
-	startTS := flag.Int64("start-ts", 0, "start timestamp in microseconds (Jetstream mode)")
-	endTS := flag.Int64("end-ts", 0, "end timestamp in microseconds (Jetstream mode, 0 = now)")
-	carPath := flag.String("car-file", "", "path to CAR file (CAR mode)")
-	batchSize := flag.Int("batch", 1000, "records per checkpoint batch")
-	dryRun := flag.Bool("dry-run", false, "validate without writing to database")
-	resume := flag.Bool("resume", true, "resume from last checkpoint if available")
+	source := flag.String("source", "jetstream", "backfill source: jetstream or car")
+	afterSeq := flag.Uint64("after-seq", 0, "exclusive Jetstream v2 lower sequence bound (0 = archive start)")
+	beforeSeq := flag.Uint64("before-seq", 0, "inclusive Jetstream v2 upper sequence bound (0 = sealed archive tip)")
+	target := flag.String("target", "shadow", "Jetstream projection target: shadow or active")
+	rebuildID := flag.String("rebuild-id", "", "stable shadow rebuild name; required with --target=shadow")
+	carPath := flag.String("car-file", "", "path to a CAR file in CAR mode")
+	batchSize := flag.Int("batch", 1000, "maximum Jetstream events per SDK batch")
+	dryRun := flag.Bool("dry-run", false, "validate without changing projection tables or projection cursors")
+	resume := flag.Bool("resume", true, "resume from the durable sequence checkpoint for this target")
 	help := flag.Bool("help", false, "display help message")
 	flag.Parse()
 
 	if *help {
 		fmt.Println("Subcults Backfill Tool")
 		fmt.Println()
-		fmt.Println("Ingests historical AT Protocol data from Jetstream replay or CAR files.")
-		fmt.Println("Supports checkpoint-based resume and dry-run validation.")
+		fmt.Println("Creates a sequence-bounded Jetstream v2 archive snapshot or imports a CAR file.")
+		fmt.Println("Jetstream defaults to an isolated shadow projection; active-table writes require --target=active.")
 		fmt.Println()
 		fmt.Println("Usage: backfill [options]")
-		fmt.Println()
-		fmt.Println("Options:")
 		flag.PrintDefaults()
 		fmt.Println()
 		fmt.Println("Examples:")
-		fmt.Println("  # Backfill from Jetstream with time range")
-		fmt.Println("  backfill --source=jetstream --start-ts=1700000000000000")
-		fmt.Println()
-		fmt.Println("  # Import from CAR file")
+		fmt.Println("  backfill --source=jetstream --target=shadow --rebuild-id=release-2026-08 --after-seq=0")
+		fmt.Println("  backfill --source=jetstream --target=shadow --rebuild-id=analysis --after-seq=1000 --before-seq=5000")
 		fmt.Println("  backfill --source=car --car-file=export.car")
-		fmt.Println()
-		fmt.Println("  # Dry run to validate records")
-		fmt.Println("  backfill --source=jetstream --start-ts=1700000000000000 --dry-run")
-		os.Exit(0)
+		return
 	}
 
-	// Initialize logger
 	env := os.Getenv("SUBCULT_ENV")
 	if env == "" {
 		env = "development"
 	}
 	logger := middleware.NewLogger(env)
 	slog.SetDefault(logger)
-
-	// Validate flags
-	if *source != "jetstream" && *source != "car" {
-		logger.Error("invalid source, must be 'jetstream' or 'car'", "source", *source)
-		os.Exit(1)
-	}
-	if *source == "car" && *carPath == "" {
-		logger.Error("--car-file is required when source is 'car'")
-		os.Exit(1)
-	}
-	if *source == "jetstream" && *startTS == 0 {
-		logger.Error("--start-ts is required when source is 'jetstream'")
+	if err := validateFlags(*source, *target, *rebuildID, *carPath, *afterSeq, *beforeSeq, *batchSize); err != nil {
+		logger.Error("invalid backfill configuration", "error", err)
 		os.Exit(1)
 	}
 
-	// Connect to database
-	dbURL := os.Getenv("DATABASE_URL")
-	if dbURL == "" {
-		logger.Error("DATABASE_URL environment variable is required")
+	databaseURL := os.Getenv("DATABASE_URL")
+	if databaseURL == "" {
+		logger.Error("DATABASE_URL is required")
 		os.Exit(1)
 	}
-
-	db, err := sql.Open("postgres", dbURL)
+	database, err := sql.Open("postgres", databaseURL)
 	if err != nil {
 		logger.Error("failed to open database", "error", err)
 		os.Exit(1)
 	}
-	defer db.Close()
-
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	if err := db.PingContext(ctx); err != nil {
-		cancel()
+	defer func() {
+		if closeErr := database.Close(); closeErr != nil {
+			logger.Warn("failed to close database", "error", closeErr)
+		}
+	}()
+	connectCtx, connectCancel := context.WithTimeout(context.Background(), 5*time.Second)
+	if err = database.PingContext(connectCtx); err != nil {
+		connectCancel()
 		logger.Error("failed to connect to database", "error", err)
 		os.Exit(1)
 	}
-	cancel()
+	connectCancel()
 
-	// Initialize indexer components
-	repo := indexer.NewPostgresRecordRepository(db, logger)
-	filterMetrics := indexer.NewFilterMetrics()
-	filter := indexer.NewRecordFilter(filterMetrics)
-
-	// Initialize checkpoint store
-	checkpointStore := backfill.NewPostgresCheckpointStore(db, logger)
-
-	// Build config
+	filter := indexer.NewRecordFilter(indexer.NewFilterMetrics())
+	repo := indexer.NewPostgresRecordRepository(database, logger)
+	checkpointStore := backfill.NewPostgresCheckpointStore(database, logger)
 	cfg := backfill.Config{
 		Source:    *source,
-		StartTS:   *startTS,
-		EndTS:     *endTS,
+		AfterSeq:  *afterSeq,
 		CARPath:   *carPath,
 		BatchSize: *batchSize,
 		DryRun:    *dryRun,
 		Resume:    *resume,
 		Logger:    logger,
+		Target:    indexer.ProjectionTargetActive,
+		RebuildID: "",
 	}
-
-	// Create runner
+	if *source == "jetstream" {
+		cfg.Target = indexer.ProjectionTarget(*target)
+		cfg.RebuildID = *rebuildID
+		cfg.JetstreamHost = os.Getenv("JETSTREAM_HOST")
+		if cfg.JetstreamHost == "" {
+			cfg.JetstreamHost = defaultJetstreamHost
+		}
+		cfg.JetstreamAPIKey = os.Getenv("JETSTREAM_API_KEY")
+		cfg.JetstreamProjector = indexer.NewPostgresV2Projector(database, filter, logger)
+		if *beforeSeq != 0 {
+			cfg.BeforeSeq = beforeSeq
+		}
+	}
 	runner := backfill.NewRunner(cfg, repo, filter, checkpointStore)
 
-	// Setup graceful shutdown
-	ctx, cancel = context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-
-	sigChan := make(chan os.Signal, 1)
-	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
-
+	signals := make(chan os.Signal, 1)
+	signal.Notify(signals, syscall.SIGINT, syscall.SIGTERM)
+	defer signal.Stop(signals)
 	go func() {
-		sig := <-sigChan
-		logger.Info("received signal, stopping backfill...", "signal", sig)
+		sig := <-signals
+		logger.Info("received signal, stopping backfill", "signal", sig)
 		cancel()
 	}()
 
 	logger.Info("starting backfill",
-		"source", *source,
-		"start_ts", *startTS,
-		"end_ts", *endTS,
-		"batch_size", *batchSize,
-		"dry_run", *dryRun,
-		"resume", *resume,
-	)
-
-	// Run backfill
+		"source", cfg.Source,
+		"after_seq", cfg.AfterSeq,
+		"before_seq", cfg.BeforeSeq,
+		"target", cfg.Target,
+		"rebuild_id", cfg.RebuildID,
+		"batch_size", cfg.BatchSize,
+		"dry_run", cfg.DryRun,
+		"resume", cfg.Resume)
 	result, err := runner.Run(ctx)
 	if err != nil {
 		logger.Error("backfill failed", "error", err)
 		os.Exit(1)
 	}
-
 	logger.Info("backfill completed",
 		"records_processed", result.RecordsProcessed,
 		"records_skipped", result.RecordsSkipped,
 		"errors", result.Errors,
-		"duration", result.Duration,
-	)
+		"duration", result.Duration)
+}
+
+func validateFlags(source, target, rebuildID, carPath string, afterSeq, beforeSeq uint64, batchSize int) error {
+	if source != "jetstream" && source != "car" {
+		return fmt.Errorf("source must be jetstream or car, got %q", source)
+	}
+	if batchSize <= 0 {
+		return errors.New("batch must be a positive integer")
+	}
+	if source == "car" {
+		if carPath == "" {
+			return errors.New("car-file is required in CAR mode")
+		}
+		return nil
+	}
+	if target != string(indexer.ProjectionTargetActive) && target != string(indexer.ProjectionTargetShadow) {
+		return fmt.Errorf("target must be active or shadow, got %q", target)
+	}
+	if target == string(indexer.ProjectionTargetShadow) && rebuildID == "" {
+		return errors.New("rebuild-id is required for a shadow projection")
+	}
+	if target == string(indexer.ProjectionTargetActive) && rebuildID != "" {
+		return errors.New("rebuild-id is only valid for a shadow projection")
+	}
+	if beforeSeq != 0 && beforeSeq <= afterSeq {
+		return fmt.Errorf("before-seq %d must be greater than after-seq %d", beforeSeq, afterSeq)
+	}
+	return nil
 }

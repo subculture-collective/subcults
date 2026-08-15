@@ -1,180 +1,83 @@
-# Backfill Plan: Historical AT Protocol Data Ingestion
+# Jetstream v2 backfill and rebuild plan
 
-## Overview
+`subcults-backfill` consumes the same official Jetstream v2 event batches as
+the live indexer. Jetstream mode is a sealed-archive snapshot: it never cuts
+over to the live tail and always uses sequence bounds.
 
-This document details the process for ingesting historical AT Protocol data into the Subcults database. Historical data arrives via two sources: **Jetstream backfill endpoints** (replaying recent events) and **CAR file archives** (complete repository snapshots). The backfill process reuses the existing `internal/indexer` pipeline to maintain consistency with live ingestion.
-
-## Scope
-
-### Entity Types (Priority Order)
-
-1. **Scenes** (`app.subcult.scene`) — core community containers; required first for FK integrity
-2. **Events** (`app.subcult.event`) — depend on scenes
-3. **Posts** (`app.subcult.post`) — depend on scenes and optionally events
-4. **Alliances** (`app.subcult.alliance`) — scene-to-scene trust links
-
-### Time Range Strategy
-
-- **Recent-first**: Prioritize the most recent 90 days, then backfill older data in reverse chronological order.
-- **Rationale**: Recent data is most relevant to active users; older data can be ingested during off-peak hours.
-- **Trust graph dependencies**: Alliance records must follow scene records. Process all scenes for a time window before alliances.
-
-## Data Sources
-
-### 1. Jetstream Backfill Endpoints
-
-- Replay recent commits by specifying a `cursor` (timestamp in microseconds).
-- Reuse existing `internal/indexer.Client` with a custom start cursor.
-- Supports incremental backfill: resume from last checkpoint if interrupted.
-- Subject to the same CBOR parsing, filtering, and validation pipeline.
-
-### 2. CAR File Archives
-
-- CAR v1 files containing IPLD-encoded repository blocks.
-- Obtained from AT Protocol PDS exports or relay archives.
-- Parsed via streaming reader to avoid loading entire files into memory.
-- Each block validated against expected CID hash before processing.
-
-## Processing Pipeline
-
-```
-Source (Jetstream / CAR)
-    │
-    ▼
-┌──────────────────────┐
-│  RecordFilter         │  Existing filter: lexicon check, field validation
-│  (internal/indexer)   │
-└──────────┬───────────┘
-           │
-           ▼
-┌──────────────────────┐
-│  Idempotency Check   │  CheckIdempotencyKey() — skip already-ingested records
-│  (RecordRepository)  │
-└──────────┬───────────┘
-           │
-           ▼
-┌──────────────────────┐
-│  Consent Enforcement  │  EnforceLocationConsent() — clear PrecisePoint if needed
-│  (internal/scene)    │
-└──────────┬───────────┘
-           │
-           ▼
-┌──────────────────────┐
-│  UpsertRecord         │  Transactional insert/update with FK enforcement
-│  (RecordRepository)  │
-└──────────┬───────────┘
-           │
-           ▼
-┌──────────────────────┐
-│  SequenceTracker      │  Update checkpoint cursor for resume
-└──────────────────────┘
-```
-
-## Resource Throttling
-
-| Parameter          | Default     | Notes                                     |
-| ------------------ | ----------- | ----------------------------------------- |
-| Batch size         | 500 records | Records per transaction commit            |
-| QPS limit          | 100 req/s   | Against Jetstream endpoints               |
-| Concurrent workers | 1           | Single-threaded to preserve ordering      |
-| Memory ceiling     | 256 MB      | Streaming parser; no full-file buffering  |
-| DB connection pool | 5           | Dedicated pool separate from live indexer |
-
-### Backoff Strategy
-
-- On transient DB errors: exponential backoff starting at 100ms, max 30s, with 50% jitter.
-- On Jetstream 429: respect `Retry-After` header, minimum 5s delay.
-- On CAR block read errors: skip corrupt block, log to audit, continue.
-
-## Retry Policies
-
-1. **Batch-level retry**: If a batch fails, retry the entire batch up to 3 times before skipping.
-2. **Record-level skip**: Individual corrupt or invalid records are skipped and logged (never block the batch).
-3. **Source-level resume**: The backfill command persists a checkpoint after each successful batch. On restart, it resumes from the last checkpoint.
-
-## Idempotency
-
-- Every record is keyed by `(DID, collection, rkey)` — the natural AT Protocol composite key.
-- The existing `CheckIdempotencyKey()` and `UpsertRecord()` in `RecordRepository` handle deduplication.
-- CAR imports generate an idempotency key from `sha256(DID + collection + rkey + CID)`.
-- Re-running a backfill is safe: duplicate records are detected and skipped.
-
-## Integrity Checks
-
-### During Ingestion
-
-- **CID validation**: Every CAR block's CID is recomputed and compared to the declared CID.
-- **Schema validation**: Records pass through the same `RecordFilter` as live data.
-- **FK integrity**: Scenes must exist before events/posts referencing them. Use `ON CONFLICT DO NOTHING` for out-of-order records, then re-process orphans in a second pass.
-
-### Post-Ingestion Verification
-
-- Run the consistency verification tool (`./bin/api consistency-check --sample-size=1000`).
-- Compare sampled records against AT Protocol source data.
-- Log any mismatches for manual review or automated re-indexing.
-
-## Privacy Requirements
-
-- **Location consent**: All ingested scene/event records must pass through `EnforceLocationConsent()` before persistence. The backfill pipeline calls this identically to the live path.
-- **Redacted records**: If a record's DID appears in a takedown list, skip ingestion entirely.
-- **Audit logging**: Every backfill batch logs record counts and error counts to the audit log. No PII (DID values, content text) appears in logs — only aggregate counts and record IDs.
-- **Jitter application**: Public coordinates receive geohash-based jitter on read, not on write. Backfill writes raw consented data; jitter is applied at API response time.
-
-## Rollback Plan
-
-### Before Starting
-
-1. Record current database state: `SELECT count(*) FROM scenes; SELECT count(*) FROM events; ...`
-2. Create a database snapshot (Neon branch or `pg_dump` of affected tables).
-
-### During Backfill
-
-- Each batch is atomic (single transaction). Failed batches leave no partial state.
-- The checkpoint cursor tracks exactly which records have been committed.
-
-### Reverting a Backfill
-
-1. Identify the backfill time window from checkpoint metadata.
-2. Delete records where `created_at >= backfill_start AND source = 'backfill'`.
-3. Reset the backfill checkpoint to the pre-backfill cursor value.
-4. Verify record counts match pre-backfill snapshot.
-
-## Monitoring
-
-- **Prometheus metrics**: `backfill_records_processed_total`, `backfill_records_skipped_total`, `backfill_errors_total`, `backfill_batch_duration_seconds`.
-- **Alerts**: Stall detection (no progress for 30+ minutes), error rate > 5%, queue depth > 100K.
-- **Structured logs**: Per-batch summary with `batch_id`, `records_processed`, `records_skipped`, `duration_ms`.
-
-## CLI Usage
+## Safe default: shadow rebuild
 
 ```bash
-# Dry run — show batch segmentation without writing
-./bin/backfill --source=jetstream --start-ts=2025-01-01T00:00:00Z --end-ts=2025-06-01T00:00:00Z --batch=500 --dry-run
-
-# Live Jetstream backfill
-./bin/backfill --source=jetstream --start-ts=2025-01-01T00:00:00Z --end-ts=2025-06-01T00:00:00Z --batch=500
-
-# CAR file import
-./bin/backfill --source=car --car-path=/data/exports/repo.car --batch=500
-
-# Resume interrupted backfill
-./bin/backfill --source=jetstream --resume
+./bin/backfill \
+  --source=jetstream \
+  --target=shadow \
+  --rebuild-id=release-2026-08 \
+  --after-seq=0
 ```
 
-## Scheduling
+The rebuild folds every supported record mutation into
+`jetstream_v2_shadow_records`, keyed by canonical AT URI. Account deletion and
+takedown markers suppress all records for that DID. Identity and sync events
+are processed explicitly, and sync divergence creates a durable targeted
+reconciliation request. Shadow account, identity, reconciliation, and
+quarantine state is namespaced by rebuild ID and never enters the live v2
+state tables.
 
-| Phase | Window                     | Entities     | Expected Volume   |
-| ----- | -------------------------- | ------------ | ----------------- |
-| 1     | Off-peak (02:00–06:00 UTC) | Scenes       | ~10K records      |
-| 2     | Off-peak                   | Events       | ~50K records      |
-| 3     | Off-peak                   | Posts        | ~200K records     |
-| 4     | Any time                   | Alliances    | ~5K records       |
-| 5     | Post-import                | Verification | Sample 1K records |
+The shadow table never changes product-facing scene, event, post, alliance, or
+canonical publication tables. Query `jetstream_v2_projection_comparison` after
+completion to compare active and replay-derived record counts and one-sided AT
+URI differences.
 
-## Related Documents
+## Sequence ranges
 
-- [Jetstream Reconnection](jetstream-reconnection.md) — resume and cursor handling
-- [Backpressure](BACKPRESSURE.md) — queue management during high load
-- [CBOR Parsing](CBOR_PARSING.md) — record parsing pipeline
-- [Data Retention Policy](legal/DATA_RETENTION_POLICY.md) — retention periods
-- [Privacy](PRIVACY.md) — location consent enforcement
+`--after-seq` is exclusive. `--before-seq` is inclusive and optional:
+
+```bash
+./bin/backfill \
+  --source=jetstream \
+  --target=shadow \
+  --rebuild-id=bounded-analysis \
+  --after-seq=1000000 \
+  --before-seq=2000000
+```
+
+`time_us` is retained in the shadow projection for time-window analysis, but
+it is never a resume cursor. Translating timestamps to v2 sequences requires a
+separately validated lookup process and is intentionally not part of this CLI.
+
+## Resume and atomicity
+
+Each SDK batch and `Batch.LastCursor()` commit in one PostgreSQL transaction.
+The separately visible `backfill_checkpoints.cursor_seq` follows the projection
+commit. On restart, `--resume=true` chooses the greatest of the requested lower
+bound, the projection cursor, and the matching checkpoint cursor. A database
+failure stops the run before the cursor can advance.
+
+Rebuild IDs are stable operator-selected namespaces. Reuse the same ID to
+resume an interrupted rebuild; use a new ID to produce an independent replay.
+
+## Active projection backfill
+
+`--target=active` is available for an explicitly approved repair:
+
+```bash
+./bin/backfill --source=jetstream --target=active --after-seq=123456
+```
+
+This folds directly into product tables. Use it only with a database rollback
+boundary and after reviewing the requested sequence range. AT URI plus revision
+idempotency makes repeated delivery safe, but it does not replace operational
+approval for active-table mutation.
+
+## Dry run and CAR input
+
+`--dry-run` validates delivered records without changing projection tables or
+projection cursors. It also leaves backfill checkpoints unchanged, so a later
+real run with the same rebuild ID cannot accidentally resume past dry-run data.
+
+CAR imports remain a separate source contract:
+
+```bash
+./bin/backfill --source=car --car-file=/data/exports/repo.car
+```
+
+CAR mode does not accept Jetstream sequence or shadow-target options.

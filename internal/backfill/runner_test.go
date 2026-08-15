@@ -8,6 +8,7 @@ import (
 	"os"
 	"testing"
 
+	jetstream "github.com/bluesky-social/jetstream"
 	"github.com/fxamacker/cbor/v2"
 	"github.com/onnwee/subcults/internal/indexer"
 )
@@ -17,11 +18,14 @@ func TestRunner_JetstreamCreatesCheckpoint(t *testing.T) {
 	repo := newTestRepo()
 	filter := newTestFilter()
 	cfg := Config{
-		Source:    "jetstream",
-		StartTS:  1000000,
-		EndTS:    2000000,
-		BatchSize: 100,
-		Logger:   newTestLogger(),
+		Source:             "jetstream",
+		AfterSeq:           100,
+		BatchSize:          100,
+		JetstreamProjector: &fakeV2Projector{},
+		JetstreamFactory: func(indexer.V2Subscription) (indexer.V2Stream, error) {
+			return &fakeV2Stream{}, nil
+		},
+		Logger: newTestLogger(),
 	}
 	runner := NewRunner(cfg, repo, filter, store)
 	result, err := runner.Run(context.Background())
@@ -31,7 +35,7 @@ func TestRunner_JetstreamCreatesCheckpoint(t *testing.T) {
 	if result == nil {
 		t.Fatal("expected non-nil result")
 	}
-	cp, err := store.GetLatest(context.Background(), "jetstream")
+	cp, err := store.GetLatest(context.Background(), "jetstream", indexer.ProjectionTargetActive, "")
 	if err != nil {
 		t.Fatalf("unexpected error getting checkpoint: %v", err)
 	}
@@ -43,28 +47,78 @@ func TestRunner_JetstreamCreatesCheckpoint(t *testing.T) {
 	}
 }
 
+func TestRunner_JetstreamProjectsBatchesAndCheckpointsSequence(t *testing.T) {
+	store := newInMemoryCheckpointStore()
+	projector := &fakeV2Projector{}
+	stream := &fakeV2Stream{batches: []indexer.V2Batch{{
+		Events: []jetstream.Event{{DID: "did:plc:test", Seq: 41, Kind: jetstream.KindIdentity,
+			Identity: &jetstream.Identity{DID: "did:plc:test", Handle: "test.example"}}},
+		Cursor: 41,
+	}}}
+	var subscription indexer.V2Subscription
+	cfg := Config{
+		Source:             "jetstream",
+		Target:             indexer.ProjectionTargetShadow,
+		RebuildID:          "release-test",
+		AfterSeq:           7,
+		BeforeSeq:          uint64Pointer(50),
+		BatchSize:          25,
+		JetstreamProjector: projector,
+		JetstreamFactory: func(config indexer.V2Subscription) (indexer.V2Stream, error) {
+			subscription = config
+			return stream, nil
+		},
+		Logger: newTestLogger(),
+	}
+	result, err := NewRunner(cfg, newTestRepo(), newTestFilter(), store).Run(context.Background())
+	if err != nil {
+		t.Fatalf("Run(): %v", err)
+	}
+	if result.RecordsProcessed != 1 {
+		t.Fatalf("processed = %d, want 1", result.RecordsProcessed)
+	}
+	if !subscription.Replay || !subscription.SnapshotOnly || subscription.AfterSeq != 7 || subscription.BeforeSeq == nil || *subscription.BeforeSeq != 50 {
+		t.Fatalf("subscription = %+v", subscription)
+	}
+	cp, err := store.GetLatest(context.Background(), "jetstream", indexer.ProjectionTargetShadow, "release-test")
+	if err != nil {
+		t.Fatalf("GetLatest(): %v", err)
+	}
+	if cp.CursorSeq != 41 || cp.Status != "completed" {
+		t.Fatalf("checkpoint = %+v, want cursor 41 completed", cp)
+	}
+}
+
+func uint64Pointer(value uint64) *uint64 { return &value }
+
 func TestRunner_CARCreatesCheckpoint(t *testing.T) {
 	// Create a temporary CAR file
 	tmpFile, err := os.CreateTemp("", "test-*.car")
 	if err != nil {
 		t.Fatalf("failed to create temp file: %v", err)
 	}
-	defer os.Remove(tmpFile.Name())
+	t.Cleanup(func() {
+		if err := os.Remove(tmpFile.Name()); err != nil && !os.IsNotExist(err) {
+			t.Errorf("remove temporary CAR file: %v", err)
+		}
+	})
 
 	carData := buildTestCARv1(nil)
 	if _, err := tmpFile.Write(carData); err != nil {
 		t.Fatalf("failed to write CAR data: %v", err)
 	}
-	tmpFile.Close()
+	if err := tmpFile.Close(); err != nil {
+		t.Fatalf("close temporary CAR file: %v", err)
+	}
 
 	store := newInMemoryCheckpointStore()
 	repo := newTestRepo()
 	filter := newTestFilter()
 	cfg := Config{
 		Source:    "car",
-		CARPath:  tmpFile.Name(),
+		CARPath:   tmpFile.Name(),
 		BatchSize: 100,
-		Logger:   newTestLogger(),
+		Logger:    newTestLogger(),
 	}
 	runner := NewRunner(cfg, repo, filter, store)
 	result, err := runner.Run(context.Background())
@@ -74,7 +128,7 @@ func TestRunner_CARCreatesCheckpoint(t *testing.T) {
 	if result == nil {
 		t.Fatal("expected non-nil result")
 	}
-	cp, err := store.GetLatest(context.Background(), "car")
+	cp, err := store.GetLatest(context.Background(), "car", indexer.ProjectionTargetActive, "")
 	if err != nil {
 		t.Fatalf("unexpected error getting checkpoint: %v", err)
 	}
@@ -152,14 +206,14 @@ func TestRunner_ProcessRecord_NonMatchingCollection(t *testing.T) {
 func TestCheckpointStore_CreateAndGet(t *testing.T) {
 	store := newInMemoryCheckpointStore()
 	ctx := context.Background()
-	id, err := store.Create(ctx, "jetstream")
+	id, err := store.Create(ctx, "jetstream", indexer.ProjectionTargetActive, "")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	if id == 0 {
 		t.Fatal("expected non-zero checkpoint ID")
 	}
-	cp, err := store.GetLatest(ctx, "jetstream")
+	cp, err := store.GetLatest(ctx, "jetstream", indexer.ProjectionTargetActive, "")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -177,7 +231,7 @@ func TestCheckpointStore_CreateAndGet(t *testing.T) {
 func TestCheckpointStore_CompleteAndFail(t *testing.T) {
 	store := newInMemoryCheckpointStore()
 	ctx := context.Background()
-	id1, _ := store.Create(ctx, "jetstream")
+	id1, _ := store.Create(ctx, "jetstream", indexer.ProjectionTargetActive, "")
 	err := store.Complete(ctx, id1, 100, 5, 2)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -189,7 +243,7 @@ func TestCheckpointStore_CompleteAndFail(t *testing.T) {
 	if cp.RecordsProcessed != 100 {
 		t.Errorf("expected 100 processed, got %d", cp.RecordsProcessed)
 	}
-	id2, _ := store.Create(ctx, "car")
+	id2, _ := store.Create(ctx, "car", indexer.ProjectionTargetActive, "")
 	err = store.Fail(ctx, id2, 50, 3, 10)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -202,7 +256,7 @@ func TestCheckpointStore_CompleteAndFail(t *testing.T) {
 
 func TestCheckpointStore_GetLatest_NoCheckpoints(t *testing.T) {
 	store := newInMemoryCheckpointStore()
-	cp, err := store.GetLatest(context.Background(), "jetstream")
+	cp, err := store.GetLatest(context.Background(), "jetstream", indexer.ProjectionTargetActive, "")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -228,6 +282,41 @@ func TestRunner_DryRun(t *testing.T) {
 	err := runner.ProcessRecord(context.Background(), indexer.CollectionScene, payload, "did:plc:test", "abc123", "rev1")
 	if err != nil {
 		t.Fatalf("dry-run should not error: %v", err)
+	}
+}
+
+func TestRunner_JetstreamDryRunDoesNotPersistCheckpoint(t *testing.T) {
+	store := newInMemoryCheckpointStore()
+	stream := &fakeV2Stream{batches: []indexer.V2Batch{{
+		Events: []jetstream.Event{{DID: "did:plc:dry-run", Seq: 77, Kind: jetstream.KindIdentity,
+			Identity: &jetstream.Identity{DID: "did:plc:dry-run", Handle: "dry-run.example"}}},
+		Cursor: 77,
+	}}}
+	cfg := Config{
+		Source:             "jetstream",
+		Target:             indexer.ProjectionTargetShadow,
+		RebuildID:          "dry-run",
+		DryRun:             true,
+		Resume:             true,
+		JetstreamProjector: &fakeV2Projector{},
+		JetstreamFactory: func(indexer.V2Subscription) (indexer.V2Stream, error) {
+			return stream, nil
+		},
+		Logger: newTestLogger(),
+	}
+	result, err := NewRunner(cfg, newTestRepo(), newTestFilter(), store).Run(context.Background())
+	if err != nil {
+		t.Fatalf("Run(): %v", err)
+	}
+	if result.RecordsProcessed != 1 {
+		t.Fatalf("processed = %d, want 1", result.RecordsProcessed)
+	}
+	cp, err := store.GetLatest(context.Background(), "jetstream", indexer.ProjectionTargetShadow, "dry-run")
+	if err != nil {
+		t.Fatalf("GetLatest(): %v", err)
+	}
+	if cp != nil {
+		t.Fatalf("dry-run persisted checkpoint: %+v", cp)
 	}
 }
 

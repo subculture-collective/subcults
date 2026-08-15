@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/onnwee/subcults/internal/backfill"
+	"github.com/onnwee/subcults/internal/indexer"
 	"github.com/onnwee/subcults/internal/testutil"
 )
 
@@ -16,7 +17,7 @@ func TestPostgresCheckpointStore_CreateAndGetLatest(t *testing.T) {
 	store := backfill.NewPostgresCheckpointStore(tdb.DB, slog.Default())
 	ctx := context.Background()
 
-	id, err := store.Create(ctx, "jetstream")
+	id, err := store.Create(ctx, "jetstream", indexer.ProjectionTargetActive, "")
 	if err != nil {
 		t.Fatalf("Create: %v", err)
 	}
@@ -24,7 +25,7 @@ func TestPostgresCheckpointStore_CreateAndGetLatest(t *testing.T) {
 		t.Fatal("expected non-zero checkpoint ID")
 	}
 
-	cp, err := store.GetLatest(ctx, "jetstream")
+	cp, err := store.GetLatest(ctx, "jetstream", indexer.ProjectionTargetActive, "")
 	if err != nil {
 		t.Fatalf("GetLatest: %v", err)
 	}
@@ -47,7 +48,7 @@ func TestPostgresCheckpointStore_GetLatestReturnsNilWhenEmpty(t *testing.T) {
 	store := backfill.NewPostgresCheckpointStore(tdb.DB, slog.Default())
 	ctx := context.Background()
 
-	cp, err := store.GetLatest(ctx, "nonexistent-source")
+	cp, err := store.GetLatest(ctx, "nonexistent-source", indexer.ProjectionTargetActive, "")
 	if err != nil {
 		t.Fatalf("GetLatest: %v", err)
 	}
@@ -61,7 +62,7 @@ func TestPostgresCheckpointStore_Update(t *testing.T) {
 	store := backfill.NewPostgresCheckpointStore(tdb.DB, slog.Default())
 	ctx := context.Background()
 
-	id, err := store.Create(ctx, "car")
+	id, err := store.Create(ctx, "car", indexer.ProjectionTargetActive, "")
 	if err != nil {
 		t.Fatalf("Create: %v", err)
 	}
@@ -78,7 +79,7 @@ func TestPostgresCheckpointStore_Update(t *testing.T) {
 		t.Fatalf("Update: %v", err)
 	}
 
-	got, err := store.GetLatest(ctx, "car")
+	got, err := store.GetLatest(ctx, "car", indexer.ProjectionTargetActive, "")
 	if err != nil {
 		t.Fatalf("GetLatest: %v", err)
 	}
@@ -98,7 +99,7 @@ func TestPostgresCheckpointStore_Complete(t *testing.T) {
 	store := backfill.NewPostgresCheckpointStore(tdb.DB, slog.Default())
 	ctx := context.Background()
 
-	id, err := store.Create(ctx, "jetstream")
+	id, err := store.Create(ctx, "jetstream", indexer.ProjectionTargetActive, "")
 	if err != nil {
 		t.Fatalf("Create: %v", err)
 	}
@@ -107,7 +108,7 @@ func TestPostgresCheckpointStore_Complete(t *testing.T) {
 		t.Fatalf("Complete: %v", err)
 	}
 
-	cp, err := store.GetLatest(ctx, "jetstream")
+	cp, err := store.GetLatest(ctx, "jetstream", indexer.ProjectionTargetActive, "")
 	if err != nil {
 		t.Fatalf("GetLatest: %v", err)
 	}
@@ -127,7 +128,7 @@ func TestPostgresCheckpointStore_Fail(t *testing.T) {
 	store := backfill.NewPostgresCheckpointStore(tdb.DB, slog.Default())
 	ctx := context.Background()
 
-	id, err := store.Create(ctx, "jetstream")
+	id, err := store.Create(ctx, "jetstream", indexer.ProjectionTargetActive, "")
 	if err != nil {
 		t.Fatalf("Create: %v", err)
 	}
@@ -136,7 +137,7 @@ func TestPostgresCheckpointStore_Fail(t *testing.T) {
 		t.Fatalf("Fail: %v", err)
 	}
 
-	cp, err := store.GetLatest(ctx, "jetstream")
+	cp, err := store.GetLatest(ctx, "jetstream", indexer.ProjectionTargetActive, "")
 	if err != nil {
 		t.Fatalf("GetLatest: %v", err)
 	}
@@ -154,7 +155,7 @@ func TestPostgresCheckpointStore_GetLatestReturnsNewest(t *testing.T) {
 	ctx := context.Background()
 
 	// Create two checkpoints for the same source
-	id1, err := store.Create(ctx, "jetstream")
+	id1, err := store.Create(ctx, "jetstream", indexer.ProjectionTargetActive, "")
 	if err != nil {
 		t.Fatalf("Create first: %v", err)
 	}
@@ -162,12 +163,12 @@ func TestPostgresCheckpointStore_GetLatestReturnsNewest(t *testing.T) {
 		t.Fatalf("Complete first: %v", err)
 	}
 
-	id2, err := store.Create(ctx, "jetstream")
+	id2, err := store.Create(ctx, "jetstream", indexer.ProjectionTargetActive, "")
 	if err != nil {
 		t.Fatalf("Create second: %v", err)
 	}
 
-	cp, err := store.GetLatest(ctx, "jetstream")
+	cp, err := store.GetLatest(ctx, "jetstream", indexer.ProjectionTargetActive, "")
 	if err != nil {
 		t.Fatalf("GetLatest: %v", err)
 	}
