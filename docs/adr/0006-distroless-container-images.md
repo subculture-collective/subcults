@@ -13,7 +13,7 @@ Use multi-stage Docker builds with `gcr.io/distroless/static-debian12:nonroot` a
 
 ```dockerfile
 # Build stage
-FROM golang:1.24-alpine AS builder
+FROM golang:1.26-alpine3.22 AS builder
 # ... compile with CGO_ENABLED=0
 
 # Runtime stage
@@ -45,7 +45,7 @@ Key properties:
 
 ### Neutral
 
-- Build stage uses `golang:1.24-alpine` which is larger (~300 MB) but only used during CI — not shipped to production.
+- Build stage uses `golang:1.26-alpine3.22`; `go.mod` selects the exact Go 1.26.6 toolchain. The builder is larger (~300 MB) but is only used during CI — not shipped to production.
 - Debug variant (`gcr.io/distroless/static-debian12:debug`) is available if shell access is needed during development.
 
 ## Alternatives Considered

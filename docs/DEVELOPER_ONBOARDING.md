@@ -17,7 +17,7 @@ Install these before starting:
 Verify installations:
 
 ```bash
-go version       # go1.24+
+go version       # go1.26.6+
 node --version   # v20+
 docker --version # Docker 24+
 make --version
@@ -49,7 +49,7 @@ Edit `configs/dev.env` and fill in the required values:
 | `STRIPE_API_KEY` | From [Stripe Dashboard](https://dashboard.stripe.com/test/apikeys) (use test key) |
 | `STRIPE_WEBHOOK_SECRET` | From Stripe webhook settings |
 | `MAPTILER_API_KEY` | From [MapTiler](https://cloud.maptiler.com/) (free tier) |
-| `JETSTREAM_URL` | `wss://jetstream2.us-east.bsky.network/subscribe` |
+| `JETSTREAM_HOST` | `jetstream.us-west.bsky.network` |
 | `R2_BUCKET_NAME` | From Cloudflare R2 dashboard |
 | `R2_ACCESS_KEY_ID` | From R2 API tokens |
 | `R2_SECRET_ACCESS_KEY` | From R2 API tokens |

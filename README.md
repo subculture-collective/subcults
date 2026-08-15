@@ -91,7 +91,7 @@ subcults/
 
 ### Prerequisites
 
-- Go 1.24+
+- Go 1.26.6+
 - Node.js 22+
 - Docker & Docker Compose
 - libvips 8.x+ (for image processing, optional for API-only development)
@@ -347,11 +347,11 @@ Variables are organized into logical groups:
 
 **Jetstream (AT Protocol)**
 
-- **`JETSTREAM_URL`** (required) - WebSocket endpoint for Jetstream subscription
-  - Default: `wss://jetstream1.us-east.bsky.network/subscribe`
-  - The indexer automatically reconnects with exponential backoff on connection failures
-  - Resumes from last processed sequence to prevent message loss
-  - See [Jetstream Reconnection Documentation](./docs/jetstream-reconnection.md) for details
+- **`JETSTREAM_HOST`** - Official Jetstream v2 archive/live host
+  - Default: `jetstream.us-west.bsky.network`
+  - The official SDK replays from the durable v2 sequence and cuts over to live
+- **`JETSTREAM_API_KEY`** - Optional bearer key for authenticated archive downloads
+- **`JETSTREAM_BATCH_SIZE`** - Maximum SDK batch size (default: `256`)
 
 #### Observability (Optional)
 
@@ -373,7 +373,7 @@ The following variables are **recommended** but the application will start witho
 - `STRIPE_API_KEY`, `STRIPE_WEBHOOK_SECRET` - Payment processing
 - `STRIPE_ONBOARDING_RETURN_URL`, `STRIPE_ONBOARDING_REFRESH_URL` - Stripe Connect onboarding
 - `MAPTILER_API_KEY` - Map tiles
-- `JETSTREAM_URL` - AT Protocol data ingestion
+- `JETSTREAM_HOST` - AT Protocol v2 archive and live ingestion
 
 ### Optional Variables
 

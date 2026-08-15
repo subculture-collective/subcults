@@ -103,8 +103,8 @@ Before deploying:
 
 | Service  | Dockerfile            | Base Image                              | Port            |
 | -------- | --------------------- | --------------------------------------- | --------------- |
-| API      | `Dockerfile.api`      | golang:1.24-alpine → alpine:3.21        | 8080            |
-| Indexer  | `Dockerfile.indexer`  | golang:1.24-alpine → distroless:nonroot | 9090 (internal) |
+| API      | `Dockerfile.api`      | golang:1.26-alpine3.22 → alpine:3.21        | 8080            |
+| Indexer  | `Dockerfile.indexer`  | golang:1.26-alpine3.22 → distroless:nonroot | 9090 (internal) |
 | Frontend | `Dockerfile.frontend` | node:22-alpine → nginx:1-alpine-slim    | 80              |
 
 Build manually:

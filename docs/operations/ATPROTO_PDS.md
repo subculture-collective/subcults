@@ -67,7 +67,7 @@ expiry-capable invite broker or the upstream PDS supports revocation/expiry.
 Tap is built from reviewed Indigo commit
 `8b43a326dbbb394f63b6d68761553cdfe25532de`. Upgrades require lexicon,
 OAuth, and parity tests. OAuth's Go dependency is separately pinned in
-`go.mod` for the repository's Go 1.24 toolchain.
+`go.mod` for the repository's Go 1.26.6 toolchain.
 
 ## Release gates and monitoring
 

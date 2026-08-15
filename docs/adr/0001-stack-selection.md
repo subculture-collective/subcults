@@ -13,7 +13,7 @@ We chose the following stack:
 
 | Layer       | Technology                     | Role                        |
 | ----------- | ------------------------------ | --------------------------- |
-| Backend API | **Go 1.24+**                   | HTTP API, business logic    |
+| Backend API | **Go 1.26.6+**                 | HTTP API, business logic    |
 | Frontend    | **React + TypeScript + Vite**  | Map-based discovery UI      |
 | Database    | **Neon Postgres 16 + PostGIS** | Geospatial queries, FTS     |
 | Streaming   | **LiveKit Cloud**              | WebRTC SFU for live audio   |

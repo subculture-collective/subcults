@@ -11,13 +11,13 @@ import (
 
 // ConsistencyCheckResult represents the outcome of a consistency verification.
 type ConsistencyCheckResult struct {
-	TotalSampled   int
-	Consistent     int
-	Inconsistent   int
-	Missing        int
-	Errors         int
-	Duration       time.Duration
-	Mismatches     []Mismatch
+	TotalSampled int
+	Consistent   int
+	Inconsistent int
+	Missing      int
+	Errors       int
+	Duration     time.Duration
+	Mismatches   []Mismatch
 }
 
 // Score returns the consistency percentage (0.0 to 1.0).
@@ -85,7 +85,11 @@ func (cc *ConsistencyChecker) SampleRecords(ctx context.Context) ([]LocalRecord,
 	if err != nil {
 		return nil, fmt.Errorf("sample records: %w", err)
 	}
-	defer rows.Close()
+	defer func() {
+		if closeErr := rows.Close(); closeErr != nil {
+			cc.logger.Warn("failed to close consistency sample rows", slog.String("error", closeErr.Error()))
+		}
+	}()
 
 	var records []LocalRecord
 	for rows.Next() {

@@ -88,7 +88,8 @@ config:
   tracingExporterType: 'otlp-http'
   tracingSampleRate: '0.1'
   canaryEnabled: 'false'
-  jetstreamUrl: 'wss://jetstream1.us-east.bsky.network/subscribe'
+  jetstreamHost: 'jetstream.us-west.bsky.network'
+  jetstreamBatchSize: '256'
 
 # Secrets are referenced from an existing secret — do not store values here
 secrets:

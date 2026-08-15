@@ -15,7 +15,11 @@ ARG BUILD_TIME=unknown
 # ---------------------------------------------------------------------------
 # Build stage
 # ---------------------------------------------------------------------------
-FROM golang:1.24-alpine AS builder
+FROM golang:1.26-alpine3.22 AS builder
+
+# The rolling 1.26 image can trail go.mod's patch version. Permit Go to fetch
+# the exact project toolchain instead of inheriting the image's local-only mode.
+ENV GOTOOLCHAIN=auto
 
 ARG TARGETOS
 ARG TARGETARCH

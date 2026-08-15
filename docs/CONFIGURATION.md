@@ -133,16 +133,22 @@ Map tiles for the MapLibre frontend. Get API key from [https://cloud.maptiler.co
 
 ### Jetstream (AT Protocol)
 
-Real-time AT Protocol firehose for decentralized data ingestion. Used by the indexer service.
+Archive replay and live AT Protocol ingestion through the official Jetstream v2 SDK. Used only by the indexer service.
 
-#### `JETSTREAM_URL`
-- **Description**: Jetstream WebSocket endpoint for AT Protocol subscription
-- **Type**: String (WebSocket URL)
-- **Default**: `wss://jetstream1.us-east.bsky.network/subscribe`
-- **Example**: `wss://jetstream2.us-west.bsky.network/subscribe` (alternative region)
-- **Validation**: If set, must be a valid WebSocket URL
-- **When to override**: Use default unless connecting to a custom Jetstream instance
-- **Note**: Used only by the indexer service. If `JETSTREAM_URL` is not set, the indexer falls back to the default value above. The API server does not use this variable; any validation that marks it as required for the API is a known config validation bug, not a requirement to set this env var.
+#### `JETSTREAM_HOST`
+- **Description**: Jetstream v2 archive and live host
+- **Type**: Hostname, host:port, or HTTP(S) base URL
+- **Default**: `jetstream.us-west.bsky.network`
+- **When to override**: When operating a private or regional Jetstream v2 service
+
+#### `JETSTREAM_API_KEY`
+- **Description**: Optional bearer key for archive planning and downloads
+- **Security**: Keep secret. The SDK does not send it to the public live WebSocket.
+
+#### `JETSTREAM_BATCH_SIZE`
+- **Description**: Maximum events returned per SDK batch
+- **Default**: `256`
+- **Validation**: Must be a positive integer
 
 ## Optional Environment Variables
 
@@ -584,25 +590,21 @@ MapTiler provides map tiles for the MapLibre frontend.
 
 ### Jetstream AT Protocol
 
-Jetstream provides real-time AT Protocol event streaming.
+Jetstream v2 provides sealed archive replay followed by gap-free live delivery.
 
 #### Getting Started
 
-Jetstream is a **public service** provided by Bluesky. No signup required.
+Public archives need no API key; private archives may require `JETSTREAM_API_KEY`.
 
-1. **Use default endpoint**:
+1. **Use the default host**:
    ```bash
-   JETSTREAM_URL=wss://jetstream1.us-east.bsky.network/subscribe
+   JETSTREAM_HOST=jetstream.us-west.bsky.network
    ```
-
-2. **Alternative endpoints** (for redundancy):
-   - `wss://jetstream2.us-west.bsky.network/subscribe`
-   - `wss://jetstream1.us-west.bsky.network/subscribe`
 
 #### Configuration
 
 - **Filtering**: Configured in `internal/indexer/filter.go` (collection types, DIDs)
-- **Reconnection**: Automatic with exponential backoff (see `internal/indexer/config.go`)
+- **Replay and retry**: Owned by the official SDK; resumes from `jetstream_v2_cursors`
 - **Metrics**: Prometheus metrics exposed on `METRICS_PORT` (indexer service)
 
 ## Database Configuration
@@ -827,7 +829,7 @@ STRIPE_ONBOARDING_REFRESH_URL=http://localhost:3000/stripe/refresh
 MAPTILER_API_KEY=devkey123
 
 # Jetstream (default)
-JETSTREAM_URL=wss://jetstream1.us-east.bsky.network/subscribe
+JETSTREAM_HOST=jetstream.us-west.bsky.network
 
 # R2 (optional in dev)
 # R2_BUCKET_NAME=
@@ -883,7 +885,7 @@ STRIPE_APPLICATION_FEE_PERCENT=5.0
 MAPTILER_API_KEY=prodkey456
 
 # Jetstream (default or custom endpoint)
-JETSTREAM_URL=wss://jetstream1.us-east.bsky.network/subscribe
+JETSTREAM_HOST=jetstream.us-west.bsky.network
 
 # R2 (production bucket)
 R2_BUCKET_NAME=subcults-media-prod
@@ -955,7 +957,7 @@ STRIPE_ONBOARDING_REFRESH_URL=http://localhost:3000/stripe/refresh
 MAPTILER_API_KEY=devkey123
 
 # Jetstream (required for indexer)
-JETSTREAM_URL=wss://jetstream1.us-east.bsky.network/subscribe
+JETSTREAM_HOST=jetstream.us-west.bsky.network
 
 # Optional: Enable tracing for debugging
 TRACING_ENABLED=true
@@ -991,7 +993,7 @@ STRIPE_APPLICATION_FEE_PERCENT=5.0
 MAPTILER_API_KEY=devkey123
 
 # Jetstream
-JETSTREAM_URL=wss://jetstream1.us-east.bsky.network/subscribe
+JETSTREAM_HOST=jetstream.us-west.bsky.network
 
 # R2 (media uploads)
 R2_BUCKET_NAME=subcults-media-dev
@@ -1045,7 +1047,7 @@ STRIPE_APPLICATION_FEE_PERCENT=5.0
 MAPTILER_API_KEY=prodkey456
 
 # Jetstream
-JETSTREAM_URL=wss://jetstream1.us-east.bsky.network/subscribe
+JETSTREAM_HOST=jetstream.us-west.bsky.network
 
 # R2 (production bucket)
 R2_BUCKET_NAME=subcults-media-prod
@@ -1099,7 +1101,7 @@ STRIPE_APPLICATION_FEE_PERCENT=5.0
 MAPTILER_API_KEY=stagingkey789
 
 # Jetstream (default or test instance)
-JETSTREAM_URL=wss://jetstream1.us-east.bsky.network/subscribe
+JETSTREAM_HOST=jetstream.us-west.bsky.network
 
 # R2 (staging bucket)
 R2_BUCKET_NAME=subcults-media-staging

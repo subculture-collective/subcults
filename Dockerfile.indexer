@@ -14,7 +14,11 @@ ARG BUILD_TIME=unknown
 # ---------------------------------------------------------------------------
 # Build stage
 # ---------------------------------------------------------------------------
-FROM golang:1.24-alpine AS builder
+FROM golang:1.26-alpine3.22 AS builder
+
+# The rolling 1.26 image can trail go.mod's patch version. Permit Go to fetch
+# the exact project toolchain instead of inheriting the image's local-only mode.
+ENV GOTOOLCHAIN=auto
 
 ARG TARGETOS
 ARG TARGETARCH
@@ -50,6 +54,9 @@ FROM busybox:1.36-musl AS healthcheck
 # Runtime stage - distroless for minimal attack surface
 # ---------------------------------------------------------------------------
 FROM gcr.io/distroless/static-debian12:nonroot
+
+ARG VERSION
+ARG COMMIT_SHA
 
 LABEL org.opencontainers.image.title="subcults-indexer" \
       org.opencontainers.image.description="Subcults Jetstream Indexer" \

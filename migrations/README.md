@@ -104,6 +104,7 @@ make migrate-down
 | 000035 | audience_consent | Private Contact Points and DID links, relationship evidence, scoped consent events, and suppression enforcement. |
 | 000036 | signals_delivery | Versioned Signals, linked consent scopes, provider-neutral deliveries, and engagement provenance. |
 | 000037 | commerce_attribution | Explicit Signal/Delivery/Event/Appearance/Tour attribution references and webhook receipt digests. |
+| 000046 | jetstream_v2 | Namespaced v2 sequence cursors, account/identity/sync folding, reconciliation queues, and fully isolated shadow rebuild state. |
 
 ## Writing New Migrations
 

@@ -13,7 +13,7 @@ separation is recorded in [ADR-007](adr/0007-scene-signals-touring-relationship-
 ### Backend Services
 
 #### API Service (`cmd/api`)
-- **Language**: Go 1.24+
+- **Language**: Go 1.26.6+
 - **Router**: net/http (standard library)
 - **Database**: Neon Postgres 16 with PostGIS
 - **Auth**: JWT access + refresh tokens
