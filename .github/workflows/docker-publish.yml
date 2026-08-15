@@ -64,6 +64,7 @@ jobs:
           images: ${{ env.REGISTRY }}/${{ env.OWNER }}/${{ matrix.image }}
           tags: |
             type=sha,prefix=
+            type=raw,value=${{ github.sha }}
             type=ref,event=branch
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}
