@@ -231,12 +231,12 @@ func main() {
 	var sceneRepo scene.SceneRepository
 	auditRepo := audit.NewInMemoryRepository()
 	var rsvpRepo scene.RSVPRepository
-	streamRepo := stream.NewInMemorySessionRepository()
-	participantRepo := stream.NewInMemoryParticipantRepository(streamRepo)
-	analyticsRepo := stream.NewInMemoryAnalyticsRepository(streamRepo)
-	postRepo := post.NewInMemoryPostRepository()
-	membershipRepo := membership.NewInMemoryMembershipRepository()
-	allianceRepo := alliance.NewInMemoryAllianceRepository()
+	var streamRepo stream.SessionRepository
+	var participantRepo stream.ParticipantRepository
+	var analyticsRepo stream.AnalyticsRepository
+	var postRepo post.PostRepository
+	var membershipRepo membership.MembershipRepository
+	var allianceRepo alliance.AllianceRepository
 	var touringRepo touring.Repository
 	var audienceRepo audience.Repository
 	if runtimeRepositories != nil {
@@ -244,12 +244,25 @@ func main() {
 		sceneRepo, eventRepo, rsvpRepo = sceneRepositories.Scenes, sceneRepositories.Events, sceneRepositories.RSVPs
 		touringRepo = touring.NewSQLRepository(runtimeRepositories.DB)
 		audienceRepo = audience.NewSQLRepository(runtimeRepositories.DB)
+		streamRepo = stream.NewSQLSessionRepository(runtimeRepositories.DB)
+		participantRepo = stream.NewSQLParticipantRepository(runtimeRepositories.DB)
+		analyticsRepo = stream.NewSQLAnalyticsRepository(runtimeRepositories.DB)
+		postRepo = post.NewSQLPostRepository(runtimeRepositories.DB)
+		membershipRepo = membership.NewSQLMembershipRepository(runtimeRepositories.DB)
+		allianceRepo = alliance.NewSQLAllianceRepository(runtimeRepositories.DB)
 	} else {
 		eventRepo = scene.NewInMemoryEventRepository()
 		sceneRepo = scene.NewInMemorySceneRepository()
 		rsvpRepo = scene.NewInMemoryRSVPRepository()
 		touringRepo = touring.NewInMemoryRepository()
 		audienceRepo = audience.NewInMemoryRepository()
+		inMemoryStreamRepo := stream.NewInMemorySessionRepository()
+		streamRepo = inMemoryStreamRepo
+		participantRepo = stream.NewInMemoryParticipantRepository(inMemoryStreamRepo)
+		analyticsRepo = stream.NewInMemoryAnalyticsRepository(inMemoryStreamRepo)
+		postRepo = post.NewInMemoryPostRepository()
+		membershipRepo = membership.NewInMemoryMembershipRepository()
+		allianceRepo = alliance.NewInMemoryAllianceRepository()
 	}
 	audienceService := audience.NewService(audienceRepo)
 	var signalRepo domainsignal.Repository
@@ -644,16 +657,22 @@ func main() {
 	// Initialize handlers
 	// Pass trustScoreStore to eventHandlers to enable trust-weighted ranking
 	trustStoreAdapter := api.NewTrustScoreStoreAdapter(trustScoreStore)
-	sceneHandlers := api.NewSceneHandlers(sceneRepo, membershipRepo, streamRepo)
-	membershipHandlers := api.NewMembershipHandlers(membershipRepo, sceneRepo, auditRepo)
-	eventHandlers := api.NewEventHandlers(eventRepo, sceneRepo, auditRepo, rsvpRepo, streamRepo, trustStoreAdapter)
+	sceneService := scene.NewService(sceneRepo, eventRepo, rsvpRepo)
+	membershipService := membership.NewService(membershipRepo)
+	allianceService := alliance.NewService(allianceRepo)
+	sceneHandlers := api.NewSceneHandlers(sceneService, membershipRepo, streamRepo)
+	membershipHandlers := api.NewMembershipHandlers(membershipService, sceneRepo, auditRepo)
+	eventHandlers := api.NewEventHandlers(sceneService, auditRepo, streamRepo, trustStoreAdapter)
 	rsvpHandlers := api.NewRSVPHandlers(rsvpRepo, eventRepo)
-	streamHandlers := api.NewStreamHandlers(streamRepo, participantRepo, analyticsRepo, sceneRepo, eventRepo, auditRepo, streamMetrics, eventBroadcaster, roomService)
-	postHandlers := api.NewPostHandlers(postRepo, sceneRepo, membershipRepo, metadataService)
+	streamService := stream.NewService(streamRepo, participantRepo, analyticsRepo, streamMetrics)
+	streamHandlers := api.NewStreamHandlers(streamService, sceneRepo, eventRepo, auditRepo, streamMetrics, eventBroadcaster, roomService)
+	postService := post.NewService(postRepo)
+	postHandlers := api.NewPostHandlers(postService, sceneRepo, membershipRepo, metadataService)
 	trustHandlers := api.NewTrustHandlers(sceneRepo, trustDataSource, trustScoreStore, trustDirtyTracker)
-	allianceHandlers := api.NewAllianceHandlers(allianceRepo, sceneRepo, trustDataSource, trustDirtyTracker)
+	allianceHandlers := api.NewAllianceHandlers(allianceService, sceneRepo, trustDataSource, trustDirtyTracker)
 	searchHandlers := api.NewSearchHandlers(sceneRepo, postRepo, trustStoreAdapter, eventRepo)
-	touringHandlers := api.NewTouringHandlers(touringRepo, eventRepo, sceneRepo)
+	touringService := touring.NewService(touringRepo)
+	touringHandlers := api.NewTouringHandlers(touringService, eventRepo, sceneRepo)
 	signalHandlers := api.NewSignalHandlers(signalService, audienceService)
 	var atprotoOAuthHandlers *api.ATProtoOAuthHandlers
 	var stopATProtoReconciler context.CancelFunc
@@ -736,26 +755,6 @@ func main() {
 	accountHandlers := api.NewAccountHandlers(retentionRepo, 30*24*time.Hour)
 
 	// Define rate limit configurations per endpoint
-	searchLimit := middleware.RateLimitConfig{
-		RequestsPerWindow: 100,
-		WindowDuration:    time.Minute,
-	}
-	streamJoinLimit := middleware.RateLimitConfig{
-		RequestsPerWindow: 10,
-		WindowDuration:    time.Minute,
-	}
-	eventCreationLimit := middleware.RateLimitConfig{
-		RequestsPerWindow: 5,
-		WindowDuration:    time.Hour,
-	}
-	sceneCreationLimit := middleware.RateLimitConfig{
-		RequestsPerWindow: 10,
-		WindowDuration:    time.Hour,
-	}
-	allianceCreationLimit := middleware.RateLimitConfig{
-		RequestsPerWindow: 10,
-		WindowDuration:    time.Hour,
-	}
 	telemetryLimit := middleware.RateLimitConfig{
 		RequestsPerWindow: 100, // Allow 100 metrics submissions per minute (generous for legitimate use)
 		WindowDuration:    time.Minute,
@@ -767,312 +766,32 @@ func main() {
 
 	// Create HTTP server with routes
 	mux := http.NewServeMux()
-	requireCreator := func(next http.HandlerFunc) http.HandlerFunc {
-		return func(w http.ResponseWriter, r *http.Request) {
-			userID := middleware.GetUserID(r.Context())
-			if userID == "" {
-				api.WriteError(w, r.Context(), http.StatusUnauthorized, api.ErrCodeUnauthorized, "Authentication required")
-				return
-			}
-			user, err := identityService.GetUser(r.Context(), userID)
-			if err != nil || (user.Role != "creator" && user.Role != "admin") {
-				api.WriteError(w, r.Context(), http.StatusForbidden, api.ErrCodeForbidden, "Approved creator access required")
-				return
-			}
-			next(w, r)
-		}
-	}
+	deps := &api.RouteDeps{RateLimitStore: rateLimitStore, RateLimitMetrics: rateLimitMetrics}
+	requireCreator := api.RequireCreator(identityService)
 
-	mux.HandleFunc("/api/v1/auth/magic-links", identityHandlers.RequestMagicLink)
-	mux.HandleFunc("/api/v1/auth/magic-links/verify", identityHandlers.VerifyMagicLink)
-	mux.HandleFunc("/api/v1/auth/refresh", identityHandlers.Refresh)
-	mux.HandleFunc("/api/v1/auth/logout", identityHandlers.Logout)
-	mux.HandleFunc("/api/v1/auth/profile", identityHandlers.CompleteProfile)
+	// Domain route registrars (each Register* function lives in its handler file).
+	api.RegisterIdentityRoutes(mux, deps, identityHandlers)
 	if atprotoOAuthHandlers != nil {
-		mux.HandleFunc("/api/v1/auth/atproto/client-metadata", atprotoOAuthHandlers.ClientMetadata)
-		mux.HandleFunc("/api/v1/auth/atproto/jwks", atprotoOAuthHandlers.JWKS)
-		mux.HandleFunc("/api/v1/auth/atproto/start", atprotoOAuthHandlers.Start)
-		mux.HandleFunc("/api/v1/auth/atproto/callback", atprotoOAuthHandlers.Callback)
-		mux.HandleFunc("/api/v1/auth/atproto/status", atprotoOAuthHandlers.Status)
-		mux.HandleFunc("/api/v1/auth/atproto/upgrade", atprotoOAuthHandlers.Upgrade)
-		mux.HandleFunc("/api/v1/auth/atproto/link", atprotoOAuthHandlers.Unlink)
-		mux.HandleFunc("/api/v1/auth/atproto/provision", atprotoOAuthHandlers.Provision)
-		mux.HandleFunc("/api/v1/auth/atproto/provision/status", func(w http.ResponseWriter, r *http.Request) {
-			if r.Method != http.MethodGet {
-				w.Header().Set("Allow", http.MethodGet)
-				api.WriteError(w, r.Context(), http.StatusMethodNotAllowed, api.ErrCodeBadRequest, "Method not allowed")
-				return
-			}
-			atprotoOAuthHandlers.Provision(w, r)
-		})
-		mux.HandleFunc("/api/v1/atproto/projections", atprotoOAuthHandlers.Projection)
-		mux.HandleFunc("/api/v1/studio/atproto/publish", requireCreator(atprotoOAuthHandlers.Publish))
-		mux.HandleFunc("/internal/atproto/tap", atprotoOAuthHandlers.Sync)
+		api.RegisterATProtoRoutes(mux, deps, atprotoOAuthHandlers, identityService)
 	}
-	mux.HandleFunc("/api/v1/me", identityHandlers.Me)
-	mux.HandleFunc("/api/v1/creator-access", identityHandlers.CreatorAccess)
-	mux.HandleFunc("/api/v1/admin/creator-access/", identityHandlers.ReviewCreatorAccess)
-	mux.HandleFunc("/api/v1/admin/creator-access", identityHandlers.ListCreatorAccess)
-	mux.Handle("/api/v1/events/", v1EventSubrouter(protectedLocationHandlers, rsvpHandlers.CreateOrUpdateRSVP))
-	mux.HandleFunc("/api/v1/notifications/subscribe", notificationHandlers.Subscribe)
-	mux.HandleFunc("/api/v1/studio/profiles", requireCreator(touringHandlers.CreateProfile))
-	mux.HandleFunc("/api/v1/studio/places", requireCreator(touringHandlers.CreatePlace))
-	mux.HandleFunc("/api/v1/studio/venues", requireCreator(touringHandlers.CreateVenue))
-	mux.HandleFunc("/api/v1/studio/tours", requireCreator(touringHandlers.CreateTour))
-	mux.HandleFunc("/api/v1/studio/appearances", requireCreator(touringHandlers.CreateAppearance))
+	api.RegisterEventRoutes(mux, deps, eventHandlers, rsvpHandlers, postHandlers, protectedLocationHandlers)
+	api.RegisterSceneRoutes(mux, deps, sceneHandlers, postHandlers, membershipHandlers)
+	api.RegisterSearchRoutes(mux, deps, searchHandlers, eventHandlers)
+	api.RegisterStreamRoutes(mux, deps, streamHandlers)
+	api.RegisterTouringRoutes(mux, deps, touringHandlers, identityService)
+	api.RegisterPostRoutes(mux, deps, postHandlers)
+	api.RegisterAllianceRoutes(mux, deps, allianceHandlers)
+	api.RegisterSignalRoutes(mux, deps, signalHandlers)
+
+	// Studio routes shared across handler domains
 	mux.HandleFunc("/api/v1/studio/scenes", requireCreator(sceneHandlers.CreateScene))
 	mux.HandleFunc("/api/v1/studio/events", requireCreator(eventHandlers.CreateEvent))
 	mux.HandleFunc("/api/v1/studio/signals", requireCreator(signalHandlers.CreateDraft))
+
+	// Notification routes
+	mux.HandleFunc("/api/v1/notifications/subscribe", notificationHandlers.Subscribe)
 	// Compatibility endpoint used by the existing notification settings client.
 	mux.HandleFunc("/api/notifications/subscribe", notificationHandlers.Subscribe)
-	// Compatibility aliases are retained for the existing client during beta.
-	mux.HandleFunc("/api/auth/login", identityHandlers.RequestMagicLink)
-	mux.HandleFunc("/api/auth/refresh", identityHandlers.Refresh)
-	mux.HandleFunc("/api/auth/logout", identityHandlers.Logout)
-	mux.HandleFunc("/api/auth/me", identityHandlers.Me)
-
-	// Event routes (event creation has rate limiting: 5 req/hour per user)
-	eventCreationHandler := middleware.RateLimiter(rateLimitStore, eventCreationLimit, middleware.UserKeyFunc(), rateLimitMetrics)(
-		http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			eventHandlers.CreateEvent(w, r)
-		}),
-	)
-
-	mux.HandleFunc("/events", func(w http.ResponseWriter, r *http.Request) {
-		switch r.Method {
-		case http.MethodPost:
-			eventCreationHandler.ServeHTTP(w, r)
-		default:
-			ctx := middleware.SetErrorCode(r.Context(), api.ErrCodeBadRequest)
-			api.WriteError(w, ctx, http.StatusMethodNotAllowed, api.ErrCodeBadRequest, "Method not allowed")
-		}
-	})
-
-	mux.HandleFunc("/events/", func(w http.ResponseWriter, r *http.Request) {
-		// Parse path to check for special endpoints
-		// Expected patterns: /events/{id}, /events/{id}/cancel, /events/{id}/rsvp, /events/{id}/feed
-		pathParts := strings.Split(strings.TrimPrefix(r.URL.Path, "/events/"), "/")
-
-		// Check if this is a feed request: /events/{id}/feed
-		if len(pathParts) == 2 && pathParts[0] != "" && pathParts[1] == "feed" && r.Method == http.MethodGet {
-			postHandlers.GetEventFeed(w, r)
-			return
-		}
-
-		// Check if this is a cancel request: /events/{id}/cancel
-		if len(pathParts) == 2 && pathParts[0] != "" && pathParts[1] == "cancel" && r.Method == http.MethodPost {
-			eventHandlers.CancelEvent(w, r)
-			return
-		}
-
-		// Check if this is an RSVP request: /events/{id}/rsvp
-		if len(pathParts) == 2 && pathParts[0] != "" && pathParts[1] == "rsvp" {
-			switch r.Method {
-			case http.MethodPost:
-				rsvpHandlers.CreateOrUpdateRSVP(w, r)
-			case http.MethodDelete:
-				rsvpHandlers.DeleteRSVP(w, r)
-			default:
-				ctx := middleware.SetErrorCode(r.Context(), api.ErrCodeBadRequest)
-				api.WriteError(w, ctx, http.StatusMethodNotAllowed, api.ErrCodeBadRequest, "Method not allowed")
-			}
-			return
-		}
-
-		switch r.Method {
-		case http.MethodGet:
-			eventHandlers.GetEvent(w, r)
-		case http.MethodPatch:
-			eventHandlers.UpdateEvent(w, r)
-		default:
-			ctx := middleware.SetErrorCode(r.Context(), api.ErrCodeBadRequest)
-			api.WriteError(w, ctx, http.StatusMethodNotAllowed, api.ErrCodeBadRequest, "Method not allowed")
-		}
-	})
-
-	// Scene routes
-	// Scene creation (with rate limiting: 10 req/hour per user)
-	sceneCreationHandler := middleware.RateLimiter(rateLimitStore, sceneCreationLimit, middleware.UserKeyFunc(), rateLimitMetrics)(
-		http.HandlerFunc(sceneHandlers.CreateScene),
-	)
-
-	mux.HandleFunc("/scenes", func(w http.ResponseWriter, r *http.Request) {
-		switch r.Method {
-		case http.MethodPost:
-			sceneCreationHandler.ServeHTTP(w, r)
-		default:
-			ctx := middleware.SetErrorCode(r.Context(), api.ErrCodeBadRequest)
-			api.WriteError(w, ctx, http.StatusMethodNotAllowed, api.ErrCodeBadRequest, "Method not allowed")
-		}
-	})
-
-	mux.HandleFunc("/scenes/owned", func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodGet {
-			ctx := middleware.SetErrorCode(r.Context(), api.ErrCodeBadRequest)
-			api.WriteError(w, ctx, http.StatusMethodNotAllowed, api.ErrCodeBadRequest, "Method not allowed")
-			return
-		}
-		sceneHandlers.ListOwnedScenes(w, r)
-	})
-
-	// Ensure trailing-slash variant /scenes/owned/ does not fall through to the
-	// /scenes/ catch-all, where "owned" would be treated as a scene ID.
-	mux.HandleFunc("/scenes/owned/", func(w http.ResponseWriter, r *http.Request) {
-		// Normalize to the canonical path without trailing slash.
-		http.Redirect(w, r, "/scenes/owned", http.StatusMovedPermanently)
-	})
-
-	// Scene resource routes: /scenes/{id}, /scenes/{id}/feed, /scenes/{id}/palette, /scenes/{id}/membership/*
-	mux.HandleFunc("/scenes/", func(w http.ResponseWriter, r *http.Request) {
-		// Parse path to determine which endpoint to route to
-		pathParts := strings.Split(strings.TrimPrefix(r.URL.Path, "/scenes/"), "/")
-
-		if len(pathParts) == 0 || pathParts[0] == "" {
-			ctx := middleware.SetErrorCode(r.Context(), api.ErrCodeBadRequest)
-			api.WriteError(w, ctx, http.StatusBadRequest, api.ErrCodeBadRequest, "Scene ID is required")
-			return
-		}
-
-		// Scene feed: /scenes/{id}/feed
-		if len(pathParts) == 2 && pathParts[1] == "feed" && r.Method == http.MethodGet {
-			postHandlers.GetSceneFeed(w, r)
-			return
-		}
-
-		// Scene palette: /scenes/{id}/palette
-		if len(pathParts) == 2 && pathParts[1] == "palette" && r.Method == http.MethodPatch {
-			sceneHandlers.UpdateScenePalette(w, r)
-			return
-		}
-
-		// Membership request: /scenes/{id}/membership/request
-		if len(pathParts) == 3 && pathParts[1] == "membership" && pathParts[2] == "request" && r.Method == http.MethodPost {
-			membershipHandlers.RequestMembership(w, r)
-			return
-		}
-
-		// Membership approve/reject: /scenes/{id}/membership/{userDid}/approve|reject
-		if len(pathParts) == 4 && pathParts[1] == "membership" && r.Method == http.MethodPost {
-			if pathParts[3] == "approve" {
-				membershipHandlers.ApproveMembership(w, r)
-				return
-			} else if pathParts[3] == "reject" {
-				membershipHandlers.RejectMembership(w, r)
-				return
-			}
-		}
-
-		// Scene CRUD: /scenes/{id}
-		if len(pathParts) == 1 {
-			switch r.Method {
-			case http.MethodGet:
-				sceneHandlers.GetScene(w, r)
-			case http.MethodPatch:
-				sceneHandlers.UpdateScene(w, r)
-			case http.MethodDelete:
-				sceneHandlers.DeleteScene(w, r)
-			default:
-				ctx := middleware.SetErrorCode(r.Context(), api.ErrCodeBadRequest)
-				api.WriteError(w, ctx, http.StatusMethodNotAllowed, api.ErrCodeBadRequest, "Method not allowed")
-			}
-			return
-		}
-
-		// No matching endpoint
-		ctx := middleware.SetErrorCode(r.Context(), api.ErrCodeNotFound)
-		api.WriteError(w, ctx, http.StatusNotFound, api.ErrCodeNotFound, "The requested resource was not found")
-	})
-
-	// Search endpoints (with rate limiting: 100 req/min per user)
-	searchEventsHandler := middleware.RateLimiter(rateLimitStore, searchLimit, middleware.UserKeyFunc(), rateLimitMetrics)(
-		http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			switch r.Method {
-			case http.MethodGet:
-				eventHandlers.SearchEvents(w, r)
-			default:
-				ctx := middleware.SetErrorCode(r.Context(), api.ErrCodeBadRequest)
-				api.WriteError(w, ctx, http.StatusMethodNotAllowed, api.ErrCodeBadRequest, "Method not allowed")
-			}
-		}),
-	)
-	mux.Handle("/search/events", searchEventsHandler)
-	mux.HandleFunc("/search/appearances", touringHandlers.SearchAppearances)
-	mux.HandleFunc("/profiles/", touringHandlers.Profile)
-	mux.HandleFunc("/tours/", touringHandlers.Tour)
-	mux.HandleFunc("/api/search/appearances", touringHandlers.SearchAppearances)
-	mux.HandleFunc("/api/profiles/", touringHandlers.Profile)
-	mux.HandleFunc("/api/tours/", touringHandlers.Tour)
-
-	registerSignalRoutes := func(prefix string) {
-		mux.HandleFunc(prefix, func(w http.ResponseWriter, r *http.Request) {
-			if r.Method == http.MethodPost {
-				signalHandlers.CreateDraft(w, r)
-				return
-			}
-			ctx := middleware.SetErrorCode(r.Context(), api.ErrCodeBadRequest)
-			api.WriteError(w, ctx, http.StatusMethodNotAllowed, api.ErrCodeBadRequest, "Method not allowed")
-		})
-		mux.HandleFunc(prefix+"/", func(w http.ResponseWriter, r *http.Request) {
-			if strings.HasSuffix(strings.TrimRight(r.URL.Path, "/"), "/publish") && r.Method == http.MethodPost {
-				signalHandlers.Publish(w, r)
-				return
-			}
-			if r.Method == http.MethodGet {
-				signalHandlers.Get(w, r)
-				return
-			}
-			ctx := middleware.SetErrorCode(r.Context(), api.ErrCodeBadRequest)
-			api.WriteError(w, ctx, http.StatusMethodNotAllowed, api.ErrCodeBadRequest, "Method not allowed")
-		})
-	}
-	registerSignalRoutes("/signals")
-	registerSignalRoutes("/api/signals")
-	mux.HandleFunc("/audience/consent", signalHandlers.MutateConsent)
-	mux.HandleFunc("/api/audience/consent", signalHandlers.MutateConsent)
-
-	searchScenesHandler := middleware.RateLimiter(rateLimitStore, searchLimit, middleware.UserKeyFunc(), rateLimitMetrics)(
-		http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			switch r.Method {
-			case http.MethodGet:
-				searchHandlers.SearchScenes(w, r)
-			default:
-				ctx := middleware.SetErrorCode(r.Context(), api.ErrCodeBadRequest)
-				api.WriteError(w, ctx, http.StatusMethodNotAllowed, api.ErrCodeBadRequest, "Method not allowed")
-			}
-		}),
-	)
-	mux.Handle("/search/scenes", searchScenesHandler)
-
-	searchPostsHandler := middleware.RateLimiter(rateLimitStore, searchLimit, middleware.UserKeyFunc(), rateLimitMetrics)(
-		http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			switch r.Method {
-			case http.MethodGet:
-				searchHandlers.SearchPosts(w, r)
-			default:
-				ctx := middleware.SetErrorCode(r.Context(), api.ErrCodeBadRequest)
-				api.WriteError(w, ctx, http.StatusMethodNotAllowed, api.ErrCodeBadRequest, "Method not allowed")
-			}
-		}),
-	)
-	mux.Handle("/search/posts", searchPostsHandler)
-
-	searchGlobalHandler := middleware.RateLimiter(rateLimitStore, searchLimit, middleware.UserKeyFunc(), rateLimitMetrics)(
-		http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			switch r.Method {
-			case http.MethodGet:
-				searchHandlers.SearchGlobal(w, r)
-			default:
-				ctx := middleware.SetErrorCode(r.Context(), api.ErrCodeBadRequest)
-				api.WriteError(w, ctx, http.StatusMethodNotAllowed, api.ErrCodeBadRequest, "Method not allowed")
-			}
-		}),
-	)
-	mux.Handle("/search/global", searchGlobalHandler)
-
-	// Stream join handler (with rate limiting: 10 req/min per user)
-	streamJoinHandler := middleware.RateLimiter(rateLimitStore, streamJoinLimit, middleware.UserKeyFunc(), rateLimitMetrics)(
-		http.HandlerFunc(streamHandlers.JoinStream),
-	)
 
 	// LiveKit token endpoint (if configured)
 	if livekitHandlers != nil {
@@ -1085,95 +804,6 @@ func main() {
 			livekitHandlers.IssueToken(w, r)
 		})
 	}
-
-	// Stream session routes
-	mux.HandleFunc("/streams", func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodPost {
-			ctx := middleware.SetErrorCode(r.Context(), api.ErrCodeBadRequest)
-			api.WriteError(w, ctx, http.StatusMethodNotAllowed, api.ErrCodeBadRequest, "Method not allowed")
-			return
-		}
-		streamHandlers.CreateStream(w, r)
-	})
-
-	mux.HandleFunc("/streams/", func(w http.ResponseWriter, r *http.Request) {
-		// Expected patterns: /streams/{id}/end, /streams/{id}/join, /streams/{id}/leave, /streams/{id}/analytics
-		pathParts := strings.Split(strings.TrimPrefix(r.URL.Path, "/streams/"), "/")
-
-		// Check if this is an analytics request: /streams/{id}/analytics
-		if len(pathParts) == 2 && pathParts[0] != "" && pathParts[1] == "analytics" && r.Method == http.MethodGet {
-			streamHandlers.GetStreamAnalytics(w, r)
-			return
-		}
-
-		// Check if this is an end request: /streams/{id}/end
-		if len(pathParts) == 2 && pathParts[0] != "" && pathParts[1] == "end" && r.Method == http.MethodPost {
-			streamHandlers.EndStream(w, r)
-			return
-		}
-
-		// Check if this is a join request: /streams/{id}/join (with rate limiting: 10 req/min per user)
-		if len(pathParts) == 2 && pathParts[0] != "" && pathParts[1] == "join" && r.Method == http.MethodPost {
-			streamJoinHandler.ServeHTTP(w, r)
-			return
-		}
-
-		// Check if this is a leave request: /streams/{id}/leave
-		if len(pathParts) == 2 && pathParts[0] != "" && pathParts[1] == "leave" && r.Method == http.MethodPost {
-			streamHandlers.LeaveStream(w, r)
-			return
-		}
-
-		// Check if this is a participants request: /streams/{id}/participants
-		if len(pathParts) == 2 && pathParts[0] != "" && pathParts[1] == "participants" && r.Method == http.MethodGet {
-			streamHandlers.GetActiveParticipants(w, r)
-			return
-		}
-
-		// Check if this is a mute request: /streams/{id}/participants/{participant_id}/mute
-		if len(pathParts) == 4 && pathParts[0] != "" && pathParts[1] == "participants" && pathParts[2] != "" && pathParts[3] == "mute" && r.Method == http.MethodPost {
-			streamHandlers.MuteParticipant(w, r)
-			return
-		}
-
-		// Check if this is a kick request: /streams/{id}/participants/{participant_id}/kick
-		if len(pathParts) == 4 && pathParts[0] != "" && pathParts[1] == "participants" && pathParts[2] != "" && pathParts[3] == "kick" && r.Method == http.MethodPost {
-			streamHandlers.KickParticipant(w, r)
-			return
-		}
-
-		// Check if this is a featured participant request: /streams/{id}/featured_participant
-		if len(pathParts) == 2 && pathParts[0] != "" && pathParts[1] == "featured_participant" && r.Method == http.MethodPatch {
-			streamHandlers.SetFeaturedParticipant(w, r)
-			return
-		}
-
-		// Check if this is a lock request: /streams/{id}/lock
-		if len(pathParts) == 2 && pathParts[0] != "" && pathParts[1] == "lock" && r.Method == http.MethodPatch {
-			streamHandlers.LockStream(w, r)
-			return
-		}
-
-		// Check if this is a GET request for stream details: /streams/{id}
-		if len(pathParts) == 1 && pathParts[0] != "" && r.Method == http.MethodGet {
-			streamHandlers.GetStream(w, r)
-			return
-		}
-
-		// Check if this is a PATCH request for updating stream metadata: /streams/{id}.
-		// IMPORTANT: This must only match plain `/streams/{id}` paths and not interfere with
-		// more specific PATCH routes like `/streams/{id}/lock` and `/streams/{id}/featured_participant`,
-		// which are handled explicitly above. The routing order ensures specific routes are checked
-		// first (len(pathParts) == 2) before this generic handler (len(pathParts) == 1).
-		if len(pathParts) == 1 && pathParts[0] != "" && r.Method == http.MethodPatch {
-			streamHandlers.UpdateStream(w, r)
-			return
-		}
-
-		// No other stream endpoints yet, return 404
-		ctx := middleware.SetErrorCode(r.Context(), api.ErrCodeNotFound)
-		api.WriteError(w, ctx, http.StatusNotFound, api.ErrCodeNotFound, "The requested resource was not found")
-	})
 
 	// Metrics endpoint (Prometheus) - protected with bearer token auth if configured
 	metricsToken := os.Getenv("METRICS_AUTH_TOKEN")
@@ -1197,29 +827,6 @@ func main() {
 	mux.HandleFunc("/canary/metrics", canaryHandler.GetMetrics)
 	mux.HandleFunc("/canary/rollback", canaryHandler.Rollback)
 	mux.HandleFunc("/canary/metrics/reset", canaryHandler.ResetMetrics)
-
-	// Post routes
-	mux.HandleFunc("/posts", func(w http.ResponseWriter, r *http.Request) {
-		switch r.Method {
-		case http.MethodPost:
-			postHandlers.CreatePost(w, r)
-		default:
-			ctx := middleware.SetErrorCode(r.Context(), api.ErrCodeBadRequest)
-			api.WriteError(w, ctx, http.StatusMethodNotAllowed, api.ErrCodeBadRequest, "Method not allowed")
-		}
-	})
-
-	mux.HandleFunc("/posts/", func(w http.ResponseWriter, r *http.Request) {
-		switch r.Method {
-		case http.MethodPatch:
-			postHandlers.UpdatePost(w, r)
-		case http.MethodDelete:
-			postHandlers.DeletePost(w, r)
-		default:
-			ctx := middleware.SetErrorCode(r.Context(), api.ErrCodeBadRequest)
-			api.WriteError(w, ctx, http.StatusMethodNotAllowed, api.ErrCodeBadRequest, "Method not allowed")
-		}
-	})
 
 	// Upload routes (if configured)
 	if uploadHandlers != nil {
@@ -1283,35 +890,6 @@ func main() {
 			webhookHandlers.HandleStripeWebhook(w, r)
 		})
 	}
-
-	// Alliance routes
-	// Alliance creation (with rate limiting: 10 req/hour per user)
-	allianceCreationHandler := middleware.RateLimiter(rateLimitStore, allianceCreationLimit, middleware.UserKeyFunc(), rateLimitMetrics)(
-		http.HandlerFunc(allianceHandlers.CreateAlliance),
-	)
-
-	mux.HandleFunc("/alliances", func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodPost {
-			ctx := middleware.SetErrorCode(r.Context(), api.ErrCodeBadRequest)
-			api.WriteError(w, ctx, http.StatusMethodNotAllowed, api.ErrCodeBadRequest, "Method not allowed")
-			return
-		}
-		allianceCreationHandler.ServeHTTP(w, r)
-	})
-
-	mux.HandleFunc("/alliances/", func(w http.ResponseWriter, r *http.Request) {
-		switch r.Method {
-		case http.MethodGet:
-			allianceHandlers.GetAlliance(w, r)
-		case http.MethodPatch:
-			allianceHandlers.UpdateAlliance(w, r)
-		case http.MethodDelete:
-			allianceHandlers.DeleteAlliance(w, r)
-		default:
-			ctx := middleware.SetErrorCode(r.Context(), api.ErrCodeBadRequest)
-			api.WriteError(w, ctx, http.StatusMethodNotAllowed, api.ErrCodeBadRequest, "Method not allowed")
-		}
-	})
 
 	// Trust score routes
 	mux.HandleFunc("/trust/", func(w http.ResponseWriter, r *http.Request) {
@@ -1597,23 +1175,4 @@ func main() {
 	}
 
 	logger.Info("server stopped")
-}
-
-func v1EventSubrouter(protectedLocations http.Handler, createRSVP http.HandlerFunc) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		pathParts := strings.Split(strings.TrimPrefix(r.URL.Path, "/api/v1/events/"), "/")
-		if len(pathParts) == 2 && pathParts[0] != "" && pathParts[1] == "location" {
-			protectedLocations.ServeHTTP(w, r)
-			return
-		}
-		if len(pathParts) == 2 && pathParts[0] != "" && pathParts[1] == "rsvp" && r.Method == http.MethodPost {
-			originalPath := r.URL.Path
-			r.URL.Path = "/events/" + pathParts[0] + "/rsvp"
-			createRSVP(w, r)
-			r.URL.Path = originalPath
-			return
-		}
-		ctx := middleware.SetErrorCode(r.Context(), api.ErrCodeNotFound)
-		api.WriteError(w, ctx, http.StatusNotFound, api.ErrCodeNotFound, "Not found")
-	})
 }

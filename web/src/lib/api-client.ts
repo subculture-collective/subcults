@@ -546,6 +546,19 @@ class ApiClient {
     });
     return response.results || [];
   }
+
+  /**
+   * Make a public API request without authentication.
+   * Skips auth headers but retains timeout, retry, and consistent error handling.
+   * Unwraps a `{ data: T }` envelope when present (matching legacy publicRequest behaviour).
+   */
+  async publicRequest<T>(path: string, signal?: AbortSignal): Promise<T> {
+    const body = await this.request<T & { data?: T; error?: { message?: string } }>(
+      path,
+      { signal, skipAuth: true, skipAutoRetry: true }
+    );
+    return (body as T & { data?: T }).data ?? body;
+  }
 }
 
 // Export singleton instance

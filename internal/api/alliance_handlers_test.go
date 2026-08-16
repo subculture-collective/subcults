@@ -14,13 +14,27 @@ import (
 	"github.com/onnwee/subcults/internal/trust"
 )
 
-// newTestAllianceHandlers creates handlers with in-memory repositories for testing.
-func newTestAllianceHandlers() *AllianceHandlers {
+// allianceTestFixtures holds all dependencies needed for alliance handler tests.
+type allianceTestFixtures struct {
+	handlers        *AllianceHandlers
+	allianceRepo    alliance.AllianceRepository
+	sceneRepo       scene.SceneRepository
+	trustDataSource trust.DataSource
+}
+
+// newTestAllianceFixtures creates all dependencies for alliance handler tests.
+func newTestAllianceFixtures() *allianceTestFixtures {
 	allianceRepo := alliance.NewInMemoryAllianceRepository()
+	allianceService := alliance.NewService(allianceRepo)
 	sceneRepo := scene.NewInMemorySceneRepository()
 	trustDataSource := trust.NewInMemoryDataSource()
 	trustDirtyTracker := trust.NewDirtyTracker()
-	return NewAllianceHandlers(allianceRepo, sceneRepo, trustDataSource, trustDirtyTracker)
+	return &allianceTestFixtures{
+		handlers:        NewAllianceHandlers(allianceService, sceneRepo, trustDataSource, trustDirtyTracker),
+		allianceRepo:    allianceRepo,
+		sceneRepo:       sceneRepo,
+		trustDataSource: trustDataSource,
+	}
 }
 
 // createTestScene creates a scene for testing.
@@ -43,12 +57,12 @@ func createTestScene(t *testing.T, repo scene.SceneRepository, id, ownerDID stri
 
 // TestCreateAlliance_Success tests successful alliance creation.
 func TestCreateAlliance_Success(t *testing.T) {
-	handlers := newTestAllianceHandlers()
+	fx := newTestAllianceFixtures()
 
 	// Create test scenes
 	ownerDID := "did:plc:owner123"
-	createTestScene(t, handlers.sceneRepo, "scene-from", ownerDID)
-	createTestScene(t, handlers.sceneRepo, "scene-to", "did:plc:other")
+	createTestScene(t, fx.sceneRepo, "scene-from", ownerDID)
+	createTestScene(t, fx.sceneRepo, "scene-to", "did:plc:other")
 
 	reqBody := CreateAllianceRequest{
 		FromSceneID: "scene-from",
@@ -63,7 +77,7 @@ func TestCreateAlliance_Success(t *testing.T) {
 	req = req.WithContext(ctx)
 
 	w := httptest.NewRecorder()
-	handlers.CreateAlliance(w, req)
+	fx.handlers.CreateAlliance(w, req)
 
 	if w.Code != http.StatusCreated {
 		t.Errorf("expected status 201, got %d: %s", w.Code, w.Body.String())
@@ -105,11 +119,11 @@ func TestCreateAlliance_InvalidWeight(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			handlers := newTestAllianceHandlers()
+			fx := newTestAllianceFixtures()
 
 			ownerDID := "did:plc:owner123"
-			createTestScene(t, handlers.sceneRepo, "scene-from", ownerDID)
-			createTestScene(t, handlers.sceneRepo, "scene-to", "did:plc:other")
+			createTestScene(t, fx.sceneRepo, "scene-from", ownerDID)
+			createTestScene(t, fx.sceneRepo, "scene-to", "did:plc:other")
 
 			reqBody := CreateAllianceRequest{
 				FromSceneID: "scene-from",
@@ -123,7 +137,7 @@ func TestCreateAlliance_InvalidWeight(t *testing.T) {
 			req = req.WithContext(ctx)
 
 			w := httptest.NewRecorder()
-			handlers.CreateAlliance(w, req)
+			fx.handlers.CreateAlliance(w, req)
 
 			if w.Code != http.StatusBadRequest {
 				t.Errorf("expected status 400, got %d", w.Code)
@@ -143,10 +157,10 @@ func TestCreateAlliance_InvalidWeight(t *testing.T) {
 
 // TestCreateAlliance_SelfAlliance tests creating alliance with same from/to scene.
 func TestCreateAlliance_SelfAlliance(t *testing.T) {
-	handlers := newTestAllianceHandlers()
+	fx := newTestAllianceFixtures()
 
 	ownerDID := "did:plc:owner123"
-	createTestScene(t, handlers.sceneRepo, "scene-same", ownerDID)
+	createTestScene(t, fx.sceneRepo, "scene-same", ownerDID)
 
 	reqBody := CreateAllianceRequest{
 		FromSceneID: "scene-same",
@@ -160,7 +174,7 @@ func TestCreateAlliance_SelfAlliance(t *testing.T) {
 	req = req.WithContext(ctx)
 
 	w := httptest.NewRecorder()
-	handlers.CreateAlliance(w, req)
+	fx.handlers.CreateAlliance(w, req)
 
 	if w.Code != http.StatusBadRequest {
 		t.Errorf("expected status 400, got %d", w.Code)
@@ -178,12 +192,12 @@ func TestCreateAlliance_SelfAlliance(t *testing.T) {
 
 // TestCreateAlliance_Unauthorized tests alliance creation by non-owner.
 func TestCreateAlliance_Unauthorized(t *testing.T) {
-	handlers := newTestAllianceHandlers()
+	fx := newTestAllianceFixtures()
 
 	ownerDID := "did:plc:owner123"
 	unauthorizedDID := "did:plc:unauthorized"
-	createTestScene(t, handlers.sceneRepo, "scene-from", ownerDID)
-	createTestScene(t, handlers.sceneRepo, "scene-to", "did:plc:other")
+	createTestScene(t, fx.sceneRepo, "scene-from", ownerDID)
+	createTestScene(t, fx.sceneRepo, "scene-to", "did:plc:other")
 
 	reqBody := CreateAllianceRequest{
 		FromSceneID: "scene-from",
@@ -197,7 +211,7 @@ func TestCreateAlliance_Unauthorized(t *testing.T) {
 	req = req.WithContext(ctx)
 
 	w := httptest.NewRecorder()
-	handlers.CreateAlliance(w, req)
+	fx.handlers.CreateAlliance(w, req)
 
 	if w.Code != http.StatusForbidden {
 		t.Errorf("expected status 403, got %d", w.Code)
@@ -226,11 +240,11 @@ func TestCreateAlliance_SceneNotFound(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			handlers := newTestAllianceHandlers()
+			fx := newTestAllianceFixtures()
 
 			ownerDID := "did:plc:owner123"
-			createTestScene(t, handlers.sceneRepo, "scene-from", ownerDID)
-			createTestScene(t, handlers.sceneRepo, "scene-to", "did:plc:other")
+			createTestScene(t, fx.sceneRepo, "scene-from", ownerDID)
+			createTestScene(t, fx.sceneRepo, "scene-to", "did:plc:other")
 
 			reqBody := CreateAllianceRequest{
 				FromSceneID: tt.fromSceneID,
@@ -244,7 +258,7 @@ func TestCreateAlliance_SceneNotFound(t *testing.T) {
 			req = req.WithContext(ctx)
 
 			w := httptest.NewRecorder()
-			handlers.CreateAlliance(w, req)
+			fx.handlers.CreateAlliance(w, req)
 
 			if w.Code != http.StatusNotFound {
 				t.Errorf("expected status 404, got %d", w.Code)
@@ -255,14 +269,14 @@ func TestCreateAlliance_SceneNotFound(t *testing.T) {
 
 // TestCreateAlliance_ReasonTooLong tests alliance creation with reason exceeding max length.
 func TestCreateAlliance_ReasonTooLong(t *testing.T) {
-	handlers := newTestAllianceHandlers()
+	fx := newTestAllianceFixtures()
 
 	ownerDID := "did:plc:owner123"
-	createTestScene(t, handlers.sceneRepo, "scene-from", ownerDID)
-	createTestScene(t, handlers.sceneRepo, "scene-to", "did:plc:other")
+	createTestScene(t, fx.sceneRepo, "scene-from", ownerDID)
+	createTestScene(t, fx.sceneRepo, "scene-to", "did:plc:other")
 
 	// Create reason longer than 256 characters
-	longReason := strings.Repeat("a", MaxReasonLength+1)
+	longReason := strings.Repeat("a", alliance.MaxReasonLength+1)
 
 	reqBody := CreateAllianceRequest{
 		FromSceneID: "scene-from",
@@ -277,7 +291,7 @@ func TestCreateAlliance_ReasonTooLong(t *testing.T) {
 	req = req.WithContext(ctx)
 
 	w := httptest.NewRecorder()
-	handlers.CreateAlliance(w, req)
+	fx.handlers.CreateAlliance(w, req)
 
 	if w.Code != http.StatusBadRequest {
 		t.Errorf("expected status 400, got %d", w.Code)
@@ -295,12 +309,12 @@ func TestCreateAlliance_ReasonTooLong(t *testing.T) {
 
 // TestGetAlliance_Success tests successful alliance retrieval.
 func TestGetAlliance_Success(t *testing.T) {
-	handlers := newTestAllianceHandlers()
+	fx := newTestAllianceFixtures()
 
 	// Create test alliance
 	ownerDID := "did:plc:owner123"
-	createTestScene(t, handlers.sceneRepo, "scene-from", ownerDID)
-	createTestScene(t, handlers.sceneRepo, "scene-to", "did:plc:other")
+	createTestScene(t, fx.sceneRepo, "scene-from", ownerDID)
+	createTestScene(t, fx.sceneRepo, "scene-to", "did:plc:other")
 
 	testAlliance := &alliance.Alliance{
 		ID:          "test-alliance-id",
@@ -309,13 +323,13 @@ func TestGetAlliance_Success(t *testing.T) {
 		Weight:      0.7,
 		Status:      "active",
 	}
-	if err := handlers.allianceRepo.Insert(testAlliance); err != nil {
+	if err := fx.allianceRepo.Insert(testAlliance); err != nil {
 		t.Fatalf("failed to create test alliance: %v", err)
 	}
 
 	req := httptest.NewRequest(http.MethodGet, "/alliances/test-alliance-id", nil)
 	w := httptest.NewRecorder()
-	handlers.GetAlliance(w, req)
+	fx.handlers.GetAlliance(w, req)
 
 	if w.Code != http.StatusOK {
 		t.Errorf("expected status 200, got %d", w.Code)
@@ -336,11 +350,11 @@ func TestGetAlliance_Success(t *testing.T) {
 
 // TestUpdateAlliance_Success tests successful alliance update.
 func TestUpdateAlliance_Success(t *testing.T) {
-	handlers := newTestAllianceHandlers()
+	fx := newTestAllianceFixtures()
 
 	ownerDID := "did:plc:owner123"
-	createTestScene(t, handlers.sceneRepo, "scene-from", ownerDID)
-	createTestScene(t, handlers.sceneRepo, "scene-to", "did:plc:other")
+	createTestScene(t, fx.sceneRepo, "scene-from", ownerDID)
+	createTestScene(t, fx.sceneRepo, "scene-to", "did:plc:other")
 
 	testAlliance := &alliance.Alliance{
 		ID:          "test-alliance-id",
@@ -349,7 +363,7 @@ func TestUpdateAlliance_Success(t *testing.T) {
 		Weight:      0.5,
 		Status:      "active",
 	}
-	if err := handlers.allianceRepo.Insert(testAlliance); err != nil {
+	if err := fx.allianceRepo.Insert(testAlliance); err != nil {
 		t.Fatalf("failed to create test alliance: %v", err)
 	}
 
@@ -367,7 +381,7 @@ func TestUpdateAlliance_Success(t *testing.T) {
 	req = req.WithContext(ctx)
 
 	w := httptest.NewRecorder()
-	handlers.UpdateAlliance(w, req)
+	fx.handlers.UpdateAlliance(w, req)
 
 	if w.Code != http.StatusOK {
 		t.Errorf("expected status 200, got %d: %s", w.Code, w.Body.String())
@@ -388,12 +402,12 @@ func TestUpdateAlliance_Success(t *testing.T) {
 
 // TestUpdateAlliance_Unauthorized tests alliance update by non-owner.
 func TestUpdateAlliance_Unauthorized(t *testing.T) {
-	handlers := newTestAllianceHandlers()
+	fx := newTestAllianceFixtures()
 
 	ownerDID := "did:plc:owner123"
 	unauthorizedDID := "did:plc:unauthorized"
-	createTestScene(t, handlers.sceneRepo, "scene-from", ownerDID)
-	createTestScene(t, handlers.sceneRepo, "scene-to", "did:plc:other")
+	createTestScene(t, fx.sceneRepo, "scene-from", ownerDID)
+	createTestScene(t, fx.sceneRepo, "scene-to", "did:plc:other")
 
 	testAlliance := &alliance.Alliance{
 		ID:          "test-alliance-id",
@@ -402,7 +416,7 @@ func TestUpdateAlliance_Unauthorized(t *testing.T) {
 		Weight:      0.5,
 		Status:      "active",
 	}
-	if err := handlers.allianceRepo.Insert(testAlliance); err != nil {
+	if err := fx.allianceRepo.Insert(testAlliance); err != nil {
 		t.Fatalf("failed to create test alliance: %v", err)
 	}
 
@@ -417,7 +431,7 @@ func TestUpdateAlliance_Unauthorized(t *testing.T) {
 	req = req.WithContext(ctx)
 
 	w := httptest.NewRecorder()
-	handlers.UpdateAlliance(w, req)
+	fx.handlers.UpdateAlliance(w, req)
 
 	if w.Code != http.StatusForbidden {
 		t.Errorf("expected status 403, got %d", w.Code)
@@ -426,11 +440,11 @@ func TestUpdateAlliance_Unauthorized(t *testing.T) {
 
 // TestDeleteAlliance_Success tests successful alliance soft deletion.
 func TestDeleteAlliance_Success(t *testing.T) {
-	handlers := newTestAllianceHandlers()
+	fx := newTestAllianceFixtures()
 
 	ownerDID := "did:plc:owner123"
-	createTestScene(t, handlers.sceneRepo, "scene-from", ownerDID)
-	createTestScene(t, handlers.sceneRepo, "scene-to", "did:plc:other")
+	createTestScene(t, fx.sceneRepo, "scene-from", ownerDID)
+	createTestScene(t, fx.sceneRepo, "scene-to", "did:plc:other")
 
 	testAlliance := &alliance.Alliance{
 		ID:          "test-alliance-id",
@@ -439,7 +453,7 @@ func TestDeleteAlliance_Success(t *testing.T) {
 		Weight:      0.5,
 		Status:      "active",
 	}
-	if err := handlers.allianceRepo.Insert(testAlliance); err != nil {
+	if err := fx.allianceRepo.Insert(testAlliance); err != nil {
 		t.Fatalf("failed to create test alliance: %v", err)
 	}
 
@@ -448,14 +462,14 @@ func TestDeleteAlliance_Success(t *testing.T) {
 	req = req.WithContext(ctx)
 
 	w := httptest.NewRecorder()
-	handlers.DeleteAlliance(w, req)
+	fx.handlers.DeleteAlliance(w, req)
 
 	if w.Code != http.StatusNoContent {
 		t.Errorf("expected status 204, got %d", w.Code)
 	}
 
 	// Verify alliance is soft-deleted (returns ErrAllianceDeleted on get)
-	_, err := handlers.allianceRepo.GetByID("test-alliance-id")
+	_, err := fx.allianceRepo.GetByID("test-alliance-id")
 	if err != alliance.ErrAllianceDeleted {
 		t.Errorf("expected alliance to be soft-deleted and return ErrAllianceDeleted, got: %v", err)
 	}
@@ -463,11 +477,11 @@ func TestDeleteAlliance_Success(t *testing.T) {
 
 // TestDeleteAlliance_ExcludedFromGet tests that deleted alliance returns 404 on GET.
 func TestDeleteAlliance_ExcludedFromGet(t *testing.T) {
-	handlers := newTestAllianceHandlers()
+	fx := newTestAllianceFixtures()
 
 	ownerDID := "did:plc:owner123"
-	createTestScene(t, handlers.sceneRepo, "scene-from", ownerDID)
-	createTestScene(t, handlers.sceneRepo, "scene-to", "did:plc:other")
+	createTestScene(t, fx.sceneRepo, "scene-from", ownerDID)
+	createTestScene(t, fx.sceneRepo, "scene-to", "did:plc:other")
 
 	testAlliance := &alliance.Alliance{
 		ID:          "test-alliance-id",
@@ -476,7 +490,7 @@ func TestDeleteAlliance_ExcludedFromGet(t *testing.T) {
 		Weight:      0.5,
 		Status:      "active",
 	}
-	if err := handlers.allianceRepo.Insert(testAlliance); err != nil {
+	if err := fx.allianceRepo.Insert(testAlliance); err != nil {
 		t.Fatalf("failed to create test alliance: %v", err)
 	}
 
@@ -485,7 +499,7 @@ func TestDeleteAlliance_ExcludedFromGet(t *testing.T) {
 	ctx := middleware.SetUserDID(deleteReq.Context(), ownerDID)
 	deleteReq = deleteReq.WithContext(ctx)
 	deleteW := httptest.NewRecorder()
-	handlers.DeleteAlliance(deleteW, deleteReq)
+	fx.handlers.DeleteAlliance(deleteW, deleteReq)
 
 	if deleteW.Code != http.StatusNoContent {
 		t.Fatalf("delete failed: %d", deleteW.Code)
@@ -494,7 +508,7 @@ func TestDeleteAlliance_ExcludedFromGet(t *testing.T) {
 	// Try to get the deleted alliance
 	getReq := httptest.NewRequest(http.MethodGet, "/alliances/test-alliance-id", nil)
 	getW := httptest.NewRecorder()
-	handlers.GetAlliance(getW, getReq)
+	fx.handlers.GetAlliance(getW, getReq)
 
 	if getW.Code != http.StatusNotFound {
 		t.Errorf("expected status 404 for deleted alliance, got %d", getW.Code)
@@ -512,11 +526,11 @@ func TestDeleteAlliance_ExcludedFromGet(t *testing.T) {
 
 // TestDeleteAlliance_AlreadyDeleted tests deleting an already deleted alliance.
 func TestDeleteAlliance_AlreadyDeleted(t *testing.T) {
-	handlers := newTestAllianceHandlers()
+	fx := newTestAllianceFixtures()
 
 	ownerDID := "did:plc:owner123"
-	createTestScene(t, handlers.sceneRepo, "scene-from", ownerDID)
-	createTestScene(t, handlers.sceneRepo, "scene-to", "did:plc:other")
+	createTestScene(t, fx.sceneRepo, "scene-from", ownerDID)
+	createTestScene(t, fx.sceneRepo, "scene-to", "did:plc:other")
 
 	testAlliance := &alliance.Alliance{
 		ID:          "test-alliance-id",
@@ -525,7 +539,7 @@ func TestDeleteAlliance_AlreadyDeleted(t *testing.T) {
 		Weight:      0.5,
 		Status:      "active",
 	}
-	if err := handlers.allianceRepo.Insert(testAlliance); err != nil {
+	if err := fx.allianceRepo.Insert(testAlliance); err != nil {
 		t.Fatalf("failed to create test alliance: %v", err)
 	}
 
@@ -534,7 +548,7 @@ func TestDeleteAlliance_AlreadyDeleted(t *testing.T) {
 	ctx1 := middleware.SetUserDID(req1.Context(), ownerDID)
 	req1 = req1.WithContext(ctx1)
 	w1 := httptest.NewRecorder()
-	handlers.DeleteAlliance(w1, req1)
+	fx.handlers.DeleteAlliance(w1, req1)
 
 	if w1.Code != http.StatusNoContent {
 		t.Fatalf("first deletion should succeed with 204, got %d", w1.Code)
@@ -545,7 +559,7 @@ func TestDeleteAlliance_AlreadyDeleted(t *testing.T) {
 	ctx2 := middleware.SetUserDID(req2.Context(), ownerDID)
 	req2 = req2.WithContext(ctx2)
 	w2 := httptest.NewRecorder()
-	handlers.DeleteAlliance(w2, req2)
+	fx.handlers.DeleteAlliance(w2, req2)
 
 	if w2.Code != http.StatusNotFound {
 		t.Errorf("expected status 404 when deleting already deleted alliance, got %d", w2.Code)
@@ -563,7 +577,7 @@ func TestDeleteAlliance_AlreadyDeleted(t *testing.T) {
 
 // TestCreateAlliance_Unauthenticated tests alliance creation without authentication.
 func TestCreateAlliance_Unauthenticated(t *testing.T) {
-	handlers := newTestAllianceHandlers()
+	fx := newTestAllianceFixtures()
 
 	reqBody := CreateAllianceRequest{
 		FromSceneID: "scene-from",
@@ -576,7 +590,7 @@ func TestCreateAlliance_Unauthenticated(t *testing.T) {
 	// No user DID set in context
 
 	w := httptest.NewRecorder()
-	handlers.CreateAlliance(w, req)
+	fx.handlers.CreateAlliance(w, req)
 
 	if w.Code != http.StatusUnauthorized {
 		t.Errorf("expected status 401, got %d", w.Code)
@@ -604,11 +618,11 @@ func TestUpdateAlliance_InvalidWeight(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			handlers := newTestAllianceHandlers()
+			fx := newTestAllianceFixtures()
 
 			ownerDID := "did:plc:owner123"
-			createTestScene(t, handlers.sceneRepo, "scene-from", ownerDID)
-			createTestScene(t, handlers.sceneRepo, "scene-to", "did:plc:other")
+			createTestScene(t, fx.sceneRepo, "scene-from", ownerDID)
+			createTestScene(t, fx.sceneRepo, "scene-to", "did:plc:other")
 
 			testAlliance := &alliance.Alliance{
 				ID:          "test-alliance-id",
@@ -617,7 +631,7 @@ func TestUpdateAlliance_InvalidWeight(t *testing.T) {
 				Weight:      0.5,
 				Status:      "active",
 			}
-			if err := handlers.allianceRepo.Insert(testAlliance); err != nil {
+			if err := fx.allianceRepo.Insert(testAlliance); err != nil {
 				t.Fatalf("failed to create test alliance: %v", err)
 			}
 
@@ -631,7 +645,7 @@ func TestUpdateAlliance_InvalidWeight(t *testing.T) {
 			req = req.WithContext(ctx)
 
 			w := httptest.NewRecorder()
-			handlers.UpdateAlliance(w, req)
+			fx.handlers.UpdateAlliance(w, req)
 
 			if w.Code != http.StatusBadRequest {
 				t.Errorf("expected status 400, got %d", w.Code)
@@ -651,11 +665,11 @@ func TestUpdateAlliance_InvalidWeight(t *testing.T) {
 
 // TestUpdateAlliance_ReasonTooLong tests alliance update with reason exceeding max length.
 func TestUpdateAlliance_ReasonTooLong(t *testing.T) {
-	handlers := newTestAllianceHandlers()
+	fx := newTestAllianceFixtures()
 
 	ownerDID := "did:plc:owner123"
-	createTestScene(t, handlers.sceneRepo, "scene-from", ownerDID)
-	createTestScene(t, handlers.sceneRepo, "scene-to", "did:plc:other")
+	createTestScene(t, fx.sceneRepo, "scene-from", ownerDID)
+	createTestScene(t, fx.sceneRepo, "scene-to", "did:plc:other")
 
 	testAlliance := &alliance.Alliance{
 		ID:          "test-alliance-id",
@@ -664,12 +678,12 @@ func TestUpdateAlliance_ReasonTooLong(t *testing.T) {
 		Weight:      0.5,
 		Status:      "active",
 	}
-	if err := handlers.allianceRepo.Insert(testAlliance); err != nil {
+	if err := fx.allianceRepo.Insert(testAlliance); err != nil {
 		t.Fatalf("failed to create test alliance: %v", err)
 	}
 
 	// Create reason longer than 256 characters
-	longReason := strings.Repeat("a", MaxReasonLength+1)
+	longReason := strings.Repeat("a", alliance.MaxReasonLength+1)
 
 	reqBody := UpdateAllianceRequest{
 		Reason: &longReason,
@@ -681,7 +695,7 @@ func TestUpdateAlliance_ReasonTooLong(t *testing.T) {
 	req = req.WithContext(ctx)
 
 	w := httptest.NewRecorder()
-	handlers.UpdateAlliance(w, req)
+	fx.handlers.UpdateAlliance(w, req)
 
 	if w.Code != http.StatusBadRequest {
 		t.Errorf("expected status 400, got %d", w.Code)
@@ -699,11 +713,11 @@ func TestUpdateAlliance_ReasonTooLong(t *testing.T) {
 
 // TestGetAlliance_NotFound tests retrieving a non-existent alliance.
 func TestGetAlliance_NotFound(t *testing.T) {
-	handlers := newTestAllianceHandlers()
+	fx := newTestAllianceFixtures()
 
 	req := httptest.NewRequest(http.MethodGet, "/alliances/nonexistent-id", nil)
 	w := httptest.NewRecorder()
-	handlers.GetAlliance(w, req)
+	fx.handlers.GetAlliance(w, req)
 
 	if w.Code != http.StatusNotFound {
 		t.Errorf("expected status 404, got %d", w.Code)

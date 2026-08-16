@@ -928,3 +928,55 @@ func matchesPostType(p *post.Post, postType string) bool {
 		return true // Unknown type, include by default
 	}
 }
+
+// RegisterSearchRoutes registers all search-related routes on the given mux.
+func RegisterSearchRoutes(mux *http.ServeMux, deps *RouteDeps, h *SearchHandlers, eventH *EventHandlers) {
+	searchLimit := middleware.RateLimitConfig{
+		RequestsPerWindow: 100,
+		WindowDuration:    time.Minute,
+	}
+
+	searchEventsHandler := deps.RateLimit(func(w http.ResponseWriter, r *http.Request) {
+		switch r.Method {
+		case http.MethodGet:
+			eventH.SearchEvents(w, r)
+		default:
+			ctx := middleware.SetErrorCode(r.Context(), ErrCodeBadRequest)
+			WriteError(w, ctx, http.StatusMethodNotAllowed, ErrCodeBadRequest, "Method not allowed")
+		}
+	}, searchLimit, middleware.UserKeyFunc())
+	mux.Handle("/search/events", searchEventsHandler)
+
+	searchScenesHandler := deps.RateLimit(func(w http.ResponseWriter, r *http.Request) {
+		switch r.Method {
+		case http.MethodGet:
+			h.SearchScenes(w, r)
+		default:
+			ctx := middleware.SetErrorCode(r.Context(), ErrCodeBadRequest)
+			WriteError(w, ctx, http.StatusMethodNotAllowed, ErrCodeBadRequest, "Method not allowed")
+		}
+	}, searchLimit, middleware.UserKeyFunc())
+	mux.Handle("/search/scenes", searchScenesHandler)
+
+	searchPostsHandler := deps.RateLimit(func(w http.ResponseWriter, r *http.Request) {
+		switch r.Method {
+		case http.MethodGet:
+			h.SearchPosts(w, r)
+		default:
+			ctx := middleware.SetErrorCode(r.Context(), ErrCodeBadRequest)
+			WriteError(w, ctx, http.StatusMethodNotAllowed, ErrCodeBadRequest, "Method not allowed")
+		}
+	}, searchLimit, middleware.UserKeyFunc())
+	mux.Handle("/search/posts", searchPostsHandler)
+
+	searchGlobalHandler := deps.RateLimit(func(w http.ResponseWriter, r *http.Request) {
+		switch r.Method {
+		case http.MethodGet:
+			h.SearchGlobal(w, r)
+		default:
+			ctx := middleware.SetErrorCode(r.Context(), ErrCodeBadRequest)
+			WriteError(w, ctx, http.StatusMethodNotAllowed, ErrCodeBadRequest, "Method not allowed")
+		}
+	}, searchLimit, middleware.UserKeyFunc())
+	mux.Handle("/search/global", searchGlobalHandler)
+}

@@ -75,18 +75,12 @@ func (h *ATProtoOAuthHandlers) Publish(w http.ResponseWriter, r *http.Request) {
 	}
 	result, err := h.service.PublishEntity(r.Context(), userID, request.EntityType, request.EntityID, request.SwapCID)
 	if err != nil {
-		status, code, message := http.StatusBadRequest, "atproto_publication_failed", err.Error()
-		switch {
-		case errors.Is(err, atprotocol.ErrPublicationScope):
-			status, code, message = http.StatusPreconditionRequired, "atproto_scope_upgrade_required", "AT Protocol publishing permission is required"
-		case errors.Is(err, atprotocol.ErrEntityForbidden):
-			status, code, message = http.StatusForbidden, ErrCodeForbidden, "Entity is not owned by the authenticated creator"
-		case errors.Is(err, atprotocol.ErrRecordConflict):
-			status, code, message = http.StatusConflict, "atproto_record_conflict", "The PDS record changed; reload it before publishing"
-		case errors.Is(err, atprotocol.ErrOAuthSessionNotFound):
-			status, code, message = http.StatusPreconditionRequired, "atproto_link_required", "Link an AT Protocol account before publishing"
+		status, code, message, ok := MapDomainError(err)
+		if ok {
+			WriteError(w, r.Context(), status, code, message)
+		} else {
+			WriteError(w, r.Context(), http.StatusInternalServerError, ErrCodeInternal, "An internal error occurred")
 		}
-		WriteError(w, r.Context(), status, code, message)
 		return
 	}
 	writeData(w, http.StatusAccepted, result)
@@ -105,12 +99,12 @@ func (h *ATProtoOAuthHandlers) Projection(w http.ResponseWriter, r *http.Request
 		return
 	}
 	mapping, err := h.service.Projection(r.Context(), uri)
-	if errors.Is(err, atprotocol.ErrOAuthRequestNotFound) {
-		WriteError(w, r.Context(), http.StatusNotFound, ErrCodeNotFound, "Projection not found")
-		return
-	}
 	if err != nil {
-		WriteError(w, r.Context(), http.StatusInternalServerError, ErrCodeInternal, "Could not load projection state")
+		if status, code, message, ok := MapDomainError(err); ok {
+			WriteError(w, r.Context(), status, code, message)
+		} else {
+			WriteError(w, r.Context(), http.StatusInternalServerError, ErrCodeInternal, "Could not load projection state")
+		}
 		return
 	}
 	writeData(w, http.StatusOK, mapping)
@@ -155,18 +149,12 @@ func (h *ATProtoOAuthHandlers) Provision(w http.ResponseWriter, r *http.Request)
 		}
 		result, err := h.provisioning.Provision(r.Context(), userID, request.Handle, request.TurnstileToken, clientAddress(r))
 		if err != nil {
-			status := http.StatusBadRequest
-			code := "atproto_provisioning_failed"
-			if errors.Is(err, atprotocol.ErrProvisioningDisabled) {
-				status, code = http.StatusServiceUnavailable, "atproto_provisioning_disabled"
-			} else if errors.Is(err, atprotocol.ErrProvisioningLimit) {
-				status, code = http.StatusTooManyRequests, "atproto_provisioning_limited"
-			} else if errors.Is(err, atprotocol.ErrProvisioningConflict) {
-				status, code = http.StatusConflict, "atproto_provisioning_conflict"
-			} else if errors.Is(err, atprotocol.ErrEmailVerificationRequired) {
-				status, code = http.StatusForbidden, "verified_email_required"
+			status, code, message, ok := MapDomainError(err)
+			if ok {
+				WriteError(w, r.Context(), status, code, message)
+			} else {
+				WriteError(w, r.Context(), http.StatusInternalServerError, ErrCodeInternal, "An internal error occurred")
 			}
-			WriteError(w, r.Context(), status, code, err.Error())
 			return
 		}
 		writeData(w, http.StatusCreated, result)

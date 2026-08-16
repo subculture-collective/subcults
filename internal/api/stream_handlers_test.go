@@ -15,8 +15,23 @@ import (
 	"github.com/onnwee/subcults/internal/stream"
 )
 
-// Helper functions
+// Helper to create a StreamHandlers instance with default in-memory repos.
+func newTestHandlers(
+	streamRepo stream.SessionRepository,
+	participantRepo stream.ParticipantRepository,
+	analyticsRepo stream.AnalyticsRepository,
+	sceneRepo scene.SceneRepository,
+	eventRepo scene.EventRepository,
+	auditRepo audit.Repository,
+	streamMetrics *stream.Metrics,
+	eventBroadcaster *stream.EventBroadcaster,
+	roomService interface{},
+) *StreamHandlers {
+	svc := stream.NewService(streamRepo, participantRepo, analyticsRepo, streamMetrics)
+	return NewStreamHandlers(svc, sceneRepo, eventRepo, auditRepo, streamMetrics, eventBroadcaster, nil)
+}
 
+// ptrString returns a pointer to the given string.
 func ptrString(s string) *string {
 	return &s
 }
@@ -27,7 +42,7 @@ func TestCreateStream_Success_WithSceneID(t *testing.T) {
 	sceneRepo := scene.NewInMemorySceneRepository()
 	eventRepo := scene.NewInMemoryEventRepository()
 	auditRepo := audit.NewInMemoryRepository()
-	handlers := NewStreamHandlers(streamRepo, nil, nil, sceneRepo, eventRepo, auditRepo, nil, nil, nil)
+	handlers := newTestHandlers(streamRepo, nil, nil, sceneRepo, eventRepo, auditRepo, nil, nil, nil)
 
 	// Create a scene first
 	testScene := &scene.Scene{
@@ -90,7 +105,7 @@ func TestCreateStream_Success_WithEventID(t *testing.T) {
 	sceneRepo := scene.NewInMemorySceneRepository()
 	eventRepo := scene.NewInMemoryEventRepository()
 	auditRepo := audit.NewInMemoryRepository()
-	handlers := NewStreamHandlers(streamRepo, nil, nil, sceneRepo, eventRepo, auditRepo, nil, nil, nil)
+	handlers := newTestHandlers(streamRepo, nil, nil, sceneRepo, eventRepo, auditRepo, nil, nil, nil)
 
 	// Create a scene and event
 	testScene := &scene.Scene{
@@ -154,7 +169,7 @@ func TestCreateStream_NoSceneOrEvent(t *testing.T) {
 	sceneRepo := scene.NewInMemorySceneRepository()
 	eventRepo := scene.NewInMemoryEventRepository()
 	auditRepo := audit.NewInMemoryRepository()
-	handlers := NewStreamHandlers(streamRepo, nil, nil, sceneRepo, eventRepo, auditRepo, nil, nil, nil)
+	handlers := newTestHandlers(streamRepo, nil, nil, sceneRepo, eventRepo, auditRepo, nil, nil, nil)
 
 	reqBody := CreateStreamRequest{}
 
@@ -182,7 +197,7 @@ func TestCreateStream_BothSceneAndEvent(t *testing.T) {
 	sceneRepo := scene.NewInMemorySceneRepository()
 	eventRepo := scene.NewInMemoryEventRepository()
 	auditRepo := audit.NewInMemoryRepository()
-	handlers := NewStreamHandlers(streamRepo, nil, nil, sceneRepo, eventRepo, auditRepo, nil, nil, nil)
+	handlers := newTestHandlers(streamRepo, nil, nil, sceneRepo, eventRepo, auditRepo, nil, nil, nil)
 
 	// Create a scene and event
 	testScene := &scene.Scene{
@@ -248,7 +263,7 @@ func TestCreateStream_Forbidden_NotSceneOwner(t *testing.T) {
 	sceneRepo := scene.NewInMemorySceneRepository()
 	eventRepo := scene.NewInMemoryEventRepository()
 	auditRepo := audit.NewInMemoryRepository()
-	handlers := NewStreamHandlers(streamRepo, nil, nil, sceneRepo, eventRepo, auditRepo, nil, nil, nil)
+	handlers := newTestHandlers(streamRepo, nil, nil, sceneRepo, eventRepo, auditRepo, nil, nil, nil)
 
 	// Create a scene owned by someone else
 	testScene := &scene.Scene{
@@ -291,7 +306,7 @@ func TestCreateStream_Forbidden_NotEventHost(t *testing.T) {
 	sceneRepo := scene.NewInMemorySceneRepository()
 	eventRepo := scene.NewInMemoryEventRepository()
 	auditRepo := audit.NewInMemoryRepository()
-	handlers := NewStreamHandlers(streamRepo, nil, nil, sceneRepo, eventRepo, auditRepo, nil, nil, nil)
+	handlers := newTestHandlers(streamRepo, nil, nil, sceneRepo, eventRepo, auditRepo, nil, nil, nil)
 
 	// Create a scene and event owned by someone else
 	testScene := &scene.Scene{
@@ -347,7 +362,7 @@ func TestEndStream_Success(t *testing.T) {
 	sceneRepo := scene.NewInMemorySceneRepository()
 	eventRepo := scene.NewInMemoryEventRepository()
 	auditRepo := audit.NewInMemoryRepository()
-	handlers := NewStreamHandlers(streamRepo, nil, nil, sceneRepo, eventRepo, auditRepo, nil, nil, nil)
+	handlers := newTestHandlers(streamRepo, nil, nil, sceneRepo, eventRepo, auditRepo, nil, nil, nil)
 
 	// Create a stream session
 	sceneID := "scene-123"
@@ -393,7 +408,7 @@ func TestEndStream_Forbidden_NotHost(t *testing.T) {
 	sceneRepo := scene.NewInMemorySceneRepository()
 	eventRepo := scene.NewInMemoryEventRepository()
 	auditRepo := audit.NewInMemoryRepository()
-	handlers := NewStreamHandlers(streamRepo, nil, nil, sceneRepo, eventRepo, auditRepo, nil, nil, nil)
+	handlers := newTestHandlers(streamRepo, nil, nil, sceneRepo, eventRepo, auditRepo, nil, nil, nil)
 
 	// Create a stream session
 	sceneID := "scene-123"
@@ -431,7 +446,7 @@ func TestEndStream_NotFound(t *testing.T) {
 	sceneRepo := scene.NewInMemorySceneRepository()
 	eventRepo := scene.NewInMemoryEventRepository()
 	auditRepo := audit.NewInMemoryRepository()
-	handlers := NewStreamHandlers(streamRepo, nil, nil, sceneRepo, eventRepo, auditRepo, nil, nil, nil)
+	handlers := newTestHandlers(streamRepo, nil, nil, sceneRepo, eventRepo, auditRepo, nil, nil, nil)
 
 	req := httptest.NewRequest(http.MethodPost, "/streams/nonexistent-id/end", nil)
 	ctx := middleware.SetUserDID(req.Context(), "did:plc:test123")
@@ -451,7 +466,7 @@ func TestEndStream_Idempotent(t *testing.T) {
 	sceneRepo := scene.NewInMemorySceneRepository()
 	eventRepo := scene.NewInMemoryEventRepository()
 	auditRepo := audit.NewInMemoryRepository()
-	handlers := NewStreamHandlers(streamRepo, nil, nil, sceneRepo, eventRepo, auditRepo, nil, nil, nil)
+	handlers := newTestHandlers(streamRepo, nil, nil, sceneRepo, eventRepo, auditRepo, nil, nil, nil)
 
 	// Create and end a stream session
 	sceneID := "scene-123"
@@ -491,7 +506,7 @@ func TestJoinStream_Success(t *testing.T) {
 	eventRepo := scene.NewInMemoryEventRepository()
 	auditRepo := audit.NewInMemoryRepository()
 	streamMetrics := stream.NewMetrics()
-	handlers := NewStreamHandlers(streamRepo, nil, nil, sceneRepo, eventRepo, auditRepo, streamMetrics, nil, nil)
+	handlers := newTestHandlers(streamRepo, nil, nil, sceneRepo, eventRepo, auditRepo, streamMetrics, nil, nil)
 
 	// Create a scene and stream session first
 	testScene := &scene.Scene{
@@ -566,7 +581,7 @@ func TestJoinStream_NotFound(t *testing.T) {
 	eventRepo := scene.NewInMemoryEventRepository()
 	auditRepo := audit.NewInMemoryRepository()
 	streamMetrics := stream.NewMetrics()
-	handlers := NewStreamHandlers(streamRepo, nil, nil, sceneRepo, eventRepo, auditRepo, streamMetrics, nil, nil)
+	handlers := newTestHandlers(streamRepo, nil, nil, sceneRepo, eventRepo, auditRepo, streamMetrics, nil, nil)
 
 	req := httptest.NewRequest(http.MethodPost, "/streams/nonexistent-id/join", nil)
 	ctx := middleware.SetUserDID(req.Context(), "did:plc:test123")
@@ -587,7 +602,7 @@ func TestJoinStream_Unauthorized(t *testing.T) {
 	eventRepo := scene.NewInMemoryEventRepository()
 	auditRepo := audit.NewInMemoryRepository()
 	streamMetrics := stream.NewMetrics()
-	handlers := NewStreamHandlers(streamRepo, nil, nil, sceneRepo, eventRepo, auditRepo, streamMetrics, nil, nil)
+	handlers := newTestHandlers(streamRepo, nil, nil, sceneRepo, eventRepo, auditRepo, streamMetrics, nil, nil)
 
 	req := httptest.NewRequest(http.MethodPost, "/streams/some-id/join", nil)
 	// No auth context
@@ -607,7 +622,7 @@ func TestLeaveStream_Success(t *testing.T) {
 	eventRepo := scene.NewInMemoryEventRepository()
 	auditRepo := audit.NewInMemoryRepository()
 	streamMetrics := stream.NewMetrics()
-	handlers := NewStreamHandlers(streamRepo, nil, nil, sceneRepo, eventRepo, auditRepo, streamMetrics, nil, nil)
+	handlers := newTestHandlers(streamRepo, nil, nil, sceneRepo, eventRepo, auditRepo, streamMetrics, nil, nil)
 
 	// Create a scene and stream session first
 	testScene := &scene.Scene{
@@ -670,7 +685,7 @@ func TestLeaveStream_NotFound(t *testing.T) {
 	eventRepo := scene.NewInMemoryEventRepository()
 	auditRepo := audit.NewInMemoryRepository()
 	streamMetrics := stream.NewMetrics()
-	handlers := NewStreamHandlers(streamRepo, nil, nil, sceneRepo, eventRepo, auditRepo, streamMetrics, nil, nil)
+	handlers := newTestHandlers(streamRepo, nil, nil, sceneRepo, eventRepo, auditRepo, streamMetrics, nil, nil)
 
 	req := httptest.NewRequest(http.MethodPost, "/streams/nonexistent-id/leave", nil)
 	ctx := middleware.SetUserDID(req.Context(), "did:plc:test123")
@@ -691,7 +706,7 @@ func TestJoinLeave_Multiple(t *testing.T) {
 	eventRepo := scene.NewInMemoryEventRepository()
 	auditRepo := audit.NewInMemoryRepository()
 	streamMetrics := stream.NewMetrics()
-	handlers := NewStreamHandlers(streamRepo, nil, nil, sceneRepo, eventRepo, auditRepo, streamMetrics, nil, nil)
+	handlers := newTestHandlers(streamRepo, nil, nil, sceneRepo, eventRepo, auditRepo, streamMetrics, nil, nil)
 
 	// Create a scene and stream session first
 	testScene := &scene.Scene{
@@ -754,7 +769,7 @@ func TestJoinStream_WithNilMetrics(t *testing.T) {
 	eventRepo := scene.NewInMemoryEventRepository()
 	auditRepo := audit.NewInMemoryRepository()
 	// Pass nil for metrics to test the nil check path
-	handlers := NewStreamHandlers(streamRepo, nil, nil, sceneRepo, eventRepo, auditRepo, nil, nil, nil)
+	handlers := newTestHandlers(streamRepo, nil, nil, sceneRepo, eventRepo, auditRepo, nil, nil, nil)
 
 	// Create a scene and stream session first
 	testScene := &scene.Scene{
@@ -820,7 +835,7 @@ func TestGetStream_Success(t *testing.T) {
 	sceneRepo := scene.NewInMemorySceneRepository()
 	eventRepo := scene.NewInMemoryEventRepository()
 	auditRepo := audit.NewInMemoryRepository()
-	handlers := NewStreamHandlers(streamRepo, nil, nil, sceneRepo, eventRepo, auditRepo, nil, nil, nil)
+	handlers := newTestHandlers(streamRepo, nil, nil, sceneRepo, eventRepo, auditRepo, nil, nil, nil)
 
 	// Create a scene first
 	testScene := &scene.Scene{
@@ -875,7 +890,7 @@ func TestGetStream_NotFound(t *testing.T) {
 	sceneRepo := scene.NewInMemorySceneRepository()
 	eventRepo := scene.NewInMemoryEventRepository()
 	auditRepo := audit.NewInMemoryRepository()
-	handlers := NewStreamHandlers(streamRepo, nil, nil, sceneRepo, eventRepo, auditRepo, nil, nil, nil)
+	handlers := newTestHandlers(streamRepo, nil, nil, sceneRepo, eventRepo, auditRepo, nil, nil, nil)
 
 	req := httptest.NewRequest(http.MethodGet, "/streams/"+uuid.New().String(), nil)
 	ctx := middleware.SetUserDID(req.Context(), "did:plc:test123")
@@ -895,7 +910,7 @@ func TestGetStream_Unauthorized(t *testing.T) {
 	sceneRepo := scene.NewInMemorySceneRepository()
 	eventRepo := scene.NewInMemoryEventRepository()
 	auditRepo := audit.NewInMemoryRepository()
-	handlers := NewStreamHandlers(streamRepo, nil, nil, sceneRepo, eventRepo, auditRepo, nil, nil, nil)
+	handlers := newTestHandlers(streamRepo, nil, nil, sceneRepo, eventRepo, auditRepo, nil, nil, nil)
 
 	req := httptest.NewRequest(http.MethodGet, "/streams/"+uuid.New().String(), nil)
 	w := httptest.NewRecorder()
@@ -913,7 +928,7 @@ func TestUpdateStream_Success(t *testing.T) {
 	sceneRepo := scene.NewInMemorySceneRepository()
 	eventRepo := scene.NewInMemoryEventRepository()
 	auditRepo := audit.NewInMemoryRepository()
-	handlers := NewStreamHandlers(streamRepo, nil, nil, sceneRepo, eventRepo, auditRepo, nil, nil, nil)
+	handlers := newTestHandlers(streamRepo, nil, nil, sceneRepo, eventRepo, auditRepo, nil, nil, nil)
 
 	// Create a scene first
 	testScene := &scene.Scene{
@@ -973,7 +988,7 @@ func TestUpdateStream_Forbidden(t *testing.T) {
 	sceneRepo := scene.NewInMemorySceneRepository()
 	eventRepo := scene.NewInMemoryEventRepository()
 	auditRepo := audit.NewInMemoryRepository()
-	handlers := NewStreamHandlers(streamRepo, nil, nil, sceneRepo, eventRepo, auditRepo, nil, nil, nil)
+	handlers := newTestHandlers(streamRepo, nil, nil, sceneRepo, eventRepo, auditRepo, nil, nil, nil)
 
 	// Create a scene first
 	testScene := &scene.Scene{
@@ -1023,7 +1038,7 @@ func TestCreateStream_ConcurrentStartPrevention_Scene(t *testing.T) {
 	sceneRepo := scene.NewInMemorySceneRepository()
 	eventRepo := scene.NewInMemoryEventRepository()
 	auditRepo := audit.NewInMemoryRepository()
-	handlers := NewStreamHandlers(streamRepo, nil, nil, sceneRepo, eventRepo, auditRepo, nil, nil, nil)
+	handlers := newTestHandlers(streamRepo, nil, nil, sceneRepo, eventRepo, auditRepo, nil, nil, nil)
 
 	// Create a scene first
 	testScene := &scene.Scene{
@@ -1072,7 +1087,7 @@ func TestCreateStream_ConcurrentStartPrevention_Event(t *testing.T) {
 	sceneRepo := scene.NewInMemorySceneRepository()
 	eventRepo := scene.NewInMemoryEventRepository()
 	auditRepo := audit.NewInMemoryRepository()
-	handlers := NewStreamHandlers(streamRepo, nil, nil, sceneRepo, eventRepo, auditRepo, nil, nil, nil)
+	handlers := newTestHandlers(streamRepo, nil, nil, sceneRepo, eventRepo, auditRepo, nil, nil, nil)
 
 	// Create a scene and event
 	testScene := &scene.Scene{

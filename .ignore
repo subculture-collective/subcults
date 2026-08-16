@@ -1,0 +1,6 @@
+# BEGIN Blacktower worktrees
+!.blacktower/
+!.blacktower/worktrees.json
+!.blacktower/worktrees/
+!.blacktower/worktrees/**
+# END Blacktower worktrees

@@ -129,3 +129,8 @@ ehthumbs.db
 
 # Linux
 .directory
+
+# BEGIN Blacktower worktrees
+.blacktower/worktrees/
+.blacktower/worktrees.json
+# END Blacktower worktrees

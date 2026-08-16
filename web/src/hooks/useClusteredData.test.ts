@@ -45,7 +45,11 @@ describe('useClusteredData', () => {
       scene_id: 'scene1',
       name: 'Test Event',
       allow_precise: true,
-      precise_point: { lat: 37.7849, lng: -122.4094 },
+      occurrence: {
+        coarse_geohash: '9q8yy',
+        display_point: { lat: 37.7849, lng: -122.4094 },
+        precision: 'precise',
+      },
     },
   ];
 

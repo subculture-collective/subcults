@@ -2,7 +2,6 @@ package api
 
 import (
 	"encoding/json"
-	"errors"
 	"net/http"
 	"strings"
 	"time"
@@ -236,8 +235,9 @@ func signalPathID(path string) string {
 	return strings.Trim(strings.TrimPrefix(path, "/signals/"), "/")
 }
 func writeSignalServiceError(w http.ResponseWriter, r *http.Request, err error) {
-	if errors.Is(err, signal.ErrSignalNotFound) || errors.Is(err, signal.ErrRevisionNotFound) {
-		writeSignalError(w, r, http.StatusNotFound, ErrCodeNotFound, "signal not found")
+	if status, code, message, ok := MapDomainError(err); ok {
+		ctx := middleware.SetErrorCode(r.Context(), code)
+		WriteError(w, ctx, status, code, message)
 		return
 	}
 	writeSignalError(w, r, http.StatusBadRequest, ErrCodeValidation, "invalid signal")
@@ -250,4 +250,35 @@ func writeJSON(w http.ResponseWriter, status int, value any) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
 	_ = json.NewEncoder(w).Encode(value)
+}
+
+// RegisterSignalRoutes registers all signal-related routes on the given mux.
+func RegisterSignalRoutes(mux *http.ServeMux, deps *RouteDeps, h *SignalHandlers) {
+	registerPrefix := func(prefix string) {
+		mux.HandleFunc(prefix, func(w http.ResponseWriter, r *http.Request) {
+			if r.Method == http.MethodPost {
+				h.CreateDraft(w, r)
+				return
+			}
+			ctx := middleware.SetErrorCode(r.Context(), ErrCodeBadRequest)
+			WriteError(w, ctx, http.StatusMethodNotAllowed, ErrCodeBadRequest, "Method not allowed")
+		})
+		mux.HandleFunc(prefix+"/", func(w http.ResponseWriter, r *http.Request) {
+			if strings.HasSuffix(strings.TrimRight(r.URL.Path, "/"), "/publish") && r.Method == http.MethodPost {
+				h.Publish(w, r)
+				return
+			}
+			if r.Method == http.MethodGet {
+				h.Get(w, r)
+				return
+			}
+			ctx := middleware.SetErrorCode(r.Context(), ErrCodeBadRequest)
+			WriteError(w, ctx, http.StatusMethodNotAllowed, ErrCodeBadRequest, "Method not allowed")
+		})
+	}
+	registerPrefix("/signals")
+	registerPrefix("/api/signals")
+
+	mux.HandleFunc("/audience/consent", h.MutateConsent)
+	mux.HandleFunc("/api/audience/consent", h.MutateConsent)
 }

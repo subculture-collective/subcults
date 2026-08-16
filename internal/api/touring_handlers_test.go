@@ -16,7 +16,7 @@ import (
 func TestStudioTouringMutationFlow(t *testing.T) {
 	repository := touring.NewInMemoryRepository()
 	events := scene.NewInMemoryEventRepository()
-	handler := NewTouringHandlers(repository, events, scene.NewInMemorySceneRepository())
+	handler := NewTouringHandlers(touring.NewService(repository), events, scene.NewInMemorySceneRepository())
 
 	profileBody := []byte(`{"kind":"artist","canonical_name":"Signal Unit","visibility":"public"}`)
 	profileResponse := httptest.NewRecorder()
@@ -46,7 +46,7 @@ func TestStudioTouringStaleUpdateReturnsConflict(t *testing.T) {
 	repository := touring.NewInMemoryRepository()
 	profile := touring.Profile{ID: "profile-versioned", Kind: "artist", CanonicalName: "Versioned", Visibility: "public", Version: 1}
 	if err := repository.StoreProfile(profile); err != nil { t.Fatal(err) }
-	handler := NewTouringHandlers(repository, scene.NewInMemoryEventRepository(), scene.NewInMemorySceneRepository())
+	handler := NewTouringHandlers(touring.NewService(repository), scene.NewInMemoryEventRepository(), scene.NewInMemorySceneRepository())
 	body, _ := json.Marshal(touring.Profile{ID: profile.ID, Kind: profile.Kind, CanonicalName: "Stale", Visibility: profile.Visibility, Version: 0})
 	response := httptest.NewRecorder()
 	handler.CreateProfile(response, httptest.NewRequest(http.MethodPatch, "/api/v1/studio/profiles", bytes.NewReader(body)))
@@ -170,5 +170,5 @@ func newTouringHandlerFixture(t *testing.T, eventKind string) (*TouringHandlers,
 	if err := touringRepo.AddEventHost(touring.EventHost{EventID: event.ID, SceneID: &hostID, Role: "host"}); err != nil {
 		t.Fatalf("add host: %v", err)
 	}
-	return NewTouringHandlers(touringRepo, eventRepo, sceneRepo), tour.ID, profile.ID
+	return NewTouringHandlers(touring.NewService(touringRepo), eventRepo, sceneRepo), tour.ID, profile.ID
 }

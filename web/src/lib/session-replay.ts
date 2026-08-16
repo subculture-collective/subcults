@@ -7,7 +7,7 @@
 /**
  * Replay event types
  */
-const ReplayEventType = {
+export const ReplayEventType = {
   DOMChange: 'dom_change',
   Click: 'click',
   Navigation: 'navigation',

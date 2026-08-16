@@ -2,7 +2,6 @@
 package api
 
 import (
-	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -13,7 +12,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/onnwee/subcults/internal/audit"
 	"github.com/onnwee/subcults/internal/middleware"
 	"github.com/onnwee/subcults/internal/scene"
@@ -39,7 +37,6 @@ type CreateEventRequest struct {
 }
 
 // UpdateEventRequest represents the request body for updating an event.
-// Only includes mutable fields (scene_id is immutable).
 type UpdateEventRequest struct {
 	Version        int64        `json:"version"`
 	Title          *string      `json:"title,omitempty"`
@@ -60,16 +57,13 @@ type CancelEventRequest struct {
 
 // EventHandlers holds dependencies for event HTTP handlers.
 type EventHandlers struct {
-	eventRepo       scene.EventRepository
-	sceneRepo       scene.SceneRepository
-	auditRepo       audit.Repository
-	rsvpRepo        scene.RSVPRepository
-	streamRepo      stream.SessionRepository
-	trustScoreStore TrustScoreStore // Optional, can be nil
+	sceneService   *scene.Service
+	auditRepo      audit.Repository
+	streamRepo     stream.SessionRepository
+	trustScoreStore TrustScoreStore
 }
 
 // TrustScoreStore defines the interface for retrieving trust scores.
-// This avoids importing the trust package directly.
 type TrustScoreStore interface {
 	GetScore(sceneID string) (score *TrustScore, err error)
 }
@@ -81,14 +75,11 @@ type TrustScore struct {
 }
 
 // NewEventHandlers creates a new EventHandlers instance.
-// trustScoreStore is optional and can be nil if trust ranking is not used.
-func NewEventHandlers(eventRepo scene.EventRepository, sceneRepo scene.SceneRepository, auditRepo audit.Repository, rsvpRepo scene.RSVPRepository, streamRepo stream.SessionRepository, trustScoreStore TrustScoreStore) *EventHandlers {
+func NewEventHandlers(sceneService *scene.Service, auditRepo audit.Repository, streamRepo stream.SessionRepository, trustScoreStore TrustScoreStore) *EventHandlers {
 	return &EventHandlers{
-		eventRepo:       eventRepo,
-		sceneRepo:       sceneRepo,
-		auditRepo:       auditRepo,
-		rsvpRepo:        rsvpRepo,
-		streamRepo:      streamRepo,
+		sceneService:   sceneService,
+		auditRepo:      auditRepo,
+		streamRepo:     streamRepo,
 		trustScoreStore: trustScoreStore,
 	}
 }
@@ -103,8 +94,7 @@ type EventWithRSVPCounts struct {
 }
 
 // PublicOccurrence is the only location projection map clients should use for
-// Events. It exposes an approved display point rather than asking clients to
-// select from raw stored coordinates.
+// Events.
 type PublicOccurrence struct {
 	CoarseGeohash string       `json:"coarse_geohash"`
 	DisplayPoint  *scene.Point `json:"display_point,omitempty"`
@@ -147,13 +137,11 @@ func publicEventCopy(event *scene.Event) *scene.Event {
 }
 
 // sceneBatchFetcher is an optional repository capability for batch scene lookups.
-// SearchEvents uses this when available to reduce per-scene fetches in responses.
 type sceneBatchFetcher interface {
 	GetByIDs(ids []string) ([]*scene.Scene, error)
 }
 
-// toSceneSearchResult converts an internal scene model to a public search-safe
-// scene payload with jittered coordinates for privacy.
+// toSceneSearchResult converts an internal scene model to a public search-safe payload.
 func toSceneSearchResult(parentScene *scene.Scene) *SceneSearchResult {
 	if parentScene == nil {
 		return nil
@@ -172,18 +160,9 @@ func toSceneSearchResult(parentScene *scene.Scene) *SceneSearchResult {
 	return result
 }
 
-// validateTimeWindow validates that start time is before end time.
-// Returns error message if validation fails, empty string if valid.
-func validateTimeWindow(startsAt time.Time, endsAt *time.Time) string {
-	if endsAt != nil && !startsAt.Before(*endsAt) {
-		return "start time must be before end time"
-	}
-	return ""
-}
-
 // isSceneOwner checks if the given userDID owns the scene.
-func (h *EventHandlers) isSceneOwner(ctx context.Context, sceneID, userDID string) (bool, error) {
-	foundScene, err := h.sceneRepo.GetByID(sceneID)
+func (h *EventHandlers) isSceneOwner(sceneID, userDID string) (bool, error) {
+	foundScene, err := h.sceneService.SceneRepo().GetByID(sceneID)
 	if err != nil {
 		return false, err
 	}
@@ -199,37 +178,7 @@ func (h *EventHandlers) CreateEvent(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Validate and sanitize title
-	validatedTitle, err := validate.EventTitle(req.Title)
-	if err != nil {
-		ctx := middleware.SetErrorCode(r.Context(), ErrCodeValidation)
-		WriteError(w, ctx, http.StatusBadRequest, ErrCodeValidation, fmt.Sprintf("Invalid event title: %v", err))
-		return
-	}
-	req.Title = validatedTitle
-
-	// Validate scene_id
-	if strings.TrimSpace(req.SceneID) == "" {
-		ctx := middleware.SetErrorCode(r.Context(), ErrCodeValidation)
-		WriteError(w, ctx, http.StatusBadRequest, ErrCodeValidation, "scene_id is required")
-		return
-	}
-
-	// Validate coarse_geohash
-	if strings.TrimSpace(req.CoarseGeohash) == "" {
-		ctx := middleware.SetErrorCode(r.Context(), ErrCodeValidation)
-		WriteError(w, ctx, http.StatusBadRequest, ErrCodeValidation, "coarse_geohash is required")
-		return
-	}
-
-	// Validate time window
-	if errMsg := validateTimeWindow(req.StartsAt, req.EndsAt); errMsg != "" {
-		ctx := middleware.SetErrorCode(r.Context(), ErrCodeInvalidTimeRange)
-		WriteError(w, ctx, http.StatusBadRequest, ErrCodeInvalidTimeRange, errMsg)
-		return
-	}
-
-	// Get user DID from context (set by auth middleware)
+	// Get user DID from context
 	userDID := middleware.GetUserDID(r.Context())
 	if userDID == "" {
 		ctx := middleware.SetErrorCode(r.Context(), ErrCodeAuthFailed)
@@ -237,10 +186,10 @@ func (h *EventHandlers) CreateEvent(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Check if user is scene owner (authorization)
-	isOwner, err := h.isSceneOwner(r.Context(), req.SceneID, userDID)
+	// Check if user is scene owner
+	isOwner, err := h.isSceneOwner(req.SceneID, userDID)
 	if err != nil {
-		if err == scene.ErrSceneNotFound || err == scene.ErrSceneDeleted {
+		if errors.Is(err, scene.ErrSceneNotFound) || errors.Is(err, scene.ErrSceneDeleted) {
 			ctx := middleware.SetErrorCode(r.Context(), ErrCodeNotFound)
 			WriteError(w, ctx, http.StatusNotFound, ErrCodeNotFound, "Scene not found")
 			return
@@ -256,87 +205,42 @@ func (h *EventHandlers) CreateEvent(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Validate and sanitize description
-	validatedDesc, err := validate.Description(req.Description)
+	publicationStatus := "published"
+	if strings.Contains(r.URL.Path, "/studio/") {
+		publicationStatus = "draft"
+	}
+
+	event, err := h.sceneService.CreateEvent(
+		r.Context(),
+		req.SceneID,
+		req.Title,
+		req.Description,
+		req.CoarseGeohash,
+		req.AllowPrecise,
+		req.PrecisePoint,
+		req.Tags,
+		req.StartsAt,
+		req.EndsAt,
+		req.LocationAccess,
+		req.PlaceID,
+		req.VenueID,
+		req.Kind,
+		publicationStatus,
+	)
 	if err != nil {
-		ctx := middleware.SetErrorCode(r.Context(), ErrCodeValidation)
-		WriteError(w, ctx, http.StatusBadRequest, ErrCodeValidation, fmt.Sprintf("Invalid description: %v", err))
-		return
-	}
-	req.Description = validatedDesc
-	if req.LocationAccess == "" {
-		req.LocationAccess = "public"
-	}
-	if req.LocationAccess != "public" && req.LocationAccess != "protected" {
-		ctx := middleware.SetErrorCode(r.Context(), ErrCodeValidation)
-		WriteError(w, ctx, http.StatusBadRequest, ErrCodeValidation, "location_access must be public or protected")
+		WriteAPIError(w, r.Context(), err)
 		return
 	}
 
-	// Sanitize tags to prevent HTML injection
-	sanitizedTags := make([]string, len(req.Tags))
-	for i, tag := range req.Tags {
-		sanitizedTags[i] = validate.SanitizeHTML(tag)
-	}
-
-	// Create event
-	now := time.Now()
-	newEvent := &scene.Event{
-		ID:             uuid.New().String(),
-		SceneID:        req.SceneID,
-		Title:          req.Title,
-		Description:    req.Description,
-		AllowPrecise:   req.AllowPrecise,
-		PrecisePoint:   req.PrecisePoint,
-		CoarseGeohash:  req.CoarseGeohash,
-		Tags:           sanitizedTags,
-		Status:         "scheduled", // Default status
-		StartsAt:       req.StartsAt,
-		EndsAt:         req.EndsAt,
-		LocationAccess: req.LocationAccess,
-		PlaceID:        req.PlaceID,
-		VenueID:        req.VenueID,
-		Kind:           req.Kind,
-		CreatedAt:      &now,
-		UpdatedAt:      &now,
-		PublicationStatus: func() string {
-			if strings.Contains(r.URL.Path, "/studio/") {
-				return "draft"
-			}
-			return "published"
-		}(),
-	}
-
-	// Insert into repository (will automatically enforce location consent).
-	// If AllowPrecise is false, PrecisePoint will be cleared before storage.
-	if err := h.eventRepo.Insert(newEvent); err != nil {
-		slog.ErrorContext(r.Context(), "failed to insert event", "error", err, "event_id", newEvent.ID)
-		ctx := middleware.SetErrorCode(r.Context(), ErrCodeInternal)
-		WriteError(w, ctx, http.StatusInternalServerError, ErrCodeInternal, "Failed to create event")
-		return
-	}
-
-	// Retrieve the stored event to get privacy-enforced version
-	stored, err := h.eventRepo.GetByID(newEvent.ID)
-	if err != nil {
-		slog.ErrorContext(r.Context(), "failed to retrieve created event", "error", err, "event_id", newEvent.ID)
-		ctx := middleware.SetErrorCode(r.Context(), ErrCodeInternal)
-		WriteError(w, ctx, http.StatusInternalServerError, ErrCodeInternal, "Failed to retrieve created event")
-		return
-	}
-
-	// Return created event
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)
-	if err := json.NewEncoder(w).Encode(publicEventCopy(stored)); err != nil {
-		// Log error but response already started
+	if err := json.NewEncoder(w).Encode(publicEventCopy(event)); err != nil {
 		slog.ErrorContext(r.Context(), "failed to encode event response", "error", err)
 	}
 }
 
 // UpdateEvent handles PATCH /events/{id} - updates an existing event.
 func (h *EventHandlers) UpdateEvent(w http.ResponseWriter, r *http.Request) {
-	// Extract event ID from URL path
 	pathParts := strings.Split(strings.TrimPrefix(r.URL.Path, "/events/"), "/")
 	if len(pathParts) == 0 || pathParts[0] == "" {
 		ctx := middleware.SetErrorCode(r.Context(), ErrCodeBadRequest)
@@ -353,20 +257,13 @@ func (h *EventHandlers) UpdateEvent(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Get existing event
-	existingEvent, err := h.eventRepo.GetByID(eventID)
+	existingEvent, err := h.sceneService.EventRepo().GetByID(eventID)
 	if err != nil {
-		if err == scene.ErrEventNotFound {
-			ctx := middleware.SetErrorCode(r.Context(), ErrCodeNotFound)
-			WriteError(w, ctx, http.StatusNotFound, ErrCodeNotFound, "Event not found")
-			return
-		}
-		slog.ErrorContext(r.Context(), "failed to get event", "error", err, "event_id", eventID)
-		ctx := middleware.SetErrorCode(r.Context(), ErrCodeInternal)
-		WriteError(w, ctx, http.StatusInternalServerError, ErrCodeInternal, "Failed to retrieve event")
+		WriteAPIError(w, r.Context(), err)
 		return
 	}
 
-	// Get user DID from context (set by auth middleware)
+	// Get user DID from context
 	userDID := middleware.GetUserDID(r.Context())
 	if userDID == "" {
 		ctx := middleware.SetErrorCode(r.Context(), ErrCodeAuthFailed)
@@ -374,10 +271,10 @@ func (h *EventHandlers) UpdateEvent(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Check if user is scene owner (authorization)
-	isOwner, err := h.isSceneOwner(r.Context(), existingEvent.SceneID, userDID)
+	// Check if user is scene owner
+	isOwner, err := h.isSceneOwner(existingEvent.SceneID, userDID)
 	if err != nil {
-		if err == scene.ErrSceneNotFound || err == scene.ErrSceneDeleted {
+		if errors.Is(err, scene.ErrSceneNotFound) || errors.Is(err, scene.ErrSceneDeleted) {
 			ctx := middleware.SetErrorCode(r.Context(), ErrCodeNotFound)
 			WriteError(w, ctx, http.StatusNotFound, ErrCodeNotFound, "Scene not found")
 			return
@@ -393,135 +290,39 @@ func (h *EventHandlers) UpdateEvent(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Apply updates to existing event
-	updatedEvent := *existingEvent
-	if existingEvent.Version > 0 {
-		if req.Version == 0 {
-			WriteError(w, middleware.SetErrorCode(r.Context(), ErrCodeValidation), http.StatusBadRequest, ErrCodeValidation, "version is required")
-			return
-		}
-		updatedEvent.Version = req.Version
-	}
-
-	if req.Title != nil {
-		// Validate and sanitize title
-		validatedTitle, err := validate.EventTitle(*req.Title)
-		if err != nil {
-			ctx := middleware.SetErrorCode(r.Context(), ErrCodeValidation)
-			WriteError(w, ctx, http.StatusBadRequest, ErrCodeValidation, fmt.Sprintf("Invalid event title: %v", err))
-			return
-		}
-		updatedEvent.Title = validatedTitle
-	}
-
-	if req.Description != nil {
-		validatedDesc, err := validate.Description(*req.Description)
-		if err != nil {
-			ctx := middleware.SetErrorCode(r.Context(), ErrCodeValidation)
-			WriteError(w, ctx, http.StatusBadRequest, ErrCodeValidation, fmt.Sprintf("Invalid description: %v", err))
-			return
-		}
-		updatedEvent.Description = validatedDesc
-	}
-
-	if req.Tags != nil {
-		sanitizedTags := make([]string, len(req.Tags))
-		for i, tag := range req.Tags {
-			sanitizedTags[i] = validate.SanitizeHTML(tag)
-		}
-		updatedEvent.Tags = sanitizedTags
-	}
-
-	if req.AllowPrecise != nil {
-		updatedEvent.AllowPrecise = *req.AllowPrecise
-	}
-
-	if req.PrecisePoint != nil {
-		updatedEvent.PrecisePoint = req.PrecisePoint
-	}
-
-	if req.CoarseGeohash != nil {
-		if strings.TrimSpace(*req.CoarseGeohash) == "" {
-			ctx := middleware.SetErrorCode(r.Context(), ErrCodeValidation)
-			WriteError(w, ctx, http.StatusBadRequest, ErrCodeValidation, "coarse_geohash cannot be empty")
-			return
-		}
-		updatedEvent.CoarseGeohash = *req.CoarseGeohash
-	}
-	if req.LocationAccess != nil {
-		if *req.LocationAccess != "public" && *req.LocationAccess != "protected" {
-			ctx := middleware.SetErrorCode(r.Context(), ErrCodeValidation)
-			WriteError(w, ctx, http.StatusBadRequest, ErrCodeValidation, "location_access must be public or protected")
-			return
-		}
-		updatedEvent.LocationAccess = *req.LocationAccess
-	}
-
-	// Handle time updates with validation
-	startsAt := updatedEvent.StartsAt
-	endsAt := updatedEvent.EndsAt
-
-	if req.StartsAt != nil {
-		// Only allow updates if event is still in the future
-		if existingEvent.StartsAt.Before(time.Now()) {
-			ctx := middleware.SetErrorCode(r.Context(), ErrCodeValidation)
-			WriteError(w, ctx, http.StatusBadRequest, ErrCodeValidation, "Cannot update start time for past events")
-			return
-		}
-		startsAt = *req.StartsAt
-	}
-
-	if req.EndsAt != nil {
-		endsAt = req.EndsAt
-	}
-
-	// Validate time window after applying updates
-	if errMsg := validateTimeWindow(startsAt, endsAt); errMsg != "" {
-		ctx := middleware.SetErrorCode(r.Context(), ErrCodeInvalidTimeRange)
-		WriteError(w, ctx, http.StatusBadRequest, ErrCodeInvalidTimeRange, errMsg)
+	// Validate past-event time update restriction
+	if req.StartsAt != nil && existingEvent.StartsAt.Before(time.Now()) {
+		ctx := middleware.SetErrorCode(r.Context(), ErrCodeValidation)
+		WriteError(w, ctx, http.StatusBadRequest, ErrCodeValidation, "Cannot update start time for past events")
 		return
 	}
 
-	updatedEvent.StartsAt = startsAt
-	updatedEvent.EndsAt = endsAt
-
-	// Update timestamp
-	now := time.Now()
-	updatedEvent.UpdatedAt = &now
-
-	// Update in repository (will automatically enforce location consent)
-	if err := h.eventRepo.Update(&updatedEvent); err != nil {
-		if errors.Is(err, scene.ErrVersionConflict) {
-			WriteError(w, middleware.SetErrorCode(r.Context(), ErrCodeConflict), http.StatusConflict, ErrCodeConflict, "The event changed; refresh before saving again")
-			return
-		}
-		slog.ErrorContext(r.Context(), "failed to update event", "error", err, "event_id", eventID)
-		ctx := middleware.SetErrorCode(r.Context(), ErrCodeInternal)
-		WriteError(w, ctx, http.StatusInternalServerError, ErrCodeInternal, "Failed to update event")
-		return
-	}
-
-	// Retrieve the stored event to get privacy-enforced version
-	stored, err := h.eventRepo.GetByID(eventID)
+	updated, err := h.sceneService.UpdateEvent(r.Context(), eventID, scene.UpdateEventParams{
+		Version:        req.Version,
+		Title:          req.Title,
+		Description:    req.Description,
+		Tags:           req.Tags,
+		AllowPrecise:   req.AllowPrecise,
+		PrecisePoint:   req.PrecisePoint,
+		CoarseGeohash:  req.CoarseGeohash,
+		StartsAt:       req.StartsAt,
+		EndsAt:         req.EndsAt,
+		LocationAccess: req.LocationAccess,
+	})
 	if err != nil {
-		slog.ErrorContext(r.Context(), "failed to retrieve updated event", "error", err, "event_id", eventID)
-		ctx := middleware.SetErrorCode(r.Context(), ErrCodeInternal)
-		WriteError(w, ctx, http.StatusInternalServerError, ErrCodeInternal, "Failed to retrieve updated event")
+		WriteAPIError(w, r.Context(), err)
 		return
 	}
 
-	// Return updated event
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
-	if err := json.NewEncoder(w).Encode(publicEventCopy(stored)); err != nil {
-		// Log error but response already started
+	if err := json.NewEncoder(w).Encode(publicEventCopy(updated)); err != nil {
 		slog.ErrorContext(r.Context(), "failed to encode event response", "error", err)
 	}
 }
 
 // GetEvent handles GET /events/{id} - retrieves an event.
 func (h *EventHandlers) GetEvent(w http.ResponseWriter, r *http.Request) {
-	// Extract event ID from URL path
 	pathParts := strings.Split(strings.TrimPrefix(r.URL.Path, "/events/"), "/")
 	if len(pathParts) == 0 || pathParts[0] == "" {
 		ctx := middleware.SetErrorCode(r.Context(), ErrCodeBadRequest)
@@ -530,25 +331,15 @@ func (h *EventHandlers) GetEvent(w http.ResponseWriter, r *http.Request) {
 	}
 	eventID := pathParts[0]
 
-	// Get the event
-	foundEvent, err := h.eventRepo.GetByID(eventID)
+	// Get the event (delegates to service for GetEvent, then adds RSVP counts and active stream)
+	foundEvent, err := h.sceneService.GetEvent(r.Context(), eventID)
 	if err != nil {
-		if err == scene.ErrEventNotFound {
-			ctx := middleware.SetErrorCode(r.Context(), ErrCodeNotFound)
-			WriteError(w, ctx, http.StatusNotFound, ErrCodeNotFound, "Event not found")
-			return
-		}
-		slog.ErrorContext(r.Context(), "failed to get event", "error", err, "event_id", eventID)
-		ctx := middleware.SetErrorCode(r.Context(), ErrCodeInternal)
-		WriteError(w, ctx, http.StatusInternalServerError, ErrCodeInternal, "Failed to retrieve event")
+		WriteAPIError(w, r.Context(), err)
 		return
 	}
 
-	// Privacy enforcement is handled by the repository
-	// The repository automatically enforces location consent via EnforceLocationConsent()
-
 	// Get RSVP counts for the event
-	rsvpCounts, err := h.rsvpRepo.GetCountsByEvent(eventID)
+	rsvpCounts, err := h.sceneService.RSVPRepo().GetCountsByEvent(eventID)
 	if err != nil {
 		slog.ErrorContext(r.Context(), "failed to get RSVP counts", "error", err, "event_id", eventID)
 		ctx := middleware.SetErrorCode(r.Context(), ErrCodeInternal)
@@ -565,7 +356,6 @@ func (h *EventHandlers) GetEvent(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Create response with event, RSVP counts, and active stream
 	response := EventWithRSVPCounts{
 		Event:        publicEventCopy(foundEvent),
 		RSVPCounts:   rsvpCounts,
@@ -573,19 +363,15 @@ func (h *EventHandlers) GetEvent(w http.ResponseWriter, r *http.Request) {
 		Occurrence:   toPublicOccurrence(foundEvent),
 	}
 
-	// Return event with RSVP counts
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 	if err := json.NewEncoder(w).Encode(response); err != nil {
-		// Log error but response already started
 		slog.ErrorContext(r.Context(), "failed to encode event response", "error", err)
 	}
 }
 
 // CancelEvent handles POST /events/{id}/cancel - cancels an event.
 func (h *EventHandlers) CancelEvent(w http.ResponseWriter, r *http.Request) {
-	// Extract event ID from URL path
-	// Note: The routing layer already validates this is a /events/{id}/cancel request
 	pathParts := strings.Split(strings.TrimPrefix(r.URL.Path, "/events/"), "/")
 	if len(pathParts) == 0 || pathParts[0] == "" {
 		ctx := middleware.SetErrorCode(r.Context(), ErrCodeBadRequest)
@@ -594,36 +380,28 @@ func (h *EventHandlers) CancelEvent(w http.ResponseWriter, r *http.Request) {
 	}
 	eventID := pathParts[0]
 
-	// Parse request body (optional reason)
+	// Parse request body
 	var req CancelEventRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil && err != io.EOF {
-		// Allow empty body (io.EOF) but reject malformed JSON
 		ctx := middleware.SetErrorCode(r.Context(), ErrCodeBadRequest)
 		WriteError(w, ctx, http.StatusBadRequest, ErrCodeBadRequest, "Invalid JSON in request body")
 		return
 	}
 
-	// Sanitize reason if provided to prevent HTML injection
+	// Sanitize reason
 	if req.Reason != nil {
 		sanitized := validate.SanitizeHTML(*req.Reason)
 		req.Reason = &sanitized
 	}
 
 	// Get existing event
-	existingEvent, err := h.eventRepo.GetByID(eventID)
+	existingEvent, err := h.sceneService.EventRepo().GetByID(eventID)
 	if err != nil {
-		if err == scene.ErrEventNotFound {
-			ctx := middleware.SetErrorCode(r.Context(), ErrCodeNotFound)
-			WriteError(w, ctx, http.StatusNotFound, ErrCodeNotFound, "Event not found")
-			return
-		}
-		slog.ErrorContext(r.Context(), "failed to get event", "error", err, "event_id", eventID)
-		ctx := middleware.SetErrorCode(r.Context(), ErrCodeInternal)
-		WriteError(w, ctx, http.StatusInternalServerError, ErrCodeInternal, "Failed to retrieve event")
+		WriteAPIError(w, r.Context(), err)
 		return
 	}
 
-	// Get user DID from context (set by auth middleware)
+	// Get user DID from context
 	userDID := middleware.GetUserDID(r.Context())
 	if userDID == "" {
 		ctx := middleware.SetErrorCode(r.Context(), ErrCodeAuthFailed)
@@ -631,10 +409,10 @@ func (h *EventHandlers) CancelEvent(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Check if user is scene owner (authorization)
-	isOwner, err := h.isSceneOwner(r.Context(), existingEvent.SceneID, userDID)
+	// Check if user is scene owner
+	isOwner, err := h.isSceneOwner(existingEvent.SceneID, userDID)
 	if err != nil {
-		if err == scene.ErrSceneNotFound || err == scene.ErrSceneDeleted {
+		if errors.Is(err, scene.ErrSceneNotFound) || errors.Is(err, scene.ErrSceneDeleted) {
 			ctx := middleware.SetErrorCode(r.Context(), ErrCodeNotFound)
 			WriteError(w, ctx, http.StatusNotFound, ErrCodeNotFound, "Scene not found")
 			return
@@ -650,39 +428,29 @@ func (h *EventHandlers) CancelEvent(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Track whether event was already cancelled for audit log decision
 	alreadyCancelled := existingEvent.Status == "cancelled" && existingEvent.CancelledAt != nil
 
-	// Cancel the event (idempotent)
-	if err := h.eventRepo.Cancel(eventID, req.Reason); err != nil {
-		slog.ErrorContext(r.Context(), "failed to cancel event", "error", err, "event_id", eventID)
-		ctx := middleware.SetErrorCode(r.Context(), ErrCodeInternal)
-		WriteError(w, ctx, http.StatusInternalServerError, ErrCodeInternal, "Failed to cancel event")
+	if err := h.sceneService.CancelEvent(r.Context(), eventID, req.Reason); err != nil {
+		WriteAPIError(w, r.Context(), err)
 		return
 	}
 
-	// Emit audit log only if this was the first cancellation (not idempotent case)
+	// Emit audit log only if this was the first cancellation
 	if !alreadyCancelled {
 		if err := audit.LogAccessFromRequest(r, h.auditRepo, "event", eventID, "event_cancel", audit.OutcomeSuccess); err != nil {
 			slog.ErrorContext(r.Context(), "failed to log event cancellation", "error", err, "event_id", eventID)
-			// Don't fail the request, but log the error
 		}
 	}
 
-	// Retrieve the updated event
-	cancelledEvent, err := h.eventRepo.GetByID(eventID)
+	cancelledEvent, err := h.sceneService.EventRepo().GetByID(eventID)
 	if err != nil {
-		slog.ErrorContext(r.Context(), "failed to retrieve cancelled event", "error", err, "event_id", eventID)
-		ctx := middleware.SetErrorCode(r.Context(), ErrCodeInternal)
-		WriteError(w, ctx, http.StatusInternalServerError, ErrCodeInternal, "Failed to retrieve cancelled event")
+		WriteAPIError(w, r.Context(), err)
 		return
 	}
 
-	// Return cancelled event
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 	if err := json.NewEncoder(w).Encode(publicEventCopy(cancelledEvent)); err != nil {
-		// Log error but response already started
 		slog.ErrorContext(r.Context(), "failed to encode event response", "error", err)
 	}
 }
@@ -694,12 +462,8 @@ type SearchEventsResponse struct {
 }
 
 // SearchEvents handles GET /search/events - searches events by bbox and time range.
-// Supports optional text search (q parameter) and trust-weighted ranking.
 func (h *EventHandlers) SearchEvents(w http.ResponseWriter, r *http.Request) {
-	// Parse query parameters
 	query := r.URL.Query()
-
-	// Parse bbox (format: minLng,minLat,maxLng,maxLat)
 	bboxStr := query.Get("bbox")
 	if bboxStr == "" {
 		ctx := middleware.SetErrorCode(r.Context(), ErrCodeValidation)
@@ -761,7 +525,7 @@ func (h *EventHandlers) SearchEvents(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Parse time range (support legacy from/to and start_date/end_date aliases)
+	// Parse time range
 	fromStr := strings.TrimSpace(query.Get("from"))
 	if fromStr == "" {
 		fromStr = strings.TrimSpace(query.Get("start_date"))
@@ -791,14 +555,12 @@ func (h *EventHandlers) SearchEvents(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Validate time range
 	if !from.Before(to) {
 		ctx := middleware.SetErrorCode(r.Context(), ErrCodeInvalidTimeRange)
 		WriteError(w, ctx, http.StatusBadRequest, ErrCodeInvalidTimeRange, "'from' must be before 'to'")
 		return
 	}
 
-	// Validate max window length (30 days)
 	maxWindow := 30 * 24 * time.Hour
 	if to.Sub(from) > maxWindow {
 		ctx := middleware.SetErrorCode(r.Context(), ErrCodeValidation)
@@ -806,7 +568,6 @@ func (h *EventHandlers) SearchEvents(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Parse optional text search query
 	searchQuery := query.Get("q")
 	statusFilter := strings.ToLower(strings.TrimSpace(query.Get("status")))
 	if statusFilter != "" && statusFilter != "upcoming" && statusFilter != "live" && statusFilter != "past" && statusFilter != "cancelled" {
@@ -818,7 +579,7 @@ func (h *EventHandlers) SearchEvents(w http.ResponseWriter, r *http.Request) {
 	organizerFilter := strings.TrimSpace(query.Get("organizer"))
 	organizerSceneIDs := make([]string, 0)
 	if organizerFilter != "" {
-		organizerScenes, err := h.sceneRepo.ListByOwner(organizerFilter)
+		organizerScenes, err := h.sceneService.SceneRepo().ListByOwner(organizerFilter)
 		if err != nil {
 			slog.ErrorContext(r.Context(), "failed to list organizer scenes", "error", err, "organizer", organizerFilter)
 			ctx := middleware.SetErrorCode(r.Context(), ErrCodeInternal)
@@ -863,9 +624,8 @@ func (h *EventHandlers) SearchEvents(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	// Parse pagination parameters
 	limitStr := query.Get("limit")
-	limit := 50 // default limit
+	limit := 50
 	if limitStr != "" {
 		parsedLimit, err := parseIntInRange(limitStr, "limit", 1, 100)
 		if err != nil {
@@ -878,16 +638,18 @@ func (h *EventHandlers) SearchEvents(w http.ResponseWriter, r *http.Request) {
 
 	cursor := query.Get("cursor")
 
-	// Build trust scores map if trust ranking is enabled and store is available
+	// Build trust scores map
 	var trustScores map[string]float64
 	if h.trustScoreStore != nil {
-		// For now, we'll fetch trust scores on-demand when we get the events
-		// In a production implementation, we might want to batch-fetch or cache these
 		trustScores = make(map[string]float64)
 	}
 
-	// Search events with new SearchEvents method
-	events, nextCursor, err := h.eventRepo.SearchEvents(scene.EventSearchOptions{
+	eventRepo := h.sceneService.EventRepo()
+	sceneRepo := h.sceneService.SceneRepo()
+	rsvpRepo := h.sceneService.RSVPRepo()
+
+	// Search events
+	events, nextCursor, err := eventRepo.SearchEvents(scene.EventSearchOptions{
 		MinLng:      minLng,
 		MinLat:      minLat,
 		MaxLng:      maxLng,
@@ -909,18 +671,16 @@ func (h *EventHandlers) SearchEvents(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Collect unique scene IDs for trust score fetching
+	// Fetch trust scores on-demand if store is available
 	if h.trustScoreStore != nil && len(events) > 0 {
 		sceneIDs := make(map[string]bool)
 		for _, event := range events {
 			sceneIDs[event.SceneID] = true
 		}
 
-		// Fetch trust scores for all scenes
 		for sceneID := range sceneIDs {
 			score, err := h.trustScoreStore.GetScore(sceneID)
 			if err != nil {
-				// Log error but don't fail the request
 				slog.WarnContext(r.Context(), "failed to get trust score", "scene_id", sceneID, "error", err)
 				continue
 			}
@@ -929,9 +689,8 @@ func (h *EventHandlers) SearchEvents(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 
-		// If we got trust scores, re-run the search with them
 		if len(trustScores) > 0 {
-			events, nextCursor, err = h.eventRepo.SearchEvents(scene.EventSearchOptions{
+			events, nextCursor, err = eventRepo.SearchEvents(scene.EventSearchOptions{
 				MinLng:      minLng,
 				MinLat:      minLat,
 				MaxLng:      maxLng,
@@ -955,7 +714,7 @@ func (h *EventHandlers) SearchEvents(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	// Batch fetch active streams to avoid N+1 queries
+	// Batch fetch active streams
 	eventIDs := make([]string, len(events))
 	for i, event := range events {
 		eventIDs[i] = event.ID
@@ -969,8 +728,8 @@ func (h *EventHandlers) SearchEvents(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Batch fetch RSVP counts to avoid N+1 queries
-	rsvpCountsMap, err := h.rsvpRepo.GetCountsForEvents(eventIDs)
+	// Batch fetch RSVP counts
+	rsvpCountsMap, err := rsvpRepo.GetCountsForEvents(eventIDs)
 	if err != nil {
 		slog.ErrorContext(r.Context(), "failed to get RSVP counts", "error", err)
 		ctx := middleware.SetErrorCode(r.Context(), ErrCodeInternal)
@@ -990,7 +749,7 @@ func (h *EventHandlers) SearchEvents(w http.ResponseWriter, r *http.Request) {
 			orderedSceneIDs = append(orderedSceneIDs, event.SceneID)
 		}
 
-		if batchRepo, ok := h.sceneRepo.(sceneBatchFetcher); ok {
+		if batchRepo, ok := sceneRepo.(sceneBatchFetcher); ok {
 			parentScenes, err := batchRepo.GetByIDs(orderedSceneIDs)
 			if err != nil {
 				slog.WarnContext(r.Context(), "failed to batch fetch scenes for event search response; falling back to individual fetches", "error", err)
@@ -1005,7 +764,7 @@ func (h *EventHandlers) SearchEvents(w http.ResponseWriter, r *http.Request) {
 			if _, ok := sceneMap[sceneID]; ok {
 				continue
 			}
-			parentScene, err := h.sceneRepo.GetByID(sceneID)
+			parentScene, err := sceneRepo.GetByID(sceneID)
 			if err != nil {
 				slog.WarnContext(r.Context(), "failed to fetch scene for event search response", "scene_id", sceneID, "error", err)
 				continue
@@ -1014,19 +773,17 @@ func (h *EventHandlers) SearchEvents(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	// Build response with events, RSVP counts, and active streams
 	eventsWithData := make([]*EventWithRSVPCounts, len(events))
 	for i, event := range events {
 		eventsWithData[i] = &EventWithRSVPCounts{
 			Event:        publicEventCopy(event),
 			RSVPCounts:   rsvpCountsMap[event.ID],
 			Scene:        sceneMap[event.SceneID],
-			ActiveStream: activeStreamsMap[event.ID], // nil if no active stream
+			ActiveStream: activeStreamsMap[event.ID],
 			Occurrence:   toPublicOccurrence(event),
 		}
 	}
 
-	// Return response
 	response := SearchEventsResponse{
 		Events:     eventsWithData,
 		NextCursor: nextCursor,
@@ -1039,7 +796,6 @@ func (h *EventHandlers) SearchEvents(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// parseFloat parses a float64 from a string with contextual error message.
 func parseFloat(s, fieldName string) (float64, error) {
 	s = strings.TrimSpace(s)
 	val, err := strconv.ParseFloat(s, 64)
@@ -1049,7 +805,6 @@ func parseFloat(s, fieldName string) (float64, error) {
 	return val, nil
 }
 
-// parseIntInRange parses an integer from a string with range validation.
 func parseIntInRange(s, fieldName string, min, max int) (int, error) {
 	s = strings.TrimSpace(s)
 	val, err := strconv.Atoi(s)
@@ -1060,4 +815,69 @@ func parseIntInRange(s, fieldName string, min, max int) (int, error) {
 		return 0, fmt.Errorf("%s must be between %d and %d", fieldName, min, max)
 	}
 	return val, nil
+}
+
+// RegisterEventRoutes registers all event-related routes on the given mux.
+func RegisterEventRoutes(mux *http.ServeMux, deps *RouteDeps, h *EventHandlers, rsvpH *RSVPHandlers, postH *PostHandlers, protectedLocationH *ProtectedLocationHandlers) {
+	// Event creation (with rate limiting: 5 req/hour per user)
+	eventCreationLimit := middleware.RateLimitConfig{
+		RequestsPerWindow: 5,
+		WindowDuration:    time.Hour,
+	}
+	eventCreationHandler := deps.RateLimit(h.CreateEvent, eventCreationLimit, middleware.UserKeyFunc())
+
+	mux.HandleFunc("/events", func(w http.ResponseWriter, r *http.Request) {
+		switch r.Method {
+		case http.MethodPost:
+			eventCreationHandler.ServeHTTP(w, r)
+		default:
+			ctx := middleware.SetErrorCode(r.Context(), ErrCodeBadRequest)
+			WriteError(w, ctx, http.StatusMethodNotAllowed, ErrCodeBadRequest, "Method not allowed")
+		}
+	})
+
+	mux.HandleFunc("/events/", func(w http.ResponseWriter, r *http.Request) {
+		// Parse path to check for special endpoints
+		// Expected patterns: /events/{id}, /events/{id}/cancel, /events/{id}/rsvp, /events/{id}/feed
+		pathParts := strings.Split(strings.TrimPrefix(r.URL.Path, "/events/"), "/")
+
+		// Check if this is a feed request: /events/{id}/feed
+		if len(pathParts) == 2 && pathParts[0] != "" && pathParts[1] == "feed" && r.Method == http.MethodGet {
+			postH.GetEventFeed(w, r)
+			return
+		}
+
+		// Check if this is a cancel request: /events/{id}/cancel
+		if len(pathParts) == 2 && pathParts[0] != "" && pathParts[1] == "cancel" && r.Method == http.MethodPost {
+			h.CancelEvent(w, r)
+			return
+		}
+
+		// Check if this is an RSVP request: /events/{id}/rsvp
+		if len(pathParts) == 2 && pathParts[0] != "" && pathParts[1] == "rsvp" {
+			switch r.Method {
+			case http.MethodPost:
+				rsvpH.CreateOrUpdateRSVP(w, r)
+			case http.MethodDelete:
+				rsvpH.DeleteRSVP(w, r)
+			default:
+				ctx := middleware.SetErrorCode(r.Context(), ErrCodeBadRequest)
+				WriteError(w, ctx, http.StatusMethodNotAllowed, ErrCodeBadRequest, "Method not allowed")
+			}
+			return
+		}
+
+		switch r.Method {
+		case http.MethodGet:
+			h.GetEvent(w, r)
+		case http.MethodPatch:
+			h.UpdateEvent(w, r)
+		default:
+			ctx := middleware.SetErrorCode(r.Context(), ErrCodeBadRequest)
+			WriteError(w, ctx, http.StatusMethodNotAllowed, ErrCodeBadRequest, "Method not allowed")
+		}
+	})
+
+	// /api/v1/events/ sub-routes (protected location and RSVP)
+	mux.Handle("/api/v1/events/", v1EventSubrouter(protectedLocationH, rsvpH.CreateOrUpdateRSVP))
 }

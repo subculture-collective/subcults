@@ -281,7 +281,7 @@ describe('ConfirmModal', () => {
     );
 
     const confirmButton = screen.getByRole('button', { name: 'Confirm' });
-    expect(confirmButton).toHaveClass('bg-status-error');
+    expect(confirmButton).toHaveClass('button-danger');
   });
 
   it('shows loading state', () => {

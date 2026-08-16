@@ -4,7 +4,6 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
-	"errors"
 	"log/slog"
 	"net/http"
 
@@ -81,7 +80,7 @@ func (h *ErrorLoggerHandlers) HandleClientError(w http.ResponseWriter, r *http.R
 	// Persist error log
 	errorID, err := h.store.InsertClientError(ctx, errLog)
 	if err != nil {
-		if errors.Is(err, telemetry.ErrDuplicateError) {
+		if _, _, _, ok := MapDomainError(err); ok {
 			h.metrics.ClientErrorsDeduped.Inc()
 			slog.DebugContext(ctx, "duplicate client error skipped",
 				"session_id", errLog.SessionID,

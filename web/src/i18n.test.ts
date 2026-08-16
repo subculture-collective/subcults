@@ -9,7 +9,7 @@ import { SUPPORTED_LANGUAGES, NAMESPACES } from './i18n';
 describe('i18n configuration', () => {
   describe('exports', () => {
     it('should export supported languages', () => {
-      expect(SUPPORTED_LANGUAGES).toEqual(['en', 'es']);
+      expect(SUPPORTED_LANGUAGES).toEqual(['en', 'es', 'fr', 'de']);
     });
 
     it('should export all namespaces', () => {

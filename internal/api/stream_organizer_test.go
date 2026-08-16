@@ -22,7 +22,8 @@ func TestMuteParticipant_Unauthorized(t *testing.T) {
 	eventRepo := scene.NewInMemoryEventRepository()
 	auditRepo := audit.NewInMemoryRepository()
 
-	handlers := NewStreamHandlers(streamRepo, nil, nil, sceneRepo, eventRepo, auditRepo, nil, nil, nil)
+	svc := stream.NewService(streamRepo, nil, nil, nil)
+	handlers := NewStreamHandlers(svc, sceneRepo, eventRepo, auditRepo, nil, nil, nil)
 
 	// Create a scene
 	testScene := &scene.Scene{
@@ -72,7 +73,8 @@ func TestKickParticipant_Unauthorized(t *testing.T) {
 	eventRepo := scene.NewInMemoryEventRepository()
 	auditRepo := audit.NewInMemoryRepository()
 
-	handlers := NewStreamHandlers(streamRepo, nil, nil, sceneRepo, eventRepo, auditRepo, nil, nil, nil)
+	svc := stream.NewService(streamRepo, nil, nil, nil)
+	handlers := NewStreamHandlers(svc, sceneRepo, eventRepo, auditRepo, nil, nil, nil)
 
 	// Create a scene
 	testScene := &scene.Scene{
@@ -112,7 +114,8 @@ func TestSetFeaturedParticipant_Success(t *testing.T) {
 	eventRepo := scene.NewInMemoryEventRepository()
 	auditRepo := audit.NewInMemoryRepository()
 
-	handlers := NewStreamHandlers(streamRepo, nil, nil, sceneRepo, eventRepo, auditRepo, nil, nil, nil)
+	svc := stream.NewService(streamRepo, nil, nil, nil)
+	handlers := NewStreamHandlers(svc, sceneRepo, eventRepo, auditRepo, nil, nil, nil)
 
 	// Create a scene
 	testScene := &scene.Scene{
@@ -173,7 +176,8 @@ func TestSetFeaturedParticipant_Clear(t *testing.T) {
 	eventRepo := scene.NewInMemoryEventRepository()
 	auditRepo := audit.NewInMemoryRepository()
 
-	handlers := NewStreamHandlers(streamRepo, nil, nil, sceneRepo, eventRepo, auditRepo, nil, nil, nil)
+	svc := stream.NewService(streamRepo, nil, nil, nil)
+	handlers := NewStreamHandlers(svc, sceneRepo, eventRepo, auditRepo, nil, nil, nil)
 
 	// Create a scene
 	testScene := &scene.Scene{
@@ -239,7 +243,8 @@ func TestLockStream_Success(t *testing.T) {
 	eventRepo := scene.NewInMemoryEventRepository()
 	auditRepo := audit.NewInMemoryRepository()
 
-	handlers := NewStreamHandlers(streamRepo, nil, nil, sceneRepo, eventRepo, auditRepo, nil, nil, nil)
+	svc := stream.NewService(streamRepo, nil, nil, nil)
+	handlers := NewStreamHandlers(svc, sceneRepo, eventRepo, auditRepo, nil, nil, nil)
 
 	// Create a scene
 	testScene := &scene.Scene{
@@ -299,7 +304,8 @@ func TestLockStream_Unauthorized(t *testing.T) {
 	eventRepo := scene.NewInMemoryEventRepository()
 	auditRepo := audit.NewInMemoryRepository()
 
-	handlers := NewStreamHandlers(streamRepo, nil, nil, sceneRepo, eventRepo, auditRepo, nil, nil, nil)
+	svc := stream.NewService(streamRepo, nil, nil, nil)
+	handlers := NewStreamHandlers(svc, sceneRepo, eventRepo, auditRepo, nil, nil, nil)
 
 	// Create a scene
 	testScene := &scene.Scene{

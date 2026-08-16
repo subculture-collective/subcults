@@ -2,7 +2,6 @@ package api
 
 import (
 	"encoding/json"
-	"errors"
 	"log/slog"
 	"net/http"
 	"strconv"
@@ -120,7 +119,7 @@ func (h *QualityMetricsHandler) GetParticipantQualityMetrics(w http.ResponseWrit
 	// Get latest metrics
 	metrics, err := h.metricsRepo.GetLatestMetrics(streamID, participantID)
 	if err != nil {
-		if errors.Is(err, stream.ErrQualityMetricsNotFound) {
+		if _, _, _, ok := MapDomainError(err); ok {
 			ctx = middleware.SetErrorCode(ctx, ErrCodeNotFound)
 			WriteError(w, ctx, http.StatusNotFound, ErrCodeNotFound, "Quality metrics not found")
 			return
@@ -167,9 +166,9 @@ func (h *QualityMetricsHandler) CollectStreamQualityMetrics(w http.ResponseWrite
 	// Get stream session
 	session, err := h.streamRepo.GetByID(streamID)
 	if err != nil {
-		if errors.Is(err, stream.ErrStreamNotFound) {
+		if _, _, _, ok := MapDomainError(err); ok {
 			ctx = middleware.SetErrorCode(ctx, ErrCodeNotFound)
-			WriteError(w, ctx, http.StatusNotFound, ErrCodeNotFound, "Stream not found")
+			WriteError(w, ctx, http.StatusNotFound, ErrCodeNotFound, "Stream session not found")
 			return
 		}
 		slog.ErrorContext(ctx, "failed to get stream", "stream_id", streamID, "error", err)

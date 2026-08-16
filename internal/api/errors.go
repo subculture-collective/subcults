@@ -4,6 +4,7 @@ package api
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"log/slog"
 	"net/http"
 
@@ -139,6 +140,59 @@ func WriteError(w http.ResponseWriter, ctx context.Context, status int, code, me
 	}
 }
 
+// WriteAPIError maps a domain error to its HTTP equivalent and writes the response.
+// When the error is a registered domain sentinel, it uses the pre-configured status,
+// code, and message. Unknown errors produce a generic 500 Internal Server Error.
+//
+// Handlers that need the mapped values directly (e.g. conditional logging) should
+// use MapDomainError instead.
+func WriteAPIError(w http.ResponseWriter, ctx context.Context, err error) {
+	if status, code, message, ok := MapDomainError(err); ok {
+		WriteError(w, ctx, status, code, message)
+		return
+	}
+	ctx = middleware.SetErrorCode(ctx, ErrCodeInternal)
+	WriteError(w, ctx, http.StatusInternalServerError, ErrCodeInternal, "An internal error occurred")
+}
+
+// DomainErrorMapping associates a sentinel error with its HTTP representation.
+type DomainErrorMapping struct {
+	// Target is the sentinel error to match against using errors.Is.
+	Target error
+	// Status is the HTTP status code.
+	Status int
+	// Code is the machine-readable error code returned in the JSON body.
+	Code string
+	// Message is the human-readable description returned in the JSON body.
+	Message string
+}
+
+var domainMappings []DomainErrorMapping
+
+// RegisterDomainError adds a sentinel error to the centralized mapping table.
+// Callers should register errors at init time or early in main().
+func RegisterDomainError(target error, status int, code string, message string) {
+	domainMappings = append(domainMappings, DomainErrorMapping{
+		Target:  target,
+		Status:  status,
+		Code:    code,
+		Message: message,
+	})
+}
+
+// MapDomainError looks up a domain sentinel error in the registered mappings.
+// It uses errors.Is to walk the error chain, so wrapped errors match their sentinels.
+// Returns (status, code, message, true) if found, or zero values and false otherwise.
+func MapDomainError(err error) (int, string, string, bool) {
+	for i := range domainMappings {
+		m := &domainMappings[i]
+		if errors.Is(err, m.Target) {
+			return m.Status, m.Code, m.Message, true
+		}
+	}
+	return 0, "", "", false
+}
+
 // StatusCodeMapping returns the recommended HTTP status code for common error codes.
 // This is a convenience function to map error codes to HTTP status codes.
 func StatusCodeMapping(code string) int {
@@ -159,6 +213,28 @@ func StatusCodeMapping(code string) int {
 		return http.StatusBadRequest
 	case ErrCodeInternal:
 		return http.StatusInternalServerError
+	case ErrCodeSceneDeleted:
+		return http.StatusGone
+	case ErrCodeDuplicateSceneName:
+		return http.StatusConflict
+	case ErrCodeInvalidSceneName:
+		return http.StatusUnprocessableEntity
+	case ErrCodeInvalidTimeRange:
+		return http.StatusUnprocessableEntity
+	case ErrCodeMissingTarget:
+		return http.StatusUnprocessableEntity
+	case ErrCodeUnsupportedType:
+		return http.StatusUnsupportedMediaType
+	case ErrCodeInvalidWeight:
+		return http.StatusUnprocessableEntity
+	case ErrCodeAllianceDeleted:
+		return http.StatusGone
+	case ErrCodeSelfAlliance:
+		return http.StatusUnprocessableEntity
+	case ErrCodeSceneNotFound:
+		return http.StatusNotFound
+	case ErrCodePaymentNotFound:
+		return http.StatusNotFound
 	default:
 		return http.StatusInternalServerError
 	}

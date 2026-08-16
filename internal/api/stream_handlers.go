@@ -35,9 +35,7 @@ type StreamSessionResponse struct {
 
 // StreamHandlers holds dependencies for stream session HTTP handlers.
 type StreamHandlers struct {
-	streamRepo       stream.SessionRepository
-	participantRepo  stream.ParticipantRepository
-	analyticsRepo    stream.AnalyticsRepository
+	streamService    *stream.Service
 	sceneRepo        scene.SceneRepository
 	eventRepo        scene.EventRepository
 	auditRepo        audit.Repository
@@ -48,9 +46,7 @@ type StreamHandlers struct {
 
 // NewStreamHandlers creates a new StreamHandlers instance.
 func NewStreamHandlers(
-	streamRepo stream.SessionRepository,
-	participantRepo stream.ParticipantRepository,
-	analyticsRepo stream.AnalyticsRepository,
+	streamService *stream.Service,
 	sceneRepo scene.SceneRepository,
 	eventRepo scene.EventRepository,
 	auditRepo audit.Repository,
@@ -59,9 +55,7 @@ func NewStreamHandlers(
 	roomService *livekitpkg.RoomService,
 ) *StreamHandlers {
 	return &StreamHandlers{
-		streamRepo:       streamRepo,
-		participantRepo:  participantRepo,
-		analyticsRepo:    analyticsRepo,
+		streamService:    streamService,
 		sceneRepo:        sceneRepo,
 		eventRepo:        eventRepo,
 		auditRepo:        auditRepo,
@@ -116,13 +110,13 @@ func (h *StreamHandlers) CreateStream(w http.ResponseWriter, r *http.Request) {
 		// Check if user is the scene owner
 		isOwner, err := h.isSceneOwner(ctx, *req.SceneID, userDID)
 		if err != nil {
-			if errors.Is(err, scene.ErrSceneNotFound) {
-				ctx = middleware.SetErrorCode(ctx, ErrCodeNotFound)
-				WriteError(w, ctx, http.StatusNotFound, ErrCodeNotFound, "Scene not found")
+			if status, code, message, ok := MapDomainError(err); ok {
+				ctx = middleware.SetErrorCode(ctx, code)
+				WriteError(w, ctx, status, code, message)
 			} else {
 				slog.ErrorContext(ctx, "failed to check scene ownership", "error", err)
 				ctx = middleware.SetErrorCode(ctx, ErrCodeInternal)
-				WriteError(w, ctx, http.StatusInternalServerError, ErrCodeInternal, "Internal server error")
+				WriteError(w, ctx, http.StatusInternalServerError, ErrCodeInternal, "An internal error occurred")
 			}
 			return
 		}
@@ -137,13 +131,13 @@ func (h *StreamHandlers) CreateStream(w http.ResponseWriter, r *http.Request) {
 		// Check if user is the event host (scene owner)
 		event, err := h.eventRepo.GetByID(*req.EventID)
 		if err != nil {
-			if errors.Is(err, scene.ErrEventNotFound) {
-				ctx = middleware.SetErrorCode(ctx, ErrCodeNotFound)
-				WriteError(w, ctx, http.StatusNotFound, ErrCodeNotFound, "Event not found")
+			if status, code, message, ok := MapDomainError(err); ok {
+				ctx = middleware.SetErrorCode(ctx, code)
+				WriteError(w, ctx, status, code, message)
 			} else {
 				slog.ErrorContext(ctx, "failed to get event", "error", err)
 				ctx = middleware.SetErrorCode(ctx, ErrCodeInternal)
-				WriteError(w, ctx, http.StatusInternalServerError, ErrCodeInternal, "Internal server error")
+				WriteError(w, ctx, http.StatusInternalServerError, ErrCodeInternal, "An internal error occurred")
 			}
 			return
 		}
@@ -151,13 +145,13 @@ func (h *StreamHandlers) CreateStream(w http.ResponseWriter, r *http.Request) {
 		// Check if user owns the scene that the event belongs to
 		isOwner, err := h.isSceneOwner(ctx, event.SceneID, userDID)
 		if err != nil {
-			if errors.Is(err, scene.ErrSceneNotFound) {
-				ctx = middleware.SetErrorCode(ctx, ErrCodeNotFound)
-				WriteError(w, ctx, http.StatusNotFound, ErrCodeNotFound, "Scene not found")
+			if status, code, message, ok := MapDomainError(err); ok {
+				ctx = middleware.SetErrorCode(ctx, code)
+				WriteError(w, ctx, status, code, message)
 			} else {
 				slog.ErrorContext(ctx, "failed to check scene ownership", "error", err)
 				ctx = middleware.SetErrorCode(ctx, ErrCodeInternal)
-				WriteError(w, ctx, http.StatusInternalServerError, ErrCodeInternal, "Internal server error")
+				WriteError(w, ctx, http.StatusInternalServerError, ErrCodeInternal, "An internal error occurred")
 			}
 			return
 		}
@@ -172,8 +166,10 @@ func (h *StreamHandlers) CreateStream(w http.ResponseWriter, r *http.Request) {
 	// NOTE: This is a defensive check before database write. The database has unique partial indexes
 	// (idx_stream_scene_active_unique, idx_stream_event_active_unique) that enforce this constraint
 	// at the database level, preventing race conditions.
+	// These checks require direct repository access since the service doesn't expose HasActiveStreamForScene/GetActiveStreamForEvent.
+	// We use the service's underlying session repo for this — the service composes the same repo.
 	if req.SceneID != nil {
-		hasActive, err := h.streamRepo.HasActiveStreamForScene(*req.SceneID)
+		hasActive, err := h.streamService.HasActiveStreamForScene(*req.SceneID)
 		if err != nil {
 			slog.ErrorContext(ctx, "failed to check for active stream",
 				"error", err,
@@ -192,7 +188,7 @@ func (h *StreamHandlers) CreateStream(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if req.EventID != nil {
-		activeStream, err := h.streamRepo.GetActiveStreamForEvent(*req.EventID)
+		activeStream, err := h.streamService.GetActiveStreamForEvent(*req.EventID)
 		if err != nil {
 			slog.ErrorContext(ctx, "failed to check for active stream",
 				"error", err,
@@ -214,7 +210,7 @@ func (h *StreamHandlers) CreateStream(w http.ResponseWriter, r *http.Request) {
 	// The database has unique partial indexes that prevent race conditions by ensuring
 	// only one active stream per scene/event. If a concurrent request slips through the
 	// pre-flight check above, the database will reject it with a unique constraint violation.
-	id, roomName, err := h.streamRepo.CreateStreamSession(req.SceneID, req.EventID, userDID)
+	session, err := h.streamService.CreateStream(ctx, req.SceneID, req.EventID, userDID)
 	if err != nil {
 		// Check if this is a unique constraint violation (concurrent stream attempt)
 		// Different database drivers return different error types, so we check the error message
@@ -234,6 +230,8 @@ func (h *StreamHandlers) CreateStream(w http.ResponseWriter, r *http.Request) {
 		WriteError(w, ctx, http.StatusInternalServerError, ErrCodeInternal, "Failed to create stream session")
 		return
 	}
+	id := session.ID
+	roomName := session.RoomName
 
 	// Create LiveKit room with 2-hour timeout (7200 seconds)
 	// emptyTimeout: room closes 2 hours after last participant leaves
@@ -319,15 +317,15 @@ func (h *StreamHandlers) EndStream(w http.ResponseWriter, r *http.Request) {
 	streamID := pathParts[0]
 
 	// Get the stream session to verify ownership
-	session, err := h.streamRepo.GetByID(streamID)
+	session, err := h.streamService.GetStream(ctx, streamID)
 	if err != nil {
-		if errors.Is(err, stream.ErrStreamNotFound) {
-			ctx = middleware.SetErrorCode(ctx, ErrCodeNotFound)
-			WriteError(w, ctx, http.StatusNotFound, ErrCodeNotFound, "Stream session not found")
+		if status, code, message, ok := MapDomainError(err); ok {
+			ctx = middleware.SetErrorCode(ctx, code)
+			WriteError(w, ctx, status, code, message)
 		} else {
 			slog.ErrorContext(ctx, "failed to get stream session", "error", err)
 			ctx = middleware.SetErrorCode(ctx, ErrCodeInternal)
-			WriteError(w, ctx, http.StatusInternalServerError, ErrCodeInternal, "Internal server error")
+			WriteError(w, ctx, http.StatusInternalServerError, ErrCodeInternal, "An internal error occurred")
 		}
 		return
 	}
@@ -339,8 +337,8 @@ func (h *StreamHandlers) EndStream(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// End the stream session in database
-	err = h.streamRepo.EndStreamSession(streamID)
+	// End the stream session in database and compute analytics
+	err = h.streamService.EndStream(ctx, streamID)
 	if err != nil {
 		slog.ErrorContext(ctx, "failed to end stream session",
 			"error", err,
@@ -384,24 +382,6 @@ func (h *StreamHandlers) EndStream(w http.ResponseWriter, r *http.Request) {
 			slog.InfoContext(ctx, "deleted LiveKit room",
 				"room_name", session.RoomName,
 				"stream_id", streamID,
-			)
-		}
-	}
-
-	// Compute analytics for the ended stream
-	if h.analyticsRepo != nil {
-		_, err = h.analyticsRepo.ComputeAnalytics(streamID)
-		if err != nil {
-			// Log error but don't fail the request
-			slog.ErrorContext(ctx, "failed to compute stream analytics",
-				"error", err,
-				"stream_id", streamID,
-				"user_did", userDID,
-			)
-		} else {
-			slog.InfoContext(ctx, "computed stream analytics",
-				"stream_id", streamID,
-				"user_did", userDID,
 			)
 		}
 	}
@@ -462,15 +442,15 @@ func (h *StreamHandlers) GetStream(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Get the stream session
-	session, err := h.streamRepo.GetByID(streamID)
+	session, err := h.streamService.GetStream(ctx, streamID)
 	if err != nil {
-		if errors.Is(err, stream.ErrStreamNotFound) {
-			ctx = middleware.SetErrorCode(ctx, ErrCodeNotFound)
-			WriteError(w, ctx, http.StatusNotFound, ErrCodeNotFound, "Stream session not found")
+		if status, code, message, ok := MapDomainError(err); ok {
+			ctx = middleware.SetErrorCode(ctx, code)
+			WriteError(w, ctx, status, code, message)
 		} else {
 			slog.ErrorContext(ctx, "failed to get stream session", "error", err)
 			ctx = middleware.SetErrorCode(ctx, ErrCodeInternal)
-			WriteError(w, ctx, http.StatusInternalServerError, ErrCodeInternal, "Internal server error")
+			WriteError(w, ctx, http.StatusInternalServerError, ErrCodeInternal, "An internal error occurred")
 		}
 		return
 	}
@@ -524,15 +504,15 @@ func (h *StreamHandlers) UpdateStream(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Get the stream session to verify ownership
-	session, err := h.streamRepo.GetByID(streamID)
+	session, err := h.streamService.UpdateStream(ctx, streamID)
 	if err != nil {
-		if errors.Is(err, stream.ErrStreamNotFound) {
-			ctx = middleware.SetErrorCode(ctx, ErrCodeNotFound)
-			WriteError(w, ctx, http.StatusNotFound, ErrCodeNotFound, "Stream session not found")
+		if status, code, message, ok := MapDomainError(err); ok {
+			ctx = middleware.SetErrorCode(ctx, code)
+			WriteError(w, ctx, status, code, message)
 		} else {
 			slog.ErrorContext(ctx, "failed to get stream session", "error", err)
 			ctx = middleware.SetErrorCode(ctx, ErrCodeInternal)
-			WriteError(w, ctx, http.StatusInternalServerError, ErrCodeInternal, "Internal server error")
+			WriteError(w, ctx, http.StatusInternalServerError, ErrCodeInternal, "An internal error occurred")
 		}
 		return
 	}
@@ -654,15 +634,15 @@ func (h *StreamHandlers) JoinStream(w http.ResponseWriter, r *http.Request) {
 	streamID := pathParts[0]
 
 	// Verify stream exists
-	session, err := h.streamRepo.GetByID(streamID)
+	session, err := h.streamService.GetStream(ctx, streamID)
 	if err != nil {
-		if errors.Is(err, stream.ErrStreamNotFound) {
-			ctx = middleware.SetErrorCode(ctx, ErrCodeNotFound)
-			WriteError(w, ctx, http.StatusNotFound, ErrCodeNotFound, "Stream session not found")
+		if status, code, message, ok := MapDomainError(err); ok {
+			ctx = middleware.SetErrorCode(ctx, code)
+			WriteError(w, ctx, status, code, message)
 		} else {
 			slog.ErrorContext(ctx, "failed to get stream session", "error", err)
 			ctx = middleware.SetErrorCode(ctx, ErrCodeInternal)
-			WriteError(w, ctx, http.StatusInternalServerError, ErrCodeInternal, "Internal server error")
+			WriteError(w, ctx, http.StatusInternalServerError, ErrCodeInternal, "An internal error occurred")
 		}
 		return
 	}
@@ -683,87 +663,39 @@ func (h *StreamHandlers) JoinStream(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	// Generate participant ID from user DID
-	participantID := stream.GenerateParticipantID(userDID)
-
-	// Record participant join in participant repository
-	var isReconnection bool
-	if h.participantRepo != nil {
-		participant, reconnection, err := h.participantRepo.RecordJoin(streamID, participantID, userDID)
-		if err != nil {
-			if errors.Is(err, stream.ErrParticipantAlreadyActive) {
-				// Participant is already active, this is a duplicate join request
-				slog.WarnContext(ctx, "participant already active in stream",
-					"stream_id", streamID,
-					"participant_id", participantID,
-					"user_did", userDID,
-				)
-				// Continue with join count increment and return success
-			} else {
-				slog.ErrorContext(ctx, "failed to record participant join",
-					"error", err,
-					"stream_id", streamID,
-					"user_did", userDID,
-				)
-				ctx = middleware.SetErrorCode(ctx, ErrCodeInternal)
-				WriteError(w, ctx, http.StatusInternalServerError, ErrCodeInternal, "Failed to record participant join")
-				return
-			}
-		} else {
-			isReconnection = reconnection
-
-			// Broadcast participant joined event via WebSocket
-			if h.eventBroadcaster != nil {
-				activeCount, _ := h.participantRepo.GetActiveCount(streamID)
-				event := &stream.ParticipantStateEvent{
-					Type:            "participant_joined",
-					StreamSessionID: streamID,
-					ParticipantID:   participant.ParticipantID,
-					UserDID:         participant.UserDID,
-					Timestamp:       participant.JoinedAt,
-					IsReconnection:  isReconnection,
-					ActiveCount:     activeCount,
-				}
-				h.eventBroadcaster.Broadcast(streamID, event)
-			}
-		}
+	// Validate and sanitize geohash prefix if provided
+	var geohashPrefix *string
+	if req.GeohashPrefix != nil && len(strings.TrimSpace(*req.GeohashPrefix)) >= 4 {
+		prefix := strings.TrimSpace(*req.GeohashPrefix)[:4]
+		geohashPrefix = &prefix
 	}
 
-	// Record join in repository
-	if err := h.streamRepo.RecordJoin(streamID); err != nil {
-		slog.ErrorContext(ctx, "failed to record join",
+	// Record participant join via service
+	participant, isReconnection, err := h.streamService.JoinStream(ctx, streamID, userDID, geohashPrefix)
+	if err != nil {
+		slog.ErrorContext(ctx, "failed to record participant join",
 			"error", err,
 			"stream_id", streamID,
 			"user_did", userDID,
 		)
 		ctx = middleware.SetErrorCode(ctx, ErrCodeInternal)
-		WriteError(w, ctx, http.StatusInternalServerError, ErrCodeInternal, "Failed to record join event")
+		WriteError(w, ctx, http.StatusInternalServerError, ErrCodeInternal, "Failed to record participant join")
 		return
 	}
 
-	// Record participant event for analytics
-	if h.analyticsRepo != nil {
-		// Validate and sanitize geohash prefix if provided
-		var geohashPrefix *string
-		if req.GeohashPrefix != nil && len(strings.TrimSpace(*req.GeohashPrefix)) >= 4 {
-			// Take only first 4 characters for privacy
-			prefix := strings.TrimSpace(*req.GeohashPrefix)[:4]
-			geohashPrefix = &prefix
+	// Broadcast participant joined event via WebSocket
+	if h.eventBroadcaster != nil && participant != nil {
+		activeCount, _ := h.streamService.GetActiveParticipants(ctx, streamID)
+		event := &stream.ParticipantStateEvent{
+			Type:            "participant_joined",
+			StreamSessionID: streamID,
+			ParticipantID:   participant.ParticipantID,
+			UserDID:         participant.UserDID,
+			Timestamp:       participant.JoinedAt,
+			IsReconnection:  isReconnection,
+			ActiveCount:     activeCount,
 		}
-
-		if err := h.analyticsRepo.RecordParticipantEvent(streamID, userDID, "join", geohashPrefix); err != nil {
-			// Log error but don't fail the request
-			slog.ErrorContext(ctx, "failed to record participant join event",
-				"error", err,
-				"stream_id", streamID,
-				"user_did", userDID,
-			)
-		}
-	}
-
-	// Increment Prometheus counter
-	if h.streamMetrics != nil {
-		h.streamMetrics.IncStreamJoins()
+		h.eventBroadcaster.Broadcast(streamID, event)
 	}
 
 	// Calculate and record join latency if token_issued_at was provided
@@ -814,7 +746,7 @@ func (h *StreamHandlers) JoinStream(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Re-fetch session to get the updated join count from storage
-	updatedSession, err := h.streamRepo.GetByID(streamID)
+	updatedSession, err := h.streamService.GetStream(ctx, streamID)
 	if err != nil {
 		// Log error but continue using the previously loaded session
 		slog.ErrorContext(ctx, "failed to refresh stream session after join",
@@ -864,87 +796,47 @@ func (h *StreamHandlers) LeaveStream(w http.ResponseWriter, r *http.Request) {
 	streamID := pathParts[0]
 
 	// Verify stream exists
-	session, err := h.streamRepo.GetByID(streamID)
+	session, err := h.streamService.GetStream(ctx, streamID)
 	if err != nil {
-		if errors.Is(err, stream.ErrStreamNotFound) {
-			ctx = middleware.SetErrorCode(ctx, ErrCodeNotFound)
-			WriteError(w, ctx, http.StatusNotFound, ErrCodeNotFound, "Stream session not found")
+		if status, code, message, ok := MapDomainError(err); ok {
+			ctx = middleware.SetErrorCode(ctx, code)
+			WriteError(w, ctx, status, code, message)
 		} else {
 			slog.ErrorContext(ctx, "failed to get stream session", "error", err)
 			ctx = middleware.SetErrorCode(ctx, ErrCodeInternal)
-			WriteError(w, ctx, http.StatusInternalServerError, ErrCodeInternal, "Internal server error")
+			WriteError(w, ctx, http.StatusInternalServerError, ErrCodeInternal, "An internal error occurred")
 		}
 		return
 	}
 
-	// Generate participant ID from user DID
+	// Generate participant ID from user DID for broadcasting
 	participantID := stream.GenerateParticipantID(userDID)
 
-	// Record participant leave in participant repository
-	if h.participantRepo != nil {
-		if err := h.participantRepo.RecordLeave(streamID, participantID); err != nil {
-			if errors.Is(err, stream.ErrParticipantNotFound) {
-				// Participant was not active, log warning but continue
-				slog.WarnContext(ctx, "participant not found or already left",
-					"stream_id", streamID,
-					"participant_id", participantID,
-					"user_did", userDID,
-				)
-			} else {
-				slog.ErrorContext(ctx, "failed to record participant leave",
-					"error", err,
-					"stream_id", streamID,
-					"user_did", userDID,
-				)
-				ctx = middleware.SetErrorCode(ctx, ErrCodeInternal)
-				WriteError(w, ctx, http.StatusInternalServerError, ErrCodeInternal, "Failed to record participant leave")
-				return
-			}
-		} else {
-			// Broadcast participant left event via WebSocket
-			if h.eventBroadcaster != nil {
-				activeCount, _ := h.participantRepo.GetActiveCount(streamID)
-				event := &stream.ParticipantStateEvent{
-					Type:            "participant_left",
-					StreamSessionID: streamID,
-					ParticipantID:   participantID,
-					UserDID:         userDID,
-					Timestamp:       time.Now(),
-					IsReconnection:  false,
-					ActiveCount:     activeCount,
-				}
-				h.eventBroadcaster.Broadcast(streamID, event)
-			}
-		}
-	}
-
-	// Record leave in repository
-	if err := h.streamRepo.RecordLeave(streamID); err != nil {
-		slog.ErrorContext(ctx, "failed to record leave",
+	// Record participant leave via service
+	if err := h.streamService.LeaveStream(ctx, streamID, userDID); err != nil {
+		slog.ErrorContext(ctx, "failed to record participant leave",
 			"error", err,
 			"stream_id", streamID,
 			"user_did", userDID,
 		)
 		ctx = middleware.SetErrorCode(ctx, ErrCodeInternal)
-		WriteError(w, ctx, http.StatusInternalServerError, ErrCodeInternal, "Failed to record leave event")
+		WriteError(w, ctx, http.StatusInternalServerError, ErrCodeInternal, "Failed to record participant leave")
 		return
 	}
 
-	// Record participant event for analytics
-	if h.analyticsRepo != nil {
-		if err := h.analyticsRepo.RecordParticipantEvent(streamID, userDID, "leave", nil); err != nil {
-			// Log error but don't fail the request
-			slog.ErrorContext(ctx, "failed to record participant leave event",
-				"error", err,
-				"stream_id", streamID,
-				"user_did", userDID,
-			)
+	// Broadcast participant left event via WebSocket
+	if h.eventBroadcaster != nil {
+		activeCount, _ := h.streamService.GetActiveParticipants(ctx, streamID)
+		event := &stream.ParticipantStateEvent{
+			Type:            "participant_left",
+			StreamSessionID: streamID,
+			ParticipantID:   participantID,
+			UserDID:         userDID,
+			Timestamp:       time.Now(),
+			IsReconnection:  false,
+			ActiveCount:     activeCount,
 		}
-	}
-
-	// Increment Prometheus counter
-	if h.streamMetrics != nil {
-		h.streamMetrics.IncStreamLeaves()
+		h.eventBroadcaster.Broadcast(streamID, event)
 	}
 
 	// Log leave event for audit
@@ -966,7 +858,7 @@ func (h *StreamHandlers) LeaveStream(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Re-fetch session to get the updated leave count from storage
-	updatedSession, err := h.streamRepo.GetByID(streamID)
+	updatedSession, err := h.streamService.GetStream(ctx, streamID)
 	if err != nil {
 		// Log error but continue using the previously loaded session
 		slog.ErrorContext(ctx, "failed to refresh stream session after leave",
@@ -1017,15 +909,15 @@ func (h *StreamHandlers) GetStreamAnalytics(w http.ResponseWriter, r *http.Reque
 	streamID := pathParts[0]
 
 	// Get the stream session to verify ownership
-	session, err := h.streamRepo.GetByID(streamID)
+	session, err := h.streamService.GetStream(ctx, streamID)
 	if err != nil {
-		if errors.Is(err, stream.ErrStreamNotFound) {
-			ctx = middleware.SetErrorCode(ctx, ErrCodeNotFound)
-			WriteError(w, ctx, http.StatusNotFound, ErrCodeNotFound, "Stream session not found")
+		if status, code, message, ok := MapDomainError(err); ok {
+			ctx = middleware.SetErrorCode(ctx, code)
+			WriteError(w, ctx, status, code, message)
 		} else {
 			slog.ErrorContext(ctx, "failed to get stream session", "error", err)
 			ctx = middleware.SetErrorCode(ctx, ErrCodeInternal)
-			WriteError(w, ctx, http.StatusInternalServerError, ErrCodeInternal, "Internal server error")
+			WriteError(w, ctx, http.StatusInternalServerError, ErrCodeInternal, "An internal error occurred")
 		}
 		return
 	}
@@ -1037,15 +929,8 @@ func (h *StreamHandlers) GetStreamAnalytics(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	// Check if analytics repository is available
-	if h.analyticsRepo == nil {
-		ctx = middleware.SetErrorCode(ctx, ErrCodeInternal)
-		WriteError(w, ctx, http.StatusInternalServerError, ErrCodeInternal, "Analytics not available")
-		return
-	}
-
-	// Get analytics
-	analytics, err := h.analyticsRepo.GetAnalytics(streamID)
+	// Get analytics via service
+	analytics, err := h.streamService.GetStreamAnalytics(ctx, streamID)
 	if err != nil {
 		if errors.Is(err, stream.ErrAnalyticsNotFound) {
 			// Analytics not computed yet - check if stream has ended
@@ -1059,7 +944,7 @@ func (h *StreamHandlers) GetStreamAnalytics(w http.ResponseWriter, r *http.Reque
 		} else {
 			slog.ErrorContext(ctx, "failed to get stream analytics", "error", err)
 			ctx = middleware.SetErrorCode(ctx, ErrCodeInternal)
-			WriteError(w, ctx, http.StatusInternalServerError, ErrCodeInternal, "Internal server error")
+			WriteError(w, ctx, http.StatusInternalServerError, ErrCodeInternal, "An internal error occurred")
 		}
 		return
 	}
@@ -1106,15 +991,15 @@ func (h *StreamHandlers) GetActiveParticipants(w http.ResponseWriter, r *http.Re
 	streamID := pathParts[0]
 
 	// Verify stream exists
-	session, err := h.streamRepo.GetByID(streamID)
+	session, err := h.streamService.GetStream(ctx, streamID)
 	if err != nil {
-		if errors.Is(err, stream.ErrStreamNotFound) {
-			ctx = middleware.SetErrorCode(ctx, ErrCodeNotFound)
-			WriteError(w, ctx, http.StatusNotFound, ErrCodeNotFound, "Stream session not found")
+		if status, code, message, ok := MapDomainError(err); ok {
+			ctx = middleware.SetErrorCode(ctx, code)
+			WriteError(w, ctx, status, code, message)
 		} else {
 			slog.ErrorContext(ctx, "failed to get stream session", "error", err)
 			ctx = middleware.SetErrorCode(ctx, ErrCodeInternal)
-			WriteError(w, ctx, http.StatusInternalServerError, ErrCodeInternal, "Internal server error")
+			WriteError(w, ctx, http.StatusInternalServerError, ErrCodeInternal, "An internal error occurred")
 		}
 		return
 	}
@@ -1168,15 +1053,15 @@ func (h *StreamHandlers) MuteParticipant(w http.ResponseWriter, r *http.Request)
 	participantID := pathParts[2]
 
 	// Get the stream session to verify ownership
-	session, err := h.streamRepo.GetByID(streamID)
+	session, err := h.streamService.GetStream(ctx, streamID)
 	if err != nil {
-		if errors.Is(err, stream.ErrStreamNotFound) {
-			ctx = middleware.SetErrorCode(ctx, ErrCodeNotFound)
-			WriteError(w, ctx, http.StatusNotFound, ErrCodeNotFound, "Stream session not found")
+		if status, code, message, ok := MapDomainError(err); ok {
+			ctx = middleware.SetErrorCode(ctx, code)
+			WriteError(w, ctx, status, code, message)
 		} else {
 			slog.ErrorContext(ctx, "failed to get stream session", "error", err)
 			ctx = middleware.SetErrorCode(ctx, ErrCodeInternal)
-			WriteError(w, ctx, http.StatusInternalServerError, ErrCodeInternal, "Internal server error")
+			WriteError(w, ctx, http.StatusInternalServerError, ErrCodeInternal, "An internal error occurred")
 		}
 		return
 	}
@@ -1305,15 +1190,15 @@ func (h *StreamHandlers) KickParticipant(w http.ResponseWriter, r *http.Request)
 	participantID := pathParts[2]
 
 	// Get the stream session to verify ownership
-	session, err := h.streamRepo.GetByID(streamID)
+	session, err := h.streamService.GetStream(ctx, streamID)
 	if err != nil {
-		if errors.Is(err, stream.ErrStreamNotFound) {
-			ctx = middleware.SetErrorCode(ctx, ErrCodeNotFound)
-			WriteError(w, ctx, http.StatusNotFound, ErrCodeNotFound, "Stream session not found")
+		if status, code, message, ok := MapDomainError(err); ok {
+			ctx = middleware.SetErrorCode(ctx, code)
+			WriteError(w, ctx, status, code, message)
 		} else {
 			slog.ErrorContext(ctx, "failed to get stream session", "error", err)
 			ctx = middleware.SetErrorCode(ctx, ErrCodeInternal)
-			WriteError(w, ctx, http.StatusInternalServerError, ErrCodeInternal, "Internal server error")
+			WriteError(w, ctx, http.StatusInternalServerError, ErrCodeInternal, "An internal error occurred")
 		}
 		return
 	}
@@ -1407,15 +1292,15 @@ func (h *StreamHandlers) SetFeaturedParticipant(w http.ResponseWriter, r *http.R
 	streamID := pathParts[0]
 
 	// Get the stream session to verify ownership
-	session, err := h.streamRepo.GetByID(streamID)
+	session, err := h.streamService.GetStream(ctx, streamID)
 	if err != nil {
-		if errors.Is(err, stream.ErrStreamNotFound) {
-			ctx = middleware.SetErrorCode(ctx, ErrCodeNotFound)
-			WriteError(w, ctx, http.StatusNotFound, ErrCodeNotFound, "Stream session not found")
+		if status, code, message, ok := MapDomainError(err); ok {
+			ctx = middleware.SetErrorCode(ctx, code)
+			WriteError(w, ctx, status, code, message)
 		} else {
 			slog.ErrorContext(ctx, "failed to get stream session", "error", err)
 			ctx = middleware.SetErrorCode(ctx, ErrCodeInternal)
-			WriteError(w, ctx, http.StatusInternalServerError, ErrCodeInternal, "Internal server error")
+			WriteError(w, ctx, http.StatusInternalServerError, ErrCodeInternal, "An internal error occurred")
 		}
 		return
 	}
@@ -1449,8 +1334,8 @@ func (h *StreamHandlers) SetFeaturedParticipant(w http.ResponseWriter, r *http.R
 		}
 	}
 
-	// Update featured participant in database
-	err = h.streamRepo.SetFeaturedParticipant(streamID, req.ParticipantID)
+	// Update featured participant in database via service
+	err = h.streamService.SetFeaturedParticipant(ctx, streamID, req.ParticipantID)
 	if err != nil {
 		slog.ErrorContext(ctx, "failed to set featured participant",
 			"error", err,
@@ -1525,15 +1410,15 @@ func (h *StreamHandlers) LockStream(w http.ResponseWriter, r *http.Request) {
 	streamID := pathParts[0]
 
 	// Get the stream session to verify ownership
-	session, err := h.streamRepo.GetByID(streamID)
+	session, err := h.streamService.GetStream(ctx, streamID)
 	if err != nil {
-		if errors.Is(err, stream.ErrStreamNotFound) {
-			ctx = middleware.SetErrorCode(ctx, ErrCodeNotFound)
-			WriteError(w, ctx, http.StatusNotFound, ErrCodeNotFound, "Stream session not found")
+		if status, code, message, ok := MapDomainError(err); ok {
+			ctx = middleware.SetErrorCode(ctx, code)
+			WriteError(w, ctx, status, code, message)
 		} else {
 			slog.ErrorContext(ctx, "failed to get stream session", "error", err)
 			ctx = middleware.SetErrorCode(ctx, ErrCodeInternal)
-			WriteError(w, ctx, http.StatusInternalServerError, ErrCodeInternal, "Internal server error")
+			WriteError(w, ctx, http.StatusInternalServerError, ErrCodeInternal, "An internal error occurred")
 		}
 		return
 	}
@@ -1553,8 +1438,8 @@ func (h *StreamHandlers) LockStream(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Update lock status in database
-	err = h.streamRepo.SetLockStatus(streamID, req.Locked)
+	// Update lock status in database via service
+	err = h.streamService.LockStream(ctx, streamID, req.Locked)
 	if err != nil {
 		slog.ErrorContext(ctx, "failed to set lock status",
 			"error", err,
@@ -1597,4 +1482,104 @@ func (h *StreamHandlers) LockStream(w http.ResponseWriter, r *http.Request) {
 	if err := json.NewEncoder(w).Encode(response); err != nil {
 		slog.ErrorContext(ctx, "failed to encode lock response", "error", err)
 	}
+}
+
+// RegisterStreamRoutes registers all stream-related routes on the given mux.
+func RegisterStreamRoutes(mux *http.ServeMux, deps *RouteDeps, h *StreamHandlers) {
+	// Stream join handler (with rate limiting: 10 req/min per user)
+	streamJoinLimit := middleware.RateLimitConfig{
+		RequestsPerWindow: 10,
+		WindowDuration:    time.Minute,
+	}
+	streamJoinHandler := deps.RateLimit(h.JoinStream, streamJoinLimit, middleware.UserKeyFunc())
+
+	// Stream creation
+	mux.HandleFunc("/streams", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			ctx := middleware.SetErrorCode(r.Context(), ErrCodeBadRequest)
+			WriteError(w, ctx, http.StatusMethodNotAllowed, ErrCodeBadRequest, "Method not allowed")
+			return
+		}
+		h.CreateStream(w, r)
+	})
+
+	// Stream resource routes
+	mux.HandleFunc("/streams/", func(w http.ResponseWriter, r *http.Request) {
+		// Expected patterns: /streams/{id}/end, /streams/{id}/join, /streams/{id}/leave, /streams/{id}/analytics
+		pathParts := strings.Split(strings.TrimPrefix(r.URL.Path, "/streams/"), "/")
+
+		// Check if this is an analytics request: /streams/{id}/analytics
+		if len(pathParts) == 2 && pathParts[0] != "" && pathParts[1] == "analytics" && r.Method == http.MethodGet {
+			h.GetStreamAnalytics(w, r)
+			return
+		}
+
+		// Check if this is an end request: /streams/{id}/end
+		if len(pathParts) == 2 && pathParts[0] != "" && pathParts[1] == "end" && r.Method == http.MethodPost {
+			h.EndStream(w, r)
+			return
+		}
+
+		// Check if this is a join request: /streams/{id}/join (with rate limiting: 10 req/min per user)
+		if len(pathParts) == 2 && pathParts[0] != "" && pathParts[1] == "join" && r.Method == http.MethodPost {
+			streamJoinHandler.ServeHTTP(w, r)
+			return
+		}
+
+		// Check if this is a leave request: /streams/{id}/leave
+		if len(pathParts) == 2 && pathParts[0] != "" && pathParts[1] == "leave" && r.Method == http.MethodPost {
+			h.LeaveStream(w, r)
+			return
+		}
+
+		// Check if this is a participants request: /streams/{id}/participants
+		if len(pathParts) == 2 && pathParts[0] != "" && pathParts[1] == "participants" && r.Method == http.MethodGet {
+			h.GetActiveParticipants(w, r)
+			return
+		}
+
+		// Check if this is a mute request: /streams/{id}/participants/{participant_id}/mute
+		if len(pathParts) == 4 && pathParts[0] != "" && pathParts[1] == "participants" && pathParts[2] != "" && pathParts[3] == "mute" && r.Method == http.MethodPost {
+			h.MuteParticipant(w, r)
+			return
+		}
+
+		// Check if this is a kick request: /streams/{id}/participants/{participant_id}/kick
+		if len(pathParts) == 4 && pathParts[0] != "" && pathParts[1] == "participants" && pathParts[2] != "" && pathParts[3] == "kick" && r.Method == http.MethodPost {
+			h.KickParticipant(w, r)
+			return
+		}
+
+		// Check if this is a featured participant request: /streams/{id}/featured_participant
+		if len(pathParts) == 2 && pathParts[0] != "" && pathParts[1] == "featured_participant" && r.Method == http.MethodPatch {
+			h.SetFeaturedParticipant(w, r)
+			return
+		}
+
+		// Check if this is a lock request: /streams/{id}/lock
+		if len(pathParts) == 2 && pathParts[0] != "" && pathParts[1] == "lock" && r.Method == http.MethodPatch {
+			h.LockStream(w, r)
+			return
+		}
+
+		// Check if this is a GET request for stream details: /streams/{id}
+		if len(pathParts) == 1 && pathParts[0] != "" && r.Method == http.MethodGet {
+			h.GetStream(w, r)
+			return
+		}
+
+		// Check if this is a PATCH request for updating stream metadata: /streams/{id}.
+		// IMPORTANT: This must only match plain `/streams/{id}` paths and not interfere with
+		// more specific PATCH routes like `/streams/{id}/lock` and `/streams/{id}/featured_participant`,
+		// which are handled explicitly above. The routing order ensures specific routes are checked
+		// first (len(pathParts) == 2) before this generic handler (len(pathParts) == 1).
+		if len(pathParts) == 1 && pathParts[0] != "" && r.Method == http.MethodPatch {
+			h.UpdateStream(w, r)
+			return
+		}
+
+		// No other stream endpoints yet, return 404
+		ctx := middleware.SetErrorCode(r.Context(), ErrCodeNotFound)
+		WriteError(w, ctx, http.StatusNotFound, ErrCodeNotFound, "The requested resource was not found")
+	})
 }

@@ -42,6 +42,7 @@ let state: AuthState = {
 const listeners = new Set<(next: AuthState) => void>();
 const channel = typeof BroadcastChannel === 'undefined' ? null : new BroadcastChannel('subcult-auth');
 let refreshPromise: Promise<string | null> | null = null;
+const refreshBackoffMs = [250, 500, 1000];
 
 function publish(next: AuthState) {
   state = next;
@@ -67,14 +68,23 @@ async function refreshAccessToken(): Promise<string | null> {
   if (refreshPromise) return refreshPromise;
   refreshPromise = (async () => {
     try {
-      const response = await fetch(`${API_V1}/auth/refresh`, { method: 'POST', credentials: 'include' });
-      if (!response.ok) {
-        publish(anonymous());
-        return null;
+      for (let attempt = 0; attempt <= refreshBackoffMs.length; attempt += 1) {
+        const response = await fetch(`${API_V1}/auth/refresh`, { method: 'POST', credentials: 'include' });
+        if (response.ok) {
+          const body = await response.json() as { data: AuthPayload };
+          publish(authenticated(body.data.user, body.data.access_token));
+          return body.data.access_token;
+        }
+        if (response.status < 500 || attempt === refreshBackoffMs.length) {
+          if (response.status !== 401) {
+            console.warn(`[authStore] Token refresh failed with status ${response.status}`);
+          }
+          publish(anonymous());
+          return null;
+        }
+        await new Promise((resolve) => setTimeout(resolve, refreshBackoffMs[attempt]));
       }
-      const body = await response.json() as { data: AuthPayload };
-      publish(authenticated(body.data.user, body.data.access_token));
-      return body.data.access_token;
+      return null;
     } catch {
       publish(anonymous());
       return null;
@@ -112,13 +122,15 @@ export const authStore = {
   async logout() {
     try {
       await fetch(`${API_V1}/auth/logout`, { method: 'POST', credentials: 'include' });
+    } catch {
+      // Local logout must succeed even when the server is unreachable.
     } finally {
       publish(anonymous());
       channel?.postMessage({ type: 'logout' });
     }
   },
   resetForTesting() {
-    publish(anonymous());
+    publish(anonymous(true));
   },
 };
 
