@@ -55,7 +55,7 @@ func seedTestPosts(repo post.PostRepository, sceneID, eventID string, count int)
 
 // TestGetSceneFeed_Success tests successful scene feed retrieval.
 func TestGetSceneFeed_Success(t *testing.T) {
-	handlers := newTestPostHandlers()
+	handlers, repo := newTestPostHandlers()
 
 	sceneID := "scene123"
 
@@ -63,7 +63,7 @@ func TestGetSceneFeed_Success(t *testing.T) {
 	createTestSceneForFeed(handlers.sceneRepo, sceneID, "did:example:owner")
 
 	// Seed 5 posts
-	seedTestPosts(handlers.repo, sceneID, "event123", 5)
+	seedTestPosts(repo, sceneID, "event123", 5)
 
 	req := httptest.NewRequest(http.MethodGet, "/scenes/"+sceneID+"/feed", nil)
 	w := httptest.NewRecorder()
@@ -93,7 +93,7 @@ func TestGetSceneFeed_Success(t *testing.T) {
 
 // TestGetSceneFeed_Pagination tests cursor-based pagination.
 func TestGetSceneFeed_Pagination(t *testing.T) {
-	handlers := newTestPostHandlers()
+	handlers, repo := newTestPostHandlers()
 
 	sceneID := "scene123"
 
@@ -101,7 +101,7 @@ func TestGetSceneFeed_Pagination(t *testing.T) {
 	createTestSceneForFeed(handlers.sceneRepo, "scene123", "did:example:owner")
 
 	// Seed 25 posts
-	seedTestPosts(handlers.repo, sceneID, "event123", 25)
+	seedTestPosts(repo, sceneID, "event123", 25)
 
 	// First page: limit=10
 	req := httptest.NewRequest(http.MethodGet, "/scenes/"+sceneID+"/feed?limit=10", nil)
@@ -166,7 +166,7 @@ func TestGetSceneFeed_Pagination(t *testing.T) {
 
 // TestGetSceneFeed_HiddenPostsExcluded tests that posts with 'hidden' label are excluded.
 func TestGetSceneFeed_HiddenPostsExcluded(t *testing.T) {
-	handlers := newTestPostHandlers()
+	handlers, repo := newTestPostHandlers()
 
 	sceneID := "scene123"
 
@@ -174,7 +174,7 @@ func TestGetSceneFeed_HiddenPostsExcluded(t *testing.T) {
 	createTestSceneForFeed(handlers.sceneRepo, "scene123", "did:example:owner")
 
 	// Create 3 normal posts
-	normalPosts := seedTestPosts(handlers.repo, sceneID, "event123", 3)
+	normalPosts := seedTestPosts(repo, sceneID, "event123", 3)
 
 	// Create 2 hidden posts
 	for i := 0; i < 2; i++ {
@@ -186,7 +186,7 @@ func TestGetSceneFeed_HiddenPostsExcluded(t *testing.T) {
 			Labels:    []string{post.LabelHidden},
 			CreatedAt: time.Now().Add(time.Duration(i) * time.Hour), // Newer than normal posts
 		}
-		if err := handlers.repo.Create(hiddenPost); err != nil {
+		if err := repo.Create(hiddenPost); err != nil {
 			t.Fatalf("failed to create hidden post: %v", err)
 		}
 	}
@@ -232,7 +232,7 @@ func TestGetSceneFeed_HiddenPostsExcluded(t *testing.T) {
 
 // TestGetSceneFeed_DeletedPostsExcluded tests that soft-deleted posts are excluded.
 func TestGetSceneFeed_DeletedPostsExcluded(t *testing.T) {
-	handlers := newTestPostHandlers()
+	handlers, repo := newTestPostHandlers()
 
 	sceneID := "scene123"
 
@@ -240,13 +240,13 @@ func TestGetSceneFeed_DeletedPostsExcluded(t *testing.T) {
 	createTestSceneForFeed(handlers.sceneRepo, "scene123", "did:example:owner")
 
 	// Create 5 posts
-	posts := seedTestPosts(handlers.repo, sceneID, "event123", 5)
+	posts := seedTestPosts(repo, sceneID, "event123", 5)
 
 	// Delete 2 posts
-	if err := handlers.repo.Delete(posts[1].ID); err != nil {
+	if err := repo.Delete(posts[1].ID); err != nil {
 		t.Fatalf("failed to delete post: %v", err)
 	}
-	if err := handlers.repo.Delete(posts[3].ID); err != nil {
+	if err := repo.Delete(posts[3].ID); err != nil {
 		t.Fatalf("failed to delete post: %v", err)
 	}
 
@@ -279,7 +279,7 @@ func TestGetSceneFeed_DeletedPostsExcluded(t *testing.T) {
 
 // TestGetEventFeed_Success tests successful event feed retrieval.
 func TestGetEventFeed_Success(t *testing.T) {
-	handlers := newTestPostHandlers()
+	handlers, repo := newTestPostHandlers()
 
 	eventID := "event123"
 
@@ -293,7 +293,7 @@ func TestGetEventFeed_Success(t *testing.T) {
 			Labels:    []string{},
 			CreatedAt: time.Now().Add(-time.Duration(i) * time.Hour),
 		}
-		if err := handlers.repo.Create(p); err != nil {
+		if err := repo.Create(p); err != nil {
 			t.Fatalf("failed to create post: %v", err)
 		}
 	}
@@ -326,7 +326,7 @@ func TestGetEventFeed_Success(t *testing.T) {
 
 // TestGetSceneFeed_InvalidLimit tests validation of limit parameter.
 func TestGetSceneFeed_InvalidLimit(t *testing.T) {
-	handlers := newTestPostHandlers()
+	handlers, _ := newTestPostHandlers()
 
 	sceneID := "scene123"
 
@@ -359,7 +359,7 @@ func TestGetSceneFeed_InvalidLimit(t *testing.T) {
 
 // TestGetSceneFeed_MaxLimit tests that limit is capped at 100.
 func TestGetSceneFeed_MaxLimit(t *testing.T) {
-	handlers := newTestPostHandlers()
+	handlers, repo := newTestPostHandlers()
 
 	sceneID := "scene123"
 
@@ -367,7 +367,7 @@ func TestGetSceneFeed_MaxLimit(t *testing.T) {
 	createTestSceneForFeed(handlers.sceneRepo, "scene123", "did:example:owner")
 
 	// Seed 150 posts
-	seedTestPosts(handlers.repo, sceneID, "event123", 150)
+	seedTestPosts(repo, sceneID, "event123", 150)
 
 	// Request with limit > 100
 	req := httptest.NewRequest(http.MethodGet, "/scenes/"+sceneID+"/feed?limit=200", nil)
@@ -392,7 +392,7 @@ func TestGetSceneFeed_MaxLimit(t *testing.T) {
 
 // TestGetSceneFeed_EmptyFeed tests behavior when there are no posts.
 func TestGetSceneFeed_EmptyFeed(t *testing.T) {
-	handlers := newTestPostHandlers()
+	handlers, _ := newTestPostHandlers()
 
 	sceneID := "scene123"
 

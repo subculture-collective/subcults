@@ -16,9 +16,10 @@ import (
 
 func TestRequestMembership_Success(t *testing.T) {
 	membershipRepo := membership.NewInMemoryMembershipRepository()
+	membershipService := membership.NewService(membershipRepo)
 	sceneRepo := scene.NewInMemorySceneRepository()
 	auditRepo := audit.NewInMemoryRepository()
-	handlers := NewMembershipHandlers(membershipRepo, sceneRepo, auditRepo)
+	handlers := NewMembershipHandlers(membershipService, sceneRepo, auditRepo)
 
 	// Create a test scene
 	testScene := &scene.Scene{
@@ -72,9 +73,10 @@ func TestRequestMembership_Success(t *testing.T) {
 
 func TestRequestMembership_DuplicatePending(t *testing.T) {
 	membershipRepo := membership.NewInMemoryMembershipRepository()
+	membershipService := membership.NewService(membershipRepo)
 	sceneRepo := scene.NewInMemorySceneRepository()
 	auditRepo := audit.NewInMemoryRepository()
-	handlers := NewMembershipHandlers(membershipRepo, sceneRepo, auditRepo)
+	handlers := NewMembershipHandlers(membershipService, sceneRepo, auditRepo)
 
 	// Create a test scene
 	testScene := &scene.Scene{
@@ -128,9 +130,10 @@ func TestRequestMembership_DuplicatePending(t *testing.T) {
 
 func TestRequestMembership_OwnerCannotRequest(t *testing.T) {
 	membershipRepo := membership.NewInMemoryMembershipRepository()
+	membershipService := membership.NewService(membershipRepo)
 	sceneRepo := scene.NewInMemorySceneRepository()
 	auditRepo := audit.NewInMemoryRepository()
-	handlers := NewMembershipHandlers(membershipRepo, sceneRepo, auditRepo)
+	handlers := NewMembershipHandlers(membershipService, sceneRepo, auditRepo)
 
 	// Create a test scene
 	testScene := &scene.Scene{
@@ -168,9 +171,10 @@ func TestRequestMembership_OwnerCannotRequest(t *testing.T) {
 
 func TestRequestMembership_RejectedCanReapply(t *testing.T) {
 	membershipRepo := membership.NewInMemoryMembershipRepository()
+	membershipService := membership.NewService(membershipRepo)
 	sceneRepo := scene.NewInMemorySceneRepository()
 	auditRepo := audit.NewInMemoryRepository()
-	handlers := NewMembershipHandlers(membershipRepo, sceneRepo, auditRepo)
+	handlers := NewMembershipHandlers(membershipService, sceneRepo, auditRepo)
 
 	// Create a test scene
 	testScene := &scene.Scene{
@@ -220,9 +224,10 @@ func TestRequestMembership_RejectedCanReapply(t *testing.T) {
 
 func TestApproveMembership_Success(t *testing.T) {
 	membershipRepo := membership.NewInMemoryMembershipRepository()
+	membershipService := membership.NewService(membershipRepo)
 	sceneRepo := scene.NewInMemorySceneRepository()
 	auditRepo := audit.NewInMemoryRepository()
-	handlers := NewMembershipHandlers(membershipRepo, sceneRepo, auditRepo)
+	handlers := NewMembershipHandlers(membershipService, sceneRepo, auditRepo)
 
 	// Create a test scene
 	testScene := &scene.Scene{
@@ -287,9 +292,10 @@ func TestApproveMembership_Success(t *testing.T) {
 
 func TestApproveMembership_Unauthorized(t *testing.T) {
 	membershipRepo := membership.NewInMemoryMembershipRepository()
+	membershipService := membership.NewService(membershipRepo)
 	sceneRepo := scene.NewInMemorySceneRepository()
 	auditRepo := audit.NewInMemoryRepository()
-	handlers := NewMembershipHandlers(membershipRepo, sceneRepo, auditRepo)
+	handlers := NewMembershipHandlers(membershipService, sceneRepo, auditRepo)
 
 	// Create a test scene
 	testScene := &scene.Scene{
@@ -339,9 +345,10 @@ func TestApproveMembership_Unauthorized(t *testing.T) {
 
 func TestApproveMembership_NotPending(t *testing.T) {
 	membershipRepo := membership.NewInMemoryMembershipRepository()
+	membershipService := membership.NewService(membershipRepo)
 	sceneRepo := scene.NewInMemorySceneRepository()
 	auditRepo := audit.NewInMemoryRepository()
-	handlers := NewMembershipHandlers(membershipRepo, sceneRepo, auditRepo)
+	handlers := NewMembershipHandlers(membershipService, sceneRepo, auditRepo)
 
 	// Create a test scene
 	testScene := &scene.Scene{
@@ -391,9 +398,10 @@ func TestApproveMembership_NotPending(t *testing.T) {
 
 func TestRejectMembership_Success(t *testing.T) {
 	membershipRepo := membership.NewInMemoryMembershipRepository()
+	membershipService := membership.NewService(membershipRepo)
 	sceneRepo := scene.NewInMemorySceneRepository()
 	auditRepo := audit.NewInMemoryRepository()
-	handlers := NewMembershipHandlers(membershipRepo, sceneRepo, auditRepo)
+	handlers := NewMembershipHandlers(membershipService, sceneRepo, auditRepo)
 
 	// Create a test scene
 	testScene := &scene.Scene{
@@ -461,9 +469,10 @@ func TestRejectMembership_Success(t *testing.T) {
 
 func TestRejectMembership_Unauthorized(t *testing.T) {
 	membershipRepo := membership.NewInMemoryMembershipRepository()
+	membershipService := membership.NewService(membershipRepo)
 	sceneRepo := scene.NewInMemorySceneRepository()
 	auditRepo := audit.NewInMemoryRepository()
-	handlers := NewMembershipHandlers(membershipRepo, sceneRepo, auditRepo)
+	handlers := NewMembershipHandlers(membershipService, sceneRepo, auditRepo)
 
 	// Create a test scene
 	testScene := &scene.Scene{
@@ -513,9 +522,10 @@ func TestRejectMembership_Unauthorized(t *testing.T) {
 
 func TestMembershipEnumerationProtection(t *testing.T) {
 	membershipRepo := membership.NewInMemoryMembershipRepository()
+	membershipService := membership.NewService(membershipRepo)
 	sceneRepo := scene.NewInMemorySceneRepository()
 	auditRepo := audit.NewInMemoryRepository()
-	handlers := NewMembershipHandlers(membershipRepo, sceneRepo, auditRepo)
+	handlers := NewMembershipHandlers(membershipService, sceneRepo, auditRepo)
 
 	// Create a test scene
 	testScene := &scene.Scene{

@@ -15,8 +15,6 @@ import React, { useState, useRef, useCallback } from 'react';
 import { DarkModeToggle } from '../components/DarkModeToggle';
 import { NotificationSettings } from '../components/NotificationSettings';
 import { Avatar } from '../components/Avatar';
-import { Input } from '../components/ui/Input';
-import { Button } from '../components/ui/Button';
 import { ConfirmModal } from '../components/ui/Modal';
 import { useTheme } from '../stores/themeStore';
 import { useAuth } from '../stores/authStore';
@@ -238,26 +236,37 @@ export const SettingsPage: React.FC = () => {
                   className="hidden"
                   aria-label="Upload avatar"
                 />
-                <Button
-                  variant="secondary"
-                  size="sm"
+                <button
+                  className="button-secondary"
                   onClick={() => fileInputRef.current?.click()}
-                  isLoading={isUploadingAvatar}
+                  disabled={isUploadingAvatar}
                 >
+                  {isUploadingAvatar && (
+                    <span
+                      className="inline-block animate-spin rounded-full h-4 w-4 border-2 border-current border-t-transparent"
+                      role="status"
+                      aria-label="Loading"
+                    />
+                  )}
                   {isUploadingAvatar ? 'Uploading...' : 'Change Avatar'}
-                </Button>
+                </button>
               </div>
             </div>
 
             {/* Profile Form */}
             <div className="space-y-4">
-              <Input
-                label="Display Name"
-                value={profile.name}
-                onChange={(e) => handleProfileChange('name', e.target.value)}
-                placeholder="Enter your display name"
-                fullWidth
-              />
+              <div className="w-full">
+                <label htmlFor="display-name" className="block text-sm font-medium text-foreground mb-1.5">
+                  Display Name
+                </label>
+                <input
+                  id="display-name"
+                  className="field"
+                  value={profile.name}
+                  onChange={(e) => handleProfileChange('name', e.target.value)}
+                  placeholder="Enter your display name"
+                />
+              </div>
 
               <div>
                 <label htmlFor="bio" className="block text-sm font-medium text-foreground mb-1.5">
@@ -285,9 +294,20 @@ export const SettingsPage: React.FC = () => {
                 </p>
               )}
 
-              <Button variant="primary" onClick={handleSaveProfile} isLoading={isProfileSaving}>
+              <button
+                className="button-primary"
+                onClick={handleSaveProfile}
+                disabled={isProfileSaving}
+              >
+                {isProfileSaving && (
+                  <span
+                    className="inline-block animate-spin rounded-full h-4 w-4 border-2 border-current border-t-transparent"
+                    role="status"
+                    aria-label="Loading"
+                  />
+                )}
                 Save Profile
-              </Button>
+              </button>
             </div>
           </section>
 
@@ -359,9 +379,11 @@ export const SettingsPage: React.FC = () => {
                       : 'Connect Stripe to receive payments directly from your audience'}
                   </p>
                 </div>
-                <Button variant={profile.stripeConnected ? 'secondary' : 'primary'} size="sm">
+                <button
+                  className={profile.stripeConnected ? 'button-secondary' : 'button-primary'}
+                >
                   {profile.stripeConnected ? 'Manage' : 'Connect'}
-                </Button>
+                </button>
               </div>
 
               {/* Artist Profile */}
@@ -374,9 +396,11 @@ export const SettingsPage: React.FC = () => {
                       : 'Create an artist profile to showcase your work and events'}
                   </p>
                 </div>
-                <Button variant={profile.artistProfileLinked ? 'secondary' : 'primary'} size="sm">
+                <button
+                  className={profile.artistProfileLinked ? 'button-secondary' : 'button-primary'}
+                >
                   {profile.artistProfileLinked ? 'Edit' : 'Create'}
-                </Button>
+                </button>
               </div>
             </div>
           </section>
@@ -393,15 +417,20 @@ export const SettingsPage: React.FC = () => {
                   session will remain active.
                 </p>
               </div>
-              <Button
-                variant="secondary"
-                size="sm"
+              <button
+                className="button-secondary ml-4"
                 onClick={handleLogoutOtherDevices}
-                isLoading={isLoggingOutOthers}
-                className="ml-4"
+                disabled={isLoggingOutOthers}
               >
+                {isLoggingOutOthers && (
+                  <span
+                    className="inline-block animate-spin rounded-full h-4 w-4 border-2 border-current border-t-transparent"
+                    role="status"
+                    aria-label="Loading"
+                  />
+                )}
                 Logout Other Devices
-              </Button>
+              </button>
             </div>
           </section>
 
@@ -417,14 +446,12 @@ export const SettingsPage: React.FC = () => {
                   undone. All your scenes, events, posts, and memberships will be deleted.
                 </p>
               </div>
-              <Button
-                variant="danger"
-                size="sm"
+              <button
+                className="button-danger ml-4"
                 onClick={() => setShowDeleteConfirm(true)}
-                className="ml-4"
               >
                 Delete Account
-              </Button>
+              </button>
             </div>
           </section>
         </div>

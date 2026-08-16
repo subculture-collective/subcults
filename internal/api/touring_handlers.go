@@ -2,25 +2,23 @@ package api
 
 import (
 	"encoding/json"
-	"errors"
 	"net/http"
 	"strconv"
 	"strings"
 	"time"
 
-	"github.com/google/uuid"
+	"github.com/onnwee/subcults/internal/identity"
 	"github.com/onnwee/subcults/internal/middleware"
 	"github.com/onnwee/subcults/internal/scene"
 	"github.com/onnwee/subcults/internal/touring"
 )
 
-// TouringHandlers exposes additive, read-only touring resources. Its repository
-// is currently in-memory in the development runtime; no handler treats it as a
-// durable production query source.
+// TouringHandlers exposes additive, read-only touring resources. Business logic
+// lives in the touring.Service layer; the handler handles HTTP decoding/encoding.
 type TouringHandlers struct {
-	touringRepo touring.Repository
-	eventRepo   scene.EventRepository
-	sceneRepo   scene.SceneRepository
+	touringService *touring.Service
+	eventRepo      scene.EventRepository
+	sceneRepo      scene.SceneRepository
 }
 
 // CreateProfile handles creator-authorized Studio profile creation. Authorization
@@ -43,23 +41,14 @@ func (h *TouringHandlers) CreateProfile(w http.ResponseWriter, r *http.Request) 
 		touringValidationError(w, r, "invalid profile")
 		return
 	}
-	if request.Visibility == "" {
-		request.Visibility = touring.VisibilityPublic
-	}
-	profile := touring.Profile{ID: uuid.NewString(), Kind: request.Kind, CanonicalName: strings.TrimSpace(request.CanonicalName), Visibility: request.Visibility, CreatedByUserID: middleware.GetUserID(r.Context()), PublicationStatus: "draft"}
-	profile.Version = 1
-	if err := h.touringRepo.StoreProfile(profile); err != nil {
+	profile, act, err := h.touringService.CreateProfile(r.Context(), request.Kind, request.CanonicalName, request.Visibility, middleware.GetUserID(r.Context()))
+	if err != nil {
 		touringValidationError(w, r, "invalid profile")
 		return
 	}
 	response := map[string]any{"profile": profile}
-	if profile.Kind == "artist" {
-		act := touring.Act{ID: uuid.NewString(), ProfileID: profile.ID, PublicationStatus: "draft"}
-		if err := h.touringRepo.StoreAct(act); err != nil {
-			touringInternalError(w, r)
-			return
-		}
-		response["act"] = act
+	if act != nil {
+		response["act"] = *act
 	}
 	touringWriteJSON(w, http.StatusCreated, response)
 }
@@ -78,19 +67,12 @@ func (h *TouringHandlers) CreatePlace(w http.ResponseWriter, r *http.Request) {
 		touringValidationError(w, r, "invalid place")
 		return
 	}
-	if place.ID == "" {
-		place.ID = uuid.NewString()
-	}
-	if place.Version == 0 {
-		place.Version = 1
-	}
-	place.CreatedByUserID = middleware.GetUserID(r.Context())
-	place.PublicationStatus = "draft"
-	if err := h.touringRepo.StorePlace(place); err != nil {
+	created, err := h.touringService.CreatePlace(r.Context(), place, middleware.GetUserID(r.Context()))
+	if err != nil {
 		touringValidationError(w, r, "invalid place")
 		return
 	}
-	touringWriteJSON(w, http.StatusCreated, place)
+	touringWriteJSON(w, http.StatusCreated, created)
 }
 
 func (h *TouringHandlers) CreateVenue(w http.ResponseWriter, r *http.Request) {
@@ -100,7 +82,7 @@ func (h *TouringHandlers) CreateVenue(w http.ResponseWriter, r *http.Request) {
 			touringValidationError(w, r, "invalid venue")
 			return
 		}
-		h.updateTouring(w, r, func() error { return h.touringRepo.UpdateVenue(&venue) }, func() any { return venue })
+		h.updateTouring(w, r, func() error { return h.touringService.UpdateVenue(venue) }, func() any { return venue })
 		return
 	}
 	if r.Method != http.MethodPost {
@@ -112,16 +94,12 @@ func (h *TouringHandlers) CreateVenue(w http.ResponseWriter, r *http.Request) {
 		touringValidationError(w, r, "invalid venue")
 		return
 	}
-	venue.ID = uuid.NewString()
-	venue.Version = 1
-	venue.PublicationStatus = "draft"
-	venue.AllowPrecise = false
-	venue.PrecisePoint = nil
-	if err := h.touringRepo.StoreVenue(venue); err != nil {
+	created, err := h.touringService.CreateVenue(r.Context(), venue)
+	if err != nil {
 		touringValidationError(w, r, "invalid venue")
 		return
 	}
-	touringWriteJSON(w, http.StatusCreated, venue)
+	touringWriteJSON(w, http.StatusCreated, created)
 }
 
 func (h *TouringHandlers) CreateTour(w http.ResponseWriter, r *http.Request) {
@@ -138,26 +116,12 @@ func (h *TouringHandlers) CreateTour(w http.ResponseWriter, r *http.Request) {
 		touringValidationError(w, r, "invalid tour")
 		return
 	}
-	if tour.ID == "" {
-		tour.ID = uuid.NewString()
-	}
-	if tour.Status == "" {
-		tour.Status = touring.TourStatusDraft
-	}
-	if tour.Version == 0 {
-		tour.Version = 1
-	}
-	tour.CreatedByUserID = middleware.GetUserID(r.Context())
-	tour.PublicationStatus = "draft"
-	if _, err := h.touringRepo.GetAct(tour.PrimaryActID); err != nil {
-		touringValidationError(w, r, "primary act not found")
-		return
-	}
-	if err := h.touringRepo.CreateTour(tour, middleware.GetUserDID(r.Context())); err != nil {
+	created, err := h.touringService.CreateTour(r.Context(), tour, middleware.GetUserID(r.Context()), middleware.GetUserDID(r.Context()))
+	if err != nil {
 		touringValidationError(w, r, "invalid tour")
 		return
 	}
-	touringWriteJSON(w, http.StatusCreated, tour)
+	touringWriteJSON(w, http.StatusCreated, created)
 }
 
 func (h *TouringHandlers) CreateAppearance(w http.ResponseWriter, r *http.Request) {
@@ -174,30 +138,16 @@ func (h *TouringHandlers) CreateAppearance(w http.ResponseWriter, r *http.Reques
 		touringValidationError(w, r, "invalid appearance")
 		return
 	}
-	if appearance.ID == "" {
-		appearance.ID = uuid.NewString()
-	}
-	if appearance.Status == "" {
-		appearance.Status = touring.AppearanceStatusAnnounced
-	}
-	if appearance.Version == 0 {
-		appearance.Version = 1
-	}
-	appearance.CreatedByUserID = middleware.GetUserID(r.Context())
-	appearance.PublicationStatus = "draft"
 	if _, err := h.eventRepo.GetByID(appearance.EventID); err != nil {
 		touringValidationError(w, r, "event not found")
 		return
 	}
-	if _, err := h.touringRepo.GetAct(appearance.ActID); err != nil {
-		touringValidationError(w, r, "act not found")
-		return
-	}
-	if err := h.touringRepo.CreateAppearance(appearance); err != nil {
+	created, err := h.touringService.CreateAppearance(r.Context(), appearance, middleware.GetUserID(r.Context()))
+	if err != nil {
 		touringValidationError(w, r, "invalid appearance")
 		return
 	}
-	touringWriteJSON(w, http.StatusCreated, appearance)
+	touringWriteJSON(w, http.StatusCreated, created)
 }
 
 func (h *TouringHandlers) UpdateProfile(w http.ResponseWriter, r *http.Request) {
@@ -206,7 +156,7 @@ func (h *TouringHandlers) UpdateProfile(w http.ResponseWriter, r *http.Request) 
 		touringValidationError(w, r, "invalid profile")
 		return
 	}
-	h.updateTouring(w, r, func() error { return h.touringRepo.UpdateProfile(&value) }, func() any { return map[string]any{"profile": value} })
+	h.updateTouring(w, r, func() error { return h.touringService.UpdateProfile(value) }, func() any { return map[string]any{"profile": value} })
 }
 func (h *TouringHandlers) UpdatePlace(w http.ResponseWriter, r *http.Request) {
 	var value touring.Place
@@ -214,7 +164,7 @@ func (h *TouringHandlers) UpdatePlace(w http.ResponseWriter, r *http.Request) {
 		touringValidationError(w, r, "invalid place")
 		return
 	}
-	h.updateTouring(w, r, func() error { return h.touringRepo.UpdatePlace(&value) }, func() any { return value })
+	h.updateTouring(w, r, func() error { return h.touringService.UpdatePlace(value) }, func() any { return value })
 }
 func (h *TouringHandlers) UpdateTour(w http.ResponseWriter, r *http.Request) {
 	var value touring.Tour
@@ -222,7 +172,7 @@ func (h *TouringHandlers) UpdateTour(w http.ResponseWriter, r *http.Request) {
 		touringValidationError(w, r, "invalid tour")
 		return
 	}
-	h.updateTouring(w, r, func() error { return h.touringRepo.UpdateTour(&value) }, func() any { return value })
+	h.updateTouring(w, r, func() error { return h.touringService.UpdateTour(value) }, func() any { return value })
 }
 func (h *TouringHandlers) UpdateAppearance(w http.ResponseWriter, r *http.Request) {
 	var value touring.Appearance
@@ -230,11 +180,11 @@ func (h *TouringHandlers) UpdateAppearance(w http.ResponseWriter, r *http.Reques
 		touringValidationError(w, r, "invalid appearance")
 		return
 	}
-	h.updateTouring(w, r, func() error { return h.touringRepo.UpdateAppearance(&value) }, func() any { return value })
+	h.updateTouring(w, r, func() error { return h.touringService.UpdateAppearance(value) }, func() any { return value })
 }
 func (h *TouringHandlers) updateTouring(w http.ResponseWriter, r *http.Request, update func() error, response func() any) {
 	if err := update(); err != nil {
-		if errors.Is(err, touring.ErrVersionConflict) {
+		if _, _, _, ok := MapDomainError(err); ok {
 			WriteError(w, middleware.SetErrorCode(r.Context(), ErrCodeConflict), http.StatusConflict, ErrCodeConflict, "The record changed; refresh before saving again")
 			return
 		}
@@ -249,8 +199,8 @@ func touringValidationError(w http.ResponseWriter, r *http.Request, message stri
 	WriteError(w, ctx, http.StatusBadRequest, ErrCodeValidation, message)
 }
 
-func NewTouringHandlers(touringRepo touring.Repository, eventRepo scene.EventRepository, sceneRepo scene.SceneRepository) *TouringHandlers {
-	return &TouringHandlers{touringRepo: touringRepo, eventRepo: eventRepo, sceneRepo: sceneRepo}
+func NewTouringHandlers(touringService *touring.Service, eventRepo scene.EventRepository, sceneRepo scene.SceneRepository) *TouringHandlers {
+	return &TouringHandlers{touringService: touringService, eventRepo: eventRepo, sceneRepo: sceneRepo}
 }
 
 type touringProfileResponse struct {
@@ -339,12 +289,12 @@ func (h *TouringHandlers) Profile(w http.ResponseWriter, r *http.Request) {
 		touringNotFound(w, r)
 		return
 	}
-	profile, err := h.touringRepo.GetProfile(id)
+	profile, err := h.touringService.GetProfile(id)
 	if err != nil || (profile.PublicationStatus != "" && profile.PublicationStatus != "published") {
 		touringNotFound(w, r)
 		return
 	}
-	act, err := h.touringRepo.FindActByProfile(profile.ID)
+	act, err := h.touringService.FindActByProfile(profile.ID)
 	if err != nil {
 		touringNotFound(w, r)
 		return
@@ -369,12 +319,12 @@ func (h *TouringHandlers) Tour(w http.ResponseWriter, r *http.Request) {
 		touringNotFound(w, r)
 		return
 	}
-	tour, err := h.touringRepo.GetTour(id)
+	tour, err := h.touringService.GetTour(id)
 	if err != nil || (tour.PublicationStatus != "" && tour.PublicationStatus != "published") {
 		touringNotFound(w, r)
 		return
 	}
-	appearances, err := h.touringRepo.ListAppearancesForTour(id)
+	appearances, err := h.touringService.ListAppearancesForTour(id)
 	if err != nil {
 		touringInternalError(w, r)
 		return
@@ -406,7 +356,7 @@ func (h *TouringHandlers) SearchAppearances(w http.ResponseWriter, r *http.Reque
 		WriteError(w, ctx, http.StatusBadRequest, ErrCodeValidation, err.Error())
 		return
 	}
-	appearances, err := h.touringRepo.ListAppearances()
+	appearances, err := h.touringService.ListAppearances()
 	if err != nil {
 		touringInternalError(w, r)
 		return
@@ -420,7 +370,7 @@ func (h *TouringHandlers) SearchAppearances(w http.ResponseWriter, r *http.Reque
 }
 
 func (h *TouringHandlers) appearancesForAct(actID string) []touring.Appearance {
-	appearances, err := h.touringRepo.ListAppearancesForAct(actID)
+	appearances, err := h.touringService.ListAppearancesForAct(actID)
 	if err != nil {
 		return []touring.Appearance{}
 	}
@@ -437,11 +387,11 @@ func (h *TouringHandlers) summaries(appearances []touring.Appearance, opts appea
 		if err != nil || !matchesAppearanceEvent(event, appearance, opts) {
 			continue
 		}
-		act, err := h.touringRepo.GetAct(appearance.ActID)
+		act, err := h.touringService.GetAct(appearance.ActID)
 		if err != nil {
 			continue
 		}
-		profile, err := h.touringRepo.GetProfile(act.ProfileID)
+		profile, err := h.touringService.GetProfile(act.ProfileID)
 		if err != nil || profile.Visibility != touring.VisibilityPublic {
 			continue
 		}
@@ -465,7 +415,7 @@ func (h *TouringHandlers) summaries(appearances []touring.Appearance, opts appea
 		}
 		var tourResponse *touringTourResponse
 		if appearance.TourID != nil {
-			if tour, err := h.touringRepo.GetTour(*appearance.TourID); err == nil {
+			if tour, err := h.touringService.GetTour(*appearance.TourID); err == nil {
 				tourResponse = tourResponseFromModel(tour)
 			}
 		}
@@ -478,7 +428,7 @@ func (h *TouringHandlers) summaries(appearances []touring.Appearance, opts appea
 			Event: appearanceEventResponse{ID: event.ID, Title: event.Title, StartsAt: event.StartsAt, Kind: kind, Occurrence: toPublicOccurrence(event)},
 			Act:   appearanceActResponse{ID: act.ID, ProfileID: profile.ID, Name: profile.CanonicalName, HomeTerritory: homeTerritory},
 			Tour:  tourResponse, HostNames: hostNames, Context: touring.ProjectAppearanceKind(appearance.TourID, kind),
-			Locality: locality, Status: appearance.Status, Verification: h.touringRepo.VerificationForEntity("appearance", appearance.ID),
+			Locality: locality, Status: appearance.Status, Verification: h.touringService.VerificationForEntity("appearance", appearance.ID),
 			ATURI: appearance.ATURI, CID: appearance.CID, PublisherDID: appearance.PublisherDID, PublisherHandle: appearance.PublisherHandle, ProjectionStatus: appearance.ProjectionStatus,
 		})
 	}
@@ -515,7 +465,7 @@ func matchesAppearanceEvent(event *scene.Event, appearance touring.Appearance, o
 }
 
 func (h *TouringHandlers) homeTerritoryAndLocality(actID string, eventPlaceID *string) (string, string) {
-	territories, err := h.touringRepo.ListHomeTerritories(actID)
+	territories, err := h.touringService.ListHomeTerritories(actID)
 	if err != nil {
 		return "", "unknown"
 	}
@@ -524,7 +474,7 @@ func (h *TouringHandlers) homeTerritoryAndLocality(actID string, eventPlaceID *s
 		if territory.Visibility != touring.VisibilityPublic || territory.ValidFrom.After(now) || (territory.ValidTo != nil && territory.ValidTo.Before(now)) {
 			continue
 		}
-		place, err := h.touringRepo.GetPlace(territory.PlaceID)
+		place, err := h.touringService.GetPlace(territory.PlaceID)
 		if err != nil {
 			continue
 		}
@@ -553,7 +503,7 @@ func tourResponseFromModel(tour touring.Tour) *touringTourResponse {
 }
 
 func (h *TouringHandlers) hostNames(eventID string) []string {
-	hosts, err := h.touringRepo.ListEventHosts(eventID)
+	hosts, err := h.touringService.ListEventHosts(eventID)
 	if err != nil {
 		return []string{}
 	}
@@ -565,7 +515,7 @@ func (h *TouringHandlers) hostNames(eventID string) []string {
 			}
 		}
 		if host.ProfileID != nil {
-			if profile, err := h.touringRepo.GetProfile(*host.ProfileID); err == nil {
+			if profile, err := h.touringService.GetProfile(*host.ProfileID); err == nil {
 				names = append(names, profile.CanonicalName)
 			}
 		}
@@ -574,7 +524,7 @@ func (h *TouringHandlers) hostNames(eventID string) []string {
 }
 
 func (h *TouringHandlers) eventHasSceneHost(eventID, sceneID string) bool {
-	hosts, err := h.touringRepo.ListEventHosts(eventID)
+	hosts, err := h.touringService.ListEventHosts(eventID)
 	if err != nil {
 		return false
 	}
@@ -680,4 +630,23 @@ func touringMethodNotAllowed(w http.ResponseWriter, r *http.Request) {
 func touringInternalError(w http.ResponseWriter, r *http.Request) {
 	ctx := middleware.SetErrorCode(r.Context(), ErrCodeInternal)
 	WriteError(w, ctx, http.StatusInternalServerError, ErrCodeInternal, "Failed to load touring data")
+}
+
+// RegisterTouringRoutes registers all touring-related routes on the given mux.
+// identityService is required for RequireCreator middleware on studio routes.
+func RegisterTouringRoutes(mux *http.ServeMux, deps *RouteDeps, h *TouringHandlers, identityService *identity.Service) {
+	requireCreator := RequireCreator(identityService)
+
+	mux.HandleFunc("/api/v1/studio/profiles", requireCreator(h.CreateProfile))
+	mux.HandleFunc("/api/v1/studio/places", requireCreator(h.CreatePlace))
+	mux.HandleFunc("/api/v1/studio/venues", requireCreator(h.CreateVenue))
+	mux.HandleFunc("/api/v1/studio/tours", requireCreator(h.CreateTour))
+	mux.HandleFunc("/api/v1/studio/appearances", requireCreator(h.CreateAppearance))
+
+	mux.HandleFunc("/profiles/", h.Profile)
+	mux.HandleFunc("/tours/", h.Tour)
+	mux.HandleFunc("/search/appearances", h.SearchAppearances)
+	mux.HandleFunc("/api/profiles/", h.Profile)
+	mux.HandleFunc("/api/tours/", h.Tour)
+	mux.HandleFunc("/api/search/appearances", h.SearchAppearances)
 }

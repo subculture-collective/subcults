@@ -66,20 +66,17 @@ describe('ThemeProvider', () => {
     expect(document.documentElement.classList.contains('dark')).toBe(true);
   });
 
-  it('listens for system theme changes (modern browsers)', () => {
+  it('does not keep a system-theme listener after initialization', () => {
     render(
       <ThemeProvider>
         <div>Test</div>
       </ThemeProvider>
     );
 
-    expect(mockMediaQuery.addEventListener).toHaveBeenCalledWith(
-      'change',
-      expect.any(Function)
-    );
+    expect(mockMediaQuery.addEventListener).not.toHaveBeenCalled();
   });
 
-  it('cleans up event listener on unmount (modern browsers)', () => {
+  it('does not require listener cleanup on unmount', () => {
     const { unmount } = render(
       <ThemeProvider>
         <div>Test</div>
@@ -88,13 +85,10 @@ describe('ThemeProvider', () => {
 
     unmount();
 
-    expect(mockMediaQuery.removeEventListener).toHaveBeenCalledWith(
-      'change',
-      expect.any(Function)
-    );
+    expect(mockMediaQuery.removeEventListener).not.toHaveBeenCalled();
   });
 
-  it('handles legacy browser API', () => {
+  it('initializes without using the legacy browser listener API', () => {
     // Remove modern addEventListener
     const mockMediaQueryLegacy = {
       ...mockMediaQuery,
@@ -112,10 +106,10 @@ describe('ThemeProvider', () => {
       </ThemeProvider>
     );
 
-    expect(mockMediaQueryLegacy.addListener).toHaveBeenCalledWith(expect.any(Function));
+    expect(mockMediaQueryLegacy.addListener).not.toHaveBeenCalled();
   });
 
-  it('cleans up legacy listener on unmount', () => {
+  it('does not require legacy listener cleanup', () => {
     const mockMediaQueryLegacy = {
       ...mockMediaQuery,
       addEventListener: undefined,
@@ -134,13 +128,12 @@ describe('ThemeProvider', () => {
 
     unmount();
 
-    expect(mockMediaQueryLegacy.removeListener).toHaveBeenCalledWith(expect.any(Function));
+    expect(mockMediaQueryLegacy.removeListener).not.toHaveBeenCalled();
   });
 
-  it('auto-switches theme based on system preference when no manual preference', () => {
-    // Start with no stored preference and mock system to prefer light
+  it('uses the system preference during initialization when no preference is stored', () => {
     localStorage.clear();
-    mockMediaQuery.matches = false;
+    mockMediaQuery.matches = true;
     
     render(
       <ThemeProvider>
@@ -148,21 +141,10 @@ describe('ThemeProvider', () => {
       </ThemeProvider>
     );
 
-    // Clear the localStorage that was set during initialization
-    // to simulate the scenario where user hasn't manually chosen
-    localStorage.removeItem('subcults-theme');
-
-    // Now simulate system theme change event
-    const changeHandler = mockMediaQuery.addEventListener.mock.calls[0][1] as (
-      e: MediaQueryListEvent
-    ) => void;
-    
-    changeHandler({ matches: true } as MediaQueryListEvent);
-
     expect(useThemeStore.getState().theme).toBe('dark');
   });
 
-  it('does not auto-switch when user has manual preference', () => {
+  it('keeps a manually stored preference during initialization', () => {
     localStorage.setItem('subcults-theme', 'light');
 
     render(
@@ -171,14 +153,6 @@ describe('ThemeProvider', () => {
       </ThemeProvider>
     );
 
-    // Simulate system theme change event
-    const changeHandler = mockMediaQuery.addEventListener.mock.calls[0][1] as (
-      e: MediaQueryListEvent
-    ) => void;
-    
-    changeHandler({ matches: true } as MediaQueryListEvent);
-
-    // Should stay light because user manually chose it
     expect(useThemeStore.getState().theme).toBe('light');
   });
 });

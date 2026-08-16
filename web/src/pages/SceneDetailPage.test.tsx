@@ -1,91 +1,58 @@
-/**
- * SceneDetailPage Component Tests
- * Tests scene detail display and user interactions
- */
-
-import { describe, it, expect } from 'vitest';
+import { QueryClientProvider } from '@tanstack/react-query';
 import { render, screen } from '@testing-library/react';
 import { createMemoryRouter, RouterProvider } from 'react-router-dom';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import { createTestQueryClient } from '../test/test-utils';
 import { SceneDetailPage } from './SceneDetailPage';
 
+const scene = {
+  id: 'scene-1',
+  name: 'South Side Frequencies',
+  description: 'Independent electronic music across Chicago.',
+  allow_precise: false,
+  coarse_geohash: 'dp3wj',
+  visibility: 'public',
+  tags: ['electronic', 'all-ages'],
+};
+
+function renderPage(sceneID = 'scene-1') {
+  const router = createMemoryRouter([{ path: '/scenes/:id', element: <SceneDetailPage /> }], {
+    initialEntries: [`/scenes/${sceneID}`],
+    future: { v7_startTransition: true, v7_relativeSplatPath: true },
+  });
+  return render(<QueryClientProvider client={createTestQueryClient()}><RouterProvider router={router} /></QueryClientProvider>);
+}
+
 describe('SceneDetailPage', () => {
-  const renderSceneDetailPage = (sceneId = '123') => {
-    const router = createMemoryRouter(
-      [
-        {
-          path: '/scenes/:id',
-          element: <SceneDetailPage />,
-        },
-      ],
-      {
-        initialEntries: [`/scenes/${sceneId}`],
-        future: {
-          v7_startTransition: true,
-          v7_relativeSplatPath: true,
-        },
-      }
-    );
+  afterEach(() => vi.unstubAllGlobals());
 
-    return render(<RouterProvider router={router} />);
-  };
-
-  describe('Rendering', () => {
-    it('should render scene detail heading', () => {
-      renderSceneDetailPage();
-      expect(screen.getByRole('heading', { name: /Scene Detail/i })).toBeInTheDocument();
-    });
-
-    it('should display scene ID from route params', () => {
-      renderSceneDetailPage('abc123');
-      expect(screen.getByText(/Scene ID: abc123/i)).toBeInTheDocument();
-    });
-
-    it('should display placeholder text', () => {
-      renderSceneDetailPage();
-      expect(screen.getByText(/Scene details will be displayed here/i)).toBeInTheDocument();
-    });
+  it('renders the resolved scene and disclosure-safe location label', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true, json: async () => scene }));
+    renderPage();
+    expect(await screen.findByRole('heading', { level: 1, name: scene.name })).toBeInTheDocument();
+    expect(screen.getByText(scene.description)).toBeInTheDocument();
+    expect(screen.getByText('Coarse community area')).toBeInTheDocument();
   });
 
-  describe('Route Parameters', () => {
-    it('should display different IDs based on route', () => {
-      renderSceneDetailPage('scene-456');
-      expect(screen.getByText(/Scene ID: scene-456/i)).toBeInTheDocument();
-    });
-
-    it('should handle numeric IDs', () => {
-      renderSceneDetailPage('999');
-      expect(screen.getByText(/Scene ID: 999/i)).toBeInTheDocument();
-    });
-
-    it('should handle UUID-like IDs', () => {
-      const uuid = '550e8400-e29b-41d4-a716-446655440000';
-      renderSceneDetailPage(uuid);
-      expect(screen.getByText(new RegExp(`Scene ID: ${uuid}`, 'i'))).toBeInTheDocument();
-    });
+  it('uses the route identifier when loading a scene', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({ ok: true, json: async () => ({ ...scene, id: 'abc123' }) });
+    vi.stubGlobal('fetch', fetchMock);
+    renderPage('abc123');
+    await screen.findByRole('heading', { name: scene.name });
+    expect(fetchMock).toHaveBeenCalledWith('/api/scenes/abc123', expect.objectContaining({ credentials: 'include' }));
   });
 
-  describe('Accessibility', () => {
-    it('should have proper heading hierarchy', () => {
-      renderSceneDetailPage();
-      
-      const heading = screen.getByRole('heading', { name: /Scene Detail/i });
-      expect(heading.tagName).toBe('H1');
-    });
-
-    it('should have readable text content', () => {
-      renderSceneDetailPage('123');
-      
-      const container = screen.getByText(/Scene ID: 123/i).parentElement;
-      expect(container).toBeInTheDocument();
-    });
+  it('renders tags and the related-date discovery link', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true, json: async () => scene }));
+    renderPage();
+    await screen.findByText('electronic');
+    expect(screen.getByText('all-ages')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Search related dates' })).toHaveAttribute('href', '/search?q=South%20Side%20Frequencies&type=events');
   });
 
-  describe('Layout', () => {
-    it('should apply padding to container', () => {
-      const { container } = renderSceneDetailPage();
-      
-      const mainDiv = container.querySelector('div');
-      expect(mainDiv).toHaveStyle({ padding: '2rem' });
-    });
+  it('renders the unavailable state for a missing scene', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: false, json: async () => ({}) }));
+    renderPage('missing');
+    expect(await screen.findByRole('heading', { name: 'Signal not found.' })).toBeInTheDocument();
   });
 });

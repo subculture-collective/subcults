@@ -4,6 +4,13 @@
  */
 
 import { createMemoryRouter, RouterProvider, RouteObject } from 'react-router-dom';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+
+export function createTestQueryClient() {
+  return new QueryClient({
+    defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+  });
+}
 
 /**
  * Create a memory router with v7 future flags enabled
@@ -31,5 +38,5 @@ export interface TestRouterProviderProps {
  * Wrapper component for tests using createTestRouter
  */
 export function TestRouterProvider({ router }: TestRouterProviderProps) {
-  return <RouterProvider router={router} />;
+  return <QueryClientProvider client={createTestQueryClient()}><RouterProvider router={router} /></QueryClientProvider>;
 }

@@ -13,7 +13,6 @@
  */
 
 import { useEffect, useRef, useCallback } from 'react';
-import { Button } from './Button';
 
 export interface ModalProps {
   /**
@@ -285,12 +284,23 @@ export function ConfirmModal({
       size="sm"
       footer={
         <>
-          <Button variant="ghost" onClick={onClose} disabled={isLoading}>
+          <button className="button-quiet" onClick={onClose} disabled={isLoading}>
             {cancelText}
-          </Button>
-          <Button variant={variant} onClick={onConfirm} isLoading={isLoading}>
+          </button>
+          <button
+            className={variant === 'danger' ? 'button-danger' : 'button-primary'}
+            onClick={onConfirm}
+            disabled={isLoading}
+          >
+            {isLoading && (
+              <span
+                className="inline-block animate-spin rounded-full h-4 w-4 border-2 border-current border-t-transparent"
+                role="status"
+                aria-label="Loading"
+              />
+            )}
             {confirmText}
-          </Button>
+          </button>
         </>
       }
     >

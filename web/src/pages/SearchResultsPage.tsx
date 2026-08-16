@@ -15,7 +15,7 @@ export function SearchResultsPage() {
   const requested = params.get('type');
   const type: ResultType = requested && ['scenes', 'events', 'artists', 'tours'].includes(requested) ? requested as ResultType : 'all';
   const searchState = useSearch({ limit: 30 });
-  const appearances = useQuery({ queryKey: ['search-appearance-index'], queryFn: ({ signal }) => getAppearances({}, signal) });
+  const appearances = useQuery({ queryKey: ['search-appearance-index', query], queryFn: ({ signal }) => getAppearances({ bbox: undefined as string | undefined }, signal), enabled: query.length > 0 && (type === 'all' || type === 'artists' || type === 'tours') });
   const { search, clear } = searchState;
   useEffect(() => { if (query) search(query); else clear(); }, [query, search, clear]);
   const items = useMemo<Item[]>(() => {

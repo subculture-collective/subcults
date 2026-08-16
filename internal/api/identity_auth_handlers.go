@@ -3,7 +3,6 @@ package api
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"net/http"
 	"strings"
 	"time"
@@ -128,8 +127,8 @@ func (h *IdentityAuthHandlers) RequestMagicLink(w http.ResponseWriter, r *http.R
 		return
 	}
 	if err := h.service.RequestMagicLink(r.Context(), request.Email, request.ReturnPath); err != nil {
-		if errors.Is(err, identity.ErrInvalidEmail) || errors.Is(err, identity.ErrInvalidReturnPath) {
-			WriteError(w, r.Context(), http.StatusBadRequest, "invalid_magic_link_request", err.Error())
+		if status, code, message, ok := MapDomainError(err); ok {
+			WriteError(w, r.Context(), status, code, message)
 			return
 		}
 		WriteError(w, r.Context(), http.StatusServiceUnavailable, "email_unavailable", "Access email could not be sent")
@@ -275,4 +274,50 @@ func writeData(w http.ResponseWriter, status int, data any) {
 func methodNotAllowed(w http.ResponseWriter, allowed string) {
 	w.Header().Set("Allow", allowed)
 	http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+}
+
+// RegisterIdentityRoutes registers all identity/auth-related routes on the given mux.
+func RegisterIdentityRoutes(mux *http.ServeMux, deps *RouteDeps, h *IdentityAuthHandlers) {
+	mux.HandleFunc("/api/v1/auth/magic-links", h.RequestMagicLink)
+	mux.HandleFunc("/api/v1/auth/magic-links/verify", h.VerifyMagicLink)
+	mux.HandleFunc("/api/v1/auth/refresh", h.Refresh)
+	mux.HandleFunc("/api/v1/auth/logout", h.Logout)
+	mux.HandleFunc("/api/v1/auth/profile", h.CompleteProfile)
+	mux.HandleFunc("/api/v1/me", h.Me)
+	mux.HandleFunc("/api/v1/creator-access", h.CreatorAccess)
+	mux.HandleFunc("/api/v1/admin/creator-access/", h.ReviewCreatorAccess)
+	mux.HandleFunc("/api/v1/admin/creator-access", h.ListCreatorAccess)
+
+	// Compatibility aliases are retained for the existing client during beta.
+	mux.HandleFunc("/api/auth/login", h.RequestMagicLink)
+	mux.HandleFunc("/api/auth/refresh", h.Refresh)
+	mux.HandleFunc("/api/auth/logout", h.Logout)
+	mux.HandleFunc("/api/auth/me", h.Me)
+}
+
+// RegisterATProtoRoutes registers all AT Protocol OAuth routes on the given mux.
+// Should only be called when atprotoOAuthHandlers is non-nil.
+// identityService is required for RequireCreator middleware on publish endpoint.
+func RegisterATProtoRoutes(mux *http.ServeMux, deps *RouteDeps, h *ATProtoOAuthHandlers, identityService *identity.Service) {
+	requireCreator := RequireCreator(identityService)
+
+	mux.HandleFunc("/api/v1/auth/atproto/client-metadata", h.ClientMetadata)
+	mux.HandleFunc("/api/v1/auth/atproto/jwks", h.JWKS)
+	mux.HandleFunc("/api/v1/auth/atproto/start", h.Start)
+	mux.HandleFunc("/api/v1/auth/atproto/callback", h.Callback)
+	mux.HandleFunc("/api/v1/auth/atproto/status", h.Status)
+	mux.HandleFunc("/api/v1/auth/atproto/upgrade", h.Upgrade)
+	mux.HandleFunc("/api/v1/auth/atproto/link", h.Unlink)
+	mux.HandleFunc("/api/v1/auth/atproto/provision", h.Provision)
+	mux.HandleFunc("/api/v1/auth/atproto/provision/status", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet {
+			w.Header().Set("Allow", http.MethodGet)
+			WriteError(w, r.Context(), http.StatusMethodNotAllowed, ErrCodeBadRequest, "Method not allowed")
+			return
+		}
+		h.Provision(w, r)
+	})
+	mux.HandleFunc("/api/v1/atproto/projections", h.Projection)
+	mux.HandleFunc("/api/v1/studio/atproto/publish", requireCreator(h.Publish))
+	mux.HandleFunc("/internal/atproto/tap", h.Sync)
 }

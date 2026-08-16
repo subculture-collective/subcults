@@ -18,7 +18,7 @@ describe('settingsStore', () => {
     localStorage.clear();
     // Reset store to initial state
     useSettingsStore.setState({ 
-      telemetryOptOut: false,
+      telemetryOptOut: true,
       sessionReplayOptIn: false,
     });
   });
@@ -31,7 +31,7 @@ describe('settingsStore', () => {
     it('starts with default settings when localStorage is empty', () => {
       const { result } = renderHook(() => useSettingsStore());
 
-      expect(result.current.telemetryOptOut).toBe(false);
+      expect(result.current.telemetryOptOut).toBe(true);
       expect(result.current.sessionReplayOptIn).toBe(false);
     });
 
@@ -60,7 +60,7 @@ describe('settingsStore', () => {
         result.current.initializeSettings();
       });
 
-      expect(result.current.telemetryOptOut).toBe(false);
+      expect(result.current.telemetryOptOut).toBe(true);
       expect(result.current.sessionReplayOptIn).toBe(false);
     });
 
@@ -73,7 +73,7 @@ describe('settingsStore', () => {
         result.current.initializeSettings();
       });
 
-      expect(result.current.telemetryOptOut).toBe(false);
+      expect(result.current.telemetryOptOut).toBe(true);
     });
   });
 
@@ -203,13 +203,13 @@ describe('settingsStore', () => {
     it('updates when opt-out state changes', () => {
       const { result } = renderHook(() => useTelemetryOptOut());
 
-      expect(result.current).toBe(false);
+      expect(result.current).toBe(true);
 
       act(() => {
-        useSettingsStore.getState().setTelemetryOptOut(true);
+        useSettingsStore.getState().setTelemetryOptOut(false);
       });
 
-      expect(result.current).toBe(true);
+      expect(result.current).toBe(false);
     });
   });
 

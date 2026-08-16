@@ -4,103 +4,6 @@ This directory contains the core design system components for the Subcults appli
 
 ## Components
 
-### Button
-
-Unified button component with multiple variants and states.
-
-**Variants:**
-
-- `primary` - Main action button (neon purple)
-- `secondary` - Secondary actions (subtle background)
-- `danger` - Destructive actions (red)
-- `ghost` - Minimal style, transparent background
-
-**Sizes:**
-
-- `sm` - Small (36px min height)
-- `md` - Medium (44px min height - touch-friendly default)
-- `lg` - Large (52px min height)
-
-**Features:**
-
-- Loading state with spinner
-- Disabled state
-- Full width option
-- Accessible focus indicators (WCAG AA)
-- Touch-friendly minimum sizes
-
-**Usage:**
-
-```tsx
-import { Button } from '@/components/ui';
-
-// Primary button
-<Button variant="primary" onClick={handleClick}>
-  Save Changes
-</Button>
-
-// Loading state
-<Button variant="primary" isLoading>
-  Processing...
-</Button>
-
-// Danger action
-<Button variant="danger" size="lg">
-  Delete Account
-</Button>
-```
-
----
-
-### Input
-
-Form input component with validation states and accessibility features.
-
-**Features:**
-
-- Label support with required indicator
-- Helper text
-- Error and success states
-- Clear focus indicators
-- Full width option
-- Accessible error messages via `aria-describedby`
-
-**Usage:**
-
-```tsx
-import { Input } from '@/components/ui';
-
-// Basic input
-<Input
-  label="Email"
-  type="email"
-  placeholder="you@example.com"
-  required
-/>
-
-// With validation
-<Input
-  label="Password"
-  type="password"
-  error="Password must be at least 8 characters"
-/>
-
-// With helper text
-<Input
-  label="Username"
-  helperText="Must be unique and 3-20 characters"
-/>
-
-// Success state
-<Input
-  label="Email"
-  value="verified@example.com"
-  success
-/>
-```
-
----
-
 ### Modal
 
 Dialog/modal component with focus management and accessibility.
@@ -305,8 +208,6 @@ All components have comprehensive test coverage:
 npm test -- ui/ --run
 
 # Run specific component tests
-npm test -- Button.test.tsx --run
-npm test -- Input.test.tsx --run
 npm test -- Modal.test.tsx --run
 npm test -- LoadingSpinner.test.tsx --run
 ```
@@ -315,50 +216,7 @@ npm test -- LoadingSpinner.test.tsx --run
 
 ## Migration Guide
 
-### Converting from Inline Styles
-
-**Before:**
-
-```tsx
-<button
-  style={{
-    padding: '0.75rem 1.5rem',
-    backgroundColor: '#3b82f6',
-    color: 'white',
-    borderRadius: '0.5rem',
-  }}
->
-  Click me
-</button>
-```
-
-**After:**
-
-```tsx
-import { Button } from '@/components/ui';
-
-<Button variant="primary">Click me</Button>;
-```
-
-### Converting Custom Buttons
-
-**Before:**
-
-```tsx
-<button className={`custom-btn ${isPrimary ? 'primary' : 'secondary'}`}>
-  {isLoading ? 'Loading...' : 'Submit'}
-</button>
-```
-
-**After:**
-
-```tsx
-import { Button } from '@/components/ui';
-
-<Button variant={isPrimary ? 'primary' : 'secondary'} isLoading={isLoading}>
-  Submit
-</Button>;
-```
+Pages use CSS utility classes (`button-primary`, `button-secondary`, `button-quiet`, `button-danger`, `field`) defined in `index.css` instead of dedicated button or input components.
 
 ---
 

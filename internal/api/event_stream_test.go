@@ -21,7 +21,7 @@ func TestGetEvent_WithActiveStream(t *testing.T) {
 	auditRepo := audit.NewInMemoryRepository()
 	rsvpRepo := scene.NewInMemoryRSVPRepository()
 	streamRepo := stream.NewInMemorySessionRepository()
-	handlers := NewEventHandlers(eventRepo, sceneRepo, auditRepo, rsvpRepo, streamRepo, nil)
+	handlers := NewEventHandlers(scene.NewService(sceneRepo, eventRepo, rsvpRepo), auditRepo, streamRepo, nil)
 
 	// Create test event
 	eventID := uuid.New().String()
@@ -84,7 +84,7 @@ func TestGetEvent_WithEndedStream(t *testing.T) {
 	auditRepo := audit.NewInMemoryRepository()
 	rsvpRepo := scene.NewInMemoryRSVPRepository()
 	streamRepo := stream.NewInMemorySessionRepository()
-	handlers := NewEventHandlers(eventRepo, sceneRepo, auditRepo, rsvpRepo, streamRepo, nil)
+	handlers := NewEventHandlers(scene.NewService(sceneRepo, eventRepo, rsvpRepo), auditRepo, streamRepo, nil)
 
 	// Create test event
 	eventID := uuid.New().String()
@@ -141,7 +141,7 @@ func TestGetEvent_WithNoStream(t *testing.T) {
 	auditRepo := audit.NewInMemoryRepository()
 	rsvpRepo := scene.NewInMemoryRSVPRepository()
 	streamRepo := stream.NewInMemorySessionRepository()
-	handlers := NewEventHandlers(eventRepo, sceneRepo, auditRepo, rsvpRepo, streamRepo, nil)
+	handlers := NewEventHandlers(scene.NewService(sceneRepo, eventRepo, rsvpRepo), auditRepo, streamRepo, nil)
 
 	// Create test event
 	eventID := uuid.New().String()
@@ -188,7 +188,7 @@ func TestSearchEvents_WithActiveStreams(t *testing.T) {
 	auditRepo := audit.NewInMemoryRepository()
 	rsvpRepo := scene.NewInMemoryRSVPRepository()
 	streamRepo := stream.NewInMemorySessionRepository()
-	handlers := NewEventHandlers(eventRepo, sceneRepo, auditRepo, rsvpRepo, streamRepo, nil)
+	handlers := NewEventHandlers(scene.NewService(sceneRepo, eventRepo, rsvpRepo), auditRepo, streamRepo, nil)
 
 	baseTime := time.Now().Add(24 * time.Hour)
 
@@ -307,7 +307,7 @@ func TestSearchEvents_BatchQueryPerformance(t *testing.T) {
 	auditRepo := audit.NewInMemoryRepository()
 	rsvpRepo := scene.NewInMemoryRSVPRepository()
 	streamRepo := stream.NewInMemorySessionRepository()
-	handlers := NewEventHandlers(eventRepo, sceneRepo, auditRepo, rsvpRepo, streamRepo, nil)
+	handlers := NewEventHandlers(scene.NewService(sceneRepo, eventRepo, rsvpRepo), auditRepo, streamRepo, nil)
 
 	baseTime := time.Now().Add(24 * time.Hour)
 

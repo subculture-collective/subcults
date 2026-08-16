@@ -106,7 +106,7 @@ describe('authStore', () => {
       await authStore.logout();
 
       expect(global.fetch).toHaveBeenCalledWith(
-        '/api/auth/logout',
+        '/api/v1/auth/logout',
         expect.objectContaining({
           method: 'POST',
           credentials: 'include',
@@ -157,6 +157,7 @@ describe('authStore', () => {
 
   describe('initialize', () => {
     it('attempts to refresh token on initialization', async () => {
+      authStore.resetForTesting();
       const mockUser = { did: 'did:example:123', role: 'user' as const };
       const mockToken = 'mock-access-token';
 
@@ -164,15 +165,14 @@ describe('authStore', () => {
         ok: true,
         status: 200,
         json: async () => ({
-          accessToken: mockToken,
-          user: mockUser,
+          data: { access_token: mockToken, user: mockUser },
         }),
       });
 
       await authStore.initialize();
 
       expect(global.fetch).toHaveBeenCalledWith(
-        '/api/auth/refresh',
+        '/api/v1/auth/refresh',
         expect.objectContaining({
           method: 'POST',
           credentials: 'include',
@@ -187,6 +187,7 @@ describe('authStore', () => {
     });
 
     it('sets isLoading to false when no valid session', async () => {
+      authStore.resetForTesting();
       global.fetch = vi.fn().mockResolvedValue({
         ok: false,
         status: 401,
@@ -209,6 +210,7 @@ describe('useAuth hook', () => {
       status: 200,
     });
     await authStore.logout();
+    authStore.resetForTesting();
     vi.clearAllMocks();
   });
 
@@ -286,6 +288,7 @@ describe('Token refresh with exponential backoff', () => {
       status: 200,
     });
     await authStore.logout();
+    authStore.resetForTesting();
     vi.clearAllMocks();
     vi.useFakeTimers();
   });
@@ -310,8 +313,7 @@ describe('Token refresh with exponential backoff', () => {
         ok: true,
         status: 200,
         json: async () => ({
-          accessToken: 'new-token',
-          user: { did: 'did:example:123', role: 'user' },
+          data: { access_token: 'new-token', user: { did: 'did:example:123', role: 'user' } },
         }),
       });
     });

@@ -18,14 +18,10 @@ import (
 func TestSearchEventsReturnsPublicOccurrenceForCoarseOnlyEvent(t *testing.T) {
 	eventRepo := scene.NewInMemoryEventRepository()
 	sceneRepo := scene.NewInMemorySceneRepository()
-	handlers := NewEventHandlers(
-		eventRepo,
-		sceneRepo,
-		audit.NewInMemoryRepository(),
-		scene.NewInMemoryRSVPRepository(),
-		stream.NewInMemorySessionRepository(),
-		nil,
-	)
+	rsvpRepo := scene.NewInMemoryRSVPRepository()
+	auditRepo := audit.NewInMemoryRepository()
+	streamRepo := stream.NewInMemorySessionRepository()
+	handlers := NewEventHandlers(scene.NewService(sceneRepo, eventRepo, rsvpRepo), auditRepo, streamRepo, nil)
 
 	now := time.Now().UTC().Truncate(time.Second)
 	event := &scene.Event{
@@ -74,7 +70,7 @@ func TestSearchEvents_Success(t *testing.T) {
 	auditRepo := audit.NewInMemoryRepository()
 	rsvpRepo := scene.NewInMemoryRSVPRepository()
 	streamRepo := stream.NewInMemorySessionRepository()
-	handlers := NewEventHandlers(eventRepo, sceneRepo, auditRepo, rsvpRepo, streamRepo, nil)
+	handlers := NewEventHandlers(scene.NewService(sceneRepo, eventRepo, rsvpRepo), auditRepo, streamRepo, nil)
 
 	// Create test events at different locations and times
 	baseTime := time.Now().Add(24 * time.Hour)
@@ -190,7 +186,7 @@ func TestSearchEvents_BboxValidation(t *testing.T) {
 	auditRepo := audit.NewInMemoryRepository()
 	rsvpRepo := scene.NewInMemoryRSVPRepository()
 	streamRepo := stream.NewInMemorySessionRepository()
-	handlers := NewEventHandlers(eventRepo, sceneRepo, auditRepo, rsvpRepo, streamRepo, nil)
+	handlers := NewEventHandlers(scene.NewService(sceneRepo, eventRepo, rsvpRepo), auditRepo, streamRepo, nil)
 
 	baseTime := time.Now().Add(24 * time.Hour)
 	from := baseTime.Format(time.RFC3339)
@@ -277,7 +273,7 @@ func TestSearchEvents_TimeRangeValidation(t *testing.T) {
 	auditRepo := audit.NewInMemoryRepository()
 	rsvpRepo := scene.NewInMemoryRSVPRepository()
 	streamRepo := stream.NewInMemorySessionRepository()
-	handlers := NewEventHandlers(eventRepo, sceneRepo, auditRepo, rsvpRepo, streamRepo, nil)
+	handlers := NewEventHandlers(scene.NewService(sceneRepo, eventRepo, rsvpRepo), auditRepo, streamRepo, nil)
 
 	baseTime := time.Now().Add(24 * time.Hour)
 
@@ -370,7 +366,7 @@ func TestSearchEvents_Pagination(t *testing.T) {
 	auditRepo := audit.NewInMemoryRepository()
 	rsvpRepo := scene.NewInMemoryRSVPRepository()
 	streamRepo := stream.NewInMemorySessionRepository()
-	handlers := NewEventHandlers(eventRepo, sceneRepo, auditRepo, rsvpRepo, streamRepo, nil)
+	handlers := NewEventHandlers(scene.NewService(sceneRepo, eventRepo, rsvpRepo), auditRepo, streamRepo, nil)
 
 	baseTime := time.Now().Add(24 * time.Hour)
 
@@ -472,7 +468,7 @@ func TestSearchEvents_LimitValidation(t *testing.T) {
 	auditRepo := audit.NewInMemoryRepository()
 	rsvpRepo := scene.NewInMemoryRSVPRepository()
 	streamRepo := stream.NewInMemorySessionRepository()
-	handlers := NewEventHandlers(eventRepo, sceneRepo, auditRepo, rsvpRepo, streamRepo, nil)
+	handlers := NewEventHandlers(scene.NewService(sceneRepo, eventRepo, rsvpRepo), auditRepo, streamRepo, nil)
 
 	baseTime := time.Now().Add(24 * time.Hour)
 	from := baseTime.Format(time.RFC3339)
@@ -527,7 +523,7 @@ func TestSearchEvents_EmptyResults(t *testing.T) {
 	auditRepo := audit.NewInMemoryRepository()
 	rsvpRepo := scene.NewInMemoryRSVPRepository()
 	streamRepo := stream.NewInMemorySessionRepository()
-	handlers := NewEventHandlers(eventRepo, sceneRepo, auditRepo, rsvpRepo, streamRepo, nil)
+	handlers := NewEventHandlers(scene.NewService(sceneRepo, eventRepo, rsvpRepo), auditRepo, streamRepo, nil)
 
 	baseTime := time.Now().Add(24 * time.Hour)
 	from := baseTime.Format(time.RFC3339)
@@ -600,7 +596,7 @@ func TestSearchEvents_WithTrustRanking(t *testing.T) {
 	trustStore.SetScore("scene-low-trust", 0.3)
 	trustStore.SetScore("scene-high-trust", 0.9)
 
-	handlers := NewEventHandlers(eventRepo, sceneRepo, auditRepo, rsvpRepo, streamRepo, trustStore)
+	handlers := NewEventHandlers(scene.NewService(sceneRepo, eventRepo, rsvpRepo), auditRepo, streamRepo, trustStore)
 
 	baseTime := time.Now().Add(24 * time.Hour)
 
@@ -687,7 +683,7 @@ func TestSearchEvents_TrustRankingWithPagination(t *testing.T) {
 	trustStore.SetScore("scene2", 0.7)
 	trustStore.SetScore("scene3", 0.9)
 
-	handlers := NewEventHandlers(eventRepo, sceneRepo, auditRepo, rsvpRepo, streamRepo, trustStore)
+	handlers := NewEventHandlers(scene.NewService(sceneRepo, eventRepo, rsvpRepo), auditRepo, streamRepo, trustStore)
 
 	baseTime := time.Now().Add(24 * time.Hour)
 
@@ -780,7 +776,7 @@ func TestSearchEvents_TrustStoreError(t *testing.T) {
 	// Create a failing trust store
 	trustStore := &failingTrustStore{}
 
-	handlers := NewEventHandlers(eventRepo, sceneRepo, auditRepo, rsvpRepo, streamRepo, trustStore)
+	handlers := NewEventHandlers(scene.NewService(sceneRepo, eventRepo, rsvpRepo), auditRepo, streamRepo, trustStore)
 
 	baseTime := time.Now().Add(24 * time.Hour)
 
@@ -855,7 +851,7 @@ func TestSearchEvents_StatusSceneOrganizerAndParentScene(t *testing.T) {
 	auditRepo := audit.NewInMemoryRepository()
 	rsvpRepo := scene.NewInMemoryRSVPRepository()
 	streamRepo := stream.NewInMemorySessionRepository()
-	handlers := NewEventHandlers(eventRepo, sceneRepo, auditRepo, rsvpRepo, streamRepo, nil)
+	handlers := NewEventHandlers(scene.NewService(sceneRepo, eventRepo, rsvpRepo), auditRepo, streamRepo, nil)
 
 	baseTime := time.Now().Add(24 * time.Hour)
 	organizerDID := "did:plc:organizer123"
@@ -1006,7 +1002,7 @@ func TestSearchEvents_BatchSceneFetchFallbackToGetByID(t *testing.T) {
 	auditRepo := audit.NewInMemoryRepository()
 	rsvpRepo := scene.NewInMemoryRSVPRepository()
 	streamRepo := stream.NewInMemorySessionRepository()
-	handlers := NewEventHandlers(eventRepo, sceneRepo, auditRepo, rsvpRepo, streamRepo, nil)
+	handlers := NewEventHandlers(scene.NewService(sceneRepo, eventRepo, rsvpRepo), auditRepo, streamRepo, nil)
 
 	baseTime := time.Now().Add(24 * time.Hour)
 	parentScene := &scene.Scene{

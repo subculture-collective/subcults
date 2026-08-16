@@ -111,8 +111,8 @@ describe('MapView', () => {
     // Should show error container instead of map
     const errorContainer = getByTestId('map-error');
     expect(errorContainer).toBeDefined();
-    expect(getByText('Map Unavailable')).toBeDefined();
-    expect(getByText(/VITE_MAPTILER_API_KEY/)).toBeDefined();
+    expect(getByText('Map temporarily unavailable')).toBeDefined();
+    expect(getByText(/Use list view/)).toBeDefined();
   });
 
   it('sets up ResizeObserver and observes container', async () => {
